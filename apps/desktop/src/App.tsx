@@ -83,6 +83,11 @@ function isValidGdp(s: string): boolean {
   const n = Number(s);
   return Number.isFinite(n) && n > 0;
 }
+// growth and inflation may be negative (recession, deflation)
+function isValidSignedPercent(s: string): boolean {
+  const n = Number(s);
+  return Number.isFinite(n) && n >= -100 && n <= 100;
+}
 function isValidPercent(s: string): boolean {
   const n = Number(s);
   return Number.isFinite(n) && n >= 0 && n <= 100;
@@ -206,7 +211,7 @@ function NewWorldScreen({
   const hasInvalid = useMemo(() => {
     if (!isValidCash(startingCash)) return true;
     for (const r of rows) {
-      if (!isValidGdp(r.gdpStr) || !isValidPercent(r.growthStr) || !isValidPercent(r.inflationStr) || !isValidPercent(r.unemploymentStr)) {
+      if (!isValidGdp(r.gdpStr) || !isValidSignedPercent(r.growthStr) || !isValidSignedPercent(r.inflationStr) || !isValidPercent(r.unemploymentStr)) {
         return true;
       }
     }
@@ -267,8 +272,8 @@ function NewWorldScreen({
       return;
     }
     for (const r of rows) {
-      if (!isValidGdp(r.gdpStr) || !isValidPercent(r.growthStr) || !isValidPercent(r.inflationStr) || !isValidPercent(r.unemploymentStr)) {
-        setError("Correct highlighted fields before creating. GDP must be > 0 and percent fields 0-100.");
+      if (!isValidGdp(r.gdpStr) || !isValidSignedPercent(r.growthStr) || !isValidSignedPercent(r.inflationStr) || !isValidPercent(r.unemploymentStr)) {
+        setError("Correct highlighted fields before creating. GDP must be > 0 and growth and inflation -100 to 100, unemployment 0-100.");
         return;
       }
     }
@@ -412,8 +417,8 @@ function NewWorldScreen({
                     <tbody>
                       {rows.map((r) => {
                         const gdpInvalid = !isValidGdp(r.gdpStr);
-                        const growthInvalid = !isValidPercent(r.growthStr);
-                        const inflationInvalid = !isValidPercent(r.inflationStr);
+                        const growthInvalid = !isValidSignedPercent(r.growthStr);
+                        const inflationInvalid = !isValidSignedPercent(r.inflationStr);
                         const unemploymentInvalid = !isValidPercent(r.unemploymentStr);
                         return (
                           <tr key={r.id}>

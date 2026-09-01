@@ -49,9 +49,10 @@ function validateCheatOp(op: CheatOp, world: WorldState): void {
         // outputGap is a level; allow finite range inclusive, but require finite only per minimal contract
         // we enforce finite already; no additional 0-1 clamp for output gap
       } else {
-        // growthRate, inflationRate, unemploymentRate are fractions in [0,1]
-        if (op.value < 0 || op.value > 1) {
-          throw new Error(`${field} must be in [0,1], got ${String(op.value)}`);
+        // fractions; growth and inflation may be negative, unemployment cannot
+        const min = field === "unemploymentRate" ? 0 : -1;
+        if (op.value < min || op.value > 1) {
+          throw new Error(`${field} must be in [${min},1], got ${String(op.value)}`);
         }
       }
       break;

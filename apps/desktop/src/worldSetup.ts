@@ -54,12 +54,14 @@ function validateOverrides(overrides: WorldOverrides): void {
           throw new Error(`countries["${countryId}"].gdp must be a finite number > 0, got ${String(v)}`);
         }
       }
-      // rates — fractions in [0,1]
+      // rates are fractions; growth and inflation may be negative (recession,
+      // deflation), unemployment cannot
       for (const field of ["growthRate", "inflationRate", "unemploymentRate"] as const) {
         const val = rec[field];
         if (val !== undefined) {
-          if (!isFiniteNumber(val) || (val as number) < 0 || (val as number) > 1) {
-            throw new Error(`countries["${countryId}"].${field} must be a finite number in [0,1], got ${String(val)}`);
+          const min = field === "unemploymentRate" ? 0 : -1;
+          if (!isFiniteNumber(val) || (val as number) < min || (val as number) > 1) {
+            throw new Error(`countries["${countryId}"].${field} must be a finite number in [${min},1], got ${String(val)}`);
           }
         }
       }
