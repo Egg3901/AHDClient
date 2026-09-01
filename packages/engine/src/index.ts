@@ -7,4 +7,6 @@ export { rngFromSeed, rngFromState } from "./rng.js";
 export type { WorldRng, RngState } from "./rng.js";
 export { dateForTurn, eraForDate, addDaysIso, START_DATE, DAYS_PER_TURN } from "./calendar.js";
 export type { TurnPhase, TurnReport, PhaseTiming } from "./phases/types.js";
+export * from "./npp/nameGenerator.js";
+export * from "./npp/nameEra.js";
 export type * from "./types.js";
