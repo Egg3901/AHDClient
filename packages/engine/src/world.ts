@@ -8,7 +8,7 @@ import {
   getEraCommodityBasePrice,
 } from "./commodity/constants.js";
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -276,6 +276,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     politicians,
     charters: [],
     caucuses: [],
+    endorsements: [],
     commodityPrices,
     extractionContracts: [],
     regions,
@@ -295,6 +296,11 @@ export function createWorld(options: NewWorldOptions): WorldState {
       favorability: 50,
       infamy: 0,
       actionCooldowns: {},
+      partyId: null,
+      partyJoinedTurn: null,
+      lastPartySwitchTurn: null,
+      purgeRejoinBlocks: [],
+      caucusId: null,
     },
     news: [{ turn: 0, date: pack.era.startDate, headline: "A new game begins." }],
   };

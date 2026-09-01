@@ -22,7 +22,14 @@ export type ActionId =
   | "canvass"
   | "organize"
   | "pressureBoost"
-  | "investInfluence";
+  | "investInfluence"
+  | "joinParty"
+  | "leaveParty"
+  | "foundParty"
+  | "createCaucus"
+  | "joinCaucus"
+  | "leaveCaucus"
+  | "endorse";
 
 // Costs mirror mainline's dynamic tier functions but collapsed to neutral
 // goldens for solo's simpler state (no per-state GDP tier). Cited.
@@ -198,6 +205,76 @@ export const ACTION_CATALOG: Record<ActionId, ActionCatalogEntry> = {
     cooldown: 0,
     fundCost: 0,
     systems: ["partyInfluence"],
+    status: "available",
+  },
+  joinParty: {
+    id: "joinParty",
+    name: "Join Party",
+    description: "Join a political party. Requires 24-turn switch cooldown and no purge block. Costs 2 AP. Cites src/lib/parties/antiAbuseGuards.ts PARTY_SWITCH_COOLDOWN_MS 24h -> 24 turns and PURGE_REJOIN_COOLDOWN_TURNS=24.",
+    baseCost: 2,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["party/membership"],
+    status: "available",
+  },
+  leaveParty: {
+    id: "leaveParty",
+    name: "Leave Party",
+    description: "Leave current party and become independent. Clears caucus membership and withdraws misaligned endorsements per src/app/api/country/[code]/parties/[id]/leave/route.ts.",
+    baseCost: 1,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["party/membership"],
+    status: "available",
+  },
+  foundParty: {
+    id: "foundParty",
+    name: "Found Party",
+    description: "Found a new party via charter machinery (W18). Creates a Party row + ratified Charter, auto-joins founder. Cost 8 AP + 100k funds. Cites src/lib/charters/draftCharter.ts + ratifyCharter.ts and CHARTER_DEADLINE_TURNS=14.",
+    baseCost: 8,
+    cooldown: 0,
+    fundCost: 100_000,
+    systems: ["party/charter"],
+    status: "available",
+  },
+  createCaucus: {
+    id: "createCaucus",
+    name: "Create Caucus",
+    description: "Create a caucus inside your current party. Requires party membership, caucusId null. Cost 4 AP + 25k funds, taxRate 0-5% per src/lib/db/types/caucus.ts.",
+    baseCost: 4,
+    cooldown: 0,
+    fundCost: 25_000,
+    systems: ["caucus"],
+    status: "available",
+  },
+  joinCaucus: {
+    id: "joinCaucus",
+    name: "Join Caucus",
+    description: "Join an existing caucus in your party. Requires same party, not already in a caucus. Cost 2 AP per src/app/api/country/[code]/parties/[id]/caucuses/[slug]/members/route.ts.",
+    baseCost: 2,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["caucus"],
+    status: "available",
+  },
+  leaveCaucus: {
+    id: "leaveCaucus",
+    name: "Leave Caucus",
+    description: "Leave current caucus. Cost 1 AP.",
+    baseCost: 1,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["caucus"],
+    status: "available",
+  },
+  endorse: {
+    id: "endorse",
+    name: "Endorse",
+    description: "Endorse a party or politician. Active endorsement gives +3 support to candidateSupports (SUPPORT_ENDORSEMENT_BUMP=3 per src/lib/electionEngine/electionFormulaFactors.ts). Sweep withdraws cross-party endorsements on switch.",
+    baseCost: 2,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["endorsement/support"],
     status: "available",
   },
 };

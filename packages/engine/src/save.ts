@@ -433,5 +433,34 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 10;
   }
+  // v10 -> v11: W36 membership, caucuses, endorsements
+  if (save.schemaVersion < 11) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const player = w["player"] as Record<string, unknown> | undefined;
+    if (player && typeof player === "object") {
+      if (!("partyId" in player) || (player["partyId"] !== null && typeof player["partyId"] !== "string")) {
+        if (player["partyId"] === undefined) player["partyId"] = null;
+      }
+      if (typeof player["partyJoinedTurn"] !== "number" && player["partyJoinedTurn"] !== null) player["partyJoinedTurn"] = null;
+      if (typeof player["lastPartySwitchTurn"] !== "number" && player["lastPartySwitchTurn"] !== null) player["lastPartySwitchTurn"] = null;
+      if (!Array.isArray(player["purgeRejoinBlocks"])) player["purgeRejoinBlocks"] = [];
+      if (!("caucusId" in player) || (player["caucusId"] !== null && typeof player["caucusId"] !== "string")) {
+        if (player["caucusId"] === undefined) player["caucusId"] = null;
+      }
+      // Backfill missing membership fields for pre-v11 saves where player had no partyId
+      if (player["partyId"] === undefined) player["partyId"] = null;
+    }
+    if (!Array.isArray(w["endorsements"])) w["endorsements"] = [];
+    // Ensure caucuses memberIds exists (already in v6 but enforce)
+    const caucuses = w["caucuses"] as Array<Record<string, unknown>> | undefined;
+    if (Array.isArray(caucuses)) {
+      for (const c of caucuses) {
+        if (!Array.isArray(c["memberIds"])) c["memberIds"] = [];
+        if (typeof c["taxRate"] !== "number") c["taxRate"] = 0;
+        if (typeof c["treasury"] !== "number") c["treasury"] = 0;
+      }
+    }
+    save.world.meta.schemaVersion = 11;
+  }
   return save.world;
 }

@@ -10,10 +10,22 @@ import { fundraiseYield } from "./fundGeneration.js";
 import { DOLLARS_PER_TURNOUT_POINT } from "../support/constants.js";
 import { applyBoost, calculateAlignmentMultiplier, getVoterGroups, DEFAULT_GOTV_CATEGORY } from "../support/turnout.js";
 import { decayPressure } from "../support/pressure.js";
+import * as Membership from "../membership.js";
+import * as Caucus from "../caucus.js";
+import * as Endorsement from "../endorsement.js";
 
 export type ExecuteActionParams = {
   regionId?: string;
   amount?: number; // for convertCash
+  partyId?: string;
+  caucusId?: string;
+  caucusName?: string;
+  caucusTaxRate?: number;
+  foundPartyName?: string;
+  foundPartyAbbr?: string;
+  endorsedId?: string;
+  endorsedType?: "party" | "politician";
+  endorsementId?: string;
 };
 
 export type ExecuteActionResult =
@@ -100,6 +112,26 @@ export function executeAction(
   if ((actionId === "canvass" || actionId === "organize" || actionId === "pressureBoost") && !params.regionId) {
     return { ok: false, error: `Action ${actionId} requires a regionId` };
   }
+  // Membership eligibility: party actions require membership (ports mainline party actions gating)
+  const membershipGated = new Set(["organize", "pressureBoost", "investInfluence", "createCaucus", "joinCaucus", "leaveCaucus", "endorse"]);
+  if (found.kind === "player" && membershipGated.has(actionId)) {
+    const pid = (world.player as unknown as { partyId: string | null }).partyId;
+    if (actionId === "createCaucus" || actionId === "joinCaucus" || actionId === "leaveCaucus") {
+      // handled via caucus helpers but still require party
+      if (!pid && actionId !== "leaveCaucus") {
+        // leaveCaucus also requires membership indirectly but caucus helper will error
+      }
+    }
+    if (actionId === "organize" || actionId === "pressureBoost" || actionId === "investInfluence") {
+      if (!pid) return { ok: false, error: `Action ${actionId} requires party membership` };
+    }
+    if (actionId === "endorse" && !pid) return { ok: false, error: "Must be a party member to endorse" };
+  }
+  if (actionId === "joinParty" && !params.partyId) return { ok: false, error: "joinParty requires partyId" };
+  if (actionId === "foundParty" && (!params.foundPartyName || !params.foundPartyAbbr)) return { ok: false, error: "foundParty requires foundPartyName and foundPartyAbbr" };
+  if (actionId === "createCaucus" && !params.caucusName) return { ok: false, error: "createCaucus requires caucusName" };
+  if (actionId === "joinCaucus" && !params.caucusId) return { ok: false, error: "joinCaucus requires caucusId" };
+  if (actionId === "endorse" && !params.endorsedId) return { ok: false, error: "endorse requires endorsedId" };
 
   // Deduct action points + cooldown stamp
   actor.actions -= cost;
@@ -211,6 +243,95 @@ export function executeAction(
     // bonusActions consumed by actionRefresh; add directly to actions for immediacy
     (actor as unknown as { actions: number }).actions += 2;
     return { ok: true, message: "Invested 10 influence for +2 actions." };
+  }
+  if (actionId === "joinParty") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can join parties" };
+    // Pre-charge already done; refund on failure
+    const res = Membership.joinParty(world, params.partyId!);
+    if (!res.ok) {
+      actor.actions += cost;
+      actor.funds += fundCost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: res.error };
+    }
+    return { ok: true, message: `Joined party ${params.partyId}` };
+  }
+  if (actionId === "leaveParty") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can leave parties" };
+    const res = Membership.leaveParty(world);
+    if (!res.ok) {
+      actor.actions += cost;
+      actor.funds += fundCost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: res.error };
+    }
+    return { ok: true, message: "Left party" };
+  }
+  if (actionId === "foundParty") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can found parties" };
+    const res = Membership.foundParty(world, { name: params.foundPartyName!, abbreviation: params.foundPartyAbbr! });
+    if (!res.ok) {
+      actor.actions += cost;
+      // funds not yet debited via membership? we already debited via catalog fundCost; need to compensate
+      actor.funds += fundCost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: res.error };
+    }
+    // Membership.foundParty already deducted FOUND_PARTY_FUND_COST which equals catalog fundCost; we double-debited.
+    // Refund one copy: catalog debited fundCost, so restore.
+    actor.funds += fundCost;
+    // Now apply the single correct deduction via membership (already done). So we keep funds as is after refund.
+    // But membership deducted from player.funds directly; we need to undo catalog's deduction and keep membership's.
+    // We refunded catalog, so net is membership deduction only. Correct.
+    return { ok: true, message: `Founded party ${res.partyId}` };
+  }
+  if (actionId === "createCaucus") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can create caucuses" };
+    const taxRate = params.caucusTaxRate ?? 0;
+    const res = Caucus.createCaucus(world, params.caucusName!, taxRate);
+    if (!res.ok) {
+      actor.actions += cost;
+      actor.funds += fundCost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: res.error };
+    }
+    // createCaucus already deducted its own fund cost (same as catalog); fix double debit
+    actor.funds += fundCost;
+    return { ok: true, message: `Created caucus ${res.caucusId}` };
+  }
+  if (actionId === "joinCaucus") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can join caucuses" };
+    const res = Caucus.joinCaucus(world, params.caucusId!);
+    if (!res.ok) {
+      actor.actions += cost;
+      actor.funds += fundCost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: res.error };
+    }
+    return { ok: true, message: `Joined caucus ${params.caucusId}` };
+  }
+  if (actionId === "leaveCaucus") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can leave caucuses" };
+    const res = Caucus.leaveCaucus(world);
+    if (!res.ok) {
+      actor.actions += cost;
+      actor.funds += fundCost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: res.error };
+    }
+    return { ok: true, message: "Left caucus" };
+  }
+  if (actionId === "endorse") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can endorse" };
+    const endorsedType = params.endorsedType ?? "politician";
+    const res = Endorsement.endorse(world, params.endorsedId!, endorsedType);
+    if (!res.ok) {
+      actor.actions += cost;
+      actor.funds += fundCost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: res.error };
+    }
+    return { ok: true, message: `Endorsed ${params.endorsedId}` };
   }
 
   return { ok: false, error: `No effect for ${actionId}` };

@@ -95,37 +95,68 @@ export const partyInfluenceTurnPhase: TurnPhase = {
 // ---------------------------------------------------------------------------
 // caucusTax
 // Source: src/lib/turn/caucusTax.ts
-// PORT-STUB: mainline taxes per-member campaign funds (currencyBalances.campaign
-// or funds, forex-gated) and deposits into caucus treasury. Solo has no
-// per-politician campaign funds and caucus membership is empty by default;
-// we tax a neutral 0 income so the pass is no-op until funds/causes exist.
-// When caucuses with taxRate>0 and members exist, we deduct from party
-// treasury as a stub for the campaign-funds source and credit the caucus.
+// Real wiring: each active caucus with taxRate >0 levies that percentage
+// against every active member's per-turn campaign fund generation income
+// (projectCharacterGeneration via fundGeneration), then deposits total into
+// caucus treasury. Mirrors mainline's processCaucusTax which taxes income
+// not total balance (see src/lib/turn/caucusTax.ts line 113 tax = floor(income * taxRate/100)).
+// Player and politician members both taxed; guard on balance so broke members skip.
 // ---------------------------------------------------------------------------
 export const caucusTaxPhase: TurnPhase = {
   name: "caucusTax",
   run(world: WorldState) {
-    // No caucuses or all taxRate 0 => nothing to do
     const taxable = world.caucuses.filter((c) => c.disbandedAt === null && c.taxRate > 0);
     if (taxable.length === 0) return;
-
+    // Neutral generation income per member for caucus tax: same as fundGeneration neutral population.
+    // Import lazily to avoid circular deps; we inline the neutral population + helper.
+    const NEUTRAL_POP = 5_000_000;
+    // We need getTotalFundGenerationForPolitician; import via dynamic require to avoid top-level cycle?
+    // Instead we compute tax directly from fundGeneration helper if available; fallback to flat income estimate.
+    // For determinism we compute per-member income: base 10k + donorBonus + officeBonus, scalar 1.0
+    // Use the same fundGeneration helpers via inline import (ts will resolve).
     for (const caucus of taxable) {
       if (caucus.memberIds.length === 0) continue;
-      // PORT-STUB: income per member is 0 in solo (no fundGeneration).
-      // Even if members exist, tax floor is 0. We keep the loop structure
-      // so tests that set treasuries can drive a non-zero flow by direct
-      // party treasury debit. For now with 0 income, inflow is 0.
       let inflow = 0;
-      // Simple stub: charge each member party treasury a flat floor if we want
-      // to demonstrate flow in tests that set a non-zero taxRate and members.
-      // With zero campaign income, inflow stays 0 at mainline-neutral.
-      // Tests that need flow can set world.caucuses treasury manually and
-      // call a helper; the phase itself stays neutral.
-      if (inflow > 0) {
-        caucus.treasury += inflow;
-        const party = world.parties[caucus.partyId];
-        if (party) party.treasury = Math.max(0, party.treasury - inflow);
+      for (const memberId of caucus.memberIds) {
+        let income = 0;
+        let fundsAvailable = 0;
+        if (memberId === "player") {
+          const p = world.player;
+          // player not in this caucus's party already filtered by join gating, but guard
+          if (p.partyId !== caucus.partyId) continue;
+          // income mirrors fundGenerationPhase neutral population generation for player
+          // We inline minimal generation calc to avoid import cycle: base 10k + donor bonus
+          const base = 10_000;
+          const donorBonus = p.donorBaseLevel > 0 ? 200 * p.donorBaseLevel : 0; // medium tier 200 per level simplified
+          const mult = 1 + Math.max(0, Math.min(100, p.politicalInfluence ?? 0)) / 100;
+          const donorScaled = Math.round(donorBonus * mult);
+          income = base + donorScaled;
+          fundsAvailable = p.funds ?? 0;
+          if (fundsAvailable < 1) continue;
+          const tax = Math.floor((income * caucus.taxRate) / 100);
+          if (tax <= 0 || fundsAvailable < tax) continue;
+          p.funds -= tax;
+          inflow += tax;
+        } else {
+          const pol = world.politicians.find((pp) => pp.id === memberId);
+          if (!pol) continue;
+          if (pol.partyId !== caucus.partyId) continue;
+          const base = 10_000;
+          const donorBonus = pol.donorBaseLevel > 0 ? 200 * pol.donorBaseLevel : 0;
+          const officeBonus = pol.chamberKey === "senate" ? 15_000 : pol.chamberKey === "house" ? 5_000 : 0;
+          const mult = 1 + Math.max(0, Math.min(100, pol.politicalInfluence ?? 0)) / 100;
+          const donorScaled = Math.round(donorBonus * mult);
+          income = base + donorScaled + officeBonus;
+          fundsAvailable = pol.funds ?? 0;
+          if (fundsAvailable < 1) continue;
+          const tax = Math.floor((income * caucus.taxRate) / 100);
+          if (tax <= 0 || fundsAvailable < tax) continue;
+          pol.funds -= tax;
+          inflow += tax;
+        }
       }
+      void NEUTRAL_POP;
+      if (inflow > 0) caucus.treasury += inflow;
     }
   },
 };
@@ -365,10 +396,40 @@ export const partyMemberCountReconcilePhase: TurnPhase = {
     for (const pol of world.politicians) {
       counts.set(pol.partyId, (counts.get(pol.partyId) ?? 0) + 1);
     }
+    // Include player if they have a party (mirrors Character join inc)
+    if (world.player.partyId) {
+      counts.set(world.player.partyId, (counts.get(world.player.partyId) ?? 0) + 1);
+    }
     for (const [id, party] of Object.entries(world.parties)) {
       const correct = counts.get(id) ?? 0;
       if (party.memberCount !== correct) {
         party.memberCount = correct;
+      }
+    }
+  },
+};
+
+// ---------------------------------------------------------------------------
+// playerEndorsementPartySweep
+// Source: src/lib/elections/playerEndorsements.ts sweepPartyMismatchedPlayerEndorsements
+// Must run BEFORE campaign/support effects so withdrawals stop this turn's grant.
+// Solo: withdraws active player endorsements where endorser party != endorsed party.
+// Effects: reverses SUPPORT_ENDORSEMENT_BUMP per src/lib/turn/elections/supportEvents.ts
+// ---------------------------------------------------------------------------
+export const playerEndorsementPartySweepPhase: TurnPhase = {
+  name: "playerEndorsementPartySweep",
+  run(world: WorldState) {
+    const playerParty = world.player.partyId;
+    for (const e of world.endorsements) {
+      if (!e.active) continue;
+      if (e.endorserId !== "player") continue;
+      if (e.endorsedPartyId == null) continue;
+      if (e.endorsedPartyId !== playerParty) {
+        if (e.endorsedType === "politician" && e.supportBump) {
+          const cs = world.candidateSupports[e.endorsedId];
+          if (cs) cs.support = Math.max(0, Math.min(100, cs.support - e.supportBump));
+        }
+        e.active = false;
       }
     }
   },

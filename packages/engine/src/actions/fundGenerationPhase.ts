@@ -48,7 +48,9 @@ export const fundGenerationPhase: TurnPhase = {
       if (party) party.treasury = (party.treasury ?? 0) + tax;
     }
 
-    // Player also generates
+    // Player also generates; player membership affects fund generation exactly as mainline wires it:
+    // when player has a party, fund generation is taxed at DEFAULT_NATIONAL_TAX_RATE to that party's treasury
+    // (mirrors src/lib/turn/fundGeneration.ts party tax split). Independent players keep full generation.
     const playerPoliticalInfluence = (world.player as unknown as { politicalInfluence?: number }).politicalInfluence ?? 0;
     const playerDonor = (world.player as unknown as { donorBaseLevel?: number }).donorBaseLevel ?? 0;
     // Player generation uses player's country for office/gdp baseline; office bonus 0
@@ -59,9 +61,16 @@ export const fundGenerationPhase: TurnPhase = {
       countryId: world.player.countryId,
       politicalInfluence: playerPoliticalInfluence,
     });
-    // Player funds are separate from party; no tax split for player (independent)
-    // For simplicity add directly to player funds
-    (world.player as unknown as { funds: number }).funds = ((world.player as unknown as { funds: number }).funds ?? 0) + playerGeneration;
+    const playerPartyId = world.player.partyId;
+    if (playerPartyId) {
+      const party = world.parties[playerPartyId];
+      const tax = party ? calculateTaxAmount(playerGeneration, DEFAULT_NATIONAL_TAX_RATE) : 0;
+      const net = playerGeneration - tax;
+      world.player.funds = (world.player.funds ?? 0) + net;
+      if (party) party.treasury = (party.treasury ?? 0) + tax;
+    } else {
+      world.player.funds = (world.player.funds ?? 0) + playerGeneration;
+    }
   },
 };
 

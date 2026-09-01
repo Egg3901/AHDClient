@@ -47,6 +47,15 @@ export interface WorldState {
   partyPressures: Record<string, PartyPressure>;
   /** Candidate support mood per politician. Key candidate id. Ports ElectionCandidate support fields. */
   candidateSupports: Record<string, CandidateSupport>;
+  /**
+   * Player and politician endorsements.
+   * Ports PlayerEndorsement + NPPEndorsement (src/lib/db/types PlayerEndorsement,
+   * src/lib/nppEndorsements.ts). Active rows grant support/favorability effects;
+   * party switches sweep misaligned primary-phase endorsements per
+   * src/lib/elections/playerEndorsements.ts withdrawPlayerEndorsementsOnPartyChange
+   * and sweepPartyMismatchedPlayerEndorsements.
+   */
+  endorsements: Endorsement[];
 }
 
 export interface Politician {
@@ -138,6 +147,12 @@ export interface CountryEconomy {
   outputGap: number;
 }
 
+export interface PurgeRejoinBlock {
+  partyId: string;
+  countryId: string;
+  purgedAtTurn: number;
+}
+
 export interface PlayerCharacter {
   name: string;
   countryId: string;
@@ -156,6 +171,40 @@ export interface PlayerCharacter {
   infamy: number;
   /** Action cooldowns: actionId -> turn when next available. */
   actionCooldowns: Record<string, number>;
+  /**
+   * Party membership. Ports Character.party ("independent" sentinel in mainline).
+   * Null = independent (no party). Non-null = sequentialId string matching
+   * PoliticalParty.id. Cites src/lib/db/types/character.ts Character.party
+   * and src/app/api/country/[code]/parties/[id]/join+leave routes.
+   * Solo stores as nullable rather than "independent" sentinel for type safety.
+   */
+  partyId: string | null;
+  /**
+   * Turn when the player joined their current party. Null when independent.
+   * Ports Character.partyJoinedTurn (src/lib/db/types/character.ts) for the
+   * leadership tenure gate (src/lib/parties/leadershipTenure.ts) and the
+   * 24h switch cooldown (src/lib/parties/antiAbuseGuards.ts PARTY_SWITCH_COOLDOWN_MS).
+   * Solo tracks as turn count (24 turns = 24h at 1 turn/hour) rather than Date.
+   */
+  partyJoinedTurn: number | null;
+  /**
+   * Turn of the last party switch (join/leave/found). Survives independent
+   * stint so leave->rejoin hop does not dodge cooldown. Ports
+   * Character.lastPartySwitchAt (Date) as turn count; same 24-turn window.
+   */
+  lastPartySwitchTurn: number | null;
+  /**
+   * Per-party rejoin blocks from purges. Ports Character.purgeRejoinBlocks
+   * (src/lib/db/types/character.ts) with PURGE_REJOIN_COOLDOWN_TURNS = 24
+   * (src/lib/constants/partyActions.ts).
+   */
+  purgeRejoinBlocks: PurgeRejoinBlock[];
+  /**
+   * Caucus this player is currently affiliated with. Null = unaffiliated.
+   * Ports Character.factionId (src/lib/db/types/character.ts) denormalized
+   * cache of single active CaucusMembership. At most one active caucus at a time.
+   */
+  caucusId: string | null;
 }
 
 export interface NewsItem {
@@ -479,4 +528,35 @@ export interface CandidateSupport {
 export interface PartyPriorityRegion {
   regionIds: string[];
   setAtTurn: number;
+}
+
+/**
+ * Endorsement record.
+ * Ports PlayerEndorsement (src/lib/db/types) + NPPEndorsement support bump:
+ * - endorserId: "player" or politician id
+ * - endorsedId: partyId or politician id
+ * - active rows contribute SUPPORT_ENDORSEMENT_BUMP = 3 (src/lib/electionEngine/electionFormulaFactors.ts)
+ *   to candidateSupports[endorsedId].support when endorsedType="politician"
+ *   and to favorability when needed.
+ * Sweep behavior: withdrawPlayerEndorsementsOnPartyChange and sweep
+ * handle cross-party primary misaligned endorsements.
+ */
+export interface Endorsement {
+  id: string;
+  /** "player" or politician id */
+  endorserId: string;
+  /** Endorsed party id or politician id */
+  endorsedId: string;
+  endorsedType: "party" | "politician";
+  countryId: string;
+  /** Turn when created */
+  turn: number;
+  /** Active flag; withdrawn rows stay for history */
+  active: boolean;
+  /** Support bump contributed while active (3 per SUPPORT_ENDORSEMENT_BUMP) */
+  supportBump: number;
+  /** Party of endorsed target at creation (for sweep diff) */
+  endorsedPartyId: string | null;
+  /** Party of endorser at creation (for sweep diff) */
+  endorserPartyId: string | null;
 }
