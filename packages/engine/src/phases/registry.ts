@@ -84,6 +84,8 @@ import {
 import { governmentFormationPhase, governmentVacancyWatcherPhase } from "../government/phases.js";
 import { impeachmentLifecyclePhase } from "../impeachment/phases.js";
 import { presidentialSuccessionPhase } from "../executive/phases.js";
+import { cabinetTransitionPhase, cabinetNominationLifecyclePhase } from "../cabinet/phases.js";
+import { scotusTurnPhase, ukJrSurpriseTurnPhase } from "../judiciary/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -208,5 +210,21 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // winner already fills a vacancy before succession would need to.
   impeachmentLifecyclePhase,
   presidentialSuccessionPhase,
+  // W29 cabinet + judiciary cluster at END before newsMaintenance — same
+  // rng-stream-stability rule as every other tail cluster above (ordering
+  // deviation: mainline runs cabinetNominationLifecycle and scotusTurn mid-
+  // pipeline alongside centralBank/legislation; UK JR surprise runs as a
+  // standalone turn phase in src/lib/turn/ukJrSurpriseTurn.ts). Solo places
+  // the entire W29 cluster at the tail before newsMaintenance so inserting
+  // it does not shift shared RNG streams under existing integration goldens;
+  // a dedicated re-golden will restore mainline order. Relative order inside
+  // this cluster mirrors mainline: cabinetTransition before
+  // cabinetNominationLifecycle (so a transition-cleared seat is not voted on
+  // the same turn), then scotusTurn (tenure → docket → surprise → nominations),
+  // then ukJrSurpriseTurn.
+  cabinetTransitionPhase,
+  cabinetNominationLifecyclePhase,
+  scotusTurnPhase,
+  ukJrSurpriseTurnPhase,
   newsMaintenancePhase,
 ];

@@ -50,6 +50,12 @@ function makeWorld(): WorldState {
     nationalCommitteeElections: [],
     coalitions: [],
     governments: {},
+    cabinetMembers: [],
+    cabinetNominations: [],
+    supremeCourtSeats: [],
+    scotusNominations: [],
+    docketCases: [],
+    ukJudicialReviewCases: [],
     news: [],
   };
 }

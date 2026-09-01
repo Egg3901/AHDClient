@@ -17,7 +17,7 @@ import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/co
 import type { CentralBank } from "./centralBank/types.js";
 import { seedCorporations } from "./corporation/founding.js";
 
-export const SCHEMA_VERSION = 23;
+export const SCHEMA_VERSION = 25;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -390,6 +390,12 @@ export function createWorld(options: NewWorldOptions): WorldState {
     // seed-vs-runtime duplication) for both a fresh world and a country that
     // is created without a legislature this era.
     governments: {},
+    cabinetMembers: [],
+    cabinetNominations: [],
+    supremeCourtSeats: [],
+    scotusNominations: [],
+    docketCases: [],
+    ukJudicialReviewCases: [],
     player: {
       name: options.playerName,
       countryId: options.countryId,

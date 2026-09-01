@@ -1032,5 +1032,31 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 23;
   }
+  // v23 -> v24: pre-allocated for parallel wave (holds v24) — no fields added
+  // by this wave. This stub preserves chained migration ordering: latest is 25.
+  // RESOLVER NOTE: if the v24 wave lands first with real fields, its block
+  // replaces this stub and the v25 guard below is renumbered from 25 to
+  // 24->25 accordingly; no name collision expected (W29 owns cabinetMembers,
+  // cabinetNominations, supremeCourtSeats, scotusNominations, docketCases,
+  // ukJudicialReviewCases). Verify ascending schemaVersion order (v23 -> v24 -> v25)
+  // and that v24 does not introduce any of those names.
+  if (save.schemaVersion < 24) {
+    save.world.meta.schemaVersion = 24;
+  }
+  // v24 -> v25: W29 cabinet + judiciary (cabinetMembers, cabinetNominations,
+  // supremeCourtSeats, scotusNominations, docketCases, ukJudicialReviewCases).
+  // Ports src/lib/db/types/cabinet.ts, src/lib/db/types/scotus.ts,
+  // src/lib/turn/scotusTurn.ts, src/lib/turn/ukJrSurpriseTurn.ts.
+  // Main v23; parallel wave holds v24; this wave is pre-allocated v25.
+  if (save.schemaVersion < 25) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (!Array.isArray(w["cabinetMembers"])) w["cabinetMembers"] = [];
+    if (!Array.isArray(w["cabinetNominations"])) w["cabinetNominations"] = [];
+    if (!Array.isArray(w["supremeCourtSeats"])) w["supremeCourtSeats"] = [];
+    if (!Array.isArray(w["scotusNominations"])) w["scotusNominations"] = [];
+    if (!Array.isArray(w["docketCases"])) w["docketCases"] = [];
+    if (!Array.isArray(w["ukJudicialReviewCases"])) w["ukJudicialReviewCases"] = [];
+    save.world.meta.schemaVersion = 25;
+  }
   return save.world;
 }

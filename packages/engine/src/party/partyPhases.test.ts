@@ -534,7 +534,7 @@ describe("save migration v5 -> v6", () => {
     delete parsed.world["charters"];
     delete parsed.world["caucuses"];
     const migrated = deserializeSave(JSON.stringify({ format: "ahdsolo-save", schemaVersion: 5, savedAt: "2026-01-01T00:00:00Z", world: parsed.world }));
-    expect(migrated.meta.schemaVersion).toBe(23);
+    expect(migrated.meta.schemaVersion).toBe(25);
     expect(Array.isArray(migrated.charters)).toBe(true);
     expect(Array.isArray(migrated.caucuses)).toBe(true);
     for (const party of Object.values(migrated.parties)) {

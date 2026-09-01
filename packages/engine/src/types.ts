@@ -155,6 +155,31 @@ export interface WorldState {
    * Maintained by government/phases.ts. Schema v22.
    */
   governments: Record<string, GovernmentState>;
+  /**
+   * Cabinet (W29). Ports cabinetMembers + cabinetNominations
+   * (src/lib/db/types/cabinet.ts, src/lib/cabinetNominationLifecycle.ts,
+   *  src/lib/cabinetTransition.ts). Two systems: US (presidential Senate
+   *  confirmation via nppCabinetVote) and UK/others (parliamentary direct
+   *  appointment). NPCs fill all seats; player may be nominated per
+   *  mainline eligibility (no invented shortcuts). Schema v25.
+   */
+  cabinetMembers: import("./cabinet/types.js").CabinetMember[];
+  cabinetNominations: import("./cabinet/types.js").CabinetNomination[];
+  /**
+   * SCOTUS (W29). Ports supremeCourtSeats + scotusNominations + docketCases
+   * (src/lib/db/types/scotus.ts, src/lib/turn/scotusTurn.ts and its
+   * sub-phases). Seats are politician-like records; vacancies filled via
+   * presidential nomination + Senate confirmation. Schema v25.
+   */
+  supremeCourtSeats: import("./judiciary/types.js").SupremeCourtSeat[];
+  scotusNominations: import("./judiciary/types.js").ScotusNomination[];
+  docketCases: import("./judiciary/types.js").DocketCase[];
+  /**
+   * UK judicial review surprise cases (W29). Ports
+   * src/lib/turn/ukJrSurpriseTurn.ts + src/lib/uk/judicialReview.
+   * Small per-turn hazard producing a ruling from proxy court lean. Schema v25.
+   */
+  ukJudicialReviewCases: import("./judiciary/types.js").UkJudicialReviewCase[];
 }
 
 /**
