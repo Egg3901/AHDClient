@@ -210,6 +210,17 @@ export interface WorldState {
    * Schema v28.
    */
   depositInsurance: Record<string, DepositInsuranceFund>;
+  /**
+   * Unions, one per (playable country, nonzero-weight 1953 sector) pair.
+   * Ports mainline's Union collection (src/lib/db/types/union.ts) at the
+   * seeded-roster granularity (corporation/founding.ts single-sector collapse).
+   * Membership is derived each turn from demographics/laborForce (W16) via
+   * sectorWeights; dues/services/approval flow per mainline union dues v1
+   * (src/lib/unions/unionDues.ts + unionServices.ts + unionPoliticalContributions.ts).
+   * NPP behavior fills vacant leadership deterministically (see unions/nppBehavior.ts).
+   * Schema v30 (main v28; parallel wave holds v29; migration latest ->30 with resolver note).
+   */
+  unions: Record<string, import("./unions/types.js").Union>;
 }
 
 /**

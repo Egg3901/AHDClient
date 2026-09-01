@@ -6,6 +6,7 @@ import { rngFromSeed } from "./rng.js";
 import type { WorldState } from "./types.js";
 import type { CorporationType, ShareholderEntry } from "./corporation/types.js";
 import { CEO_INITIAL_SHARES, NPC_FOUNDER_SHARE_FRACTION, DEFAULT_SHARE_PRICE } from "./market/constants.js";
+import { seedUnions } from "./unions/founding.js";
 
 /**
  * Save file = versioned JSON envelope around the full WorldState. Older
@@ -1166,6 +1167,70 @@ export function deserializeSave(raw: string): WorldState {
       }
     }
     save.world.meta.schemaVersion = 28;
+  }
+  // v28 -> v29: pre-allocated for parallel wave (holds v29) — no fields added
+  // by this wave. This stub preserves chained migration ordering: latest is 30.
+  // RESOLVER NOTE: if the v29 wave lands first with real fields, its block
+  // replaces this stub and the v30 guard below is renumbered from 30 to
+  // 29->30 accordingly; no name collision expected (W15 owns unions).
+  // Verify ascending schemaVersion order (v28 -> v29 -> v30) and that v29
+  // does not introduce a field named `unions` (it should not; W15 is
+  // authoritative for that name) — if it does, keep both blocks but resolve
+  // the name collision before merging rather than silently letting the
+  // later block clobber the earlier one.
+  if (save.schemaVersion < 29) {
+    save.world.meta.schemaVersion = 29;
+  }
+  // v29 -> v30: W15 unions. Pre-allocated v30 for this wave; main is v28;
+  // parallel wave holds v29. This is the latest migration, jumping from
+  // latest known (v28) to v30 via the v29 stub above. On merge, chain in
+  // strict ascending order (v28 -> v29 -> v30) and confirm v29 does not also
+  // introduce `unions`.
+  //
+  // Seeds unions for every playable country's nonzero-weight 1953 sector,
+  // exactly as world.ts createWorld does (same founding helper, same
+  // deterministic id `${countryId}-${sectorType}`). A save that already has
+  // unions (e.g. re-saving after this wave) is left untouched; a save
+  // upgraded through v28 (or earlier) that has no unions yet gets a full
+  // seeded roster so the unionsTurnPhase has something to tick. No rng is
+  // consumed here — union founding is deterministic given countries, so a
+  // migration must not disturb world.meta.rng (the live turn rng stream).
+  if (save.schemaVersion < 30) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (typeof w["unions"] !== "object" || w["unions"] === null || Array.isArray(w["unions"])) {
+      const countries = w["countries"] as Record<string, { id: string; playable: boolean }> | undefined;
+      const era = typeof (w["meta"] as Record<string, unknown> | undefined)?.["era"] === "string"
+        ? ((w["meta"] as Record<string, unknown>)["era"] as string)
+        : "1953";
+      const unions = countries
+        ? seedUnions(
+            Object.values(countries).map((c) => ({ id: c.id, playable: c.playable })),
+            era,
+          )
+        : {};
+      w["unions"] = unions;
+    } else {
+      // Backfill any missing defaults on existing union docs (so a hand-edited or
+      // partially-written save that somehow has unions but missing fields still loads).
+      const unions = w["unions"] as Record<string, Record<string, unknown>>;
+      for (const u of Object.values(unions)) {
+        if (typeof u["treasury"] !== "number") u["treasury"] = 500;
+        if (typeof u["approval"] !== "number") u["approval"] = 55;
+        if (typeof u["duesPerWorkerAnnual"] !== "number") u["duesPerWorkerAnnual"] = 0;
+        if (!Array.isArray(u["activeServices"])) u["activeServices"] = [];
+        if (typeof u["politicalContributionPct"] !== "number") u["politicalContributionPct"] = 0;
+        if (typeof u["unionization"] !== "number") u["unionization"] = 25;
+        if (!("ownerType" in u) || (u["ownerType"] !== "npp" && u["ownerType"] !== null)) {
+          if (u["ownerType"] === undefined) u["ownerType"] = null;
+        }
+        if (!("ownerId" in u) || (typeof u["ownerId"] !== "string" && u["ownerId"] !== null)) {
+          if (u["ownerId"] === undefined) u["ownerId"] = null;
+        }
+        if (typeof u["createdAtTurn"] !== "number") u["createdAtTurn"] = 0;
+        if (typeof u["updatedAtTurn"] !== "number") u["updatedAtTurn"] = 0;
+      }
+    }
+    save.world.meta.schemaVersion = 30;
   }
   return save.world;
 }

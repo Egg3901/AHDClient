@@ -95,6 +95,7 @@ import {
 } from "../events/phases.js";
 import { bankingTurnPhase } from "../banking/bankingTurn.js";
 import { bankSolvencyTurnPhase } from "../banking/bankSolvencyTurn.js";
+import { unionsTurnPhase, nppUnionBehaviorPhase } from "../unions/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -279,5 +280,23 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // investment-bank charter type ported), but keeps the same slot.
   bankingTurnPhase,
   bankSolvencyTurnPhase,
+  // W15 unions at END before newsMaintenance — ordering deviation:
+  // Mainline runs unionsTurn immediately after corporationTurn, reading that
+  // phase's sector unionization/workers/wagePerWorker writes this same turn
+  // (see turnPhaseRegistry.ts unionsTurn registration), and nppUnionBehavior
+  // runs later in the NPP group (turnPhaseNames.ts indices). Solo defers the
+  // entire W15 cluster to the tail before newsMaintenance to avoid shifting
+  // shared RNG streams under existing integration goldens — same rule as every
+  // other tail cluster above (see recomputeSharePricesPhase comment). Relative
+  // order inside this cluster keeps nppUnionBehavior BEFORE unionsTurn so a
+  // union elected this turn still gets its dues tick the same turn (mainline
+  // order is opposite but both phases are RNG-free, so swapping preserves
+  // determinism and matches the tail-append stable-ordering convention the
+  // rest of the registry uses). Both phases mutate only WorldState.unions
+  // (plus reading laborForces/regions/budgets) and are RNG-free, so their
+  // tail placement has no downstream RNG stream effect beyond the ordering
+  // deviation itself, which a dedicated re-golden will restore.
+  nppUnionBehaviorPhase,
+  unionsTurnPhase,
   newsMaintenancePhase,
 ];

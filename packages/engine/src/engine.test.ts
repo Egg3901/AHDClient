@@ -146,6 +146,8 @@ describe("advanceTurn", () => {
       "crisisTurn",
       "bankingTurn",
       "bankSolvencyTurn",
+      "nppUnionBehavior",
+      "unionsTurn",
       "newsMaintenance",
     ]);
   });
@@ -581,14 +583,14 @@ describe("W38 US states layer", () => {
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "UK").length).toBe(12);
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "RU").length).toBe(14);
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "DD").length).toBe(6);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
     expect(a.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(a.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(a.meta.schemaVersion).toBe(SCHEMA_VERSION);
@@ -597,14 +599,14 @@ describe("W38 US states layer", () => {
     expect(a.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(a.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(a.meta.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
-    expect(a.meta.schemaVersion).toBe(28);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
+    expect(a.meta.schemaVersion).toBe(30);
     // No opaque US left
     expect(a.regions["US-R1"]).toBeUndefined();
     // Deterministic: partyRegions for US states are uniform averaged (round)

@@ -500,7 +500,7 @@ describe("W29 migration", () => {
     const raw = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 23, savedAt: "2026-01-01T00:00:00Z", world: v23 });
     const migrated = deserializeSave(raw);
     expect(migrated.meta.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(migrated.meta.schemaVersion).toBe(28);
+    expect(migrated.meta.schemaVersion).toBe(30);
     expect(Array.isArray(migrated.cabinetMembers)).toBe(true);
     expect(Array.isArray(migrated.cabinetNominations)).toBe(true);
     expect(Array.isArray(migrated.supremeCourtSeats)).toBe(true);
@@ -519,6 +519,6 @@ describe("W29 migration", () => {
     const a = deserializeSave(raw);
     const b = deserializeSave(raw);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
-    expect(a.meta.schemaVersion).toBe(28);
+    expect(a.meta.schemaVersion).toBe(30);
   });
 });

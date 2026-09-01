@@ -63,6 +63,7 @@ function makeWorld(): WorldState {
     news: [],
     bankLoans: [],
     depositInsurance: {},
+    unions: {},
   };
 }
 

@@ -17,11 +17,12 @@ import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/co
 import type { CentralBank } from "./centralBank/types.js";
 import { seedCorporations } from "./corporation/founding.js";
 import { seedNpcBanks } from "./banking/npcBanks.js";
+import { seedUnions } from "./unions/founding.js";
 
-// Pre-allocated v26 for W10 (markets: share price, stock exchange). Main is
-// v25 as of this wave's branch point; a parallel wave holds v27. See save.ts
-// v25->v26 migration for the resolver note on merge-order splitting.
-export const SCHEMA_VERSION = 28;
+// Pre-allocated v30 for W15 unions. Main is v28 as of this wave's branch point;
+// parallel wave holds v29. See save.ts v28->v30 migration for resolver note on
+// merge-order splitting (latest ->30 chain preserves both waves).
+export const SCHEMA_VERSION = 30;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -345,6 +346,11 @@ export function createWorld(options: NewWorldOptions): WorldState {
     corpRevenueSnapshots[corp.countryId] = { current: total, previous: total, turn: 0 };
   }
 
+  const unions = seedUnions(
+    Object.values(countries).map((c) => ({ id: c.id, playable: c.playable })),
+    pack.era.id,
+  );
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -439,6 +445,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     news: [{ turn: 0, date: pack.era.startDate, headline: "A new game begins." }],
     bankLoans: [],
     depositInsurance: {},
+    unions,
   };
   assignUsSeatGeography(world);
   // W12: charter the financial-sector NPC corp of every playable country as
