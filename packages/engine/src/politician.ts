@@ -80,6 +80,23 @@ export function randomAge(rng: WorldRng): number {
 
 // ---- single politician ----
 
+function hashUnit(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0) / 0xffffffff;
+}
+function personalityForId(id: string): Politician["personality"] {
+  // Deterministic via hash of id, not RNG, so world creation RNG state is
+  // unchanged (preserves goldens for commodity etc). Matches save migration.
+  const loyalty = Math.round(hashUnit(`${id}:loyalty`) * 100);
+  const ambition = Math.round(hashUnit(`${id}:ambition`) * 100);
+  const stubbornness = Math.round(hashUnit(`${id}:stubbornness`) * 100);
+  return { loyalty, ambition, stubbornness };
+}
+
 export function generatePolitician(
   rng: WorldRng,
   opts: {
@@ -95,6 +112,7 @@ export function generatePolitician(
   const { name, gender } = generateNpcNameAndGender(rng, opts.countryId, opts.era);
   const ideology = jitterIdeology(rng, opts.partyEconomic, opts.partySocial);
   const age = randomAge(rng);
+  const personality = personalityForId(opts.id);
   return {
     id: opts.id,
     name,
@@ -113,6 +131,7 @@ export function generatePolitician(
     favorability: 50,
     infamy: 0,
     actionCooldowns: {},
+    personality,
   };
 }
 

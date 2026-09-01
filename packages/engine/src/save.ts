@@ -626,5 +626,50 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 15;
   }
+  // v15 -> v16: W37 NPC behavior cluster — personality, relationships, sponsor cooldown, stance drift support
+  if (save.schemaVersion < 16) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const politicians = w["politicians"] as Array<Record<string, unknown>> | undefined;
+    if (Array.isArray(politicians)) {
+      for (const pol of politicians) {
+        if (typeof pol["personality"] !== "object" || pol["personality"] === null || Array.isArray(pol["personality"])) {
+          // Deterministic legacy personality from id hash (FNV-1a style) so migrated saves are deterministic
+          const id = String(pol["id"] ?? "");
+          let h = 0x811c9dc5;
+          for (let i = 0; i < id.length; i++) {
+            h ^= id.charCodeAt(i);
+            h = Math.imul(h, 0x01000193);
+          }
+          const r = (h >>> 0) / 0xffffffff;
+          // Derive three traits from spaced hashes
+          const hash2 = (s: string): number => {
+            let hh = 0x811c9dc5;
+            for (let i = 0; i < s.length; i++) {
+              hh ^= s.charCodeAt(i);
+              hh = Math.imul(hh, 0x01000193);
+            }
+            return (hh >>> 0) / 0xffffffff;
+          };
+          pol["personality"] = {
+            loyalty: Math.round(hash2(`${id}:loyalty`) * 100),
+            ambition: Math.round(hash2(`${id}:ambition`) * 100),
+            stubbornness: Math.round(r * 100),
+          };
+        } else {
+          const p = pol["personality"] as Record<string, unknown>;
+          if (typeof p["loyalty"] !== "number") p["loyalty"] = 50;
+          if (typeof p["ambition"] !== "number") p["ambition"] = 50;
+          if (typeof p["stubbornness"] !== "number") p["stubbornness"] = 50;
+        }
+      }
+    }
+    if (typeof w["nppRelationships"] !== "object" || w["nppRelationships"] === null || Array.isArray(w["nppRelationships"])) {
+      w["nppRelationships"] = {};
+    }
+    if (typeof w["nppSponsorLastTurn"] !== "object" || w["nppSponsorLastTurn"] === null || Array.isArray(w["nppSponsorLastTurn"])) {
+      w["nppSponsorLastTurn"] = {};
+    }
+    save.world.meta.schemaVersion = 16;
+  }
   return save.world;
 }

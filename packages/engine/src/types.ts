@@ -80,6 +80,20 @@ export interface WorldState {
   budgets: Record<string, CountryBudget>;
   /** Regional budgets per region (generic; JP/DE variants deferred). Schema v15. */
   regionalBudgets: Record<string, RegionalBudget>;
+  /**
+   * NPC relationship state (W37). Ports NPPRelationship (src/lib/db/types/npp.ts)
+   * relationshipScore per politician↔third-party pair. Key `${sourceId}:${targetId}`
+   * (e.g. "US-1:US-2" for politician-to-politician, "player:US-1" for player
+   * interactions). Score in [-100,100]; decays toward 0 per turn.
+   * Source: src/lib/turn/partyOrg/caucusRelationshipMaintenance.ts
+   */
+  nppRelationships: Record<string, NppRelationship>;
+  /**
+   * Per-politician last NPP bill sponsorship turn, for cooldown tracking.
+   * Key politician id. Source: src/lib/turn/npp/billSponsorship.ts
+   * NPP_SPONSOR_TYPE_REPEAT_COOLDOWN_TURNS throttling.
+   */
+  nppSponsorLastTurn: Record<string, number>;
 }
 
 export interface Politician {
@@ -129,6 +143,13 @@ export interface Politician {
   infamy: number;
   /** Action cooldowns: actionId -> turn when next available. */
   actionCooldowns: Record<string, number>;
+  /**
+   * Personality traits steering NPP action AI (W37).
+   * Ports NPPPersonality (src/lib/db/types/npp.ts, src/lib/npp/actionAi.ts).
+   * Deterministic per-politician via rng at creation (uniform 0-100).
+   * Source: src/lib/npp/actionAi.ts actionTemperature, applySignalScaling.
+   */
+  personality: PoliticianPersonality;
 }
 
 export interface PoliticianIdeology {
@@ -606,4 +627,19 @@ export interface Endorsement {
   endorsedPartyId: string | null;
   /** Party of endorser at creation (for sweep diff) */
   endorserPartyId: string | null;
+}
+
+export interface PoliticianPersonality {
+  /** Loyalty 0-100: high donates to party, low hoards */
+  loyalty: number;
+  /** Ambition 0-100: high builds donor base and campaigns */
+  ambition: number;
+  /** Stubbornness 0-100: high resists stance drift, low drifts fast */
+  stubbornness: number;
+}
+
+export interface NppRelationship {
+  /** Score in [-100, 100]; decays toward 0 */
+  score: number;
+  updatedAtTurn: number;
 }

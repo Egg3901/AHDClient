@@ -324,7 +324,7 @@ describe("schema bump and migration", () => {
     expect(Object.keys(world.regions).filter((k) => world.regions[k]!.countryId === "US")).toHaveLength(48);
     // partyRegions: 57 regions * parties per country
     expect(Object.keys(world.partyRegions).length).toBeGreaterThan(0);
-    expect(world.meta.schemaVersion).toBe(15);
+    expect(world.meta.schemaVersion).toBe(16);
   });
   it("chained migration v7->v9 seeds W19 maps and migrates US to 48 states", () => {
     const oldWorld = {
@@ -350,12 +350,12 @@ describe("schema bump and migration", () => {
     };
     const raw = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 7, savedAt: "2026-01-01", world: oldWorld });
     const migrated = deserializeSave(raw);
-    expect(migrated.meta.schemaVersion).toBe(15);
+    expect(migrated.meta.schemaVersion).toBe(16);
     expect(Object.keys((migrated as unknown as { regions: Record<string, unknown> }).regions).length).toBeGreaterThan(0);
     expect(Object.keys((migrated as unknown as { candidateSupports: Record<string, unknown> }).candidateSupports).length).toBe(1);
     // round-trip preserves
     const re = deserializeSave(serializeSave(migrated, "2026-01-02"));
-    expect(re.meta.schemaVersion).toBe(15);
+    expect(re.meta.schemaVersion).toBe(16);
   });
   it("US seed registration reflects 1953 southern strong-D lane (via MS/AL overrides, disenfranchisement modeled)", () => {
     const world = createWorld(OPTS);

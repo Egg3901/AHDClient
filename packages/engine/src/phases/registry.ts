@@ -50,6 +50,12 @@ import {
   supportAccrualPhase,
 } from "../support/phases.js";
 import { billLifecyclePhase } from "./billLifecyclePhase.js";
+import { nppFundGenerationPhase } from "../npp/nppFundGeneration.js";
+import { nppRelationshipMaintenancePhase } from "../npp/nppRelationshipMaintenance.js";
+import { nppBillSponsorshipPhase } from "../npp/nppBillSponsorship.js";
+import { nppActionProcessingPhase } from "../npp/nppActionProcessing.js";
+import { nppStanceDriftPhase } from "../npp/stanceDrift.js";
+import { nppBehaviorPhase } from "../npp/nppBehavior.js";
 import { voteAccumulationPhase, electionTimersPhase, electionResolutionPhase } from "../elections/phases.js";
 import { demographicEffectsPhase } from "../demographics/demographicEffects.js";
 import { demographicFlowsPhase } from "../demographics/demographicFlows.js";
@@ -65,6 +71,7 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
   actionRefreshPhase,
   fundGenerationPhase,
+  nppFundGenerationPhase,
   partyInfluenceTurnPhase,
   playerEndorsementPartySweepPhase,
   caucusTaxPhase,
@@ -82,6 +89,11 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   expireChartersPhase,
   emptyPartyCleanupPhase,
   partyMemberCountReconcilePhase,
+  nppRelationshipMaintenancePhase,
+  nppBillSponsorshipPhase,
+  nppStanceDriftPhase,
+  nppActionProcessingPhase,
+  nppBehaviorPhase,
   billLifecyclePhase,
   commodityPricesPhase,
   contractSettlementPhase,

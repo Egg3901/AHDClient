@@ -189,33 +189,27 @@ describe("partyTierTurn phase", () => {
   it("promotes minor with high org", () => {
     const world = createWorld(OPTS);
     const minorId = Object.values(world.parties).find((p) => p.tier === "minor")!.id;
-    world.parties[minorId]!.organization = 25; // single pseudo-region at 25% >= 20% -> qualifies
-    // Need to check: with regionCount 3 and 1 region at 25%, atEarn=1 which meets threshold ceil(1)=1
+    world.parties[minorId]!.organization = 25;
+    // Also set regional org for W37 tier that now derives from partyRegions
+    for (const key of Object.keys(world.partyRegions).filter((k) => k.endsWith(`:${minorId}`))) {
+      world.partyRegions[key]!.organization = 25;
+    }
     advanceTurn(world);
     expect(world.parties[minorId]!.tier).toBe("major");
   });
 
   it("demotes major after warning grace via direct phase control", () => {
-    const world = createWorld(OPTS);
-    const majorId = "US_DEM";
-    const party = world.parties[majorId]!;
-    party.tier = "major";
-    party.organization = 0;
-    party.majorDemotionWarning = { startedTurn: 0 };
-    // Need to be at risk (below 10% in 2/3 regions) - with one region at 0, belowLose=3-0=3 >=2 so atRisk
-    // Set turn to 240 so grace expires
-    world.meta.turn = 240;
-    // Manually run tier phase via advanceTurn won't set turn to 240+decay correctly;
-    // instead advance many turns from turn 0
-    const world2 = createWorld(OPTS);
-    world2.parties[majorId]!.organization = 0;
-    world2.parties[majorId]!.isDefault = false; // default majors are PORT-STUB exempt until W37
-    for (let i = 0; i < 241; i++) advanceTurn(world2);
-    // After 240 turns of no org recovery, should have started warning and possibly demoted
-    // Check that warning was started
-    const p = world2.parties[majorId]!;
-    // With low org, warning should have been set early; after 240 more turns it should demote
-    expect(p.tier === "minor" || p.majorDemotionWarning != null).toBe(true);
+    // Pure helper test: major with low org in all regions demotes after grace.
+    // This is deterministic and does not depend on NPCs or elections.
+    const r = resolveTierTransition({
+      currentTier: "major",
+      orgByRegion: new Map([["a", 5], ["b", 5], ["c", 5]]),
+      regionCount: 3,
+      warningStartedTurn: 0,
+      currentTurn: 240,
+    });
+    expect(r.tier).toBe("minor");
+    expect(r.reason).toBe("demoted");
   });
 
   it("clamps PS down when cap drops", () => {
@@ -466,6 +460,7 @@ describe("emptyPartyCleanup phase", () => {
       favorability: 50,
       infamy: 0,
       actionCooldowns: {},
+      personality: { loyalty: 50, ambition: 50, stubbornness: 50 },
     });
     advanceTurn(world);
     // reconcile will fix memberCount first, then cleanup should not delete
@@ -536,7 +531,7 @@ describe("save migration v5 -> v6", () => {
     delete parsed.world["charters"];
     delete parsed.world["caucuses"];
     const migrated = deserializeSave(JSON.stringify({ format: "ahdsolo-save", schemaVersion: 5, savedAt: "2026-01-01T00:00:00Z", world: parsed.world }));
-    expect(migrated.meta.schemaVersion).toBe(15);
+    expect(migrated.meta.schemaVersion).toBe(16);
     expect(Array.isArray(migrated.charters)).toBe(true);
     expect(Array.isArray(migrated.caucuses)).toBe(true);
     for (const party of Object.values(migrated.parties)) {
@@ -594,10 +589,11 @@ describe("registry ordering", () => {
   });
 });
 
-// Regression: 40-year integration run demoted default majors (no NPC org
-// maintenance until W37). Default parties are PORT-STUB exempt from demotion.
-describe("default major demotion exemption (PORT-STUB until W37)", () => {
-  it("US default majors stay major over 600 turns", async () => {
+// Regression: majors stay major because NPCs maintain org (W37). Previously
+// a PORT-STUB exempted default majors from demotion; now NPC actionProcessing
+// via organize actions sustains organization, so the exemption is removed.
+describe("default major demotion with NPC-maintained org (W37)", () => {
+  it("US default majors stay major over 600 turns via NPC org maintenance", async () => {
     const { createWorld, advanceTurn } = await import("../index.js");
     const w = createWorld({ seed: "tier-regression", playerName: "T", countryId: "US", era: "1953" });
     for (let i = 0; i < 600; i++) advanceTurn(w);

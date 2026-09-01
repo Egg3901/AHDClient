@@ -199,28 +199,42 @@ export const partyTierTurnPhase: TurnPhase = {
   name: "partyTierTurn",
   run(world: WorldState) {
     for (const party of Object.values(world.parties)) {
-      const regionCount = 3;
-      // Single pseudo-region keyed by party patch
-      const orgByRegion = new Map<string, number>([["national", party.organization ?? 0]]);
+      // For countries with real regional org (US 48 states, or any where partyRegions exist),
+      // derive orgByRegion from partyRegions average per region; fallback to national pseudo-region.
+      // This lets NPC organize actions on partyRegions maintain tier, while keeping single-turn
+      // decay test (which checks party.organization decay) valid — party.organization still
+      // decays but tier now reflects maintained regional org.
+      const regionalKeys = Object.keys(world.partyRegions).filter((k) => k.endsWith(`:${party.id}`));
+      let orgByRegion: Map<string, number>;
+      let regionCount: number;
+      if (regionalKeys.length > 0) {
+        orgByRegion = new Map();
+        for (const key of regionalKeys) {
+          const pr = world.partyRegions[key];
+          if (!pr) continue;
+          orgByRegion.set(pr.regionId, pr.organization ?? 0);
+        }
+        regionCount = orgByRegion.size || 3;
+      } else {
+        regionCount = 3;
+        orgByRegion = new Map<string, number>([["national", party.organization ?? 0]]);
+      }
 
       const prevTier = party.tier === "major" || party.tier === "minor" ? party.tier : "minor";
       const prevEarned = party.psCapEarnedRegions ?? [];
       const earned = updateEarnedRegions(prevEarned, orgByRegion);
 
-      // PORT-STUB until W37 (NPC behavior): mainline majors keep regional org
-      // alive through player and NPP activity; solo has neither yet, so without
-      // this exemption every default major demotes by ~t250 in long sims
-      // (found in the 40-year integration run). Remove when W37 lands.
-      // Only guards existing majors; resolveTierTransition would force-promote
-      // exempt minors, which default minor parties must not get.
-      const exempt = party.isDefault === true && prevTier === "major";
+      // W37: NPCs now maintain org via nppActionProcessing (organize actions
+      // investing party treasury into organization). No exemption needed:
+      // majors survive because NPCs actively defend their presence floor, as in
+      // mainline src/lib/turn/partyOrg/turnProcessing.ts + nppActionProcessing.
       const transition = resolveTierTransition({
         currentTier: prevTier,
         orgByRegion,
         regionCount,
         warningStartedTurn: party.majorDemotionWarning?.startedTurn ?? null,
         currentTurn: world.meta.turn,
-        exemptFromDemotion: exempt,
+        exemptFromDemotion: false,
       });
 
       const cap = resolvePartyPsCap(transition.tier, earned.length, nationalCapForCountry());

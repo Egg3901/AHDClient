@@ -11,7 +11,7 @@ import {
   getEraCommodityBasePrice,
 } from "./commodity/constants.js";
 
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -339,6 +339,8 @@ export function createWorld(options: NewWorldOptions): WorldState {
     laborForces,
     budgets,
     regionalBudgets,
+    nppRelationships: {},
+    nppSponsorLastTurn: {},
     player: {
       name: options.playerName,
       countryId: options.countryId,

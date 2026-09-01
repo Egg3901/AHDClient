@@ -97,7 +97,7 @@ describe("election orchestration (W21c)", () => {
       delete p.senateClass;
     }
     const migrated = deserializeSave(JSON.stringify(raw));
-    expect(migrated.meta.schemaVersion).toBe(15);
+    expect(migrated.meta.schemaVersion).toBe(16);
     expect(Array.isArray(migrated.elections)).toBe(true);
     const houseWithState = migrated.politicians.filter((p) => p.chamberKey === "house" && p.electedState);
     expect(houseWithState.length).toBeGreaterThan(400);

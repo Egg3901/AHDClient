@@ -33,8 +33,8 @@ describe("actionRefresh goldens", () => {
     advanceTurn(world);
     const after = world.politicians.find((p) => p.id === pol.id)!;
     expect(after.actions).toBeLessThanOrEqual(200);
-    // with hoard penalty 4 if >100, 199 -4 + ~5 =200 capped
-    expect(after.actions).toBe(200);
+    // with hoard penalty 4 if >100, 199 -4 + ~5 =200 capped, minus 2 spent by NPC actionProcessing in same turn
+    expect(after.actions).toBe(198);
   });
 
   it("applies hoarding penalty when >100 (ACTION_HOARD_PENALTY=4)", () => {
@@ -43,9 +43,9 @@ describe("actionRefresh goldens", () => {
     pol.actions = 105;
     advanceTurn(world);
     const after = world.politicians.find((p) => p.id === pol.id)!;
-    // 105 -4 + base 4 + office ~1 =106, maybe +bonus 0 => 106
-    // So hoard penalty net +1 not +5
-    expect(after.actions).toBe(105 + 1); // depends on office bonus 1; check exactly with house
+    // 105 -4 + base 4 + office ~1 =106, minus 2 spent by NPC actionProcessing in same turn => 104
+    // So hoard penalty net -1 not +1 after spend
+    expect(after.actions).toBe(104); // 105 + (-1) after NPC spend
     // Instead assert hoard slows growth vs below threshold
     const world2 = createWorld(OPTS);
     const pol2 = world2.politicians[0]!;
