@@ -1,6 +1,6 @@
 import { rngFromSeed } from "./rng.js";
 import type { WorldState } from "./types.js";
-import { getPackByEra, PACKS_BY_DATE } from "@ahdsolo/content";
+import { getPackByEra, PACKS_BY_DATE } from "@rotunda/content";
 
 export const SCHEMA_VERSION = 2;
 

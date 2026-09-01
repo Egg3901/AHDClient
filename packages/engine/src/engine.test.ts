@@ -4,8 +4,8 @@ import { deserializeSave, serializeSave } from "./save.js";
 import { createWorld, listEras, listPlayableCountries } from "./world.js";
 import { rngFromSeed, rngFromState } from "./rng.js";
 import { dateForTurn, eraForDate } from "./calendar.js";
-import { PACKS } from "@ahdsolo/content";
-import { validatePack } from "@ahdsolo/content";
+import { PACKS } from "@rotunda/content";
+import { validatePack } from "@rotunda/content";
 
 const OPTS = { seed: "test-seed", playerName: "Tester", countryId: "US", era: "1953" } as const;
 

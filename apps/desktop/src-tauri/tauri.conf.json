@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "A House Divided: Solo",
+  "productName": "A House Divided",
   "version": "0.1.0",
-  "identifier": "net.lakesidegames.ahdsolo",
+  "identifier": "net.lakesidegames.rotunda",
   "build": {
     "beforeDevCommand": "",
     "devUrl": "http://localhost:1420",

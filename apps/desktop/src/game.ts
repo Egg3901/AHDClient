@@ -38,7 +38,7 @@ export const game: GameApi = {
 
   async save(): Promise<{ saved: boolean; path?: string }> {
     if (!world) return { saved: false };
-    const defaultPath = `ahdsolo-${world.meta.seed}-t${world.meta.turn}.json`;
+    const defaultPath = `rotunda-${world.meta.seed}-t${world.meta.turn}.json`;
     const filePath = await save({
       defaultPath,
       filters: [{ name: "AHD Solo save", extensions: ["json"] }],

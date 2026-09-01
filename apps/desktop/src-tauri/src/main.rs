@@ -1,5 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-  ahdsolo_desktop_lib::run();
+  rotunda_desktop_lib::run();
 }

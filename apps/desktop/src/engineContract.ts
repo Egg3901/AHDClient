@@ -1,12 +1,12 @@
 // Thin contract shim for Engine v1 (docs/FRAMEWORK.md).
-// Re-exports from @ahdsolo/engine when available; otherwise provides a
+// Re-exports from @rotunda/engine when available; otherwise provides a
 // clearly marked temporary stub so the branch typechecks and runs standalone.
 // ---
-// TEMPORARY STUB - delete once @ahdsolo/engine ships listEras/listPlayableCountries
+// TEMPORARY STUB - delete once @rotunda/engine ships listEras/listPlayableCountries
 // and NewWorldOptions.era. Search for TEMPORARY STUB to remove.
 
-import * as engine from "@ahdsolo/engine";
-import type { WorldState } from "@ahdsolo/engine";
+import * as engine from "@rotunda/engine";
+import type { WorldState } from "@rotunda/engine";
 
 // ---- Contract types (FRAMEWORK.md Engine contract v1) ----
 
@@ -89,5 +89,5 @@ export function createWorld(options: NewWorldOptions): WorldState {
   }
 }
 
-export { advanceTurn, serializeSave, deserializeSave } from "@ahdsolo/engine";
-export type { TurnReport, WorldState } from "@ahdsolo/engine";
+export { advanceTurn, serializeSave, deserializeSave } from "@rotunda/engine";
+export type { TurnReport, WorldState } from "@rotunda/engine";

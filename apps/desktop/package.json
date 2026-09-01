@@ -1,5 +1,5 @@
 {
-  "name": "@ahdsolo/desktop",
+  "name": "@rotunda/desktop",
   "version": "0.1.0",
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@ahdsolo/engine": "*",
+    "@rotunda/engine": "*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
