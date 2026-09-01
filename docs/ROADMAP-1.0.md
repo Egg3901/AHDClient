@@ -45,7 +45,8 @@ Engine core (turn pipeline, RNG, saves) - real seed packs, 27 countries, both er
 - W21 election engine core: candidacies, voteAccumulation, primaryResolution, electionResolution, electionTimers, perpetualElections, byElectionWatcher, clearResolvedSupport
 - W22 candidates: generateChallengers, candidatePartySweep, staleCandidateCleanup, withdrawInactiveCandidates, autoReelectionEntry
 - W23 parliamentary: governmentFormation, parliamentaryGovernmentPhases, vacancy watcher, leadershipVacate
-- W24 presidential: US presidential (current v3 uniform-national-vote model), succession, impeachmentLifecycle
+- W24 presidential: DONE as nationwide-majority + 12th Amendment contingent (documented simplification; the brief's "uniform national vote" premise was wrong — mainline still runs per-state EV)
+- W24b Electoral College: port mainline's per-state EV engine (presidentialElectionEngine.ts, ~1000 lines: per-state winner-take-all, 270-equivalent majority, EV apportionment) replacing the nationwide simplification. Required for 1.0; swing-state gameplay depends on it
 - W25 referendums: referendumLifecycle, independenceDesireDrift
 - W26 campaigns: campaignTurn, canvassing, campaign ops trees, debates, campaignSpendReset, primarySnapshots
 
