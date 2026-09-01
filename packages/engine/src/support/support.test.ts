@@ -278,13 +278,14 @@ describe("priorityRegionDecay golden values", () => {
   it("integration via advanceTurn evicts via party.priorityRegion", () => {
     const world = createWorld(OPTS);
     const partyId = "US_DEM";
-    const rid = "US-R2";
-    world.parties[partyId]!.priorityRegion = { regionIds: [rid, "US-R1"], setAtTurn: 0 };
+    const rid = "AL"; // real state after W38 (southern strong-D)
+    const keep = "CA";
+    world.parties[partyId]!.priorityRegion = { regionIds: [rid, keep], setAtTurn: 0 };
     const key = `${rid}:${partyId}`;
     world.partyRegions[key]!.organization = 0;
     advanceTurn(world);
     expect(world.parties[partyId]!.priorityRegion!.regionIds).not.toContain(rid);
-    expect(world.parties[partyId]!.priorityRegion!.regionIds).toContain("US-R1");
+    expect(world.parties[partyId]!.priorityRegion!.regionIds).toContain(keep);
   });
 });
 
@@ -315,16 +316,17 @@ describe("determinism", () => {
 });
 
 describe("schema bump and migration", () => {
-  it("createWorld seeds 12 opaque regions and related maps", () => {
+  it("createWorld seeds 57 regions (48 US states + 9 opaque UK/RU/DD) and related maps", () => {
     const world = createWorld(OPTS);
-    expect(Object.keys(world.regions)).toHaveLength(12);
-    expect(Object.keys(world.electoratePools)).toHaveLength(12);
-    expect(Object.keys(world.regionTurnouts)).toHaveLength(12);
-    // partyRegions: 12 regions * parties per country
+    expect(Object.keys(world.regions)).toHaveLength(57);
+    expect(Object.keys(world.electoratePools)).toHaveLength(57);
+    expect(Object.keys(world.regionTurnouts)).toHaveLength(57);
+    expect(Object.keys(world.regions).filter((k) => world.regions[k]!.countryId === "US")).toHaveLength(48);
+    // partyRegions: 57 regions * parties per country
     expect(Object.keys(world.partyRegions).length).toBeGreaterThan(0);
-    expect(world.meta.schemaVersion).toBe(9);
+    expect(world.meta.schemaVersion).toBe(10);
   });
-  it("chained migration v7->v8 seeds W19 maps from old save", () => {
+  it("chained migration v7->v9 seeds W19 maps and migrates US to 48 states", () => {
     const oldWorld = {
       meta: { schemaVersion: 7, seed: "s", rng: [1, 2, 3, 4] as [number, number, number, number], turn: 0, date: "1953-01-06", era: "1953", cheatsUsed: false },
       countries: {
@@ -348,18 +350,21 @@ describe("schema bump and migration", () => {
     };
     const raw = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 7, savedAt: "2026-01-01", world: oldWorld });
     const migrated = deserializeSave(raw);
-    expect(migrated.meta.schemaVersion).toBe(9);
+    expect(migrated.meta.schemaVersion).toBe(10);
     expect(Object.keys((migrated as unknown as { regions: Record<string, unknown> }).regions).length).toBeGreaterThan(0);
     expect(Object.keys((migrated as unknown as { candidateSupports: Record<string, unknown> }).candidateSupports).length).toBe(1);
     // round-trip preserves
     const re = deserializeSave(serializeSave(migrated, "2026-01-02"));
-    expect(re.meta.schemaVersion).toBe(9);
+    expect(re.meta.schemaVersion).toBe(10);
   });
-  it("US seed registration reflects 1953 southern strong-D lane (PORT-STUB but historically biased)", () => {
+  it("US seed registration reflects 1953 southern strong-D lane (via MS/AL overrides, disenfranchisement modeled)", () => {
     const world = createWorld(OPTS);
-    const demSouth = world.partyRegions["US-R2:US_DEM"]!;
-    const repSouth = world.partyRegions["US-R2:US_REP"]!;
+    const demSouth = world.partyRegions["MS:US_DEM"]!;
+    const repSouth = world.partyRegions["MS:US_REP"]!;
     expect(demSouth.registration).toBeGreaterThan(repSouth.registration + 30);
     expect(demSouth.registration).toBeGreaterThanOrEqual(60);
+    // disenfranchisement via unregistered pool
+    expect(world.electoratePools["MS"]!.unregistered).toBe(25);
+    expect(world.electoratePools["AL"]!.unregistered).toBe(22);
   });
 });

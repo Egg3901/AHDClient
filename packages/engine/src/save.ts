@@ -266,5 +266,172 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 9;
   }
+  // v9 -> v10: W38 US states — replace US opaque US-R1..R3 with 48 real states.
+  // UK/RU/DD retain opaque until W39 per docs/support/W19_BRIDGE.md.
+  // Bridge decision: mainline has no explicit opaque-to-state mapping, so we use
+  // a deterministic population-weighted split. Pooled org/reg from the 3 opaque US
+  // regions (averaged) is assigned uniformly to all 48 new states (population
+  // weighting yields the same uniform result for percentage metrics; totals are
+  // preserved proportionally via population weight; see world.ts seedSupport).
+  // This is deterministic (sorted state tables, no RNG) and preserves aggregate
+  // support investment. PriorityRegion ids referencing US-Rx are dropped (no table).
+  // Turnout modifiers are neutral 0, so copy is safe. UK/RU/DD untouched.
+  if (save.schemaVersion < 10) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const regions = w["regions"] as Record<string, Record<string, unknown>> | undefined;
+    const partyRegions = w["partyRegions"] as Record<string, Record<string, unknown>> | undefined;
+    const electoratePools = w["electoratePools"] as Record<string, Record<string, unknown>> | undefined;
+    const regionTurnouts = w["regionTurnouts"] as Record<string, Record<string, unknown>> | undefined;
+    const partyPressures = w["partyPressures"] as Record<string, Record<string, unknown>> | undefined;
+    const parties = w["parties"] as Record<string, Record<string, unknown>> | undefined;
+
+    // Detect opaque US regions
+    const opaqueUsIds = ["US-R1", "US-R2", "US-R3"];
+    const hasOpaqueUs = regions ? opaqueUsIds.some((id) => id in regions) : false;
+
+    if (hasOpaqueUs && regions && partyRegions && electoratePools && regionTurnouts && partyPressures) {
+      // Import state list for population weighting and region seeding
+      // Inline minimal US states metadata (id, name, population) to avoid circular import
+      // Source: packages/content/src/packs/usStates1953.ts — sorted for determinism
+      const US_STATES_1953: Array<{ id: string; name: string; population: number; houseSeats: number; senateSeats: number; senateClasses: [1 | 2 | 3, 1 | 2 | 3]; region: string; gdp: number }> = [
+        { id: "AL", name: "Alabama", population: 3061743, houseSeats: 9, senateSeats: 35, senateClasses: [2, 3], region: "Southeast", gdp: 4500 },
+        { id: "AR", name: "Arkansas", population: 1909511, houseSeats: 6, senateSeats: 35, senateClasses: [2, 3], region: "Southeast", gdp: 2300 },
+        { id: "AZ", name: "Arizona", population: 749587, houseSeats: 2, senateSeats: 30, senateClasses: [1, 3], region: "Southwest", gdp: 1700 },
+        { id: "CA", name: "California", population: 10586223, houseSeats: 30, senateSeats: 40, senateClasses: [1, 3], region: "West", gdp: 38000 },
+        { id: "CO", name: "Colorado", population: 1325089, houseSeats: 4, senateSeats: 35, senateClasses: [2, 3], region: "West", gdp: 3200 },
+        { id: "CT", name: "Connecticut", population: 2007280, houseSeats: 6, senateSeats: 36, senateClasses: [1, 3], region: "Northeast", gdp: 6500 },
+        { id: "DE", name: "Delaware", population: 318085, houseSeats: 1, senateSeats: 21, senateClasses: [1, 2], region: "Northeast", gdp: 1000 },
+        { id: "FL", name: "Florida", population: 2771305, houseSeats: 8, senateSeats: 40, senateClasses: [1, 3], region: "Southeast", gdp: 4500 },
+        { id: "GA", name: "Georgia", population: 3444578, houseSeats: 10, senateSeats: 56, senateClasses: [2, 3], region: "Southeast", gdp: 5500 },
+        { id: "IA", name: "Iowa", population: 2621073, houseSeats: 8, senateSeats: 50, senateClasses: [2, 3], region: "Midwest", gdp: 5500 },
+        { id: "ID", name: "Idaho", population: 588637, houseSeats: 2, senateSeats: 35, senateClasses: [2, 3], region: "West", gdp: 1300 },
+        { id: "IL", name: "Illinois", population: 8712176, houseSeats: 25, senateSeats: 59, senateClasses: [2, 3], region: "Midwest", gdp: 30000 },
+        { id: "IN", name: "Indiana", population: 3934224, houseSeats: 11, senateSeats: 50, senateClasses: [1, 3], region: "Midwest", gdp: 10000 },
+        { id: "KS", name: "Kansas", population: 1905299, houseSeats: 6, senateSeats: 40, senateClasses: [2, 3], region: "Midwest", gdp: 4000 },
+        { id: "KY", name: "Kentucky", population: 2944806, houseSeats: 8, senateSeats: 38, senateClasses: [2, 3], region: "Southeast", gdp: 4500 },
+        { id: "LA", name: "Louisiana", population: 2683516, houseSeats: 8, senateSeats: 39, senateClasses: [2, 3], region: "Southeast", gdp: 5500 },
+        { id: "MA", name: "Massachusetts", population: 4690514, houseSeats: 14, senateSeats: 40, senateClasses: [1, 2], region: "Northeast", gdp: 14000 },
+        { id: "MD", name: "Maryland", population: 2343001, houseSeats: 7, senateSeats: 47, senateClasses: [1, 3], region: "Northeast", gdp: 6500 },
+        { id: "ME", name: "Maine", population: 913774, houseSeats: 3, senateSeats: 35, senateClasses: [1, 2], region: "Northeast", gdp: 1800 },
+        { id: "MI", name: "Michigan", population: 6371766, houseSeats: 18, senateSeats: 38, senateClasses: [1, 2], region: "Midwest", gdp: 20000 },
+        { id: "MN", name: "Minnesota", population: 2982483, houseSeats: 9, senateSeats: 67, senateClasses: [1, 2], region: "Midwest", gdp: 7500 },
+        { id: "MO", name: "Missouri", population: 3954653, houseSeats: 11, senateSeats: 34, senateClasses: [1, 3], region: "Midwest", gdp: 11000 },
+        { id: "MS", name: "Mississippi", population: 2178914, houseSeats: 6, senateSeats: 52, senateClasses: [1, 2], region: "Southeast", gdp: 2300 },
+        { id: "MT", name: "Montana", population: 591024, houseSeats: 2, senateSeats: 50, senateClasses: [1, 2], region: "West", gdp: 1400 },
+        { id: "NC", name: "North Carolina", population: 4061929, houseSeats: 12, senateSeats: 50, senateClasses: [2, 3], region: "Southeast", gdp: 6500 },
+        { id: "ND", name: "North Dakota", population: 619636, houseSeats: 2, senateSeats: 47, senateClasses: [1, 3], region: "Midwest", gdp: 1300 },
+        { id: "NE", name: "Nebraska", population: 1325510, houseSeats: 4, senateSeats: 49, senateClasses: [1, 2], region: "Midwest", gdp: 3200 },
+        { id: "NH", name: "New Hampshire", population: 533242, houseSeats: 2, senateSeats: 24, senateClasses: [2, 3], region: "Northeast", gdp: 1300 },
+        { id: "NJ", name: "New Jersey", population: 4835329, houseSeats: 14, senateSeats: 40, senateClasses: [1, 2], region: "Northeast", gdp: 16000 },
+        { id: "NM", name: "New Mexico", population: 681187, houseSeats: 2, senateSeats: 42, senateClasses: [1, 2], region: "Southwest", gdp: 1200 },
+        { id: "NV", name: "Nevada", population: 160083, houseSeats: 1, senateSeats: 21, senateClasses: [1, 3], region: "Southwest", gdp: 450 },
+        { id: "NY", name: "New York", population: 14830192, houseSeats: 43, senateSeats: 61, senateClasses: [1, 3], region: "Northeast", gdp: 50000 },
+        { id: "OH", name: "Ohio", population: 7946627, houseSeats: 23, senateSeats: 33, senateClasses: [1, 3], region: "Midwest", gdp: 24000 },
+        { id: "OK", name: "Oklahoma", population: 2233351, houseSeats: 6, senateSeats: 48, senateClasses: [2, 3], region: "Southwest", gdp: 4000 },
+        { id: "OR", name: "Oregon", population: 1521341, houseSeats: 4, senateSeats: 30, senateClasses: [2, 3], region: "West", gdp: 3600 },
+        { id: "PA", name: "Pennsylvania", population: 10498012, houseSeats: 30, senateSeats: 50, senateClasses: [1, 3], region: "Northeast", gdp: 30000 },
+        { id: "RI", name: "Rhode Island", population: 791896, houseSeats: 2, senateSeats: 38, senateClasses: [1, 2], region: "Northeast", gdp: 2300 },
+        { id: "SC", name: "South Carolina", population: 2117027, houseSeats: 6, senateSeats: 46, senateClasses: [2, 3], region: "Southeast", gdp: 2800 },
+        { id: "SD", name: "South Dakota", population: 652740, houseSeats: 2, senateSeats: 35, senateClasses: [2, 3], region: "Midwest", gdp: 1300 },
+        { id: "TN", name: "Tennessee", population: 3291718, houseSeats: 9, senateSeats: 33, senateClasses: [1, 2], region: "Southeast", gdp: 5500 },
+        { id: "TX", name: "Texas", population: 7711194, houseSeats: 22, senateSeats: 31, senateClasses: [1, 2], region: "Southwest", gdp: 18000 },
+        { id: "UT", name: "Utah", population: 688862, houseSeats: 2, senateSeats: 29, senateClasses: [1, 3], region: "Southwest", gdp: 1400 },
+        { id: "VA", name: "Virginia", population: 3318680, houseSeats: 10, senateSeats: 40, senateClasses: [1, 2], region: "Southeast", gdp: 6500 },
+        { id: "VT", name: "Vermont", population: 377747, houseSeats: 1, senateSeats: 30, senateClasses: [1, 3], region: "Northeast", gdp: 750 },
+        { id: "WA", name: "Washington", population: 2378963, houseSeats: 7, senateSeats: 49, senateClasses: [1, 3], region: "West", gdp: 6500 },
+        { id: "WI", name: "Wisconsin", population: 3434575, houseSeats: 10, senateSeats: 33, senateClasses: [1, 3], region: "Midwest", gdp: 8500 },
+        { id: "WV", name: "West Virginia", population: 2005552, houseSeats: 6, senateSeats: 34, senateClasses: [1, 2], region: "Southeast", gdp: 3500 },
+        { id: "WY", name: "Wyoming", population: 290529, houseSeats: 1, senateSeats: 30, senateClasses: [1, 2], region: "West", gdp: 650 },
+      ];
+
+      // Compute per-party average org/reg and per-region electorate averages across opaque US regions
+      const usPartyIds = parties ? Object.keys(parties).filter((pid) => (parties[pid] as Record<string, unknown>)["countryId"] === "US") : [];
+      const avgOrgByParty = new Map<string, number>();
+      const avgRegByParty = new Map<string, number>();
+      for (const pid of usPartyIds) {
+        let sumOrg = 0, sumReg = 0, count = 0;
+        for (const rid of opaqueUsIds) {
+          const key = `${rid}:${pid}`;
+          const pr = partyRegions[key] as Record<string, unknown> | undefined;
+          if (pr && typeof pr["organization"] === "number" && typeof pr["registration"] === "number") {
+            sumOrg += pr["organization"] as number;
+            sumReg += pr["registration"] as number;
+            count++;
+          }
+        }
+        avgOrgByParty.set(pid, count ? Math.round(sumOrg / count) : 0);
+        avgRegByParty.set(pid, count ? Math.round(sumReg / count) : 0);
+      }
+      // Electorate averages
+      let sumInd = 0, sumUnreg = 0, countPools = 0;
+      for (const rid of opaqueUsIds) {
+        const pool = electoratePools[rid] as Record<string, unknown> | undefined;
+        if (pool && typeof pool["independent"] === "number" && typeof pool["unregistered"] === "number") {
+          sumInd += pool["independent"] as number;
+          sumUnreg += pool["unregistered"] as number;
+          countPools++;
+        }
+      }
+      const avgInd = countPools ? Math.round(sumInd / countPools) : 8;
+      const avgUnreg = countPools ? Math.round(sumUnreg / countPools) : 7;
+
+      // Turnout modifiers are neutral 0; copy from first opaque if present
+      let turnoutMods: Record<string, Record<string, number>> | null = null;
+      for (const rid of opaqueUsIds) {
+        const rt = regionTurnouts[rid] as Record<string, unknown> | undefined;
+        if (rt && typeof rt["modifiers"] === "object" && rt["modifiers"] !== null) {
+          turnoutMods = rt["modifiers"] as Record<string, Record<string, number>>;
+          break;
+        }
+      }
+      if (!turnoutMods) turnoutMods = { voterGroups: { urban_progressives: 0, rural_conservatives: 0, suburban_moderates: 0 } };
+
+      // Remove opaque US entries
+      for (const rid of opaqueUsIds) {
+        delete regions[rid];
+        delete electoratePools[rid];
+        delete regionTurnouts[rid];
+      }
+      // Remove old partyRegions/pressures for US opaque
+      for (const key of Object.keys(partyRegions)) {
+        if (opaqueUsIds.some((rid) => key.startsWith(`${rid}:`))) delete partyRegions[key];
+      }
+      for (const key of Object.keys(partyPressures)) {
+        if (opaqueUsIds.some((rid) => key.endsWith(`:${rid}`))) delete partyPressures[key];
+      }
+
+      // Create new US state regions and support rows
+      for (const st of US_STATES_1953) {
+        const rid = st.id;
+        regions[rid] = { id: rid, countryId: "US", name: st.name, population: st.population, houseSeats: st.houseSeats, senateSeats: st.senateSeats, senateClasses: st.senateClasses, censusRegion: st.region, gdp: st.gdp };
+        electoratePools[rid] = { regionId: rid, countryId: "US", independent: avgInd, unregistered: avgUnreg };
+        regionTurnouts[rid] = { regionId: rid, countryId: "US", modifiers: JSON.parse(JSON.stringify(turnoutMods)), lastDecayAppliedTurn: 0 };
+        for (const pid of usPartyIds) {
+          const org = avgOrgByParty.get(pid) ?? 0;
+          const reg = avgRegByParty.get(pid) ?? 0;
+          const key = `${rid}:${pid}`;
+          partyRegions[key] = { regionId: rid, partyId: pid, countryId: "US", organization: org, registration: reg };
+          const pkey = `${pid}:${rid}`;
+          partyPressures[pkey] = { partyId: pid, regionId: rid, countryId: "US", value: 0 };
+        }
+      }
+
+      // PriorityRegion remap: drop US-Rx ids (no table); keep others
+      if (parties) {
+        for (const p of Object.values(parties)) {
+          const pr = (p as Record<string, unknown>)["priorityRegion"] as Record<string, unknown> | undefined;
+          if (pr && Array.isArray(pr["regionIds"])) {
+            const ids = pr["regionIds"] as string[];
+            const filtered = ids.filter((id) => !opaqueUsIds.includes(id));
+            // If any US opaque was present, drop them; if empty after filter, keep empty
+            if (filtered.length !== ids.length) {
+              pr["regionIds"] = filtered;
+            }
+          }
+        }
+      }
+    }
+    save.world.meta.schemaVersion = 10;
+  }
   return save.world;
 }

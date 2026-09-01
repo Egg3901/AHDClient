@@ -159,4 +159,64 @@ describe("validatePack", () => {
       }
     }
   });
+
+  it("1953 pack has 48 US states, AK/HI absent, DC absent", () => {
+    expect(pack1953.states!.length).toBe(48);
+    const ids = new Set(pack1953.states!.map((s) => s.id));
+    expect(ids.has("AK")).toBe(false);
+    expect(ids.has("HI")).toBe(false);
+    expect(ids.has("DC")).toBe(false);
+    expect(ids.has("CA")).toBe(true);
+    expect(ids.has("NY")).toBe(true);
+    expect(ids.has("TX")).toBe(true);
+    // all 48 contiguous
+    expect(ids.size).toBe(48);
+  });
+
+  it("1953 US states houseSeats sum to 435 (83rd Congress apportionment)", () => {
+    const total = pack1953.states!.filter((s) => s.countryId === "US").reduce((a, s) => a + s.houseSeats, 0);
+    expect(total).toBe(435);
+  });
+
+  it("1953 US states population sums plausible vs mainline total (149,895,183 from 1950 Census)", () => {
+    const total = pack1953.states!.reduce((a, s) => a + s.population, 0);
+    expect(total).toBe(149_895_183);
+    // Allow small drift if future pack tweaks gdp but population must remain exact 1950 Census sum
+  });
+
+  it("1953 US states have senateClasses I/II/III and gdp/region Registration modeled", () => {
+    for (const st of pack1953.states!) {
+      expect(st.senateClasses.length).toBe(2);
+      for (const c of st.senateClasses) expect([1, 2, 3]).toContain(c);
+      expect(st.gdp).toBeGreaterThan(0);
+      expect(st.region).not.toBe("");
+      expect(st.registration.parties.length).toBeGreaterThan(0);
+      // disenfranchisement modeled as unregistered pool — Southern states have large pools
+      if (st.id === "MS") expect(st.registration.unregistered).toBe(25);
+      if (st.id === "AL") expect(st.registration.unregistered).toBe(22);
+    }
+  });
+
+  it("state legislatures: stateSenate chamber is vacant with citation (no invented 1953 composition)", () => {
+    const usLeg = pack1953.legislatures!.find((l) => l.countryId === "US")!;
+    const stateSenate = usLeg.chambers.find((c) => c.key === "stateSenate")!;
+    // 1972 is the 50-state total (STATE_SENATE_SEATS sum). 1953 pack has 48 contiguous states
+    // (AK 20 + HI 25 absent; plus NY 61 vs modern 63 delta). Per-state sum for 1953 is 1925.
+    // No mainline 1953 composition exists, so it stays vacant. Source: historicalSeats.ts has no US_STATE_SENATE_1953 roster; only US_HOUSE/SENATE/GOVERNOR for 1953.
+    expect(stateSenate.seats).toBe(1972);
+    expect(stateSenate.composition.vacancies).toBe(1972);
+    expect(Object.keys(stateSenate.composition.seatsByParty).length).toBe(0);
+    // Sum of per-state senateSeats for 1953 (48 states) is 1925
+    const sum = pack1953.states!.reduce((a, s) => a + s.senateSeats, 0);
+    expect(sum).toBe(1925);
+  });
+
+  it("pack validation extended: rejects duplicate state ids and bad houseSeats sum", () => {
+    const bad: SeedPack = structuredClone(pack1953) as SeedPack;
+    bad.states!.push({ ...bad.states![0]! });
+    expect(() => validatePack(bad)).toThrow(/duplicate state/i);
+    const bad2: SeedPack = structuredClone(pack1953) as SeedPack;
+    bad2.states![0]!.houseSeats += 1;
+    expect(() => validatePack(bad2)).toThrow(/houseSeats sum/i);
+  });
 });

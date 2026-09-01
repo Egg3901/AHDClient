@@ -8,7 +8,7 @@ import {
   getEraCommodityBasePrice,
 } from "./commodity/constants.js";
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -258,7 +258,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
   }
 
   const { regions, electoratePools, regionTurnouts, partyRegions, partyPressures, candidateSupports } =
-    seedW19Support(pack, parties, politicians);
+    seedSupport(pack, parties, politicians);
 
   const world: WorldState = {
     meta: {
@@ -302,24 +302,22 @@ export function createWorld(options: NewWorldOptions): WorldState {
 }
 
 /**
- * Seed W19 support/electorate state.
- * Regions are 3 opaque per playable country (US/UK/RU/DD = 12 total).
- * W38 will remap to real state ids — see docs/support/W19_BRIDGE.md.
+ * Seed support/electorate state.
+ * W38: US 48 real states (AK/HI absent until statehood), UK/RU/DD 3 opaque each.
+ * See docs/support/W19_BRIDGE.md for bridge plan and population-weighted split rationale.
  *
  * Registration/org seeding:
- * - US: derived from src/lib/seeds/registration/registrationLanes1953.ts lanes
- *   (curated from 1950s SoS registration + 1952 partisan map). Three regions
- *   sample leanD / competitiveD / leanR archetypes plus southern strong-D
- *   override pattern for the southern region.
- * - UK: PORT-STUB neutral/historical-lean from UK_REGION_POLLING_1951 averages
- *   (Craig 1951). Seeded LAB/CON 30-35 reg with LIB minor; SNP/PC/SF zero.
+ * - US: per-state from pack.states[].registration (src/lib/seeds/registration/registrationLanes1953.ts
+ *   lanes + per-state overrides; disenfranchisement via unregistered pool, e.g. MS 25). Maps abbr DEM/REP to party ids US_DEM/US_REP.
+ *   Turnout modifiers start at 0. House apportionment and Senate classes are carried on Region but not consumed by support phases.
+ * - UK/RU/DD: retained opaque 3-region PORT-STUB as in W19 until W39 (UK polling 1951, RU/DD org tables).
  *   Cited as PORT-STUB with mainline-neutral equivalent.
- * - RU/DD: PORT-STUB one-party dominant from RU_REGION_ORG_1953 / DD org
- *   calculations (CPSU ~95-98, SED ~80-85). Bloc parties lower. PORT-STUB.
+ * - UK: PORT-STUB neutral/historical-lean from UK_REGION_POLLING_1951 averages (Craig 1951).
+ * - RU/DD: PORT-STUB one-party dominant from RU_REGION_ORG_1953 / DD org calculations (CPSU ~95-98, SED ~80-85).
  * Turnout modifiers start at 0. Candidate supports start at 50 (DEFAULT).
  */
-function seedW19Support(
-  pack: { countries: Array<{ id: string; playable: boolean }> },
+function seedSupport(
+  pack: { countries: Array<{ id: string; playable: boolean }>; states?: Array<{ id: string; name: string; countryId: string; population: number; gdp: number; houseSeats: number; senateSeats: number; region: string; senateClasses: [1 | 2 | 3, 1 | 2 | 3]; registration: { parties: Array<{ abbr: string; org: number; reg: number }>; independent: number; unregistered: number; unaffiliatedOrg: number } }> },
   parties: WorldState["parties"],
   politicians: WorldState["politicians"],
 ): {
@@ -339,7 +337,102 @@ function seedW19Support(
 
   const regionIdsByCountry = new Map<string, string[]>();
 
+  // US: real 48 states from pack.states if present; else fallback to 3 opaque (pre-W38 saves)
+  const usStates = (pack.states ?? []).filter((s) => s.countryId === "US");
+  if (usStates.length > 0) {
+    const ids: string[] = [];
+    const sorted = [...usStates].sort((a, b) => a.id.localeCompare(b.id));
+    for (const st of sorted) {
+      const rid = st.id;
+      ids.push(rid);
+      regions[rid] = {
+        id: rid,
+        countryId: "US",
+        name: st.name,
+        population: st.population,
+        houseSeats: st.houseSeats,
+        senateSeats: st.senateSeats,
+        senateClasses: st.senateClasses,
+        censusRegion: st.region,
+        gdp: st.gdp,
+      };
+    }
+    regionIdsByCountry.set("US", ids);
+    // Populate per-state electorate/turnout/partyRegions for US
+    for (const st of sorted) {
+      const rid = st.id;
+      electoratePools[rid] = {
+        regionId: rid,
+        countryId: "US",
+        independent: st.registration.independent,
+        unregistered: st.registration.unregistered,
+      };
+      regionTurnouts[rid] = {
+        regionId: rid,
+        countryId: "US",
+        modifiers: seedTurnoutModifiers("US"),
+        lastDecayAppliedTurn: 0,
+      };
+    }
+    // Map abbr -> partyId for US
+    const usParties = Object.values(parties).filter((p) => p.countryId === "US");
+    const abbrToPartyId = new Map<string, string>();
+    for (const p of usParties) abbrToPartyId.set(p.abbreviation, p.id);
+    for (const st of sorted) {
+      const rid = st.id;
+      for (const entry of st.registration.parties) {
+        const partyId = abbrToPartyId.get(entry.abbr);
+        if (!partyId) continue;
+        const party = parties[partyId];
+        if (!party) continue;
+        const key = `${rid}:${partyId}`;
+        partyRegions[key] = {
+          regionId: rid,
+          partyId,
+          countryId: "US",
+          organization: entry.org,
+          registration: entry.reg,
+        };
+        const pkey = `${partyId}:${rid}`;
+        partyPressures[pkey] = { partyId, regionId: rid, countryId: "US", value: 0 };
+      }
+      // Ensure every US party has a row even if not in registration (e.g. future third parties) with 0
+      for (const p of usParties) {
+        const key = `${rid}:${p.id}`;
+        if (!partyRegions[key]) {
+          partyRegions[key] = { regionId: rid, partyId: p.id, countryId: "US", organization: 0, registration: 0 };
+          const pkey = `${p.id}:${rid}`;
+          if (!partyPressures[pkey]) partyPressures[pkey] = { partyId: p.id, regionId: rid, countryId: "US", value: 0 };
+        }
+      }
+    }
+  } else {
+    // Fallback: 3 opaque US regions (for 1960 era which carries no states table)
+    const ids: string[] = [];
+    for (let i = 1; i <= 3; i++) {
+      const rid = `US-R${i}`;
+      ids.push(rid);
+      regions[rid] = { id: rid, countryId: "US", name: `US Region ${i}` };
+    }
+    regionIdsByCountry.set("US", ids);
+    for (const rid of ids) {
+      electoratePools[rid] = seedPool("US", rid);
+      regionTurnouts[rid] = { regionId: rid, countryId: "US", modifiers: seedTurnoutModifiers("US"), lastDecayAppliedTurn: 0 };
+    }
+    for (const party of Object.values(parties).filter((p) => p.countryId === "US")) {
+      for (const rid of ids) {
+        const key = `${rid}:${party.id}`;
+        const { organization, registration } = seedPartyRegion(party, rid);
+        partyRegions[key] = { regionId: rid, partyId: party.id, countryId: party.countryId, organization, registration };
+        const pkey = `${party.id}:${rid}`;
+        partyPressures[pkey] = { partyId: party.id, regionId: rid, countryId: party.countryId, value: 0 };
+      }
+    }
+  }
+
+  // UK/RU/DD retain 3 opaque each until W39 (or if US already handled, handle remaining playable)
   for (const countryId of playable) {
+    if (countryId === "US") continue;
     const ids: string[] = [];
     for (let i = 1; i <= 3; i++) {
       const rid = `${countryId}-R${i}`;
@@ -348,24 +441,25 @@ function seedW19Support(
       regionIdsByCountry.set(countryId, ids);
     }
   }
-  // Ensure map fully populated before seeding per-region structures
   for (const countryId of playable) {
+    if (countryId === "US") continue;
     const rids = regionIdsByCountry.get(countryId)!;
     for (const rid of rids) {
-      electoratePools[rid] = seedPool(countryId, rid);
-      regionTurnouts[rid] = { regionId: rid, countryId, modifiers: seedTurnoutModifiers(countryId), lastDecayAppliedTurn: 0 };
+      if (!electoratePools[rid]) electoratePools[rid] = seedPool(countryId, rid);
+      if (!regionTurnouts[rid]) regionTurnouts[rid] = { regionId: rid, countryId, modifiers: seedTurnoutModifiers(countryId), lastDecayAppliedTurn: 0 };
     }
   }
-
   for (const party of Object.values(parties)) {
+    if (party.countryId === "US") continue;
     const rids = regionIdsByCountry.get(party.countryId);
     if (!rids) continue;
     for (const rid of rids) {
       const key = `${rid}:${party.id}`;
+      if (partyRegions[key]) continue;
       const { organization, registration } = seedPartyRegion(party, rid);
       partyRegions[key] = { regionId: rid, partyId: party.id, countryId: party.countryId, organization, registration };
       const pkey = `${party.id}:${rid}`;
-      partyPressures[pkey] = { partyId: party.id, regionId: rid, countryId: party.countryId, value: 0 };
+      if (!partyPressures[pkey]) partyPressures[pkey] = { partyId: party.id, regionId: rid, countryId: party.countryId, value: 0 };
     }
   }
 

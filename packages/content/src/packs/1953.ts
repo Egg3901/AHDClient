@@ -1,4 +1,5 @@
 import type { SeedPack } from "../types.js";
+import { usStates1953 } from "./usStates1953.js";
 
 /**
  * Generated from mainline AHDGame  -  DO NOT HAND-EDIT.
@@ -39,6 +40,7 @@ import type { SeedPack } from "../types.js";
 export const pack1953: SeedPack = {
   packVersion: 1,
   era: { id: "1953", label: "1953: Cold War Dawn", startDate: "1953-01-06" },
+  states: usStates1953,
   countries: [
     {
       id: "US",

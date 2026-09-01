@@ -35,7 +35,7 @@ export interface WorldState {
   commodityPrices: Record<string, CommodityState>;
   /** Extraction contracts. Ports src/lib/db/types/extractionContract.ts. */
   extractionContracts: ExtractionContract[];
-  /** Opaque regions per playable country. W19: 3 per playable (12 total). W38 replaces with real state ids. */
+  /** Regions per playable country. W38: US 48 real states (AK/HI absent); UK/RU/DD retain 3 opaque each until W39. */
   regions: Record<string, Region>;
   /** Per-region per-party org/reg. Key `${regionId}:${partyId}`. Ports StatePartyOrg. */
   partyRegions: Record<string, PartyRegion>;
@@ -370,19 +370,34 @@ export interface ExtractionContract {
 }
 
 /**
- * Opaque region (state/province/constituency) for party-support modeling.
- * W19 models 3 opaque regions per playable country (US/UK/RU/DD = 12 total).
- * W38 will replace opaque ids with real state ids (US 51, UK ~11 etc) and
- * migrate via id remapping; see docs/support/W19_BRIDGE.md and the priorityRegion
- * bridge note below.
+ * State/region for party-support modeling. W19 used 3 opaque regions per
+ * playable country (US/UK/RU/DD = 12 total). W38 replaces US opaque ids with
+ * real 48 state ids (AK/HI absent until statehood, per mainline's 1950 Census
+ * apportionment; see packages/content/src/packs/usStates1953.ts). UK/RU/DD
+ * retain opaque ids until W39 per docs/support/W19_BRIDGE.md.
  *
  * Mainline source: State collection (src/lib/db/types/state.ts) per-state rows
  * and StatePartyOrg per (state,party) rows. Solo collapses to this flat map.
+ *
+ * For US states, the region doubles as the state row: additional state metadata
+ * (population, houseSeats, senateSeats, senateClasses, region, gdp, registration)
+ * is available via the content pack's StateSeed, keyed by the same id.
+ * House districts stay counts-per-state (district geometry not needed per
+ * election model); Senate classes drive election timing later.
  */
 export interface Region {
   id: string;
   countryId: string;
   name: string;
+  /** Optional enriched state metadata for US states (W38+). Mirrors StateSeed fields. */
+  population?: number;
+  houseSeats?: number;
+  senateSeats?: number;
+  senateClasses?: [1 | 2 | 3, 1 | 2 | 3];
+  /** Census region (Northeast/Southeast/Midwest/Southwest/West). Only for US states. */
+  censusRegion?: string;
+  /** Nominal GSP in millions USD (estimated 1953). Only for US states. */
+  gdp?: number;
 }
 
 /**

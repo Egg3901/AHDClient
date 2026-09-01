@@ -120,6 +120,68 @@ export function validatePack(pack: SeedPack): void {
     }
   }
 
+  // states validation
+  if (Array.isArray(pack.states)) {
+    const seenStates = new Set<string>();
+    let totalHouse = 0;
+    for (let i = 0; i < pack.states.length; i++) {
+      const s = pack.states[i] as unknown as Record<string, unknown>;
+      if (typeof s !== "object" || s === null) throw new Error(`validatePack: states[${i}] must be an object`);
+      const id = s["id"];
+      const name = s["name"];
+      const countryId = s["countryId"];
+      const population = s["population"];
+      const gdp = s["gdp"];
+      const houseSeats = s["houseSeats"];
+      const senateSeats = s["senateSeats"];
+      const region = s["region"];
+      const senateClasses = s["senateClasses"];
+      const registration = s["registration"] as unknown as Record<string, unknown> | undefined;
+      if (typeof id !== "string" || id.trim() === "") throw new Error(`validatePack: states[${i}].id must be a non-empty string`);
+      if (seenStates.has(id)) throw new Error(`validatePack: duplicate state id "${id}"`);
+      seenStates.add(id);
+      if (typeof name !== "string" || name.trim() === "") throw new Error(`validatePack: states[${i}].name must be a non-empty string for id "${id}"`);
+      if (typeof countryId !== "string" || countryId.trim() === "") throw new Error(`validatePack: states[${i}].countryId must be a non-empty string for id "${id}"`);
+      if (!seen.has(countryId)) throw new Error(`validatePack: states[${i}].countryId "${countryId}" does not match any country for state "${id}"`);
+      if (!isFiniteNumber(population) || !Number.isInteger(population as number) || (population as number) <= 0) throw new Error(`validatePack: states[${i}].population must be a finite integer > 0 for id "${id}", got ${String(population)}`);
+      if (!isFiniteNumber(gdp) || (gdp as number) <= 0) throw new Error(`validatePack: states[${i}].gdp must be a finite number > 0 for id "${id}", got ${String(gdp)}`);
+      if (!isFiniteNumber(houseSeats) || !Number.isInteger(houseSeats as number) || (houseSeats as number) < 0) throw new Error(`validatePack: states[${i}].houseSeats must be a finite integer >= 0 for id "${id}", got ${String(houseSeats)}`);
+      if (!isFiniteNumber(senateSeats) || !Number.isInteger(senateSeats as number) || (senateSeats as number) <= 0) throw new Error(`validatePack: states[${i}].senateSeats must be a finite integer > 0 for id "${id}", got ${String(senateSeats)}`);
+      if (typeof region !== "string" || region.trim() === "") throw new Error(`validatePack: states[${i}].region must be a non-empty string for id "${id}"`);
+      if (!Array.isArray(senateClasses) || senateClasses.length !== 2) throw new Error(`validatePack: states[${i}].senateClasses must be a [1|2|3, 1|2|3] pair for id "${id}"`);
+      for (let k = 0; k < 2; k++) {
+        const c = senateClasses[k];
+        if (c !== 1 && c !== 2 && c !== 3) throw new Error(`validatePack: states[${i}].senateClasses[${k}] must be 1, 2, or 3 for id "${id}", got ${String(c)}`);
+      }
+      if (typeof registration !== "object" || registration === null) throw new Error(`validatePack: states[${i}].registration must be an object for id "${id}"`);
+      const parties = (registration as Record<string, unknown>)["parties"];
+      const independent = (registration as Record<string, unknown>)["independent"];
+      const unregistered = (registration as Record<string, unknown>)["unregistered"];
+      const unaffiliatedOrg = (registration as Record<string, unknown>)["unaffiliatedOrg"];
+      if (!Array.isArray(parties) || parties.length === 0) throw new Error(`validatePack: states[${i}].registration.parties must be a non-empty array for id "${id}"`);
+      for (let k = 0; k < parties.length; k++) {
+        const pr = parties[k] as unknown as Record<string, unknown>;
+        if (typeof pr !== "object" || pr === null) throw new Error(`validatePack: states[${i}].registration.parties[${k}] must be an object for id "${id}"`);
+        if (typeof pr["abbr"] !== "string" || (pr["abbr"] as string).trim() === "") throw new Error(`validatePack: states[${i}].registration.parties[${k}].abbr must be a non-empty string for id "${id}"`);
+        if (!isFiniteNumber(pr["org"]) || pr["org"] as number < 0 || pr["org"] as number > 100) throw new Error(`validatePack: states[${i}].registration.parties[${k}].org must be in [0,100] for id "${id}", got ${String(pr["org"])}`);
+        if (!isFiniteNumber(pr["reg"]) || pr["reg"] as number < 0 || pr["reg"] as number > 100) throw new Error(`validatePack: states[${i}].registration.parties[${k}].reg must be in [0,100] for id "${id}", got ${String(pr["reg"])}`);
+      }
+      if (!isFiniteNumber(independent) || independent as number < 0 || independent as number > 100) throw new Error(`validatePack: states[${i}].registration.independent must be in [0,100] for id "${id}", got ${String(independent)}`);
+      if (!isFiniteNumber(unregistered) || unregistered as number < 0 || unregistered as number > 100) throw new Error(`validatePack: states[${i}].registration.unregistered must be in [0,100] for id "${id}", got ${String(unregistered)}`);
+      if (!isFiniteNumber(unaffiliatedOrg) || unaffiliatedOrg as number < 0 || unaffiliatedOrg as number > 100) throw new Error(`validatePack: states[${i}].registration.unaffiliatedOrg must be in [0,100] for id "${id}", got ${String(unaffiliatedOrg)}`);
+      totalHouse += houseSeats as number;
+    }
+    // For US 1953 pack, apportionment must sum to 435 (48 states; AK/HI absent)
+    // Cross-check only for packs that have US states; allow other eras to have different totals
+    const usStates = pack.states.filter((s) => s.countryId === "US");
+    if (usStates.length > 0) {
+      const sum = usStates.reduce((a, s) => a + s.houseSeats, 0);
+      // 1953 pack expects 435; other packs may differ but we enforce plausible range
+      if (pack.era.id === "1953" && sum !== 435) throw new Error(`validatePack: US states houseSeats sum ${sum} does not equal 435 for era 1953`);
+      if (usStates.length === 48 && sum !== 435) throw new Error(`validatePack: 48 US states houseSeats sum ${sum} does not equal 435`);
+    }
+  }
+
   // parties validation
   if (Array.isArray(pack.parties)) {
     const partyIds = new Set<string>();

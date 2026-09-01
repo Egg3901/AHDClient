@@ -308,4 +308,179 @@ describe("political structures", () => {
     expect(volks.seatsByParty["DD_DBD"]).toBe(55);
     expect(volks.vacancies).toBe(0);
   });
+
+  it("US stateSenate is vacant 1972 with citation (no invented 1953 composition)", () => {
+    const world = createWorld({ seed: "x", playerName: "P", countryId: "US", era: "1953" });
+    const stateSenate = world.legislatures["US"]!.chambers.find((c) => c.key === "stateSenate")!;
+    // No mainline 1953 composition exists for state legislatures; leave vacant.
+    // Total 1972 matches sum of per-state senateSeats.
+    expect(stateSenate.seats).toBe(1972);
+    expect(stateSenate.composition.vacancies).toBe(1972);
+    expect(Object.keys(stateSenate.composition.seatsByParty).length).toBe(0);
+  });
+});
+
+describe("W38 US states layer", () => {
+  it("1953 world has 48 US state regions, 57 total (48 + 3*3 UK/RU/DD)", () => {
+    const world = createWorld({ seed: "s", playerName: "P", countryId: "US", era: "1953" });
+    const usRegions = Object.values(world.regions).filter((r) => r.countryId === "US");
+    expect(usRegions.length).toBe(48);
+    expect(usRegions.some((r) => r.id === "AK")).toBe(false);
+    expect(usRegions.some((r) => r.id === "HI")).toBe(false);
+    expect(Object.keys(world.regions).length).toBe(48 + 9); // 48 US + 3 each UK/RU/DD
+  });
+
+  it("apportionment sums to 435 and per-state senate sum to 1925 (50-state chamber is 1972)", () => {
+    const world = createWorld({ seed: "s", playerName: "P", countryId: "US", era: "1953" });
+    const usRegions = Object.values(world.regions).filter((r) => r.countryId === "US");
+    const houseSum = usRegions.reduce((a, r) => a + (r.houseSeats ?? 0), 0);
+    const senateSum = usRegions.reduce((a, r) => a + (r.senateSeats ?? 0), 0);
+    expect(houseSum).toBe(435);
+    expect(senateSum).toBe(1925);
+  });
+
+  it("population sums plausible vs mainline 149,895,183 and per-state population matches pack", () => {
+    const world = createWorld({ seed: "s", playerName: "P", countryId: "US", era: "1953" });
+    const usRegions = Object.values(world.regions).filter((r) => r.countryId === "US");
+    const popSum = usRegions.reduce((a, r) => a + (r.population ?? 0), 0);
+    expect(popSum).toBe(149_895_183);
+  });
+
+  it("senate classes per state are I/II/III pairs from mainline SENATE_CLASSES_BY_STATE", () => {
+    const world = createWorld({ seed: "s", playerName: "P", countryId: "US", era: "1953" });
+    const usRegions = Object.values(world.regions).filter((r) => r.countryId === "US");
+    for (const r of usRegions) {
+      expect(r.senateClasses).toBeDefined();
+      expect(r.senateClasses!.length).toBe(2);
+      for (const c of r.senateClasses!) expect([1, 2, 3]).toContain(c);
+    }
+    // spot check
+    expect(world.regions["CA"]!.senateClasses).toEqual([1, 3]);
+    expect(world.regions["AL"]!.senateClasses).toEqual([2, 3]);
+    expect(world.regions["TX"]!.senateClasses).toEqual([1, 2]);
+  });
+
+  it("pack validation extended: 48 states, apportionment 435, population plausible", async () => {
+    // use imported pack directly
+    const { pack1953: p1953 } = await import("@rotunda/content");
+    expect(p1953.states!.length).toBe(48);
+    const sum = p1953.states!.reduce((a, s) => a + s.houseSeats, 0);
+    expect(sum).toBe(435);
+    const pop = p1953.states!.reduce((a, s) => a + s.population, 0);
+    expect(pop).toBe(149_895_183);
+  });
+
+  it("region bridge determinism: v8->v9 migration is deterministic and preserves UK/RU/DD", async () => {
+    // Build a v8 world snapshot: 12 opaque regions, then migrate via deserializeSave
+    const v8World = createWorld({ seed: "bridge-test", playerName: "P", countryId: "US", era: "1953" });
+    // Force a v8-shaped save payload by stripping US states and re-inserting opaque US-R1..R3
+    // Simulate a pre-W38 save by creating a fake v8 file with schema 8 and opaque US regions
+    const fakeV8 = {
+      format: "ahdsolo-save" as const,
+      schemaVersion: 8,
+      savedAt: "2026-01-01T00:00:00Z",
+      world: {
+        ...structuredClone(v8World),
+        meta: { ...v8World.meta, schemaVersion: 8 },
+        regions: {
+          ...Object.fromEntries(Object.entries(v8World.regions).filter(([, r]) => r.countryId !== "US")),
+          "US-R1": { id: "US-R1", countryId: "US", name: "US Region 1" },
+          "US-R2": { id: "US-R2", countryId: "US", name: "US Region 2" },
+          "US-R3": { id: "US-R3", countryId: "US", name: "US Region 3" },
+        },
+        partyRegions: Object.fromEntries(
+          Object.entries(v8World.partyRegions).filter(([k]) => !k.startsWith("AL:") && !k.includes("US-R") && false) // placeholder to keep shape; actual test rebuilds
+        ),
+        electoratePools: Object.fromEntries(Object.entries(v8World.electoratePools).filter(([k]) => !["AL","CA"].includes(k))),
+        regionTurnouts: Object.fromEntries(Object.entries(v8World.regionTurnouts).filter(([k]) => !["AL","CA"].includes(k))),
+        partyPressures: {},
+      },
+    };
+    // Instead, test the real migration by constructing minimal v8 partyRegions/pools for US-R1..R3
+    // Use the save.ts migration path: create a serialized v8 with known org/reg values, then deserialize twice and compare
+    const baseWorld = createWorld({ seed: "bridge-determ", playerName: "P", countryId: "US", era: "1953" });
+    // Create a v8 payload manually with controlled org/reg
+    const v8 = {
+      format: "ahdsolo-save" as const,
+      schemaVersion: 8,
+      savedAt: "2026-01-01T00:00:00Z",
+      world: {
+        ...baseWorld,
+        meta: { ...baseWorld.meta, schemaVersion: 8 },
+        regions: {
+          "US-R1": { id: "US-R1", countryId: "US", name: "US Region 1" },
+          "US-R2": { id: "US-R2", countryId: "US", name: "US Region 2" },
+          "US-R3": { id: "US-R3", countryId: "US", name: "US Region 3" },
+          "UK-R1": { id: "UK-R1", countryId: "UK", name: "UK Region 1" },
+          "UK-R2": { id: "UK-R2", countryId: "UK", name: "UK Region 2" },
+          "UK-R3": { id: "UK-R3", countryId: "UK", name: "UK Region 3" },
+          "RU-R1": { id: "RU-R1", countryId: "RU", name: "RU Region 1" },
+          "RU-R2": { id: "RU-R2", countryId: "RU", name: "RU Region 2" },
+          "RU-R3": { id: "RU-R3", countryId: "RU", name: "RU Region 3" },
+          "DD-R1": { id: "DD-R1", countryId: "DD", name: "DD Region 1" },
+          "DD-R2": { id: "DD-R2", countryId: "DD", name: "DD Region 2" },
+          "DD-R3": { id: "DD-R3", countryId: "DD", name: "DD Region 3" },
+        },
+        partyRegions: {
+          "US-R1:US_DEM": { regionId: "US-R1", partyId: "US_DEM", countryId: "US", organization: 30, registration: 45 },
+          "US-R2:US_DEM": { regionId: "US-R2", partyId: "US_DEM", countryId: "US", organization: 36, registration: 60 },
+          "US-R3:US_DEM": { regionId: "US-R3", partyId: "US_DEM", countryId: "US", organization: 24, registration: 35 },
+          "US-R1:US_REP": { regionId: "US-R1", partyId: "US_REP", countryId: "US", organization: 24, registration: 35 },
+          "US-R2:US_REP": { regionId: "US-R2", partyId: "US_REP", countryId: "US", organization: 12, registration: 10 },
+          "US-R3:US_REP": { regionId: "US-R3", partyId: "US_REP", countryId: "US", organization: 34, registration: 50 },
+        },
+        electoratePools: {
+          "US-R1": { regionId: "US-R1", countryId: "US", independent: 8, unregistered: 7 },
+          "US-R2": { regionId: "US-R2", countryId: "US", independent: 3, unregistered: 22 },
+          "US-R3": { regionId: "US-R3", countryId: "US", independent: 8, unregistered: 6 },
+          "UK-R1": { regionId: "UK-R1", countryId: "UK", independent: 8, unregistered: 8 },
+          "UK-R2": { regionId: "UK-R2", countryId: "UK", independent: 8, unregistered: 8 },
+          "UK-R3": { regionId: "UK-R3", countryId: "UK", independent: 8, unregistered: 8 },
+          "RU-R1": { regionId: "RU-R1", countryId: "RU", independent: 3, unregistered: 2 },
+          "RU-R2": { regionId: "RU-R2", countryId: "RU", independent: 3, unregistered: 2 },
+          "RU-R3": { regionId: "RU-R3", countryId: "RU", independent: 3, unregistered: 2 },
+          "DD-R1": { regionId: "DD-R1", countryId: "DD", independent: 5, unregistered: 3 },
+          "DD-R2": { regionId: "DD-R2", countryId: "DD", independent: 5, unregistered: 3 },
+          "DD-R3": { regionId: "DD-R3", countryId: "DD", independent: 5, unregistered: 3 },
+        },
+        regionTurnouts: {
+          "US-R1": { regionId: "US-R1", countryId: "US", modifiers: { voterGroups: { urban_progressives: 0, rural_conservatives: 0, suburban_moderates: 0 } }, lastDecayAppliedTurn: 0 },
+          "US-R2": { regionId: "US-R2", countryId: "US", modifiers: { voterGroups: { urban_progressives: 0, rural_conservatives: 0, suburban_moderates: 0 } }, lastDecayAppliedTurn: 0 },
+          "US-R3": { regionId: "US-R3", countryId: "US", modifiers: { voterGroups: { urban_progressives: 0, rural_conservatives: 0, suburban_moderates: 0 } }, lastDecayAppliedTurn: 0 },
+          "UK-R1": { regionId: "UK-R1", countryId: "UK", modifiers: { voterGroups: { urban_progressives: 0 } }, lastDecayAppliedTurn: 0 },
+          "UK-R2": { regionId: "UK-R2", countryId: "UK", modifiers: { voterGroups: { urban_progressives: 0 } }, lastDecayAppliedTurn: 0 },
+          "UK-R3": { regionId: "UK-R3", countryId: "UK", modifiers: { voterGroups: { urban_progressives: 0 } }, lastDecayAppliedTurn: 0 },
+          "RU-R1": { regionId: "RU-R1", countryId: "RU", modifiers: { voterGroups: { workers: 0 } }, lastDecayAppliedTurn: 0 },
+          "RU-R2": { regionId: "RU-R2", countryId: "RU", modifiers: { voterGroups: { workers: 0 } }, lastDecayAppliedTurn: 0 },
+          "RU-R3": { regionId: "RU-R3", countryId: "RU", modifiers: { voterGroups: { workers: 0 } }, lastDecayAppliedTurn: 0 },
+          "DD-R1": { regionId: "DD-R1", countryId: "DD", modifiers: { voterGroups: { workers: 0 } }, lastDecayAppliedTurn: 0 },
+          "DD-R2": { regionId: "DD-R2", countryId: "DD", modifiers: { voterGroups: { workers: 0 } }, lastDecayAppliedTurn: 0 },
+          "DD-R3": { regionId: "DD-R3", countryId: "DD", modifiers: { voterGroups: { workers: 0 } }, lastDecayAppliedTurn: 0 },
+        },
+        partyPressures: {
+          "US_DEM:US-R1": { partyId: "US_DEM", regionId: "US-R1", countryId: "US", value: 5 },
+          "US_REP:US-R1": { partyId: "US_REP", regionId: "US-R1", countryId: "US", value: 2 },
+        },
+      },
+    };
+    const raw = JSON.stringify(v8);
+    const a = deserializeSave(raw);
+    const b = deserializeSave(raw);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    // US now 48, UK/RU/DD still 3 each
+    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "US").length).toBe(48);
+    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "UK").length).toBe(3);
+    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "RU").length).toBe(3);
+    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "DD").length).toBe(3);
+    expect(a.meta.schemaVersion).toBe(10);
+    // No opaque US left
+    expect(a.regions["US-R1"]).toBeUndefined();
+    // Deterministic: partyRegions for US states are uniform averaged (round)
+    // DEM org avg (30+36+24)/3=30, reg avg (45+60+35)/3=47 (rounded)
+    expect(a.partyRegions["AL:US_DEM"]!.organization).toBe(30);
+    expect(a.partyRegions["AL:US_DEM"]!.registration).toBe(47);
+    // Pack validation extended passes
+    const { validatePack } = await import("@rotunda/content");
+    expect(() => validatePack(PACKS.find((p) => p.era.id === "1953")!)).not.toThrow();
+  });
 });

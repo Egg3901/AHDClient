@@ -44,12 +44,44 @@ export interface EconomySeed {
   unemploymentRate: number;
 }
 
-/** Placeholder for future states table (province/state level). */
+/**
+ * State/province seed. Ports mainline State collection (src/lib/db/types/state.ts)
+ * and the political support tables that consume it.
+ *
+ * Mainline sources, all for the 1953 era:
+ * - id, name, population, gdp, region, stateSenateSeats: src/lib/seeds/reference/states1953.ts (1950 Census + 1953 GSP estimates)
+ * - houseSeats: src/lib/constants/states.ts HOUSE_SEATS_1953 (1950 Census apportionment for the 83rd Congress, sum 435; AK/HI 0)
+ * - senateClasses: src/lib/constants/states.ts SENATE_CLASSES_BY_STATE
+ * - registration: src/lib/seeds/registration/registrationLanes1953.ts (lane + per-state overrides; org/reg + independent/unregistered/unaffiliatedOrg)
+ *
+ * disenfranchisement is modeled via the unregistered pool (mainline uses large
+ * Southern unregistered pools to represent Jim Crow disenfranchisement; e.g. MS 25, AL 22).
+ * leans are implicit in the registration lane (DEM vs REP reg share) and not stored
+ * separately; turnout anchors are neutral (RegionTurnout modifiers start at 0, ported from
+ * src/lib/db/types/stateDemographicTurnout.ts).
+ */
 export interface StateSeed {
   id: string;
   name: string;
   countryId: string;
-  [key: string]: unknown;
+  population: number;
+  /** Nominal GSP in millions USD (estimated 1953). */
+  gdp: number;
+  /** House apportionment for this era (1950 Census for 1953 pack, sum 435). */
+  houseSeats: number;
+  /** Upper-state legislature seats (era-invariant per states1953). */
+  senateSeats: number;
+  /** Census region. */
+  region: string;
+  /** Senate class pair from SENATE_CLASSES_BY_STATE. */
+  senateClasses: [1 | 2 | 3, 1 | 2 | 3];
+  /** Support/election transforms consume this bundle. */
+  registration: {
+    parties: Array<{ abbr: string; org: number; reg: number }>;
+    independent: number;
+    unregistered: number;
+    unaffiliatedOrg: number;
+  };
 }
 
 /**
