@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="ROTUNDA">
+  <rect width="1200" height="280" fill="#0a0a0a"/>
+  <!-- dome mark -->
+  <g stroke="#ededed" stroke-width="2" fill="none">
+    <path d="M 150 150 A 78 78 0 0 1 306 150"/>
+    <path d="M 172 150 A 56 56 0 0 1 284 150" stroke="#8a8a8a" stroke-width="1.5"/>
+    <line x1="228" y1="50" x2="228" y2="72"/>
+    <line x1="136" y1="150" x2="320" y2="150"/>
+    <!-- columns -->
+    <line x1="168" y1="150" x2="168" y2="196" stroke="#8a8a8a" stroke-width="1.5"/>
+    <line x1="198" y1="150" x2="198" y2="196" stroke="#8a8a8a" stroke-width="1.5"/>
+    <line x1="228" y1="150" x2="228" y2="196" stroke="#8a8a8a" stroke-width="1.5"/>
+    <line x1="258" y1="150" x2="258" y2="196" stroke="#8a8a8a" stroke-width="1.5"/>
+    <line x1="288" y1="150" x2="288" y2="196" stroke="#8a8a8a" stroke-width="1.5"/>
+    <line x1="150" y1="196" x2="306" y2="196"/>
+    <!-- split base: a house divided -->
+    <line x1="150" y1="212" x2="222" y2="212" stroke="#8a8a8a" stroke-width="1.5"/>
+    <line x1="234" y1="212" x2="306" y2="212" stroke="#8a8a8a" stroke-width="1.5"/>
+  </g>
+  <!-- wordmark -->
+  <text x="400" y="142" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="64" font-weight="600" letter-spacing="26" fill="#ededed">ROTUNDA</text>
+  <text x="404" y="186" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="17" letter-spacing="8" fill="#8a8a8a">A HOUSE DIVIDED / UNIFIED DESKTOP CLIENT</text>
+</svg>
