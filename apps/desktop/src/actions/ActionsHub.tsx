@@ -31,6 +31,13 @@ function categoryForEntry(entry: ActionCatalogEntry): Category {
     case "pressureBoost":
       return "Field Operations";
     case "investInfluence":
+    case "joinParty":
+    case "leaveParty":
+    case "foundParty":
+    case "createCaucus":
+    case "joinCaucus":
+    case "leaveCaucus":
+    case "endorse":
       return "Party";
     case "rest":
       return "Other";
@@ -93,7 +100,16 @@ export function ActionsHub({ world, onWorld, onToast }: Props) {
   function refreshWorld() {
     const w = game.getStateSync();
     if (w) {
-      onWorld({ ...w, meta: { ...w.meta }, player: { ...w.player, actionCooldowns: { ...w.player.actionCooldowns } }, news: [...w.news] });
+      onWorld({
+        ...w,
+        meta: { ...w.meta },
+        player: { ...w.player, actionCooldowns: { ...w.player.actionCooldowns }, purgeRejoinBlocks: [...(w.player.purgeRejoinBlocks ?? [])] },
+        parties: { ...w.parties },
+        caucuses: [...w.caucuses],
+        endorsements: [...w.endorsements],
+        charters: [...w.charters],
+        news: [...w.news],
+      });
     }
   }
 
@@ -162,18 +178,45 @@ export function ActionsHub({ world, onWorld, onToast }: Props) {
                 const enoughAp = (world.player.actions ?? 0) >= apCost;
                 const enoughFunds = fundCost === 0 || (world.player.funds ?? 0) >= fundCost;
                 const needsRegion = entry.id === "canvass" || entry.id === "organize" || entry.id === "pressureBoost";
+                const pid = world.player.partyId;
+                const caucusId = world.player.caucusId;
+                const membershipIssue = (() => {
+                  if (entry.id === "organize" || entry.id === "pressureBoost") {
+                    if (!pid) return "Requires party membership";
+                  }
+                  if (entry.id === "investInfluence") {
+                    if (!pid) return "Requires party membership";
+                    return "Only politicians can invest influence";
+                  }
+                  if (entry.id === "createCaucus") {
+                    if (!pid) return "Requires party membership";
+                    if (caucusId) return "Already in a caucus; leave it first";
+                    if ((world.player.funds ?? 0) < entry.fundCost) return `Need ${entry.fundCost.toLocaleString("en-US")} funds`;
+                  }
+                  if (entry.id === "joinCaucus") {
+                    if (!pid) return "Requires party membership";
+                    if (caucusId) return "Already in a caucus";
+                  }
+                  if (entry.id === "leaveCaucus") {
+                    if (!caucusId) return "Not in a caucus";
+                  }
+                  if (entry.id === "endorse") {
+                    if (!pid) return "Requires party membership to endorse";
+                  }
+                  if (entry.id === "leaveParty" && !pid) return "Not in a party";
+                  return null;
+                })();
                 const eligibilityIssue = !unavailable && !onCooldown
-                  ? entry.id === "fundraise" && (world.player.donorBaseLevel ?? 0) === 0
-                    ? "No donor base. Use Build Donor Network first."
-                    : entry.id === "investInfluence"
-                    ? "Only politicians can invest influence"
-                    : entry.id === "convertCash" && (world.player.cash ?? 0) <= 0
-                    ? "No cash to convert"
-                    : !enoughAp
-                    ? `Need ${apCost} AP`
-                    : !enoughFunds
-                    ? `Need ${fundCost.toLocaleString("en-US")} funds`
-                    : null
+                  ? membershipIssue
+                    ?? (entry.id === "fundraise" && (world.player.donorBaseLevel ?? 0) === 0
+                        ? "No donor base. Use Build Donor Network first."
+                        : entry.id === "convertCash" && (world.player.cash ?? 0) <= 0
+                        ? "No cash to convert"
+                        : !enoughAp
+                        ? `Need ${apCost} AP`
+                        : !enoughFunds
+                        ? `Need ${fundCost.toLocaleString("en-US")} funds`
+                        : null)
                   : null;
 
                 const cardClass = unavailable ? "action-card unavailable" : onCooldown ? "action-card cooldown" : "action-card";

@@ -912,7 +912,7 @@ function Dashboard({
         log={cheatLog}
       />
 
-      <CharacterPanel world={world} open={characterOpen} onClose={() => setCharacterOpen(false)} />
+      <CharacterPanel world={world} open={characterOpen} onClose={() => setCharacterOpen(false)} onWorld={(w) => onWorld(w)} onToast={(msg) => setToast(msg)} />
 
       {toast && (
         <div className="panel toast" role="status" style={{ background: "#141414", borderColor: "#2af57f" }}>
