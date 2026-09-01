@@ -20,6 +20,10 @@ import type { HistoryMap } from "./economy/history.js";
 import { SavesScreen } from "./saves/SavesScreen.js";
 import "./saves/saves.css";
 import { maybeAutosave } from "./saves.js";
+import { CharacterPanel } from "./character/CharacterPanel.js";
+import "./character/character.css";
+import { ActionsHub } from "./actions/ActionsHub.js";
+import "./actions/actions.css";
 
 const ONLINE_URL = "https://www.ahousedividedgame.com";
 
@@ -749,6 +753,8 @@ function Dashboard({
   const [ecoOpen, setEcoOpen] = useState(false);
   const [worldOpen, setWorldOpen] = useState(false);
   const [partiesOpen, setPartiesOpen] = useState(false);
+  const [characterOpen, setCharacterOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const advance = async () => {
     const prevTurn = world.meta.turn;
@@ -802,13 +808,20 @@ function Dashboard({
         }
         setCheatOpen((v) => !v);
       }
-      if (e.key === "Escape" && cheatOpen) {
+      if (e.key === "Escape" && (cheatOpen || characterOpen)) {
         setCheatOpen(false);
+        setCharacterOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cheatOpen]);
+  }, [cheatOpen, characterOpen]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   if (worldOpen) {
     return <WorldMapScreen world={world} onBack={() => setWorldOpen(false)} />;
@@ -842,6 +855,9 @@ function Dashboard({
           {cheatsUsed && <span className="cheats-tag">CHEATS ACTIVE</span>}
         </div>
         <div className="row">
+          <button className="secondary small-btn" onClick={() => setCharacterOpen(true)}>
+            CHARACTER
+          </button>
           <button className="secondary small-btn" onClick={() => setWorldOpen(true)}>
             WORLD
           </button>
@@ -886,6 +902,14 @@ function Dashboard({
         log={cheatLog}
       />
 
+      <CharacterPanel world={world} open={characterOpen} onClose={() => setCharacterOpen(false)} />
+
+      {toast && (
+        <div className="panel toast" role="status" style={{ background: "#141414", borderColor: "#2af57f" }}>
+          {toast}
+        </div>
+      )}
+
       {saveError && (
         <div className="panel error-banner" role="alert">
           <span>{saveError}</span>
@@ -904,6 +928,14 @@ function Dashboard({
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="panel">
+        <ActionsHub
+          world={world}
+          onWorld={(w) => onWorld(w)}
+          onToast={(msg) => setToast(msg)}
+        />
       </div>
 
       {lastReport && (

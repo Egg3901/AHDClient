@@ -3,9 +3,12 @@ import {
   createWorld,
   deserializeSave,
   serializeSave,
+  executeAction as engineExecuteAction,
   type NewWorldOptions,
   type TurnReport,
   type WorldState,
+  type ExecuteActionParams,
+  type ExecuteActionResult,
 } from "@rotunda/engine";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -18,6 +21,7 @@ export interface GameApi {
   getState(): Promise<WorldState | null>;
   getStateSync(): WorldState | null;
   mutate(fn: (world: WorldState) => void): void;
+  executeAction(actionId: string, params?: ExecuteActionParams): ExecuteActionResult;
   save(): Promise<{ saved: boolean; path?: string }>;
   load(): Promise<WorldState | null>;
 }
@@ -45,6 +49,11 @@ export const game: GameApi = {
   mutate(fn: (world: WorldState) => void): void {
     if (!world) throw new Error("No game in progress");
     fn(world);
+  },
+
+  executeAction(actionId: string, params: ExecuteActionParams = {}): ExecuteActionResult {
+    if (!world) throw new Error("No game in progress");
+    return engineExecuteAction(world, "player", actionId, params);
   },
 
   async save(): Promise<{ saved: boolean; path?: string }> {
