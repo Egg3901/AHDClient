@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import type { TurnReport, WorldState } from "./engineContract.js";
-import { listEras, listPlayableCountries } from "./engineContract.js";
+import type { TurnReport, WorldState } from "@rotunda/engine";
+import { listEras, listPlayableCountries } from "@rotunda/engine";
 import { game } from "./game.js";
+import { Launcher } from "./launcher/Launcher.js";
 
 const ONLINE_URL = "https://www.ahousedividedgame.com";
 
@@ -44,81 +45,32 @@ function formatPct(rate: number): string {
 }
 
 // -------------------------------------------------------------------
-// Launcher
-// -------------------------------------------------------------------
-
-function LauncherScreen({
-  onPlayOnline,
-  onNewWorld,
-  onLoad,
-  error,
-  onClearError,
-}: {
-  onPlayOnline: () => void;
-  onNewWorld: () => void;
-  onLoad: () => void;
-  error: string | null;
-  onClearError: () => void;
-}) {
-  return (
-    <div className="launcher">
-      <div className="launcher-inner">
-        <div className="launcher-head">
-          <h1>A House Divided: Solo</h1>
-          <p className="muted small">Local singleplayer. Online viewer. One launcher.</p>
-        </div>
-
-        {error && (
-          <div className="error-banner" role="alert">
-            <span>{error}</span>
-            <button className="secondary small-btn" onClick={onClearError}>
-              Dismiss
-            </button>
-          </div>
-        )}
-
-        <div className="launcher-actions">
-          <button className="launcher-item" onClick={onPlayOnline}>
-            <span className="launcher-item-title">Play Online</span>
-            <span className="launcher-item-desc muted small">Open the live multiplayer game</span>
-          </button>
-
-          <button className="launcher-item" onClick={onNewWorld}>
-            <span className="launcher-item-title">New World</span>
-            <span className="launcher-item-desc muted small">Create a local singleplayer world</span>
-          </button>
-
-          <button className="launcher-item secondary" onClick={onLoad}>
-            <span className="launcher-item-title">Load Save</span>
-            <span className="launcher-item-desc muted small">Open a save from disk</span>
-          </button>
-        </div>
-
-        <p className="muted small launcher-foot">Singleplayer is fully local. No network.</p>
-      </div>
-    </div>
-  );
-}
-
-// -------------------------------------------------------------------
 // New World
 // -------------------------------------------------------------------
 
 function NewWorldScreen({
   onBack,
   onCreated,
+  initialEra,
 }: {
   onBack: () => void;
   onCreated: (world: WorldState) => void;
+  initialEra?: string | undefined;
 }) {
   const eras = listEras();
-  const [era, setEra] = useState<string>(() => eras[0]?.id ?? "1953");
+  const [era, setEra] = useState<string>(() => initialEra ?? eras[0]?.id ?? "1953");
   const countries = listPlayableCountries(era);
   const [countryId, setCountryId] = useState<string>(() => countries[0]?.id ?? "us");
   const [seed, setSeed] = useState(() => Math.random().toString(36).slice(2, 10));
   const [name, setName] = useState("Player");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (initialEra && eras.some((e) => e.id === initialEra) && initialEra !== era) {
+      setEra(initialEra);
+    }
+  }, [initialEra]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const list = listPlayableCountries(era);
@@ -344,6 +296,7 @@ function Dashboard({
 
 export function App() {
   const [screen, setScreen] = useState<"launcher" | "newWorld" | "game">("launcher");
+  const [pendingEra, setPendingEra] = useState<string | null>(null);
   const [world, setWorld] = useState<WorldState | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [launcherError, setLauncherError] = useState<string | null>(null);
@@ -395,13 +348,22 @@ export function App() {
   }
 
   if (screen === "newWorld") {
-    return <NewWorldScreen onBack={() => setScreen("launcher")} onCreated={handleNewWorldCreated} />;
+    return (
+      <NewWorldScreen
+        onBack={() => setScreen("launcher")}
+        onCreated={handleNewWorldCreated}
+        initialEra={pendingEra ?? undefined}
+      />
+    );
   }
 
   return (
-    <LauncherScreen
+    <Launcher
       onPlayOnline={() => void openOnline()}
-      onNewWorld={() => setScreen("newWorld")}
+      onNewWorld={(eraId) => {
+        setPendingEra(eraId);
+        setScreen("newWorld");
+      }}
       onLoad={() => void handleLoad()}
       error={launcherError}
       onClearError={() => setLauncherError(null)}
