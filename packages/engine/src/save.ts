@@ -503,5 +503,56 @@ export function deserializeSave(raw: string): WorldState {
     assignUsSeatGeography(save.world);
     save.world.meta.schemaVersion = 13;
   }
+  // v13 -> v14: W16 demographics (categories, stateDemographics, census, laborForces).
+  // Note: if W37 takes v14 in parallel, merge resolver renumbers this to next free.
+  if (save.schemaVersion < 14) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const regions = w["regions"] as Record<string, Record<string, unknown>> | undefined;
+    if (typeof w["stateDemographics"] !== "object" || w["stateDemographics"] === null || Array.isArray(w["stateDemographics"])) w["stateDemographics"] = {};
+    if (typeof w["baselineDemographics"] !== "object" || w["baselineDemographics"] === null || Array.isArray(w["baselineDemographics"])) w["baselineDemographics"] = {};
+    if (typeof w["demographicCategories"] !== "object" || w["demographicCategories"] === null || Array.isArray(w["demographicCategories"])) w["demographicCategories"] = {};
+    if (typeof w["census"] !== "object" || w["census"] === null || Array.isArray(w["census"])) w["census"] = {};
+    if (typeof w["laborForces"] !== "object" || w["laborForces"] === null || Array.isArray(w["laborForces"])) w["laborForces"] = {};
+
+    // If regions exist but demographics are empty, seed uniform stubs so old saves are tally-ready.
+    const sd = w["stateDemographics"] as Record<string, unknown>;
+    const bd = w["baselineDemographics"] as Record<string, unknown>;
+    const lf = w["laborForces"] as Record<string, unknown>;
+    const dc = w["demographicCategories"] as Record<string, unknown>;
+    if (Object.keys(sd).length === 0 && regions && Object.keys(regions).length > 0) {
+      for (const [rid, reg] of Object.entries(regions)) {
+        const cid = (reg as { countryId?: string }).countryId ?? "US";
+        // Minimal voterGroups stub (two groups) so tally has input; real US data seeded via createWorld on new worlds
+        const stubGroups: Record<string, { population: number; economicLean: number; socialLean: number; turnout: number }> = {
+          young_renters: { population: 50, economicLean: -1.5, socialLean: -1.5, turnout: 36 },
+          evangelicals: { population: 50, economicLean: 2.0, socialLean: 3.5, turnout: 55 },
+        };
+        sd[rid] = { _id: rid, countryId: cid, categoryWeights: { voterGroups: 100 }, groups: stubGroups, lastUpdated: "1953-01-06T00:00:00.000Z" };
+        bd[rid] = JSON.parse(JSON.stringify(sd[rid]));
+        const pop = typeof (reg as { population?: number }).population === "number" ? (reg as { population: number }).population : 1_000_000;
+        lf[rid] = Math.round(pop * 0.58 * 0.625);
+      }
+      // Minimal categories
+      if (Object.keys(dc).length === 0) {
+        dc["US"] = [{ _id: "voterGroups", name: "Voter Groups", defaultWeight: 100, groups: [{ id: "young_renters", name: "Young Renters", defaultEconomicLean: -1.5, defaultSocialLean: -1.5, defaultTurnout: 36 }, { id: "evangelicals", name: "Evangelicals", defaultEconomicLean: 2.0, defaultSocialLean: 3.5, defaultTurnout: 55 }] }];
+      }
+    }
+    // Ensure laborForces and region demographics stocks exist for existing regions
+    if (regions) {
+      for (const [rid, reg] of Object.entries(regions)) {
+        if (typeof (reg as { workingAgePopulation?: number }).workingAgePopulation !== "number") {
+          const pop = typeof (reg as { population?: number }).population === "number" ? (reg as { population: number }).population : 1_000_000;
+          (reg as Record<string, unknown>)["workingAgePopulation"] = Math.round(pop * 0.58);
+          (reg as Record<string, unknown>)["votingEligiblePopulation"] = Math.round(pop * 0.70);
+          (reg as Record<string, unknown>)["militaryServicePopulation"] = 0;
+        }
+        if (typeof lf[rid] !== "number") {
+          const pop = typeof (reg as { population?: number }).population === "number" ? (reg as { population: number }).population : 1_000_000;
+          lf[rid] = Math.round(pop * 0.58 * 0.625);
+        }
+      }
+    }
+    save.world.meta.schemaVersion = 14;
+  }
   return save.world;
 }

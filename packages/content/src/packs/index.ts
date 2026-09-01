@@ -1,6 +1,8 @@
 import type { SeedPack } from "../types.js";
 import { pack1953 } from "./1953.js";
 import { pack1960 } from "./1960.js";
+export { US_STATE_DEMOGRAPHICS_1953 } from "./usStateDemographics1953.js";
+export type { StateDemographicsSeed } from "./usStateDemographics1953.js";
 
 export { pack1953 } from "./1953.js";
 export { pack1960 } from "./1960.js";

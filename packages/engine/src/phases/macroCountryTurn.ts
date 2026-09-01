@@ -26,7 +26,14 @@ import {
   UNEMPLOYMENT_MIN,
   WEEKS_PER_YEAR,
   NEUTRAL_GDP_GROWTH,
+  TFP_BASELINE,
 } from "../economy/macroConstants.js";
+import {
+  annualizedGrowthRate,
+  computeLaborForce,
+  NEUTRAL_LABOR_PARTICIPATION,
+  potentialGrowth,
+} from "../demographics/laborForce.js";
 
 // ── Pure helpers (exported for golden-value tests) ─────────────────────
 
@@ -144,10 +151,42 @@ export const macroCountryTurnPhase: TurnPhase = {
         -10,
         15,
       );
-      // PORT-STUB: potential growth — missing TFP basket + labor/capital Solow
-      // (mainline src/lib/metricEngine/potentialGrowth.ts). Neutral value:
-      // NEUTRAL_GDP_GROWTH so a stable economy reverts to ~2%. Cite potentialGrowth.ts.
-      const potential = NEUTRAL_GDP_GROWTH;
+      // Labor force → potential growth (real laborForce replacing the PORT-STUB).
+      // Source: src/lib/metricEngine/potentialGrowth.ts computeLaborForce +
+      // potentialGrowth (Solow LEVEL form). Labor participation is 62.5% default;
+      // workingAge and militaryService come from demographics flows (per-region).
+      // Capital stock growth and TFP basket remain PORT-STUB (0 / TFP_BASELINE)
+      // until those systems land — stub comment names what remains.
+      const regionIds = Object.values(world.regions)
+        .filter((r) => r.countryId === id)
+        .map((r) => r.id);
+      let totalLaborForce = 0;
+      let prevTotalLaborForce = 0;
+      let hasLabor = false;
+      for (const rid of regionIds) {
+        const region = world.regions[rid];
+        if (!region) continue;
+        const lf = computeLaborForce(
+          (region as unknown as { workingAgePopulation?: number }).workingAgePopulation ?? Math.round((region.population ?? 0) * 0.58),
+          (region as unknown as { militaryServicePopulation?: number }).militaryServicePopulation ?? 0,
+          NEUTRAL_LABOR_PARTICIPATION,
+        );
+        // Update live laborForces map (authoritative)
+        if ((world as unknown as { laborForces?: Record<string, number> }).laborForces) {
+          const prev = (world as unknown as { laborForces: Record<string, number> }).laborForces[rid] ?? lf;
+          prevTotalLaborForce += prev;
+          (world as unknown as { laborForces: Record<string, number> }).laborForces[rid] = Math.round(lf);
+        }
+        totalLaborForce += lf;
+        hasLabor = true;
+      }
+      // Annualized labor growth from this turn vs prior total
+      const gL = hasLabor && prevTotalLaborForce > 0
+        ? annualizedGrowthRate(totalLaborForce, prevTotalLaborForce, TURNS_PER_YEAR)
+        : 0;
+      const gK = 0; // PORT-STUB: capital stock growth (needs advanceCapitalStock per region)
+      const tfp = TFP_BASELINE; // PORT-STUB: TFP basket (needs rdIntensity/skill/infra/urbanization)
+      const potential = hasLabor ? potentialGrowth(gL, gK, tfp) : NEUTRAL_GDP_GROWTH;
       const step = advanceOutputGap(prevGap, sectorSignal, potential, TURNS_PER_YEAR);
       const newGrowth = clamp(step.gdpGrowth / 100, GROWTH_RATE_MIN, GROWTH_RATE_MAX);
 

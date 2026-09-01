@@ -3,13 +3,15 @@ import { assignUsSeatGeography } from "./elections/seatGeography.js";
 import type { WorldState } from "./types.js";
 import { getPackByEra, PACKS_BY_DATE } from "@rotunda/content";
 import { createPoliticiansForWorld } from "./politician.js";
+import { CATEGORIES_BY_COUNTRY_1953 } from "./demographics/categories.js";
+import { US_STATE_DEMOGRAPHICS_1953 } from "./demographics/usStateDemographics1953.js";
 import {
   COMMODITY_BASE_PRICES,
   COMMODITY_TYPES,
   getEraCommodityBasePrice,
 } from "./commodity/constants.js";
 
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -297,6 +299,10 @@ export function createWorld(options: NewWorldOptions): WorldState {
     }
   }
 
+  // ── Demographics (W16) ──────────────────────────────────────────
+  const { demographicCategories, stateDemographics, baselineDemographics, laborForces, census } =
+    seedDemographics(pack, regions, worldSeedDate(pack.era.startDate));
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -323,6 +329,11 @@ export function createWorld(options: NewWorldOptions): WorldState {
     regionTurnouts,
     partyPressures,
     candidateSupports,
+    stateDemographics,
+    baselineDemographics,
+    demographicCategories,
+    census,
+    laborForces,
     player: {
       name: options.playerName,
       countryId: options.countryId,
@@ -604,4 +615,92 @@ function seedPartyRegion(party: { id: string; countryId: string }, regionId: str
     if (party.id === "DD_DBD") return { organization: 20, registration: 16 };
   }
   return { organization: 10, registration: 10 };
+}
+
+function worldSeedDate(startDate: string): string {
+  return startDate;
+}
+
+function seedDemographics(
+  pack: { era: { id: string } },
+  regions: WorldState["regions"],
+  _startDate: string,
+): {
+  demographicCategories: WorldState["demographicCategories"];
+  stateDemographics: WorldState["stateDemographics"];
+  baselineDemographics: WorldState["baselineDemographics"];
+  laborForces: WorldState["laborForces"];
+  census: WorldState["census"];
+} {
+  const demographicCategories: WorldState["demographicCategories"] = {};
+  for (const [cid, list] of Object.entries(CATEGORIES_BY_COUNTRY_1953)) {
+    demographicCategories[cid] = list.map((c) => ({ ...c, groups: c.groups.map((g) => ({ ...g })) }));
+  }
+
+  const stateDemographics: WorldState["stateDemographics"] = {};
+  const baselineDemographics: WorldState["baselineDemographics"] = {};
+  const laborForces: WorldState["laborForces"] = {};
+
+  const is1953 = pack.era.id === "1953";
+  const usSeeds: typeof US_STATE_DEMOGRAPHICS_1953 | null = is1953 ? US_STATE_DEMOGRAPHICS_1953 : null;
+  const usMap = new Map<string, (typeof US_STATE_DEMOGRAPHICS_1953)[number]>();
+  if (usSeeds) for (const s of usSeeds) usMap.set(s.stateId, s);
+
+  const nowIso = `${_startDate}T00:00:00.000Z`;
+  for (const [rid, region] of Object.entries(regions)) {
+    const cid = region.countryId;
+    const catsFor = (CATEGORIES_BY_COUNTRY_1953[cid] ?? []) as import("./demographics/categories.js").DemographicCategory[];
+    let demo: import("./demographics/stateDemographics.js").StateDemographics | null = null;
+    if (cid === "US" && usMap.has(rid)) {
+      const seed = usMap.get(rid)!;
+      const groups: Record<string, import("./demographics/stateDemographics.js").StateDemographicGroup> = {};
+      for (const [gid, g] of Object.entries(seed.groups as Record<string, { population: number; economicLean: number; socialLean: number; turnout: number }>)) {
+        const gg = g as { population: number; economicLean: number; socialLean: number; turnout: number };
+        groups[gid] = { population: gg.population, economicLean: gg.economicLean, socialLean: gg.socialLean, turnout: gg.turnout };
+      }
+      demo = {
+        _id: rid,
+        countryId: cid,
+        categoryWeights: { ...seed.categoryWeights },
+        groups,
+        lastUpdated: nowIso,
+      };
+    } else {
+      // Opaque or non-1953: uniform stub per category
+      // Source: uniform split so tally has complete input; W39 replaces with real Layer 1 region tables
+      const groups: Record<string, import("./demographics/stateDemographics.js").StateDemographicGroup> = {};
+      for (const cat of catsFor) {
+        const share = 100 / cat.groups.length;
+        for (const g of cat.groups) {
+          groups[g.id] = { population: Math.round(share * 100) / 100, economicLean: g.defaultEconomicLean, socialLean: g.defaultSocialLean, turnout: g.defaultTurnout ?? 50 };
+        }
+      }
+      const total = Object.values(groups).reduce((s, v) => s + v.population, 0);
+      const diff = Math.round((100 - total) * 100) / 100;
+      if (Math.abs(diff) > 0.001) {
+        const first = Object.keys(groups)[0];
+        if (first) groups[first]!.population = Math.round((groups[first]!.population + diff) * 100) / 100;
+      }
+      const weights: Record<string, number> = {};
+      for (const c of catsFor) weights[c._id] = c.defaultWeight;
+      demo = { _id: rid, countryId: cid, categoryWeights: weights, groups, lastUpdated: nowIso };
+    }
+    if (demo) {
+      stateDemographics[rid] = demo;
+      // Baseline is a deep clone of the seeded demo (never mutated by effects except via decay)
+      baselineDemographics[rid] = JSON.parse(JSON.stringify(demo)) as typeof demo;
+      // Labor force: workingAge ~58% of population, no conscription, 62.5% participation
+      const pop = region.population ?? 0;
+      const workingAge = Math.round(pop * 0.58);
+      const laborForce = Math.round(workingAge * 0.625);
+      laborForces[rid] = laborForce;
+      // Also stamp workingAge onto region for macro wiring
+      (region as unknown as { workingAgePopulation?: number }).workingAgePopulation = workingAge;
+      (region as unknown as { votingEligiblePopulation?: number }).votingEligiblePopulation = Math.round(pop * 0.70);
+      (region as unknown as { militaryServicePopulation?: number }).militaryServicePopulation = 0;
+    }
+  }
+
+  const census: WorldState["census"] = {};
+  return { demographicCategories, stateDemographics, baselineDemographics, laborForces, census };
 }

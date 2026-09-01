@@ -65,6 +65,16 @@ export interface WorldState {
   enactedLaws: EnactedLaw[];
   /** Regional bills (stateBills) per src/lib/db/types/stateBill. Schema v12 stateBillTimers. */
   stateBills: Bill[];
+  /** State demographics per region for tally. Ports src/lib/db/types/demographics.ts StateDemographics. Schema v14. */
+  stateDemographics: Record<string, import("./demographics/stateDemographics.js").StateDemographics>;
+  /** Baseline demographics (seeded, never mutated) for decay-to-baseline. Schema v14. */
+  baselineDemographics: Record<string, import("./demographics/stateDemographics.js").StateDemographics>;
+  /** Demographic categories per country. Ports src/lib/db/types/demographics.ts DemographicCategory. Schema v14. */
+  demographicCategories: Record<string, import("./demographics/categories.js").DemographicCategory[]>;
+  /** Census reapportionment state. Ports src/lib/turn/census.ts GameState.lastCensusYear/lastCensus. Schema v14. */
+  census: { lastCensusYear?: number; lastCensus?: { year: number; deltas: import("./demographics/census.js").SeatDelta[] } };
+  /** Per-region labor force headcount (civilian). Computed from workingAge + conscription + participation. Schema v14. */
+  laborForces: Record<string, number>;
 }
 
 export interface Politician {
@@ -473,6 +483,12 @@ export interface Region {
   censusRegion?: string;
   /** Nominal GSP in millions USD (estimated 1953). Only for US states. */
   gdp?: number;
+  /** Voting-eligible population (derived from demographics). */
+  votingEligiblePopulation?: number;
+  /** Working-age population (derived from demographics). */
+  workingAgePopulation?: number;
+  /** Military service population (conscription withdrawal). */
+  militaryServicePopulation?: number;
 }
 
 /**

@@ -51,6 +51,9 @@ import {
 } from "../support/phases.js";
 import { billLifecyclePhase } from "./billLifecyclePhase.js";
 import { voteAccumulationPhase, electionTimersPhase, electionResolutionPhase } from "../elections/phases.js";
+import { demographicEffectsPhase } from "../demographics/demographicEffects.js";
+import { demographicFlowsPhase } from "../demographics/demographicFlows.js";
+import { censusPhase } from "../demographics/census.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -83,5 +86,12 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   voteAccumulationPhase,
   electionTimersPhase,
   electionResolutionPhase,
+  // Demographics at end of ported subset (before newsMaintenance) to avoid
+  // shifting existing RNG streams — mirrors elections block deviation note.
+  // Mainline order is demographics (census earlier, flows after metricEngine,
+  // effects near legislation) but solo demotes them to tail until re-golden.
+  demographicEffectsPhase,
+  demographicFlowsPhase,
+  censusPhase,
   newsMaintenancePhase,
 ];
