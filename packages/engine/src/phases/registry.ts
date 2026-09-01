@@ -96,6 +96,7 @@ import {
 import { bankingTurnPhase } from "../banking/bankingTurn.js";
 import { bankSolvencyTurnPhase } from "../banking/bankSolvencyTurn.js";
 import { unionsTurnPhase, nppUnionBehaviorPhase } from "../unions/phases.js";
+import { sovereignIssuancePhase, bondCouponMaturityPhase, npcBondHolderPhase } from "../bonds/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -298,5 +299,22 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // deviation itself, which a dedicated re-golden will restore.
   nppUnionBehaviorPhase,
   unionsTurnPhase,
+  // W13 bonds at END before newsMaintenance — ordering deviation:
+  // Mainline runs bondTurn mid-pipeline (after centralBankChairSelection, before
+  // corporationTurn) per turnPhaseRegistry.ts. Solo defers the entire W13
+  // cluster to the tail before newsMaintenance to avoid shifting shared RNG
+  // streams under existing integration goldens — same rule as every other
+  // tail cluster above (see recomputeSharePricesPhase comment). Relative
+  // order inside this cluster mirrors mainline's real cause-and-effect:
+  // sovereignIssuance first (quarterly auction tied to W2 budgets' deficits,
+  // plus rollover of maturing principal — so budget debt is current before
+  // coupon servicing), then bondCouponMaturity (coupon/maturity servicing
+  // against budget debt, plus price/yield vs W3 prime rate), then
+  // npcBondHolder (NPP holder behavior drift on the float). All three are
+  // rng-free so tail placement has no downstream RNG stream effect beyond
+  // the ordering deviation itself, which a dedicated re-golden will restore.
+  sovereignIssuancePhase,
+  bondCouponMaturityPhase,
+  npcBondHolderPhase,
   newsMaintenancePhase,
 ];

@@ -221,6 +221,15 @@ export interface WorldState {
    * Schema v30 (main v28; parallel wave holds v29; migration latest ->30 with resolver note).
    */
   unions: Record<string, import("./unions/types.js").Union>;
+  /**
+   * Sovereign bonds, keyed by bond id. Ports src/lib/db/types/bond.ts (sovereign
+   * subset) + src/lib/bonds/sovereign.ts issuance/maturity bookkeeping. One row
+   * per quarterly auction tranche (single 48t maturity this wave); holders are
+   * player-only plus the publicFloat NPC bulk. See bonds/types.ts file doc for
+   * what mainline carries that solo omits. Schema v31 (main v30; parallel wave
+   * holds v29 which will insert earlier in the chain; latest ->31 with resolver note).
+   */
+  bonds: Record<string, import("./bonds/types.js").Bond>;
 }
 
 /**

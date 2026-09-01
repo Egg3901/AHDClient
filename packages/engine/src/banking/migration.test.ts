@@ -24,7 +24,7 @@ describe("save migration v17 -> v28 (W12 banking)", () => {
     const loaded = deserializeSave(raw);
 
     expect(loaded.meta.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(30);
+    expect(SCHEMA_VERSION).toBe(31);
 
     expect(loaded.player.savings).toBe(0);
     expect(loaded.player.savingsHolder).toBe("centralBank");

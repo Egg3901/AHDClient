@@ -236,7 +236,7 @@ describe("migration v18->v21", () => {
     (parsed.world as Record<string, unknown> & { meta: Record<string, unknown> }).meta["schemaVersion"] = 18;
     const raw18 = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 18, savedAt: "2026-01-01T00:00:00Z", world: parsed.world });
     const migrated = deserializeSave(raw18);
-    expect(migrated.meta.schemaVersion).toBe(30);
+    expect(migrated.meta.schemaVersion).toBe(31);
     expect(Array.isArray(migrated.statePartyElections)).toBe(true);
     expect(Array.isArray(migrated.nationalPartyElections)).toBe(true);
     expect(Array.isArray(migrated.nationalCommitteeElections)).toBe(true);

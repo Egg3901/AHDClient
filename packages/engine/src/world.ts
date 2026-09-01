@@ -19,10 +19,11 @@ import { seedCorporations } from "./corporation/founding.js";
 import { seedNpcBanks } from "./banking/npcBanks.js";
 import { seedUnions } from "./unions/founding.js";
 
-// Pre-allocated v30 for W15 unions. Main is v28 as of this wave's branch point;
-// parallel wave holds v29. See save.ts v28->v30 migration for resolver note on
-// merge-order splitting (latest ->30 chain preserves both waves).
-export const SCHEMA_VERSION = 30;
+// Pre-allocated v31 for W13 bonds. Main is v30 as of this wave's branch point;
+// parallel wave holds v29 which will insert earlier in the chain. See save.ts
+// v30->v31 migration for resolver note on merge-order splitting (latest ->31
+// chain preserves both waves, renumbering the parallel v29 block earlier).
+export const SCHEMA_VERSION = 31;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -446,6 +447,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     bankLoans: [],
     depositInsurance: {},
     unions,
+    bonds: {},
   };
   assignUsSeatGeography(world);
   // W12: charter the financial-sector NPC corp of every playable country as

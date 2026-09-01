@@ -1232,5 +1232,53 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 30;
   }
+  // v30 -> v31: W13 bonds. Pre-allocated v31 for this wave; main is v30;
+  // parallel wave holds v29 which will insert earlier in the chain (between
+  // v28 and v30). This is the latest migration, jumping from latest known
+  // (v30) to v31. RESOLVER NOTE: on merge, chain in strict ascending order
+  // (v28 -> v29 -> v30 -> v31) and confirm v29 does not also introduce a
+  // field named `bonds` (it should not; W13 is authoritative for that name).
+  // If the parallel v29 wave lands first with real fields, its block replaces
+  // the existing v28->v29 stub and this block remains v30->v31 — no renumbering
+  // needed beyond verifying ascending order. Splitting is mechanical: rename
+  // the version guard below if needed and preserve ordering, same pattern as
+  // the v28->v30 chain above.
+  //
+  // Seeds empty bonds map (no retroactive issuance — existing saves had no
+  // bonds to represent, and the quarterly auction will issue the first tranche
+  // on the next turn that is %12==0). Backfills any partially-present bond docs
+  // so a hand-edited save that somehow has bonds but missing fields still loads.
+  if (save.schemaVersion < 31) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (typeof w["bonds"] !== "object" || w["bonds"] === null || Array.isArray(w["bonds"])) {
+      w["bonds"] = {};
+    } else {
+      const bonds = w["bonds"] as Record<string, Record<string, unknown>>;
+      for (const b of Object.values(bonds)) {
+        if (typeof b["id"] !== "string") b["id"] = String(b["id"] ?? `bond-migrated-${Math.random().toString(36).slice(2)}`);
+        if (typeof b["issuerType"] !== "string") b["issuerType"] = "sovereign";
+        if (typeof b["countryId"] !== "string") b["countryId"] = "US";
+        if (typeof b["issuerName"] !== "string") b["issuerName"] = b["countryId"] as string;
+        if (typeof b["faceValue"] !== "number") b["faceValue"] = 1_000;
+        if (typeof b["couponRate"] !== "number") b["couponRate"] = 3.0;
+        if (typeof b["maturityTurns"] !== "number") b["maturityTurns"] = 48;
+        if (typeof b["issuedAtTurn"] !== "number") b["issuedAtTurn"] = 0;
+        if (typeof b["maturityTurn"] !== "number") b["maturityTurn"] = b["issuedAtTurn"] as number + (b["maturityTurns"] as number);
+        if (typeof b["marketPrice"] !== "number") b["marketPrice"] = 1.0;
+        if (typeof b["totalIssued"] !== "number") b["totalIssued"] = 1_000_000;
+        if (typeof b["publicFloat"] !== "number") b["publicFloat"] = Math.floor((b["totalIssued"] as number) / 1_000);
+        if (!Array.isArray(b["holders"])) b["holders"] = [];
+        if (typeof b["matured"] !== "boolean") b["matured"] = false;
+        if (typeof b["defaulted"] !== "boolean") b["defaulted"] = false;
+        if (!("defaultedAtTurn" in b) || (b["defaultedAtTurn"] !== null && typeof b["defaultedAtTurn"] !== "number")) {
+          if (b["defaultedAtTurn"] === undefined) b["defaultedAtTurn"] = null;
+        }
+        if (typeof b["currencyCode"] !== "string") b["currencyCode"] = "USD";
+        if (typeof b["createdAt"] !== "string") b["createdAt"] = (w["meta"] as Record<string, unknown>)?.["date"] as string ?? "1953-01-06";
+        if (typeof b["updatedAt"] !== "string") b["updatedAt"] = b["createdAt"] as string;
+      }
+    }
+    save.world.meta.schemaVersion = 31;
+  }
   return save.world;
 }

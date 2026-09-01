@@ -51,6 +51,9 @@ export type ExecuteActionParams = {
   // W10 markets
   corpId?: string;
   shares?: number;
+  // W13 bonds
+  bondId?: string;
+  units?: number;
 };
 
 export type ExecuteActionResult =
@@ -813,56 +816,78 @@ export function executeAction(
     return { ok: true, message: `Sold ${shares} shares of ${corp.tickerSymbol} for ${notional}` };
   }
 
-  // W31 crisis action hooks — player responses to active crises.
-  // Each action targets the active crisis for the player's country (or first active if none country-specific).
-  // Effects mirror src/lib/crises/optionActions.ts: bailout shortens banking crisis, stimulus shortens recession,
-  // generic response shortens any crisis by 1, monitor is no-op. All consume AP + fundCost already deducted.
-  if (actionId === "crisisBailout" || actionId === "crisisStimulus" || actionId === "crisisRespond" || actionId === "crisisMonitor") {
-    const countryId = world.player.countryId;
-    const crisis = world.crises.find((c) => c.status === "active" && c.countryIds.includes(countryId))
-      ?? world.crises.find((c) => c.status === "active");
-    if (!crisis) {
-      // No active crisis: no-op success (same as mainline's autoResolveOnExpiry fallback — action doesn't error, just no effect)
-      return { ok: true, message: "No active crisis to respond to." };
-    }
-    if (crisis.playerResponse) {
+  // W13 bonds — player buy/sell sovereign bond units at mainline pricing.
+  // Ports src/app/api/bonds/[bondId]/buy+ sell (reserveBondUnitsForHolder) at neutral fee.
+  // Pricing: cost = units × BOND_UNIT_FACE_VALUE × marketPrice (same as mainline's costLocal).
+  // Forex blocker: cross-country sovereign holding is PORT-STUB — needs live FX (see sovereign.ts currencyCode) — blocked with named blocker "forex".
+  if (actionId === "buyBond" || actionId === "sellBond") {
+    if (found.kind !== "player") return { ok: false, error: "Only the player trades bonds" };
+    const bondId = params.bondId;
+    const units = params.units;
+    if (!bondId || units === undefined || !Number.isInteger(units) || units <= 0) {
       actor.actions += cost;
-      actor.funds += fundCost;
       if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
-      return { ok: false, error: "Already responded to this crisis" };
+      return { ok: false, error: `${actionId} requires bondId and a positive integer units amount` };
     }
-    if (actionId === "crisisBailout") {
-      if (crisis.kind !== "crisis.bankingCrisis") {
+    const bond = world.bonds[bondId];
+    if (!bond) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `Unknown bond: ${bondId}` };
+    }
+    if (bond.matured) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `Bond ${bondId} has already matured` };
+    }
+    if (bond.defaulted) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `Bond ${bondId} is in default` };
+    }
+    const playerCountry = world.player.countryId;
+    if (bond.countryId !== playerCountry) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `Blocked: forex — cross-currency bond ${bondId} (${bond.countryId} ${bond.currencyCode} vs player ${playerCountry}) requires FX system (unported)` };
+    }
+    const pricePerUnit = Math.round(bond.faceValue * bond.marketPrice * 100) / 100;
+    const notional = Math.round(units * bond.faceValue * bond.marketPrice * 100) / 100;
+    const player = world.player as unknown as { cash: number };
+    if (actionId === "buyBond") {
+      if (bond.publicFloat < units) {
         actor.actions += cost;
-        actor.funds += fundCost;
         if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
-        return { ok: false, error: "Bailout is only for banking crises" };
+        return { ok: false, error: `Only ${bond.publicFloat} units available in ${bond.id}'s public float` };
       }
-      // Treasury already debited via fundCost; also shorten duration
-      crisis.durationTurns = Math.max(1, (crisis.durationTurns ?? 8) - 3);
-      crisis.playerResponse = "bailout";
-      return { ok: true, message: "Bailout authorized: crisis shortened by 3 turns." };
-    }
-    if (actionId === "crisisStimulus") {
-      if (crisis.kind !== "crisis.recession") {
+      if ((player.cash ?? 0) < notional) {
         actor.actions += cost;
-        actor.funds += fundCost;
         if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
-        return { ok: false, error: "Stimulus is only for recessions" };
+        return { ok: false, error: `Not enough cash. Required: ${notional}, Available: ${player.cash}` };
       }
-      crisis.durationTurns = Math.max(1, (crisis.durationTurns ?? 12) - 2);
-      crisis.playerResponse = "stimulus";
-      return { ok: true, message: "Stimulus passed: recession shortened by 2 turns." };
+      player.cash -= notional;
+      bond.publicFloat -= units;
+      let holding = bond.holders.find((h) => h.holderId === "player");
+      if (!holding) {
+        holding = { holderId: "player", units: 0 };
+        bond.holders.push(holding);
+      }
+      holding.units += units;
+      bond.updatedAt = world.meta.date;
+      return { ok: true, message: `Bought ${units} units of ${bond.id} for ${notional} (${bond.currencyCode})` };
     }
-    if (actionId === "crisisRespond") {
-      crisis.durationTurns = Math.max(1, (crisis.durationTurns ?? 8) - 1);
-      crisis.playerResponse = "respond";
-      return { ok: true, message: "Crisis response coordinated: shortened by 1 turn." };
+    const holding = bond.holders.find((h) => h.holderId === "player");
+    if (!holding || holding.units < units) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `You only own ${holding?.units ?? 0} units of ${bond.id}` };
     }
-    if (actionId === "crisisMonitor") {
-      crisis.playerResponse = "monitor";
-      return { ok: true, message: "Monitoring crisis: no action taken." };
-    }
+    holding.units -= units;
+    if (holding.units === 0) bond.holders = bond.holders.filter((h) => h !== holding);
+    bond.publicFloat += units;
+    player.cash = (player.cash ?? 0) + notional;
+    bond.updatedAt = world.meta.date;
+    return { ok: true, message: `Sold ${units} units of ${bond.id} for ${notional} (${bond.currencyCode})` };
   }
 
   // W31 crisis action hooks — player responses to active crises.

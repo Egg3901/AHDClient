@@ -11,6 +11,8 @@
 import { fundraiseYield } from "./fundGeneration.js";
 
 export type ActionId =
+  | "buyBond"
+  | "sellBond"
   | "fundraise"
   | "campaign"
   | "advertise"
@@ -100,6 +102,34 @@ function donorActionCost(donorBaseLevel: number, action: "fundraise" | "buildDon
 }
 
 export const ACTION_CATALOG: Record<ActionId, ActionCatalogEntry> = {
+  // W13 bonds: player buy/sell sovereign bond units at mainline pricing (marketPrice × face).
+  // Ports src/app/api/bonds/[bondId]/buy+ sell (bondHolderOps reserveBondUnitsForHolder) at neutral fee — solo has no brokerage/markup, same as W10's share trade.
+  buyBond: {
+    id: "buyBond",
+    name: "Buy Bond",
+    description: "Buy sovereign bond units from the public float at the current market price. Cost = units × faceValue × marketPrice. Ports bonds purchase at mainline pricing (BOND_UNIT_FACE_VALUE × marketPrice).",
+    baseCost: 1,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["bonds"],
+    status: "available",
+  },
+  sellBond: {
+    id: "sellBond",
+    name: "Sell Bond",
+    description: "Sell sovereign bond units back into the public float at the current market price. Proceeds = units × faceValue × marketPrice.",
+    baseCost: 1,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["bonds"],
+    status: "available",
+  },
+  // PORT-STUB: forex-denominated bond issuance (cross-currency sovereign float) requires FX system.
+  // Visible as unavailable so the UI can gray it out with a named blocker rather than invent a rate.
+  // Source: sovereign.ts currencyCode via resolveCountryCurrencyCode (needs FX for cross-currency settlement).
+  // Blocked: forex
+  // Corporate-bond issuance is also stubbed: needs corporation credit + bondHolderOps corporate path.
+  // Blocked: corporateBondIssuance
   fundraise: {
     id: "fundraise",
     name: "Fundraise",
