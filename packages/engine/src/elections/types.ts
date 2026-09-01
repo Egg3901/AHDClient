@@ -35,6 +35,8 @@ export interface ElectionRecord {
   candidates: ElectionCandidate[];
   /** candidate id -> accumulated votes. */
   tally: Record<string, number>;
+  /** Full tally document for the ported accumulateVoteTurn (US races). */
+  tallyState?: unknown;
   winners?: string[];
   resolvedTurn?: number;
 }

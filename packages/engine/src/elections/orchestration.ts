@@ -13,6 +13,7 @@ import {
   type GeneralResolutionInput,
 } from "../electionEngine/resolution/generalResolution.js";
 import { generateNpcNameAndGender } from "../npp/nameGenerator.js";
+import { realAccumulate } from "./tallyAdapter.js";
 
 /**
  * W21c orchestration: turns the pure election library into live world behavior.
@@ -401,7 +402,11 @@ export function runVoteAccumulation(world: WorldState, rng: WorldRng): void {
   // costlier than every other phase (bench finding).
   const byId = new Map(world.politicians.map((p) => [p.id, p]));
   for (const rec of inWindow.sort((a, b) => a.id.localeCompare(b.id))) {
-    stubAccumulate(world, rng, rec, byId);
+    // Real mainline tally where demographics exist (US, W16); stub elsewhere
+    // until W39 brings UK/RU/DD tables.
+    if (!realAccumulate(world, rng, rec)) {
+      stubAccumulate(world, rng, rec, byId);
+    }
   }
 }
 
