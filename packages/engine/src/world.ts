@@ -11,7 +11,7 @@ import {
   getEraCommodityBasePrice,
 } from "./commodity/constants.js";
 
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -303,6 +303,9 @@ export function createWorld(options: NewWorldOptions): WorldState {
   const { demographicCategories, stateDemographics, baselineDemographics, laborForces, census } =
     seedDemographics(pack, regions, worldSeedDate(pack.era.startDate));
 
+  // ── Budgets (W2) ───────────────────────────────────────────
+  const { budgets, regionalBudgets } = seedBudgets(pack, regions);
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -334,6 +337,8 @@ export function createWorld(options: NewWorldOptions): WorldState {
     demographicCategories,
     census,
     laborForces,
+    budgets,
+    regionalBudgets,
     player: {
       name: options.playerName,
       countryId: options.countryId,
@@ -703,4 +708,175 @@ function seedDemographics(
 
   const census: WorldState["census"] = {};
   return { demographicCategories, stateDemographics, baselineDemographics, laborForces, census };
+}
+
+function seedBudgets(
+  pack: { era: { id: string }; budgets?: Array<{
+    countryId: string;
+    fiscalYear: number;
+    population: number;
+    gdp: number;
+    currencyCode: string;
+    taxBaseRatios: { taxableIncome: number; corporateProfits: number; wagesAndSalaries: number; importValue: number; taxableSales: number };
+    taxRates: { incomeTax: number; domesticCorporateTax: number; foreignCorporateTax: number; payrollTax: number; tariffs: number; salesTax: number };
+    otherRevenue: number;
+    debt: { principal: number; interestRate: number; ceiling: number };
+    creditRating: string;
+    baselineSpendingByCategory: Record<string, number>;
+    baselineStateGrants: number;
+    economicFactors: { gdpGrowth: number; wageGrowth: number; inflationRate: number; tradeGrowth: number };
+  }> },
+  regions: WorldState["regions"],
+): { budgets: WorldState["budgets"]; regionalBudgets: WorldState["regionalBudgets"] } {
+  const budgets: WorldState["budgets"] = {};
+  const regionalBudgets: WorldState["regionalBudgets"] = {};
+
+  // Build national budgets from pack.budgets (US/UK/RU/DD 1953). Each country's
+  // taxBases are derived from the authored taxBaseRatios × gdp (see
+  // src/lib/seeds/reference/budgets.ts buildTaxBases — 75/25 corporate split).
+  // Cited per line in packs/1953.ts.
+  for (const b of pack.budgets ?? []) {
+    const totalCorp = b.gdp * b.taxBaseRatios.corporateProfits;
+    const taxBases = {
+      taxableIncome: b.gdp * b.taxBaseRatios.taxableIncome,
+      domesticCorporateProfits: totalCorp * 0.75,
+      foreignCorporateProfits: totalCorp * 0.25,
+      wagesAndSalaries: b.gdp * b.taxBaseRatios.wagesAndSalaries,
+      importValue: b.gdp * b.taxBaseRatios.importValue,
+      taxableSales: b.gdp * b.taxBaseRatios.taxableSales,
+    };
+    // Revenue = taxRate% × base + other (src/lib/budget/revenue.ts calculateFederalRevenue core)
+    const rr = (rate: number, base: number): number => Math.round(base * (rate / 100));
+    const revenue = {
+      incomeTax: rr(b.taxRates.incomeTax, taxBases.taxableIncome),
+      domesticCorporateTax: rr(b.taxRates.domesticCorporateTax, taxBases.domesticCorporateProfits),
+      foreignCorporateTax: rr(b.taxRates.foreignCorporateTax, taxBases.foreignCorporateProfits),
+      payrollTax: rr(b.taxRates.payrollTax, taxBases.wagesAndSalaries),
+      tariffs: rr(b.taxRates.tariffs, taxBases.importValue),
+      salesTax: rr(b.taxRates.salesTax, taxBases.taxableSales),
+      other: Math.round(b.otherRevenue),
+      total: 0,
+    };
+    revenue.total = revenue.incomeTax + revenue.domesticCorporateTax + revenue.foreignCorporateTax + revenue.payrollTax + revenue.tariffs + revenue.salesTax + revenue.other;
+
+    const byCategory: Record<string, number> = {};
+    for (const [k, v] of Object.entries(b.baselineSpendingByCategory)) byCategory[k] = Math.round(v);
+    const debtInterest = Math.round(b.debt.principal * b.debt.interestRate);
+    const categorySum = Object.values(byCategory).reduce((s, v) => s + v, 0);
+    const spending = {
+      byCategory,
+      stateGrants: Math.round(b.baselineStateGrants),
+      debtInterest,
+      total: categorySum + Math.round(b.baselineStateGrants) + debtInterest,
+    };
+    const surplus = revenue.total - spending.total;
+
+    budgets[b.countryId] = {
+      countryId: b.countryId,
+      fiscalYear: b.fiscalYear,
+      gdp: b.gdp,
+      population: b.population,
+      currencyCode: b.currencyCode,
+      taxRates: { ...b.taxRates },
+      taxBases,
+      revenue,
+      spending,
+      debt: { ...b.debt },
+      surplus,
+      treasuryBalance: -b.debt.principal,
+      creditRating: b.creditRating as import("./budget/types.js").CreditRating,
+      economicFactors: { ...b.economicFactors },
+      baselineSpendingByCategory: { ...b.baselineSpendingByCategory },
+      baselineStateGrants: b.baselineStateGrants,
+    };
+  }
+
+  // For countries without an authored budget, synthesize a minimal placeholder
+  // so every country's fiscal term has a balance (prevents undefined fiscal path).
+  // These adopt neutral tax rates/bases that yield a near-balanced budget.
+  const authored = new Set(Object.keys(budgets));
+  // Need full country list — derive from regions' countryIds plus pack.budgets countries
+  const allCountryIds = new Set<string>([...Object.values(regions).map((r) => r.countryId), ...authored]);
+  // Also include any country not represented via regions yet (fallback: use pack countries)
+  // We cannot import pack countries here without the full pack — regions covers playable set.
+  for (const cid of allCountryIds) {
+    if (authored.has(cid)) continue;
+    // Find a region for gdp hint — first region of this country
+    const region = Object.values(regions).find((r) => r.countryId === cid);
+    const gdpFallback = region?.gdp != null ? (region.gdp as number) * 1_000_000 * Object.values(regions).filter((r) => r.countryId === cid).length : 10_000_000_000;
+    const gdp = Math.max(1_000_000_000, gdpFallback);
+    const ratios = { taxableIncome: 0.3, corporateProfits: 0.08, wagesAndSalaries: 0.35, importValue: 0.15, taxableSales: 0.4 };
+    const totalCorp = gdp * ratios.corporateProfits;
+    const taxBases = {
+      taxableIncome: gdp * ratios.taxableIncome,
+      domesticCorporateProfits: totalCorp * 0.75,
+      foreignCorporateProfits: totalCorp * 0.25,
+      wagesAndSalaries: gdp * ratios.wagesAndSalaries,
+      importValue: gdp * ratios.importValue,
+      taxableSales: gdp * ratios.taxableSales,
+    };
+    const taxRates = { incomeTax: 25, domesticCorporateTax: 30, foreignCorporateTax: 30, payrollTax: 5, tariffs: 2, salesTax: 5 };
+    const rr = (rate: number, base: number): number => Math.round(base * (rate / 100));
+    const revenue = {
+      incomeTax: rr(taxRates.incomeTax, taxBases.taxableIncome),
+      domesticCorporateTax: rr(taxRates.domesticCorporateTax, taxBases.domesticCorporateProfits),
+      foreignCorporateTax: rr(taxRates.foreignCorporateTax, taxBases.foreignCorporateProfits),
+      payrollTax: rr(taxRates.payrollTax, taxBases.wagesAndSalaries),
+      tariffs: rr(taxRates.tariffs, taxBases.importValue),
+      salesTax: rr(taxRates.salesTax, taxBases.taxableSales),
+      other: Math.round(gdp * 0.02),
+      total: 0,
+    };
+    revenue.total = revenue.incomeTax + revenue.domesticCorporateTax + revenue.foreignCorporateTax + revenue.payrollTax + revenue.tariffs + revenue.salesTax + revenue.other;
+    const cat: Record<string, number> = { other: Math.round(revenue.total * 0.6) };
+    const debtInterest = Math.round(gdp * 0.005);
+    const spending = { byCategory: cat, stateGrants: Math.round(gdp * 0.05), debtInterest, total: Object.values(cat).reduce((s, v) => s + v, 0) + Math.round(gdp * 0.05) + debtInterest };
+    budgets[cid] = {
+      countryId: cid,
+      fiscalYear: 1953,
+      gdp,
+      population: region?.population ?? 1_000_000,
+      currencyCode: "USD",
+      taxRates,
+      taxBases,
+      revenue,
+      spending,
+      debt: { principal: Math.round(gdp * 0.3), interestRate: 0.03, ceiling: Math.round(gdp * 0.6) },
+      surplus: revenue.total - spending.total,
+      treasuryBalance: -Math.round(gdp * 0.3),
+      creditRating: "BBB" as import("./budget/types.js").CreditRating,
+      economicFactors: { gdpGrowth: 2.5, wageGrowth: 3.0, inflationRate: 2.0, tradeGrowth: 3.0 },
+      baselineSpendingByCategory: { ...cat },
+      baselineStateGrants: Math.round(gdp * 0.05),
+    };
+  }
+
+  // Regional budgets: generic per-region entry seeded from national grant pool
+  // plus own-revenue share. Uses REGIONAL_OWN_REVENUE_GDP_SHARE pattern (regionalBudget.ts).
+  for (const [rid, region] of Object.entries(regions)) {
+    const countryBudget = budgets[region.countryId];
+    if (!countryBudget) continue;
+    const pop = region.population ?? 0;
+    // Approximate region gdp: if region.gdp (GSP) exists, use it *1e6 else share national
+    const regionGdpAbs = region.gdp != null ? (region.gdp as number) * 1_000_000 : countryBudget.gdp * (pop / countryBudget.population);
+    const own = Math.round(regionGdpAbs * 0.026); // 0.016+0.01 generic
+    const grant = countryBudget.population > 0 ? Math.round((countryBudget.spending.stateGrants * pop) / countryBudget.population) : 0;
+    const revTotal = own + grant;
+    // Simple spending: distribute national byCategory proportionally per region (population share)
+    const byCat: Record<string, number> = {};
+    for (const [k, v] of Object.entries(countryBudget.spending.byCategory)) {
+      byCat[k] = Math.round((v * pop) / countryBudget.population);
+    }
+    const spendTotal = Object.values(byCat).reduce((s, v) => s + v, 0) + Math.round(grant * 0.5); // mimic local spend
+    regionalBudgets[rid] = {
+      regionId: rid,
+      countryId: region.countryId,
+      revenue: { councilTax: Math.round(regionGdpAbs * 0.016), businessRates: Math.round(regionGdpAbs * 0.01), grant, total: revTotal },
+      spending: { byCategory: byCat, total: spendTotal },
+      balance: revTotal - spendTotal,
+      consecutiveDeficits: 0,
+    };
+  }
+
+  return { budgets, regionalBudgets };
 }

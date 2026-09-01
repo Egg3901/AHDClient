@@ -554,5 +554,77 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 14;
   }
+  // v14 -> v15: W2 budgets (national budgets + regional budgets).
+  // If W37 races for v14/v15, merge resolver renumbers — note collision for resolver.
+  // Seed minimal budgets/regionalBudgets so old saves have fiscal state.
+  if (save.schemaVersion < 15) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (typeof w["budgets"] !== "object" || w["budgets"] === null || Array.isArray(w["budgets"])) w["budgets"] = {};
+    if (typeof w["regionalBudgets"] !== "object" || w["regionalBudgets"] === null || Array.isArray(w["regionalBudgets"])) w["regionalBudgets"] = {};
+    const budgets = w["budgets"] as Record<string, unknown>;
+    const regionalBudgets = w["regionalBudgets"] as Record<string, unknown>;
+    const regions = w["regions"] as Record<string, Record<string, unknown>> | undefined;
+    // If budgets empty but regions exist, synthesize minimal entries per country/region
+    if (Object.keys(budgets).length === 0 && regions && Object.keys(regions).length > 0) {
+      const countryIds = new Set<string>();
+      for (const reg of Object.values(regions)) {
+        const cid = (reg as { countryId?: string }).countryId;
+        if (typeof cid === "string") countryIds.add(cid);
+      }
+      for (const cid of countryIds) {
+        const gdp = 10_000_000_000;
+        budgets[cid] = {
+          countryId: cid,
+          fiscalYear: 1953,
+          gdp,
+          population: 1_000_000,
+          currencyCode: "USD",
+          taxRates: { incomeTax: 25, domesticCorporateTax: 30, foreignCorporateTax: 30, payrollTax: 5, tariffs: 2, salesTax: 5 },
+          taxBases: {
+            taxableIncome: gdp * 0.3,
+            domesticCorporateProfits: gdp * 0.06,
+            foreignCorporateProfits: gdp * 0.02,
+            wagesAndSalaries: gdp * 0.35,
+            importValue: gdp * 0.15,
+            taxableSales: gdp * 0.4,
+          },
+          revenue: { incomeTax: 0, domesticCorporateTax: 0, foreignCorporateTax: 0, payrollTax: 0, tariffs: 0, salesTax: 0, other: 200_000_000, total: 200_000_000 },
+          spending: { byCategory: { other: 100_000_000 }, stateGrants: 50_000_000, debtInterest: 10_000_000, total: 160_000_000 },
+          debt: { principal: 3_000_000_000, interestRate: 0.03, ceiling: 6_000_000_000 },
+          surplus: 40_000_000,
+          treasuryBalance: -3_000_000_000,
+          creditRating: "BBB",
+          economicFactors: { gdpGrowth: 2.5, wageGrowth: 3.0, inflationRate: 2.0, tradeGrowth: 3.0 },
+          baselineSpendingByCategory: { other: 100_000_000 },
+          baselineStateGrants: 50_000_000,
+        };
+        // Recompute revenue total correctly
+        const b = budgets[cid] as Record<string, unknown> & { revenue: { incomeTax: number; domesticCorporateTax: number; foreignCorporateTax: number; payrollTax: number; tariffs: number; salesTax: number; other: number; total: number }; taxBases: Record<string, number>; taxRates: Record<string, number> };
+        b.revenue.incomeTax = Math.round((b.taxBases["taxableIncome"] ?? 0) * ((b.taxRates["incomeTax"] ?? 0) / 100));
+        b.revenue.domesticCorporateTax = Math.round((b.taxBases["domesticCorporateProfits"] ?? 0) * ((b.taxRates["domesticCorporateTax"] ?? 0) / 100));
+        b.revenue.foreignCorporateTax = Math.round((b.taxBases["foreignCorporateProfits"] ?? 0) * ((b.taxRates["foreignCorporateTax"] ?? 0) / 100));
+        b.revenue.payrollTax = Math.round((b.taxBases["wagesAndSalaries"] ?? 0) * ((b.taxRates["payrollTax"] ?? 0) / 100));
+        b.revenue.tariffs = Math.round((b.taxBases["importValue"] ?? 0) * ((b.taxRates["tariffs"] ?? 0) / 100));
+        b.revenue.salesTax = Math.round((b.taxBases["taxableSales"] ?? 0) * ((b.taxRates["salesTax"] ?? 0) / 100));
+        b.revenue.total = b.revenue.incomeTax + b.revenue.domesticCorporateTax + b.revenue.foreignCorporateTax + b.revenue.payrollTax + b.revenue.tariffs + b.revenue.salesTax + b.revenue.other;
+        const spending = b["spending"] as { byCategory: Record<string, number>; stateGrants: number; debtInterest: number; total: number };
+        (b as Record<string, unknown>)["surplus"] = b.revenue.total - spending.total;
+      }
+      for (const [rid, reg] of Object.entries(regions)) {
+        const cid = (reg as { countryId?: string }).countryId ?? "US";
+        if (!regionalBudgets[rid]) {
+          regionalBudgets[rid] = {
+            regionId: rid,
+            countryId: cid,
+            revenue: { councilTax: 10_000_000, businessRates: 5_000_000, grant: 5_000_000, total: 20_000_000 },
+            spending: { byCategory: { other: 15_000_000 }, total: 15_000_000 },
+            balance: 5_000_000,
+            consecutiveDeficits: 0,
+          };
+        }
+      }
+    }
+    save.world.meta.schemaVersion = 15;
+  }
   return save.world;
 }

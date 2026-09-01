@@ -5,6 +5,8 @@ import {
   GROWTH_RATE_MIN,
   GROWTH_SHOCK_PCT,
   INFLATION_BASE_TARGET,
+  INFLATION_FISCAL_COEFF_DEFICIT,
+  INFLATION_FISCAL_COEFF_SURPLUS,
   INFLATION_GDP_COEFF_DOWN,
   INFLATION_GDP_COEFF_UP,
   INFLATION_INERTIA,
@@ -73,20 +75,40 @@ export function okunTarget(
 }
 
 /**
+ * Fiscal term from budget deficit/surplus.
+ * Source: src/lib/budget/inflation.ts calculateInflationWithBreakdown deficitPct logic
+ *  FISCAL_COEFF_DEFICIT=0.15 (deficit inflationary), FISCAL_COEFF_SURPLUS=0.08 (surplus deflationary),
+ *  clamp deficitPct to [-30,50] before coeff.
+ */
+export function computeFiscalTerm(surplus: number, gdp: number): number {
+  if (!Number.isFinite(surplus) || !Number.isFinite(gdp) || gdp <= 0) return 0;
+  const surplusToGdp = surplus / gdp;
+  const deficitPctRaw = -surplusToGdp * 100;
+  const deficitPct = Math.max(-30, Math.min(50, deficitPctRaw));
+  const coeff = deficitPct >= 0
+    ? INFLATION_FISCAL_COEFF_DEFICIT // source: inflation.ts FISCAL_COEFF_DEFICIT 0.15
+    : INFLATION_FISCAL_COEFF_SURPLUS; // source: inflation.ts FISCAL_COEFF_SURPLUS 0.08
+  return deficitPct * coeff;
+}
+
+/**
  * Simplified country-level inflation.
  * Pure core of /root/projects/AHDGame/src/lib/budget/inflation.ts calculateInflationWithBreakdown
- * with PORT-STUB neutral values for every input that requires unported systems.
+ * with neutral values for every input that requires unported systems except the fiscal term,
+ * which is now wired from real budget state (deficit/GDP) per W2.
  */
 export function computeInflation(
   previousInflationPct: number,
   unemploymentPct: number,
   gdpGrowthPct: number,
+  surplus: number = 0,
+  gdp: number = 0,
 ): number {
-  // PORT-STUB: central bank primeRate vs neutral — neutral value 0 monetary term
-  // PORT-STUB: fiscal deficit/GDP — balanced budget (0)
-  // PORT-STUB: tariff cost-push — at baseline (0)
-  // PORT-STUB: wage growth — at baseline (0)
-  // PORT-STUB: commodity forex savings housing policy moneySupply — all 0
+  // Central bank primeRate vs neutral — PORT-STUB neutral 0 monetary term
+  // Tariff cost-push — PORT-STUB at baseline (0)
+  // Wage growth — PORT-STUB at baseline (0)
+  // Commodity/forex/savings/housing/policy/moneySupply — all PORT-STUB 0
+  // Fiscal term is now real (deficit/GDP), not stubbed.
 
   const target = INFLATION_BASE_TARGET;
 
@@ -99,7 +121,9 @@ export function computeInflation(
   const gGap = gdpGrowthPct - INFLATION_TREND_GDP_GROWTH;
   const gdpTerm = gGap >= 0 ? gGap * INFLATION_GDP_COEFF_UP : gGap * INFLATION_GDP_COEFF_DOWN;
 
-  const raw = target + unemploymentTerm + gdpTerm; // + stubs (0)
+  const fiscalTerm = computeFiscalTerm(surplus, gdp);
+
+  const raw = target + unemploymentTerm + gdpTerm + fiscalTerm; // stubs for tariffs/wage/commodity/forex/savings remain 0
 
   // Inertia smoothing — source: inflation.ts
   const smoothedRaw = INFLATION_INERTIA * previousInflationPct + (1 - INFLATION_INERTIA) * raw;
@@ -200,12 +224,14 @@ export const macroCountryTurnPhase: TurnPhase = {
 
       // ── Inflation ─────────────────────────────────────────────────
       // Formula: source budget/inflation.ts calculateInflationWithBreakdown
-      // PORT-STUB neutral values for: monetary (central bank), fiscal
-      // (budget deficit), tariffs, wage growth, commodity/forex/savings
-      // pressures, housing, policy stance, money supply — all held at
-      // baseline so only the Phillips curve (unemployment + gdp) moves CPI.
+      // Fiscal term is now real: deficit/GDP from budget.surplus/gdp via FISCAL_COEFF_*
+      // (source: inflation.ts FISCAL_COEFF_DEFICIT 0.15, FISCAL_COEFF_SURPLUS 0.08).
+      // Monetary/tariffs/wage/commodity/forex/savings/housing/policy/moneySupply remain neutral.
       // Cite inflation.ts.
-      let newInflPct = computeInflation(prevInflPct, newUnempPct, step.gdpGrowth);
+      const budget = world.budgets?.[id];
+      const surplus = budget?.surplus ?? 0;
+      const gdpForFiscal = budget?.gdp ?? econ.gdp;
+      let newInflPct = computeInflation(prevInflPct, newUnempPct, step.gdpGrowth, surplus, gdpForFiscal);
       // Small RNG shock for deterministic variation (kept bounded by the
       // per-turn clamp already applied; shock is added after so it stays
       // within overall INFLATION_MIN/MAX).

@@ -54,6 +54,12 @@ import { voteAccumulationPhase, electionTimersPhase, electionResolutionPhase } f
 import { demographicEffectsPhase } from "../demographics/demographicEffects.js";
 import { demographicFlowsPhase } from "../demographics/demographicFlows.js";
 import { censusPhase } from "../demographics/census.js";
+import {
+  fiscalBaseGrowthPhase,
+  subsidyBudgetPhase,
+  fiscalYearPhase,
+  regionalBudgetProcessingPhase,
+} from "../budget/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -93,5 +99,14 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   demographicEffectsPhase,
   demographicFlowsPhase,
   censusPhase,
+  // Budget phases at end of ported subset, before newsMaintenance.
+  // Mainline ordering (turnPhaseRegistry.ts / simTurnProfiles.ts): fiscalYear before
+  // regionalBudgetProcessing, both after metricEngine and before final diagnostics.
+  // Solo deviation: placed at tail to avoid shifting existing RNG streams; re-golden will restore mainline order.
+  // Deferred variants: JP (src/lib/turn/jpRegionalBudget.ts) and DE (src/lib/turn/deRegionalBudget.ts) — those countries not playable.
+  fiscalBaseGrowthPhase,
+  subsidyBudgetPhase,
+  fiscalYearPhase,
+  regionalBudgetProcessingPhase,
   newsMaintenancePhase,
 ];

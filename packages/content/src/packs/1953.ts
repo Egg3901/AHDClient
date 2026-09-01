@@ -40,6 +40,73 @@ import { usStates1953 } from "./usStates1953.js";
 export const pack1953: SeedPack = {
   packVersion: 1,
   era: { id: "1953", label: "1953: Cold War Dawn", startDate: "1953-01-06" },
+  // Budgets: national fiscal structures for US/UK/RU/DD (1953).
+  // Sources: src/lib/seeds/reference/budgets.ts NATIONAL_BUDGET_SEED_CONFIGS_1953
+  //  + src/lib/politicalLegislation/seedTaxRates.ts SEED_TAX_RATES_1953.
+  // Figures below are absolute local currency (USD/GBP/SUR/DDM) matching mainline's seeded gdp fields.
+  // Tax base ratios cite budgets.ts taxBaseRatios; rates cite seedTaxRatesOverride; spending cites baselineSpendingByCategory.
+  budgets: [
+    {
+      countryId: "US",
+      fiscalYear: 1953,
+      population: 158_000_000,
+      gdp: 387_000_000_000,
+      currencyCode: "USD",
+      taxBaseRatios: { taxableIncome: 0.35, corporateProfits: 0.08, wagesAndSalaries: 0.4, importValue: 0.06, taxableSales: 0.4 },
+      taxRates: { incomeTax: 35, domesticCorporateTax: 40, foreignCorporateTax: 32, payrollTax: 3, tariffs: 0, salesTax: 0 },
+      otherRevenue: 15_000_000_000,
+      debt: { principal: 275_000_000_000, interestRate: 0.025, ceiling: 290_000_000_000 },
+      creditRating: "AAA",
+      baselineSpendingByCategory: { defense: 52_800_000_000, socialSecurity: 3_500_000_000, healthcare: 1_600_000_000, education: 700_000_000, infrastructure: 1_400_000_000, other: 16_100_000_000 },
+      baselineStateGrants: 3_500_000_000,
+      economicFactors: { gdpGrowth: 4.6, wageGrowth: 4.5, inflationRate: 0.75, tradeGrowth: 3.0 },
+    },
+    {
+      countryId: "UK",
+      fiscalYear: 1953,
+      population: 50_600_000,
+      gdp: 14_400_000_000,
+      currencyCode: "GBP",
+      taxBaseRatios: { taxableIncome: 0.5, corporateProfits: 0.1, wagesAndSalaries: 0.5, importValue: 0.2, taxableSales: 0.35 },
+      taxRates: { incomeTax: 36, domesticCorporateTax: 35, foreignCorporateTax: 39, payrollTax: 7.2, tariffs: 0, salesTax: 0 },
+      otherRevenue: 1_200_000_000,
+      debt: { principal: 26_000_000_000, interestRate: 0.04, ceiling: 28_000_000_000 },
+      creditRating: "AAA",
+      baselineSpendingByCategory: { health: 570_000_000, education: 400_000_000, statePensions: 450_000_000, welfare: 300_000_000, defense: 1_600_000_000, transport: 150_000_000, other: 800_000_000 },
+      baselineStateGrants: 250_000_000,
+      economicFactors: { gdpGrowth: 4.0, wageGrowth: 5.5, inflationRate: 3.0, tradeGrowth: 5.0 },
+    },
+    {
+      countryId: "RU",
+      fiscalYear: 1953,
+      population: 139_500_000,
+      gdp: 1_029_166_000_000,
+      currencyCode: "SUR",
+      taxBaseRatios: { taxableIncome: 0.35, corporateProfits: 0.08, wagesAndSalaries: 0.31, importValue: 0.18, taxableSales: 0.55 },
+      taxRates: { incomeTax: 9, domesticCorporateTax: 60, foreignCorporateTax: 60, payrollTax: 5, tariffs: 0, salesTax: 31 },
+      otherRevenue: 113_000_000_000,
+      debt: { principal: 15_000_000_000, interestRate: 0.02, ceiling: 88_000_000_000 },
+      creditRating: "AA",
+      baselineSpendingByCategory: { defense: 81_000_000_000, education: 40_000_000_000, healthcare: 26_000_000_000, statePensions: 15_000_000_000, welfare: 18_000_000_000, infrastructure: 118_000_000_000, other: 51_000_000_000 },
+      baselineStateGrants: 44_000_000_000,
+      economicFactors: { gdpGrowth: 5.5, wageGrowth: 4.0, inflationRate: 0.5, tradeGrowth: 3.0 },
+    },
+    {
+      countryId: "DD",
+      fiscalYear: 1953,
+      population: 18_400_000,
+      gdp: 50_000_000_000,
+      currencyCode: "DDM",
+      taxBaseRatios: { taxableIncome: 0.35, corporateProfits: 0.08, wagesAndSalaries: 0.31, importValue: 0.18, taxableSales: 0.55 },
+      taxRates: { incomeTax: 12, domesticCorporateTax: 60, foreignCorporateTax: 60, payrollTax: 8, tariffs: 0, salesTax: 28 },
+      otherRevenue: 4_500_000_000,
+      debt: { principal: 3_000_000_000, interestRate: 0.04, ceiling: 20_000_000_000 },
+      creditRating: "A",
+      baselineSpendingByCategory: { defense: 2_500_000_000, education: 2_200_000_000, healthcare: 1_400_000_000, statePensions: 1_500_000_000, welfare: 1_200_000_000, infrastructure: 4_000_000_000, other: 3_000_000_000 },
+      baselineStateGrants: 1_500_000_000,
+      economicFactors: { gdpGrowth: 3.0, wageGrowth: 2.5, inflationRate: 0.5, tradeGrowth: 2.0 },
+    },
+  ],
   states: usStates1953,
   countries: [
     {

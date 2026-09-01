@@ -201,6 +201,26 @@ export function processBillLifecycle(world: WorldState, _rng: WorldRng): { bills
 
 export function applyBillEffects(world: WorldState, bill: Bill): void {
   const catalog = bill.legislationTypeId ? getLaw(bill.legislationTypeId) : null;
+  // Budget gate (W2): read real budget state where mainline wires validateFederalBudgetImpact.
+  // Warn-only — sovereign deficit spending is a deliberate lane, so validation never blocks.
+  // Debt-ceiling crisis trigger is PORT-STUB: sovereignDefault/debtCeiling system not yet ported.
+  const budget = (world as unknown as { budgets?: Record<string, { debt: { principal: number; ceiling: number }; revenue: { total: number }; spending: { total: number } }> }).budgets?.[bill.countryId];
+  if (budget) {
+    const projectedDebt = budget.debt.principal;
+    if (projectedDebt > budget.debt.ceiling) {
+      // PORT-STUB: mainline would triggerDebtCeilingCrisis here (src/lib/budget/debt.ts)
+      // Blocking system: sovereignDefault/debtCeiling
+      (bill as unknown as { budgetGateWarning?: string }).budgetGateWarning = "DEBT_CEILING_EXCEEDED";
+    }
+  }
+  // Tax-rate enactment: where mainline writes billEnactment.ts applyTaxRateChange,
+  // solo's per-option rate ladder is not yet ported (catalog levels store gdpCostFraction, not rate steps).
+  // Blocking system: budget/taxRateLadder — connect the real budget read, PORT-STUB the detailed rate decode.
+  if (catalog?.kind === "tax" && catalog.taxPolicy && budget) {
+    // PORT-STUB: detailed rate from option ladder deferred; no rate write yet.
+    void budget;
+  }
+
   const effect = catalog?.effect;
   if (!effect) {
     // No catalog effect: check provisions directly for economy overrides

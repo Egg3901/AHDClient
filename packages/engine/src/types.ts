@@ -1,5 +1,6 @@
 import type { RngState } from "./rng.js";
 import type { Bill, Committee, EnactedLaw } from "./legislation/types.js";
+import type { CountryBudget, RegionalBudget } from "./budget/types.js";
 
 /**
  * The entire game world is one serializable document. No database: the world
@@ -75,6 +76,10 @@ export interface WorldState {
   census: { lastCensusYear?: number; lastCensus?: { year: number; deltas: import("./demographics/census.js").SeatDelta[] } };
   /** Per-region labor force headcount (civilian). Computed from workingAge + conscription + participation. Schema v14. */
   laborForces: Record<string, number>;
+  /** National budgets per country (fiscal system). Ports FederalBudget shape. Schema v15. */
+  budgets: Record<string, CountryBudget>;
+  /** Regional budgets per region (generic; JP/DE variants deferred). Schema v15. */
+  regionalBudgets: Record<string, RegionalBudget>;
 }
 
 export interface Politician {

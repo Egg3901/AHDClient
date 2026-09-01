@@ -13,11 +13,12 @@ export interface SeedPack {
   packVersion: number;
   era: EraSeed;
   countries: CountrySeed[];
-  /** Optional extension tables: states, parties, sectors. */
+  /** Optional extension tables: states, parties, sectors, budgets. */
   states?: StateSeed[];
   parties?: PartySeed[];
   legislatures?: LegislatureSeed[];
   sectors?: SectorSeed[];
+  budgets?: BudgetSeed[];
 }
 
 export interface EraSeed {
@@ -127,4 +128,38 @@ export interface SectorSeed {
   id: string;
   name: string;
   [key: string]: unknown;
+}
+
+/** Budget seed for a country's national budget in this era. */
+export interface BudgetSeed {
+  /** Country id — must match a CountrySeed id. */
+  countryId: string;
+  fiscalYear: number;
+  population: number;
+  gdp: number; // absolute local currency
+  currencyCode: string;
+  /** Tax base ratios to build initial taxBases from gdp. */
+  taxBaseRatios: {
+    taxableIncome: number;
+    corporateProfits: number;
+    wagesAndSalaries: number;
+    importValue: number;
+    taxableSales: number;
+  };
+  /** Effective authored rates (%) — source: src/lib/politicalLegislation/seedTaxRates.ts SEED_TAX_RATES_1953 */
+  taxRates: {
+    incomeTax: number;
+    domesticCorporateTax: number;
+    foreignCorporateTax: number;
+    payrollTax: number;
+    tariffs: number;
+    salesTax: number;
+  };
+  otherRevenue: number;
+  debt: { principal: number; interestRate: number; ceiling: number };
+  creditRating: string;
+  /** Baseline spending lines — source: src/lib/seeds/reference/budgets.ts baselineSpendingByCategory */
+  baselineSpendingByCategory: Record<string, number>;
+  baselineStateGrants: number;
+  economicFactors: { gdpGrowth: number; wageGrowth: number; inflationRate: number; tradeGrowth: number };
 }

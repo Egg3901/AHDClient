@@ -113,7 +113,7 @@ export function validatePack(pack: SeedPack): void {
   }
 
   // optional extension tables: if present, must be arrays
-  for (const key of ["states", "parties", "sectors", "legislatures"] as const) {
+  for (const key of ["states", "parties", "sectors", "legislatures", "budgets"] as const) {
     const v = (pack as unknown as Record<string, unknown>)[key];
     if (v !== undefined && !Array.isArray(v)) {
       throw new Error(`validatePack: ${key} must be an array if present`);
@@ -259,6 +259,40 @@ export function validatePack(pack: SeedPack): void {
           sum += count as number;
         }
         if (sum !== (seats as number)) throw new Error(`validatePack: legislatures[${i}].chambers[${j}] composition sum ${sum} does not equal seats ${String(seats)} for country "${countryId}"`);
+      }
+    }
+  }
+
+  // budgets validation
+  if (Array.isArray(pack.budgets)) {
+    const seenBudgets = new Set<string>();
+    for (let i = 0; i < pack.budgets.length; i++) {
+      const b = pack.budgets[i] as unknown as Record<string, unknown>;
+      if (typeof b !== "object" || b === null) throw new Error(`validatePack: budgets[${i}] must be an object`);
+      const countryId = b["countryId"];
+      const fiscalYear = b["fiscalYear"];
+      const gdp = b["gdp"];
+      const population = b["population"];
+      if (typeof countryId !== "string" || countryId.trim() === "") throw new Error(`validatePack: budgets[${i}].countryId must be a non-empty string`);
+      if (!seen.has(countryId)) throw new Error(`validatePack: budgets[${i}].countryId "${countryId}" does not match any country`);
+      if (seenBudgets.has(countryId)) throw new Error(`validatePack: duplicate budget for country "${countryId}"`);
+      seenBudgets.add(countryId);
+      if (!isFiniteNumber(fiscalYear) || !Number.isInteger(fiscalYear as number)) throw new Error(`validatePack: budgets[${i}].fiscalYear must be a finite integer, got ${String(fiscalYear)}`);
+      if (!isFiniteNumber(gdp) || (gdp as number) <= 0) throw new Error(`validatePack: budgets[${i}].gdp must be a finite number > 0 for country "${countryId}", got ${String(gdp)}`);
+      if (!isFiniteNumber(population) || (population as number) <= 0) throw new Error(`validatePack: budgets[${i}].population must be a finite number > 0 for country "${countryId}", got ${String(population)}`);
+      const taxRates = b["taxRates"] as unknown as Record<string, unknown> | undefined;
+      const taxBaseRatios = b["taxBaseRatios"] as unknown as Record<string, unknown> | undefined;
+      const debt = b["debt"] as unknown as Record<string, unknown> | undefined;
+      if (typeof taxRates !== "object" || taxRates === null) throw new Error(`validatePack: budgets[${i}].taxRates must be an object for country "${countryId}"`);
+      if (typeof taxBaseRatios !== "object" || taxBaseRatios === null) throw new Error(`validatePack: budgets[${i}].taxBaseRatios must be an object for country "${countryId}"`);
+      if (typeof debt !== "object" || debt === null) throw new Error(`validatePack: budgets[${i}].debt must be an object for country "${countryId}"`);
+      for (const k of ["taxableIncome", "corporateProfits", "wagesAndSalaries", "importValue", "taxableSales"] as const) {
+        const v = taxBaseRatios[k];
+        if (!isFiniteNumber(v) || (v as number) < 0 || (v as number) > 1) throw new Error(`validatePack: budgets[${i}].taxBaseRatios.${k} must be in [0,1] for country "${countryId}", got ${String(v)}`);
+      }
+      for (const k of ["incomeTax", "domesticCorporateTax", "foreignCorporateTax", "payrollTax", "tariffs", "salesTax"] as const) {
+        const v = taxRates[k];
+        if (!isFiniteNumber(v) || (v as number) < 0 || (v as number) > 100) throw new Error(`validatePack: budgets[${i}].taxRates.${k} must be in [0,100] for country "${countryId}", got ${String(v)}`);
       }
     }
   }
