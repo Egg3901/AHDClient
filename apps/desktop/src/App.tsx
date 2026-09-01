@@ -545,7 +545,94 @@ function CheatPanel({
   const [timeCount, setTimeCount] = useState("1");
   const [lastElapsed, setLastElapsed] = useState<number | null>(null);
   const [headline, setHeadline] = useState("");
+  const [newsCategory, setNewsCategory] = useState("");
   const [cheatError, setCheatError] = useState<string | null>(null);
+
+  // Elections force resolve
+  const activeElections = useMemo(() => {
+    const list = Array.isArray(world.elections) ? world.elections : [];
+    return list
+      .filter((e) => e.status === "active")
+      .sort((a, b) => a.id.localeCompare(b.id));
+  }, [world.elections]);
+  const [selectedElectionId, setSelectedElectionId] = useState<string>(() => activeElections[0]?.id ?? "");
+  useEffect(() => {
+    if (activeElections.length === 0) {
+      if (selectedElectionId !== "") setSelectedElectionId("");
+      return;
+    }
+    if (!activeElections.some((e) => e.id === selectedElectionId)) {
+      setSelectedElectionId(activeElections[0]!.id);
+    }
+  }, [activeElections, selectedElectionId]);
+
+  // Politician editor
+  const polityCountries = useMemo(() => Object.keys(world.countries).sort(), [world.countries]);
+  const [polCountry, setPolCountry] = useState<string>(() => polityCountries[0] ?? "US");
+  const [polChamber, setPolChamber] = useState<string>("all");
+  const legislatures = world.legislatures as Record<string, { chambers: Array<{ key: string; name: string }> } | undefined>;
+  const chamberOptions = useMemo(() => {
+    const leg = legislatures[polCountry];
+    const keys = leg ? leg.chambers.map((c) => c.key) : [];
+    return ["all", ...keys.sort()];
+  }, [legislatures, polCountry]);
+  useEffect(() => {
+    if (!polityCountries.includes(polCountry) && polityCountries[0]) setPolCountry(polityCountries[0]);
+  }, [polityCountries, polCountry]);
+  useEffect(() => {
+    if (!chamberOptions.includes(polChamber)) setPolChamber("all");
+  }, [chamberOptions, polChamber]);
+  const filteredPoliticians = useMemo(() => {
+    const list = Array.isArray(world.politicians) ? world.politicians : [];
+    return list
+      .filter((p) => p.countryId === polCountry && (polChamber === "all" || p.chamberKey === polChamber))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [world.politicians, polCountry, polChamber]);
+  const [selectedPoliticianId, setSelectedPoliticianId] = useState<string>(() => filteredPoliticians[0]?.id ?? "");
+  useEffect(() => {
+    if (filteredPoliticians.length === 0) {
+      if (selectedPoliticianId !== "") setSelectedPoliticianId("");
+      return;
+    }
+    if (!filteredPoliticians.some((p) => p.id === selectedPoliticianId)) {
+      setSelectedPoliticianId(filteredPoliticians[0]!.id);
+    }
+  }, [filteredPoliticians, selectedPoliticianId]);
+  const [polField, setPolField] = useState<"favorability" | "funds" | "ideologyEconomic" | "ideologySocial">("favorability");
+  const [polValue, setPolValue] = useState("");
+  const selectedPolitician = useMemo(() => {
+    return world.politicians.find((p) => p.id === selectedPoliticianId) ?? null;
+  }, [world.politicians, selectedPoliticianId]);
+
+  // Party editor
+  const partyList = useMemo(() => Object.values(world.parties).sort((a, b) => a.id.localeCompare(b.id)), [world.parties]);
+  const partyCountries = useMemo(() => {
+    const s = new Set<string>();
+    for (const p of partyList) s.add(p.countryId);
+    return [...s].sort();
+  }, [partyList]);
+  const [partyCountry, setPartyCountry] = useState<string>(() => partyCountries[0] ?? polityCountries[0] ?? "US");
+  useEffect(() => {
+    if (partyCountries.length > 0 && !partyCountries.includes(partyCountry)) setPartyCountry(partyCountries[0]!);
+  }, [partyCountries, partyCountry]);
+  const filteredParties = useMemo(() => {
+    return partyList.filter((p) => p.countryId === partyCountry);
+  }, [partyList, partyCountry]);
+  const [selectedPartyId, setSelectedPartyId] = useState<string>(() => filteredParties[0]?.id ?? "");
+  useEffect(() => {
+    if (filteredParties.length === 0) {
+      if (selectedPartyId !== "") setSelectedPartyId("");
+      return;
+    }
+    if (!filteredParties.some((p) => p.id === selectedPartyId)) {
+      setSelectedPartyId(filteredParties[0]!.id);
+    }
+  }, [filteredParties, selectedPartyId]);
+  const [partyField, setPartyField] = useState<"treasury" | "politicalStrength" | "organization">("treasury");
+  const [partyValue, setPartyValue] = useState("");
+  const selectedParty = useMemo(() => {
+    return world.parties[selectedPartyId] ?? null;
+  }, [world.parties, selectedPartyId]);
 
   useEffect(() => {
     if (!world.countries[econCountry]) {
@@ -557,7 +644,6 @@ function CheatPanel({
   const refreshWorld = () => {
     const w = game.getStateSync();
     if (w) {
-      // shallow clone to trigger React update; nested objects already mutated
       onWorld({
         ...w,
         meta: { ...w.meta },
@@ -566,7 +652,11 @@ function CheatPanel({
         news: [...w.news],
         parties: { ...w.parties },
         legislatures: { ...w.legislatures },
-      });
+        politicians: [...w.politicians],
+        elections: [...w.elections],
+        regions: { ...w.regions },
+        partyRegions: { ...w.partyRegions },
+      } as WorldState);
     }
   };
 
@@ -617,10 +707,52 @@ function CheatPanel({
   const handleAddNews = () => {
     setCheatError(null);
     try {
-      const op: CheatOp = { kind: "addNews", headline };
+      const cat = newsCategory.trim();
+      const op: CheatOp = cat ? { kind: "addNews", headline, category: cat } : { kind: "addNews", headline };
       applyCheat(op);
       onCheatApplied(describeCheat(op));
       setHeadline("");
+      refreshWorld();
+    } catch (e) {
+      setCheatError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleForceResolve = () => {
+    setCheatError(null);
+    try {
+      if (!selectedElectionId) throw new Error("Select an active election");
+      const op: CheatOp = { kind: "forceResolveElection", electionId: selectedElectionId };
+      applyCheat(op);
+      onCheatApplied(describeCheat(op));
+      refreshWorld();
+    } catch (e) {
+      setCheatError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleSetPolitician = () => {
+    setCheatError(null);
+    const value = Number(polValue);
+    try {
+      if (!selectedPoliticianId) throw new Error("Select a politician");
+      const op: CheatOp = { kind: "setPoliticianField", politicianId: selectedPoliticianId, field: polField, value };
+      applyCheat(op);
+      onCheatApplied(describeCheat(op));
+      refreshWorld();
+    } catch (e) {
+      setCheatError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleSetParty = () => {
+    setCheatError(null);
+    const value = Number(partyValue);
+    try {
+      if (!selectedPartyId) throw new Error("Select a party");
+      const op: CheatOp = { kind: "setPartyField", partyId: selectedPartyId, field: partyField, value };
+      applyCheat(op);
+      onCheatApplied(describeCheat(op));
       refreshWorld();
     } catch (e) {
       setCheatError(e instanceof Error ? e.message : String(e));
@@ -689,7 +821,43 @@ function CheatPanel({
         </div>
 
         <div className="cheat-section">
+          <h3>ELECTIONS</h3>
+          {activeElections.length === 0 ? (
+            <div className="muted small">No active elections. Advance turns to spawn races. Upcoming elections are not yet force-resolvable.</div>
+          ) : (
+            <>
+              <select value={selectedElectionId} onChange={(e) => setSelectedElectionId(e.target.value)} className="cheat-input" style={{ width: "100%", marginBottom: 8 }}>
+                {activeElections.map((rec) => {
+                  const label = rec.state ? `${rec.countryId} ${rec.electionType} ${rec.state} T${rec.endTurn}` : `${rec.countryId} ${rec.electionType} T${rec.endTurn}`;
+                  return (
+                    <option key={rec.id} value={rec.id}>
+                      {label} ({rec.id}) [{rec.status}]
+                    </option>
+                  );
+                })}
+              </select>
+              <div className="row">
+                <button className="secondary small-btn" onClick={handleForceResolve}>
+                  Force resolve (resolves on next turn)
+                </button>
+              </div>
+              <div className="muted small">Sets endTurn to current turn {world.meta.turn}. Real resolution phase handles it next turn.</div>
+            </>
+          )}
+        </div>
+
+        <div className="cheat-section">
           <h3>News</h3>
+          <div className="row" style={{ marginBottom: 8 }}>
+            <input
+              placeholder="category (optional, e.g. general)"
+              value={newsCategory}
+              onChange={(e) => setNewsCategory(e.target.value)}
+              className="cheat-input"
+              style={{ maxWidth: 180 }}
+            />
+            <span className="muted small">Category prefixes headline as [category]</span>
+          </div>
           <div className="row">
             <input
               placeholder="headline"
@@ -700,6 +868,108 @@ function CheatPanel({
             <button className="secondary small-btn" onClick={handleAddNews}>
               Inject
             </button>
+          </div>
+        </div>
+
+        <div className="cheat-section">
+          <h3>Politician</h3>
+          <div className="cheat-economy-row">
+            <select value={polCountry} onChange={(e) => setPolCountry(e.target.value)}>
+              {polityCountries.map((cid) => {
+                const c = world.countries[cid];
+                return (
+                  <option key={cid} value={cid}>
+                    {c ? `${c.name} (${cid})` : cid}
+                  </option>
+                );
+              })}
+            </select>
+            <select value={polChamber} onChange={(e) => setPolChamber(e.target.value)}>
+              {chamberOptions.map((k) => (
+                <option key={k} value={k}>
+                  {k === "all" ? "all chambers" : k}
+                </option>
+              ))}
+            </select>
+          </div>
+          <select
+            value={selectedPoliticianId}
+            onChange={(e) => setSelectedPoliticianId(e.target.value)}
+            className="cheat-input"
+            style={{ width: "100%", marginTop: 8, marginBottom: 8 }}
+          >
+            {filteredPoliticians.length === 0 ? (
+              <option value="">No politicians in filter</option>
+            ) : (
+              filteredPoliticians.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.id}) {p.chamberKey || "unseated"} favor {p.favorability} funds {p.funds} ideology {p.ideology.economic},{p.ideology.social} [{p.partyId}]
+                </option>
+              ))
+            )}
+          </select>
+          {selectedPolitician && (
+            <div className="muted small" style={{ marginBottom: 8 }}>
+              Current: favorability {selectedPolitician.favorability} funds {selectedPolitician.funds} ideology {selectedPolitician.ideology.economic},{selectedPolitician.ideology.social}
+            </div>
+          )}
+          <div className="cheat-economy-row">
+            <select value={polField} onChange={(e) => setPolField(e.target.value as typeof polField)}>
+              <option value="favorability">favorability 0-100</option>
+              <option value="funds">funds &gt;= 0</option>
+              <option value="ideologyEconomic">ideologyEconomic -5..5</option>
+              <option value="ideologySocial">ideologySocial -5..5</option>
+            </select>
+            <input placeholder="value" value={polValue} onChange={(e) => setPolValue(e.target.value)} className="cheat-input" style={{ maxWidth: 140 }} />
+          </div>
+          <div className="row" style={{ marginTop: 8 }}>
+            <button className="secondary small-btn" onClick={handleSetPolitician}>
+              Apply
+            </button>
+            <span className="muted small">Ideology bounds -5..5</span>
+          </div>
+        </div>
+
+        <div className="cheat-section">
+          <h3>Party</h3>
+          <div className="cheat-economy-row">
+            <select value={partyCountry} onChange={(e) => setPartyCountry(e.target.value)}>
+              {partyCountries.map((cid) => (
+                <option key={cid} value={cid}>
+                  {cid}
+                </option>
+              ))}
+            </select>
+            <select value={selectedPartyId} onChange={(e) => setSelectedPartyId(e.target.value)} className="cheat-input">
+              {filteredParties.length === 0 ? (
+                <option value="">No parties</option>
+              ) : (
+                filteredParties.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.id}) T{p.treasury} PS{p.politicalStrength} org{p.organization}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+          {selectedParty && (
+            <div className="muted small" style={{ marginTop: 8, marginBottom: 8 }}>
+              Current: treasury {selectedParty.treasury} politicalStrength {selectedParty.politicalStrength} organization {selectedParty.organization}
+            </div>
+          )}
+          <div className="cheat-economy-row">
+            <select value={partyField} onChange={(e) => setPartyField(e.target.value as typeof partyField)}>
+              <option value="treasury">treasury &gt;= 0</option>
+              <option value="politicalStrength">politicalStrength 0..1000</option>
+              <option value="organization">organization 0..100</option>
+            </select>
+            <input placeholder="value" value={partyValue} onChange={(e) => setPartyValue(e.target.value)} className="cheat-input" style={{ maxWidth: 140 }} />
+          </div>
+          <div className="row" style={{ marginTop: 8 }}>
+            <button className="secondary small-btn" onClick={handleSetParty}>
+              Apply
+            </button>
+            <span className="muted small">Caps enforced inline</span>
           </div>
         </div>
 
