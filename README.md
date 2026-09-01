@@ -7,9 +7,9 @@ Singleplayer, offline, native desktop edition of [A House Divided](https://githu
 ## Architecture
 
 ```
-packages/engine    Pure TypeScript simulation core. No Electron, no DOM, no IO.
-apps/desktop       Electron shell (electron-vite + React). Owns the world in the
-                   main process; the renderer sees snapshots over typed IPC.
+packages/engine    Pure TypeScript simulation core. No Tauri, no DOM, no IO.
+apps/desktop       Tauri v2 shell (Rust + webview + React/Vite). Engine runs in
+                   the webview; the Rust shell owns windowing, dialogs, and file IO.
 ```
 
 Design rules, in order of importance:

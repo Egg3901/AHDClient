@@ -7,3 +7,7 @@ release/
 *.log
 .env
 .env.*
+src-tauri/target/
+src-tauri/gen/
+**/src-tauri/target/
+**/src-tauri/gen/

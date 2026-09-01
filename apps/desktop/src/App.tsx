@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { TurnReport, WorldState } from "@ahdsolo/engine";
+import { game } from "./game.js";
 
 function formatPct(rate: number): string {
   return `${(rate * 100).toFixed(1)}%`;
@@ -23,7 +24,7 @@ function NewGameForm({ onStart }: { onStart: (world: WorldState) => void }) {
       <div className="row">
         <button
           onClick={() => {
-            void window.game
+            void game
               .newGame({ seed, playerName: name, countryId: "us" })
               .then(onStart);
           }}
@@ -33,7 +34,7 @@ function NewGameForm({ onStart }: { onStart: (world: WorldState) => void }) {
         <button
           className="secondary"
           onClick={() => {
-            void window.game.load().then((w) => w && onStart(w));
+            void game.load().then((w) => w && onStart(w));
           }}
         >
           Load save
@@ -56,7 +57,7 @@ function Dashboard({
   const advance = async () => {
     setBusy(true);
     try {
-      const { report, world: next } = await window.game.advanceTurn();
+      const { report, world: next } = await game.advanceTurn();
       setLastReport(report);
       onWorld(next);
     } finally {
@@ -74,7 +75,7 @@ function Dashboard({
           <button onClick={() => void advance()} disabled={busy}>
             {busy ? "Processing" : "End turn"}
           </button>
-          <button className="secondary" onClick={() => void window.game.save()}>
+          <button className="secondary" onClick={() => void game.save()}>
             Save
           </button>
         </div>
@@ -130,7 +131,7 @@ export function App() {
   const [world, setWorld] = useState<WorldState | null>(null);
 
   useEffect(() => {
-    void window.game.getState().then((w) => w && setWorld(w));
+    void game.getState().then((w) => w && setWorld(w));
   }, []);
 
   return world ? (
