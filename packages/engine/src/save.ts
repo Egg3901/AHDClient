@@ -71,5 +71,14 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 4;
   }
+  // v4 -> v5: add cheatsUsed flag (false for old saves)
+  if (save.schemaVersion < 5) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const meta = w["meta"] as Record<string, unknown> | undefined;
+    if (meta && typeof meta["cheatsUsed"] !== "boolean") {
+      meta["cheatsUsed"] = false;
+    }
+    save.world.meta.schemaVersion = 5;
+  }
   return save.world;
 }

@@ -53,6 +53,7 @@ export interface WorldMeta {
   /** In-game date as ISO day, e.g. "1953-01-06". One turn = one week. */
   date: string;
   era: EraId;
+  cheatsUsed: boolean;
 }
 
 /**

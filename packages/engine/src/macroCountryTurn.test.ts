@@ -130,14 +130,14 @@ describe("save migration v2 -> v3", () => {
       world: v2World,
     });
     const loaded = deserializeSave(raw);
-    expect(loaded.meta.schemaVersion).toBe(4);
+    expect(loaded.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(loaded.parties).toBeDefined();
     expect(loaded.legislatures).toBeDefined();
     expect(Object.keys(loaded.parties).length).toBe(0);
     expect(Object.keys(loaded.legislatures).length).toBe(0);
     const raw2 = serializeSave(loaded, "2026-01-02T00:00:00Z");
     const loaded2 = deserializeSave(raw2);
-    expect(loaded2.meta.schemaVersion).toBe(4);
+    expect(loaded2.meta.schemaVersion).toBe(SCHEMA_VERSION);
   });
 
   it("loads a v1 save fixture and migrates through v2 to v3", () => {
@@ -169,7 +169,6 @@ describe("save migration v2 -> v3", () => {
     });
     const loaded = deserializeSave(raw);
     expect(loaded.meta.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(loaded.meta.schemaVersion).toBe(4);
     for (const c of Object.values(loaded.countries)) {
       expect((c.economy as unknown as Record<string, unknown>)["outputGap"]).toBe(0);
     }
@@ -215,17 +214,16 @@ describe("save migration v1 -> v2", () => {
     });
     const loaded = deserializeSave(raw);
     expect(loaded.meta.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(loaded.meta.schemaVersion).toBe(4);
     for (const c of Object.values(loaded.countries)) {
       expect(c.economy.outputGap).toBe(0);
       expect(Number.isFinite(c.economy.outputGap)).toBe(true);
     }
     expect(loaded.parties).toBeDefined();
     expect(loaded.legislatures).toBeDefined();
-    // Round-trip preserves v4
+    // Round-trip preserves current version
     const raw2 = serializeSave(loaded, "2026-01-02T00:00:00Z");
     const loaded2 = deserializeSave(raw2);
-    expect(loaded2.meta.schemaVersion).toBe(4);
+    expect(loaded2.meta.schemaVersion).toBe(SCHEMA_VERSION);
     for (const c of Object.values(loaded2.countries)) {
       expect(c.economy.outputGap).toBe(0);
     }

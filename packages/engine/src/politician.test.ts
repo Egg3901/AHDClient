@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createWorld } from "./world.js";
+import { createWorld, SCHEMA_VERSION } from "./world.js";
 import { deserializeSave, serializeSave } from "./save.js";
 import { isNameFromCountryPool } from "./npp/nameGenerator.js";
 
@@ -230,7 +230,7 @@ describe("politician save migration v3->v4", () => {
     const migrated = deserializeSave(rawWithout);
     expect(Array.isArray(migrated.politicians)).toBe(true);
     expect(migrated.politicians.length).toBe(0);
-    expect(migrated.meta.schemaVersion).toBe(4);
+    expect(migrated.meta.schemaVersion).toBe(SCHEMA_VERSION);
   });
 
   it("preserves existing politicians on round-trip and v4 save rehydrates correctly", () => {
@@ -238,7 +238,7 @@ describe("politician save migration v3->v4", () => {
     const raw = serializeSave(world, "2026-01-01T00:00:00Z");
     const restored = deserializeSave(raw);
     expect(restored.politicians).toEqual(world.politicians);
-    expect(restored.meta.schemaVersion).toBe(4);
+    expect(restored.meta.schemaVersion).toBe(SCHEMA_VERSION);
   });
 
   it("v1 save migrates through v2, v3, v4", () => {
@@ -264,7 +264,7 @@ describe("politician save migration v3->v4", () => {
     delete parsed.world["parties"];
     delete parsed.world["legislatures"];
     const migrated = deserializeSave(JSON.stringify({ format: "ahdsolo-save", schemaVersion: 1, savedAt: "2026-01-01T00:00:00Z", world: parsed.world }));
-    expect(migrated.meta.schemaVersion).toBe(4);
+    expect(migrated.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(Array.isArray((migrated as unknown as { politicians: unknown[] }).politicians)).toBe(true);
   });
 });

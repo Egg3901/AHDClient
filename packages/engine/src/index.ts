@@ -1,6 +1,8 @@
 export { advanceTurn } from "./engine.js";
-export { createWorld, listEras, listPlayableCountries, SCHEMA_VERSION } from "./world.js";
-export type { NewWorldOptions, EraInfo, PlayableCountryInfo } from "./world.js";
+export { createWorld, listEras, listPlayableCountries, listCountries, SCHEMA_VERSION } from "./world.js";
+export type { NewWorldOptions, EraInfo, PlayableCountryInfo, WorldOverrides, CountryEconomyOverride } from "./world.js";
+export { applyCheat } from "./cheats.js";
+export type { CheatOp } from "./cheats.js";
 export { serializeSave, deserializeSave } from "./save.js";
 export type { SaveFile } from "./save.js";
 export { rngFromSeed, rngFromState } from "./rng.js";
