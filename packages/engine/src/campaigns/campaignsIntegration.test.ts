@@ -113,7 +113,7 @@ describe("migration (v<20 -> v20)", () => {
     delete (raw.world as unknown as Record<string, unknown>)["campaigns"];
 
     const migrated = deserializeSave(JSON.stringify(raw));
-    expect(migrated.meta.schemaVersion).toBe(25);
+    expect(migrated.meta.schemaVersion).toBe(26);
     expect(migrated.campaigns).toEqual({});
   });
 

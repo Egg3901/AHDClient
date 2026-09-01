@@ -17,7 +17,10 @@ import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/co
 import type { CentralBank } from "./centralBank/types.js";
 import { seedCorporations } from "./corporation/founding.js";
 
-export const SCHEMA_VERSION = 25;
+// Pre-allocated v26 for W10 (markets: share price, stock exchange). Main is
+// v25 as of this wave's branch point; a parallel wave holds v27. See save.ts
+// v25->v26 migration for the resolver note on merge-order splitting.
+export const SCHEMA_VERSION = 26;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {

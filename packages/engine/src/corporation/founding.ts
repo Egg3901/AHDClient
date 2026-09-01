@@ -1,5 +1,6 @@
 /**
- * Deterministic corporation founding at world creation — W9.
+ * Deterministic corporation founding at world creation — W9 (+ W10 share
+ * seeding, see the totalShares/shareholders/publicFloat block below).
  *
  * Mainline founds NPC corporations procedurally, never from a static roster
  * (there is no `usCorporations.ts`/`ukCorporations.ts`/etc. — see
@@ -34,6 +35,20 @@ import type { Corporation, CorporationType } from "./types.js";
 import { CORPORATION_TYPES } from "./types.js";
 import { SECTOR_WEIGHTS_1953 } from "./sectorSeedWeights1953.js";
 import { GROWTH_RATE_TURNS_PER_YEAR, MAX_GROWTH_RATE, MIN_GROWTH_RATE, DEFAULT_PROFIT_MARGIN, deriveCeoArchetype, CEO_ARCHETYPE_MODIFIERS } from "./constants.js";
+import { CEO_INITIAL_SHARES, NPC_FOUNDER_SHARE_FRACTION, DEFAULT_SHARE_PRICE } from "../market/constants.js";
+
+/**
+ * Deterministic ticker for a (country, sectorType) pair — always unique
+ * because corp.id (`${countryId}-${sectorType}`) already is. Mainline's
+ * generateTickerSymbol (tickerSymbol.ts) hashes the corp NAME and retries
+ * against a live DB collision check; W9/W10 corps have no display name (see
+ * types.ts — country+sector IS the identity), and this module is a pure
+ * function with no registry to query, so the ticker is derived directly from
+ * the already-unique id instead of porting the name+retry scheme.
+ */
+export function tickerForSector(countryId: string, sectorType: CorporationType): string {
+  return `${countryId}.${sectorType.replace(/_/g, "").slice(0, 4).toUpperCase()}`;
+}
 
 export interface FoundingCountryInput {
   id: string;
@@ -79,6 +94,20 @@ export function seedCorporations(
 
       const targetGrowthRate = clamp(country.growthRate * 100 + growthDelta, MIN_GROWTH_RATE, MAX_GROWTH_RATE);
 
+      // W10: founder/public-float share split and initial price. Source:
+      // spawnNppCorporation.ts — "NPP CEO gets 51%, public float gets 49%";
+      // initialSharePrice = max(DEFAULT_SHARE_PRICE, round((startingCapital /
+      // totalIssuedShares) * 100) / 100). startingCapital there maps to this
+      // corp's founding liquidCapital (annualSectorRevenue) here — same role
+      // (the founding treasury), same formula.
+      const totalShares = CEO_INITIAL_SHARES;
+      const npcShares = Math.floor(totalShares * NPC_FOUNDER_SHARE_FRACTION);
+      const publicFloatShares = totalShares - npcShares;
+      const initialSharePrice = Math.max(
+        DEFAULT_SHARE_PRICE,
+        Math.round((annualSectorRevenue / totalShares) * 100) / 100,
+      );
+
       const id = `${country.id}-${sectorType}`;
       const corp: Corporation = {
         id,
@@ -97,6 +126,13 @@ export function seedCorporations(
         foundedAtTurn: currentTurn,
         insolventSinceTurn: null,
         reincorporationCount: 0,
+        tickerSymbol: tickerForSector(country.id, sectorType),
+        totalShares,
+        sharePrice: initialSharePrice,
+        fundamentalSharePrice: initialSharePrice,
+        shareholders: [{ holder: "npc", shares: npcShares }],
+        publicFloat: publicFloatShares,
+        earningsHistory: [],
       };
       corporations[id] = corp;
     }

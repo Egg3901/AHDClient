@@ -48,6 +48,9 @@ export type ExecuteActionParams = {
   position?: "chair" | "viceChair" | "treasurer";
   countryId?: string;
   disbandVote?: "yes" | "no";
+  // W10 markets
+  corpId?: string;
+  shares?: number;
 };
 
 export type ExecuteActionResult =
@@ -729,6 +732,85 @@ export function executeAction(
       if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
       return { ok: false, error: String(e) };
     }
+  }
+  if (actionId === "buyShares" || actionId === "sellShares") {
+    // Simplified market order: ports mainline's buyPublicShares/sellPublicShares
+    // "instant" retail path only (price = corp.sharePrice, no brokerage fee —
+    // see market/constants.ts), NOT the human-liquidity order book
+    // (placeShareOrder/fillShareOrder/acceptShareOffer) — see
+    // market/recomputeSharePrices.ts file doc PORT-STUB for why that gap
+    // exists in a single-player world.
+    if (found.kind !== "player") return { ok: false, error: "Only the player trades shares" };
+    const corpId = params.corpId;
+    const shares = params.shares;
+    if (!corpId || shares === undefined || !Number.isInteger(shares) || shares <= 0) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `${actionId} requires corpId and a positive integer shares amount` };
+    }
+    const corp = world.corporations[corpId];
+    if (!corp) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `Unknown corporation: ${corpId}` };
+    }
+    // Notional at the live (== fundamental, see PORT-STUB above) price, cash-rounded.
+    const notional = Math.round(shares * corp.sharePrice * 100) / 100;
+    const player = world.player as unknown as { cash: number };
+
+    if (actionId === "buyShares") {
+      if (corp.publicFloat < shares) {
+        actor.actions += cost;
+        if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+        return { ok: false, error: `Only ${corp.publicFloat.toLocaleString()} shares available in ${corp.tickerSymbol}'s public float` };
+      }
+      if ((player.cash ?? 0) < notional) {
+        actor.actions += cost;
+        if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+        return { ok: false, error: `Not enough cash. Required: ${notional}, Available: ${player.cash}` };
+      }
+      player.cash -= notional;
+      corp.publicFloat -= shares;
+      // Treasury-backed market maker: the buyer's payment is injected into the
+      // issuer's liquidCapital so a float buy conserves money instead of
+      // vanishing. Source: buyPublicShares.ts applyFloatBuyCredit comment.
+      corp.liquidCapital += notional;
+      let holding = corp.shareholders.find((sh) => sh.holder === "player");
+      if (!holding) {
+        holding = { holder: "player", shares: 0, avgCostPerShare: corp.sharePrice };
+        corp.shareholders.push(holding);
+      }
+      const priorShares = holding.shares;
+      const priorAvg = holding.avgCostPerShare ?? corp.sharePrice;
+      holding.avgCostPerShare =
+        priorShares > 0 ? (priorShares * priorAvg + shares * corp.sharePrice) / (priorShares + shares) : corp.sharePrice;
+      holding.shares += shares;
+      return { ok: true, message: `Bought ${shares} shares of ${corp.tickerSymbol} for ${notional}` };
+    }
+
+    // sellShares
+    const holding = corp.shareholders.find((sh) => sh.holder === "player");
+    if (!holding || holding.shares < shares) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `You only own ${holding?.shares ?? 0} shares of ${corp.tickerSymbol}` };
+    }
+    if (corp.liquidCapital < notional) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `${corp.tickerSymbol}'s treasury can't cover this sale (needs ${notional})` };
+    }
+    // Issuer buyback: proceeds paid from the issuing corp's own treasury,
+    // capped by what it can cover (the check above). Source:
+    // sellPublicShares.ts settleFloatSellDebit / gateIssuerBuyback comments.
+    corp.liquidCapital -= notional;
+    corp.publicFloat += shares;
+    holding.shares -= shares;
+    if (holding.shares === 0) {
+      corp.shareholders = corp.shareholders.filter((sh) => sh !== holding);
+    }
+    player.cash = (player.cash ?? 0) + notional;
+    return { ok: true, message: `Sold ${shares} shares of ${corp.tickerSymbol} for ${notional}` };
   }
 
   return { ok: false, error: `No effect for ${actionId}` };

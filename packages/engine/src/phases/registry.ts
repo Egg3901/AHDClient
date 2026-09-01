@@ -68,6 +68,7 @@ import {
 } from "../budget/phases.js";
 import { centralBankChairTurnPhase, centralBankChairSelectionPhase } from "../centralBank/phases.js";
 import { corporationTurnPhase } from "../corporation/corporationTurn.js";
+import { recomputeSharePricesPhase } from "../market/recomputeSharePrices.js";
 import {
   campaignSpendResetPhase,
   campaignTurnPhase,
@@ -226,5 +227,17 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   cabinetNominationLifecyclePhase,
   scotusTurnPhase,
   ukJrSurpriseTurnPhase,
+  // W10 markets (share price, stock exchange) at END before newsMaintenance —
+  // same rng-stream-stability rule as every other tail cluster above
+  // (mainline runs recomputeSharePrices mid-pipeline, right after bondTurn;
+  // inserting it there would shift every downstream rng draw for existing
+  // goldens — see market/recomputeSharePrices.ts file doc). This phase draws
+  // no rng itself either way (pure repricing). Placed as the LAST phase
+  // before newsMaintenance, after every other tail cluster, so it always
+  // runs strictly after corporationTurnPhase (whose earningsHistory/
+  // liquidCapital/currentGrowthRate writes it reads this same turn) — no
+  // other phase in this worktree mutates world.corporations, so nothing
+  // between the two matters to the ordering.
+  recomputeSharePricesPhase,
   newsMaintenancePhase,
 ];

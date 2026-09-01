@@ -43,7 +43,9 @@ export type ActionId =
   | "createCoalition"
   | "joinCoalition"
   | "initiateCoalitionDisband"
-  | "voteCoalitionDisband";
+  | "voteCoalitionDisband"
+  | "buyShares"
+  | "sellShares";
 
 // Costs mirror mainline's dynamic tier functions but collapsed to neutral
 // goldens for solo's simpler state (no per-state GDP tier). Cited.
@@ -429,6 +431,34 @@ export const ACTION_CATALOG: Record<ActionId, ActionCatalogEntry> = {
     cooldown: 0,
     fundCost: 0,
     systems: ["coalition/disband"],
+    status: "available",
+  },
+  // W10 markets. No AP/fund-tier cost: mainline's buyPublicShares/
+  // sellPublicShares are plain API calls gated only by cash/float/treasury,
+  // not the political action-point economy — baseCost/fundCost stay 0 and
+  // the real cost (shares * corp.sharePrice, no brokerage fee — see
+  // market/constants.ts) is checked directly in execute.ts against
+  // params.shares and the target corp. Listed here anyway (per the wave
+  // brief) so buy/sell shares up through the same typed catalog/execute
+  // surface every other action does, for a consistent UI dispatch path.
+  buyShares: {
+    id: "buyShares",
+    name: "Buy Shares",
+    description: "Buy shares from a corporation's public float at the current market price. Cost = shares x sharePrice, credited to the issuing corporation's own treasury (mainline's treasury-backed market maker, buyPublicShares.ts).",
+    baseCost: 0,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["market"],
+    status: "available",
+  },
+  sellShares: {
+    id: "sellShares",
+    name: "Sell Shares",
+    description: "Sell shares back into a corporation's public float at the current market price. Proceeds are paid from the issuing corporation's own treasury (buyback), capped by what it can cover — sellPublicShares.ts.",
+    baseCost: 0,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["market"],
     status: "available",
   },
 };

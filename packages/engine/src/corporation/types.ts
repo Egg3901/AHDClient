@@ -102,6 +102,71 @@ export interface Corporation {
   insolventSinceTurn: number | null;
   /** How many times this corp id has been reincorporated after insolvency. */
   reincorporationCount: number;
+
+  // ── W10 markets: share price + stock exchange listing ─────────────────
+  // Every W9/W10 corp is public and exchange-listed from founding (no
+  // IPO/goPublic action is ported this wave — see market/constants.ts file
+  // doc). tickerSymbol below IS the corp's "on the exchange" record; there
+  // is no separate isPrivate/hiddenFromExchange/delisting state to track yet.
+  /**
+   * Deterministic, collision-free-by-construction ticker (derived 1:1 from
+   * `id`, which is itself unique per (country, sectorType) — see founding.ts
+   * tickerForSector). Mainline's generateTickerSymbol (tickerSymbol.ts) does
+   * name-based generation with a DB collision-retry loop; that machinery
+   * needs a live registry query this pure module doesn't have, so W10
+   * substitutes a derivation that can never collide instead of porting the
+   * retry loop.
+   */
+  tickerSymbol: string;
+  /** Total shares issued at founding; fixed (no splits/issuance ported — see market/constants.ts). Source: Corporation.totalShares. */
+  totalShares: number;
+  /** Live share price (local currency units). Source: db/types/corporation.ts Corporation.sharePrice. */
+  sharePrice: number;
+  /**
+   * Fundamental value last computed by recomputeSharePricesPhase, before any
+   * sentiment/order-flow multiplier. In W10, sharePrice === fundamentalSharePrice
+   * always (see market/recomputeSharePrices.ts file doc: order-flow/sentiment
+   * multiplier is PORT-STUB, held neutral at 1.0). Source: Corporation.fundamentalSharePrice.
+   */
+  fundamentalSharePrice: number;
+  /** Shares owned by identified holders (NPC founder, player). Source: Corporation.shareholders (Shareholder[]). */
+  shareholders: ShareholderEntry[];
+  /** Shares available for purchase from the corp's own treasury-backed market maker. Source: Corporation.publicFloat. */
+  publicFloat: number;
+  /**
+   * Rolling window (last FUNDAMENTAL_ROLLING_AVG_TURNS turns) of annualized
+   * after-tax net income, oldest first. Written by corporationTurn.ts each
+   * turn; consumed by market/sharePriceFormula.ts as normalizedEarningsAnchor.
+   * Source: Corporation.earningsHistory + turn/corporation/earningsRollingAverage.ts.
+   */
+  earningsHistory: number[];
+}
+
+/**
+ * Identifies who holds a block of a corp's shares. Mainline's Shareholder
+ * (db/types/corporation.ts) has five holder-kind fields: characterId,
+ * imperialCharacterId, corporationId (cross-corp holding), fundId (index
+ * fund), nppId (NPC CEO). W10 ports the two that apply to a single-player
+ * world with no player-run corporations and no index funds yet: "npc" (the
+ * founding NPC CEO, mainline's nppId) and "player" (the one human player,
+ * mainline's characterId — collapsed to a single kind since solo has exactly
+ * one human). cross-corp and fund holdings are PORT-STUB (no player-run
+ * corps or index funds exist to hold them — future waves).
+ *
+ * Note on "state" ownership: mainline does NOT model a state/government
+ * shareholder row. A state-owned enterprise ("natcorp") is a corp-LEVEL flag
+ * (Corporation.countryOwnerId), not a Shareholder entry — and Rotunda has no
+ * command-economy/SOE system to spawn one (see corporation/constants.ts file
+ * doc). So there is no "state" holder kind here; it would not match anything
+ * mainline actually does.
+ */
+export type ShareholderKind = "npc" | "player";
+
+export interface ShareholderEntry {
+  holder: ShareholderKind;
+  shares: number;
+  /** Weighted-average purchase price per share; undefined for the founding NPC block (no purchase event). */
+  avgCostPerShare?: number;
 }
 
 /**

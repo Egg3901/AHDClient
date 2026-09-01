@@ -1,9 +1,11 @@
 import { SCHEMA_VERSION } from "./world.js";
 import { assignUsSeatGeography } from "./elections/seatGeography.js";
 import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/constants.js";
-import { seedCorporations } from "./corporation/founding.js";
+import { seedCorporations, tickerForSector } from "./corporation/founding.js";
 import { rngFromSeed } from "./rng.js";
 import type { WorldState } from "./types.js";
+import type { CorporationType, ShareholderEntry } from "./corporation/types.js";
+import { CEO_INITIAL_SHARES, NPC_FOUNDER_SHARE_FRACTION, DEFAULT_SHARE_PRICE } from "./market/constants.js";
 
 /**
  * Save file = versioned JSON envelope around the full WorldState. Older
@@ -1057,6 +1059,53 @@ export function deserializeSave(raw: string): WorldState {
     if (!Array.isArray(w["docketCases"])) w["docketCases"] = [];
     if (!Array.isArray(w["ukJudicialReviewCases"])) w["ukJudicialReviewCases"] = [];
     save.world.meta.schemaVersion = 25;
+  }
+  // v25 -> v26: W10 markets (share price, stock exchange). Main is v25 as of
+  // this wave's branch point; a parallel wave holds v27. Pre-allocated v26
+  // for this wave. RESOLVER NOTE: if the v26 slot is claimed by another wave
+  // first, renumber this block to v26->v27 (chained after theirs) and
+  // confirm they do not also add tickerSymbol/totalShares/sharePrice/
+  // fundamentalSharePrice/shareholders/publicFloat/earningsHistory to
+  // Corporation (they should not; W10 is authoritative for those names).
+  //
+  // Backfills every existing corp with the market fields founding.ts now
+  // seeds for brand-new worlds (same formula, same citations — see
+  // founding.ts "W10: founder/public-float share split" comment): 51% NPC /
+  // 49% public float of CEO_INITIAL_SHARES, initial price from
+  // liquidCapital/totalShares floored at DEFAULT_SHARE_PRICE, empty rolling
+  // earnings history (the corp has not had a market-aware corporationTurn
+  // run yet, so there is nothing to seed it with — the next turn's
+  // corporationTurnPhase starts populating it). A save with NO corporations
+  // yet (pre-v19, upgraded straight through) has nothing to backfill; the
+  // v18->v19 block above already produces fully market-seeded corps via the
+  // same shared founding.ts path.
+  if (save.schemaVersion < 26) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const corporations = w["corporations"] as Record<string, Record<string, unknown>> | undefined;
+    if (corporations) {
+      for (const corp of Object.values(corporations)) {
+        if (typeof corp["totalShares"] === "number") continue; // already market-seeded
+        const countryId = corp["countryId"] as string;
+        const sectorType = corp["sectorType"] as CorporationType;
+        const liquidCapital = typeof corp["liquidCapital"] === "number" ? (corp["liquidCapital"] as number) : 0;
+        const totalShares = CEO_INITIAL_SHARES;
+        const npcShares = Math.floor(totalShares * NPC_FOUNDER_SHARE_FRACTION);
+        const publicFloatShares = totalShares - npcShares;
+        const initialSharePrice = Math.max(
+          DEFAULT_SHARE_PRICE,
+          Math.round((liquidCapital / totalShares) * 100) / 100,
+        );
+        corp["tickerSymbol"] = tickerForSector(countryId, sectorType);
+        corp["totalShares"] = totalShares;
+        corp["sharePrice"] = initialSharePrice;
+        corp["fundamentalSharePrice"] = initialSharePrice;
+        const shareholders: ShareholderEntry[] = [{ holder: "npc", shares: npcShares }];
+        corp["shareholders"] = shareholders;
+        corp["publicFloat"] = publicFloatShares;
+        corp["earningsHistory"] = [];
+      }
+    }
+    save.world.meta.schemaVersion = 26;
   }
   return save.world;
 }

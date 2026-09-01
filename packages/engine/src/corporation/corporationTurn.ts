@@ -30,6 +30,14 @@
  * W12/W13). Dividends, overhead budgets (marketing/logistics/R&D), CEO
  * salary, and the full nppCorporationBehavior.ts decision engine are PORT-STUB
  * / deferred — see constants.ts CEO_ARCHETYPE_MODIFIERS doc.
+ *
+ * W10 wire: runCorporationTurn also pushes this turn's annualized net income
+ * into corp.earningsHistory (see the end of the function), which
+ * market/recomputeSharePricesPhase reads as the earnings-power input to the
+ * share-price formula. recomputeSharePricesPhase runs immediately after this
+ * phase in registry.ts, so it always sees the current turn's fresh push, not
+ * a one-turn-stale value — no lag equivalent to the corpRevenueSnapshots one
+ * above.
  */
 
 import type { TurnPhase } from "../phases/types.js";
@@ -46,6 +54,7 @@ import {
   PERSISTENT_INSOLVENCY_GRACE_TURNS,
   DEFAULT_CORPORATE_TAX_RATE_PCT,
 } from "./constants.js";
+import { pushEarningsHistory } from "../market/earnings.js";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -94,6 +103,15 @@ export function runCorporationTurn(corp: Corporation, taxRatePct: number): void 
   corp.revenue = newRevenue;
   corp.effectiveProfitMargin = effectiveMargin;
   corp.liquidCapital += netIncome;
+
+  // W10 wire: push this turn's annualized after-tax income into the rolling
+  // earnings window market/recomputeSharePrices.ts reads as
+  // normalizedEarningsAnchor. Source: turn/corporation/sectorCalculations.ts
+  // "Push this turn's annualized after-tax income into the rolling history"
+  // (annualIncomeBase = netIncomeBeforeDividends * TURNS_PER_YEAR). W9 has no
+  // dividend system, so netIncome here already IS the pre-dividend figure
+  // mainline annualizes.
+  corp.earningsHistory = pushEarningsHistory(corp.earningsHistory, netIncome * GROWTH_RATE_TURNS_PER_YEAR);
 }
 
 /**

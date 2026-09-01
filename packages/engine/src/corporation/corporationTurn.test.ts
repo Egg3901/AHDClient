@@ -192,6 +192,13 @@ describe("runCorporationTurn", () => {
       foundedAtTurn: 0,
       insolventSinceTurn: null,
       reincorporationCount: 0,
+      tickerSymbol: "US.MANU",
+      totalShares: 10_000_000,
+      sharePrice: 0.1,
+      fundamentalSharePrice: 0.1,
+      shareholders: [{ holder: "npc", shares: 5_100_000 }],
+      publicFloat: 4_900_000,
+      earningsHistory: [],
       ...overrides,
     };
   }
@@ -237,6 +244,8 @@ describe("checkInsolvency", () => {
       archetype: "cautious", revenue: 100, targetGrowthRate: 1, currentGrowthRate: 1, currentGrowthCost: 0,
       profitMargin: 35, effectiveProfitMargin: 35, liquidCapital: -1_100_000, foundingRevenue: 1_000_000,
       foundedAtTurn: 0, insolventSinceTurn: null, reincorporationCount: 0,
+      tickerSymbol: "US.RETA", totalShares: 10_000_000, sharePrice: 0.1, fundamentalSharePrice: 0.1,
+      shareholders: [{ holder: "npc", shares: 5_100_000 }], publicFloat: 4_900_000, earningsHistory: [],
     };
     checkInsolvency(corp, 10);
     expect(corp.reincorporationCount).toBe(1);
@@ -251,6 +260,8 @@ describe("checkInsolvency", () => {
       archetype: "cautious", revenue: 100, targetGrowthRate: 1, currentGrowthRate: 1, currentGrowthCost: 0,
       profitMargin: 35, effectiveProfitMargin: 35, liquidCapital: -100, foundingRevenue: 1_000_000,
       foundedAtTurn: 0, insolventSinceTurn: null, reincorporationCount: 0,
+      tickerSymbol: "US.RETA", totalShares: 10_000_000, sharePrice: 0.1, fundamentalSharePrice: 0.1,
+      shareholders: [{ holder: "npc", shares: 5_100_000 }], publicFloat: 4_900_000, earningsHistory: [],
     };
     checkInsolvency(corp, 10); // insolventSinceTurn = 10
     expect(corp.insolventSinceTurn).toBe(10);
@@ -268,6 +279,8 @@ describe("checkInsolvency", () => {
       archetype: "cautious", revenue: 100, targetGrowthRate: 1, currentGrowthRate: 1, currentGrowthCost: 0,
       profitMargin: 35, effectiveProfitMargin: 35, liquidCapital: -100, foundingRevenue: 1_000_000,
       foundedAtTurn: 0, insolventSinceTurn: null, reincorporationCount: 0,
+      tickerSymbol: "US.RETA", totalShares: 10_000_000, sharePrice: 0.1, fundamentalSharePrice: 0.1,
+      shareholders: [{ holder: "npc", shares: 5_100_000 }], publicFloat: 4_900_000, earningsHistory: [],
     };
     checkInsolvency(corp, 10);
     expect(corp.insolventSinceTurn).toBe(10);
