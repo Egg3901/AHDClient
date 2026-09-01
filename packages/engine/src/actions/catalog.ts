@@ -29,7 +29,11 @@ export type ActionId =
   | "createCaucus"
   | "joinCaucus"
   | "leaveCaucus"
-  | "endorse";
+  | "endorse"
+  | "sponsorBill"
+  | "voteOnBill"
+  | "repealLaw"
+  | "invokeFilibuster";
 
 // Costs mirror mainline's dynamic tier functions but collapsed to neutral
 // goldens for solo's simpler state (no per-state GDP tier). Cited.
@@ -275,6 +279,46 @@ export const ACTION_CATALOG: Record<ActionId, ActionCatalogEntry> = {
     cooldown: 0,
     fundCost: 0,
     systems: ["endorsement/support"],
+    status: "available",
+  },
+  sponsorBill: {
+    id: "sponsorBill" as ActionId,
+    name: "Sponsor Bill",
+    description: "Sponsor a bill from the legislation catalog. Requires holding a legislative seat (career) or government sponsorship (HoS). Cost 4 AP. Ports src/lib/congress/billProposal.ts seat gate and catalog validation.",
+    baseCost: 4,
+    cooldown: 1,
+    fundCost: 0,
+    systems: ["legislation/bills"],
+    status: "available",
+  },
+  voteOnBill: {
+    id: "voteOnBill" as ActionId,
+    name: "Vote on Bill",
+    description: "Cast a vote on an active bill in your chamber. Requires holding a seat in the bill's current chamber. Cost 1 AP. Ports bill voting chamber scope.",
+    baseCost: 1,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["legislation/voting"],
+    status: "available",
+  },
+  repealLaw: {
+    id: "repealLaw" as ActionId,
+    name: "Repeal Law",
+    description: "Propose repeal of an enacted law. Requires holding a seat; creates a repeal bill. Ports mainline expiry/repeal model.",
+    baseCost: 4,
+    cooldown: 1,
+    fundCost: 0,
+    systems: ["legislation/repeal"],
+    status: "available",
+  },
+  invokeFilibuster: {
+    id: "invokeFilibuster" as ActionId,
+    name: "Invoke Filibuster",
+    description: "Invoke filibuster on a senate bill, raising bar to 3/5 of votes cast (quorum rule). Costs 2 AP. Ports didPassWithFilibusterCheck.",
+    baseCost: 2,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["legislation/cloture"],
     status: "available",
   },
 };

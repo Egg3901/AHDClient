@@ -49,6 +49,7 @@ import {
   supportDecayPhase,
   supportAccrualPhase,
 } from "../support/phases.js";
+import { billLifecyclePhase } from "./billLifecyclePhase.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -71,6 +72,7 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   expireChartersPhase,
   emptyPartyCleanupPhase,
   partyMemberCountReconcilePhase,
+  billLifecyclePhase,
   commodityPricesPhase,
   contractSettlementPhase,
   newsMaintenancePhase,

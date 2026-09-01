@@ -1,4 +1,5 @@
 import type { RngState } from "./rng.js";
+import type { Bill, Committee, EnactedLaw } from "./legislation/types.js";
 
 /**
  * The entire game world is one serializable document. No database: the world
@@ -56,6 +57,12 @@ export interface WorldState {
    * and sweepPartyMismatchedPlayerEndorsements.
    */
   endorsements: Endorsement[];
+  /** Legislation: bills, committees, enacted laws. Ports src/lib/db/types/legislation + billLifecycle. Schema v12. */
+  bills: Bill[];
+  committees: Committee[];
+  enactedLaws: EnactedLaw[];
+  /** Regional bills (stateBills) per src/lib/db/types/stateBill. Schema v12 stateBillTimers. */
+  stateBills: Bill[];
 }
 
 export interface Politician {
@@ -205,6 +212,19 @@ export interface PlayerCharacter {
    * cache of single active CaucusMembership. At most one active caucus at a time.
    */
   caucusId: string | null;
+  /**
+   * Legislative seat held by the player, if any. Ports ElectedOfficial
+   * membership: player has no seat in career mode until elected, gating
+   * bill sponsorship per src/lib/congress/billProposal.ts seat check.
+   * Null means no seat. When set, chamberKey identifies the held chamber.
+   */
+  legislativeSeat: { chamberKey: string; countryId: string } | null;
+  /**
+   * Mode (career vs head of state). Career (default): player is a politician;
+   * HoS: player is government. HoS mode later grants government sponsorship as
+   * noted in the brief; this field gates sponsorship bypass per mode rule.
+   */
+  mode: "career" | "hos";
 }
 
 export interface NewsItem {

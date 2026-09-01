@@ -462,5 +462,37 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 11;
   }
+  // v11 -> v12: W27 legislation core — bills, committees, enactedLaws, stateBills, player seat/mode
+  if (save.schemaVersion < 12) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (!Array.isArray(w["bills"])) w["bills"] = [];
+    if (!Array.isArray(w["committees"])) w["committees"] = [];
+    if (!Array.isArray(w["enactedLaws"])) w["enactedLaws"] = [];
+    if (!Array.isArray(w["stateBills"])) w["stateBills"] = [];
+    const player = w["player"] as Record<string, unknown> | undefined;
+    if (player && typeof player === "object") {
+      if (!("legislativeSeat" in player) || (player["legislativeSeat"] !== null && typeof player["legislativeSeat"] !== "object")) {
+        if (player["legislativeSeat"] === undefined) player["legislativeSeat"] = null;
+      }
+      if (player["legislativeSeat"] === undefined) player["legislativeSeat"] = null;
+      if (player["mode"] !== "hos" && player["mode"] !== "career") player["mode"] = "career";
+    }
+    // Ensure every bill has filibusterInvocations and vote maps
+    const bills = w["bills"] as Array<Record<string, unknown>> | undefined;
+    if (Array.isArray(bills)) {
+      for (const b of bills) {
+        if (!Array.isArray(b["filibusterInvocations"])) b["filibusterInvocations"] = [];
+        if (typeof b["votes"] !== "object" || b["votes"] === null || Array.isArray(b["votes"])) b["votes"] = {};
+      }
+    }
+    const committees = w["committees"] as Array<Record<string, unknown>> | undefined;
+    if (Array.isArray(committees)) {
+      for (const c of committees) {
+        if (!Array.isArray(c["memberIds"])) c["memberIds"] = [];
+        if (!Array.isArray(c["jurisdiction"])) c["jurisdiction"] = [];
+      }
+    }
+    save.world.meta.schemaVersion = 12;
+  }
   return save.world;
 }

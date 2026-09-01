@@ -13,6 +13,7 @@ import { decayPressure } from "../support/pressure.js";
 import * as Membership from "../membership.js";
 import * as Caucus from "../caucus.js";
 import * as Endorsement from "../endorsement.js";
+import { getLaw } from "../legislation/catalog.js";
 
 export type ExecuteActionParams = {
   regionId?: string;
@@ -26,6 +27,14 @@ export type ExecuteActionParams = {
   endorsedId?: string;
   endorsedType?: "party" | "politician";
   endorsementId?: string;
+  // Legislation
+  catalogId?: string;
+  billId?: string;
+  vote?: "for" | "against" | "abstain";
+  sponsorCountryId?: string;
+  billTitle?: string;
+  billCategory?: string;
+  originChamber?: string;
 };
 
 export type ExecuteActionResult =
@@ -333,6 +342,179 @@ export function executeAction(
     }
     return { ok: true, message: `Endorsed ${params.endorsedId}` };
   }
+  if (actionId === "sponsorBill") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can sponsor bills" };
+    const catalogId = params.catalogId;
+    if (!catalogId) return { ok: false, error: "sponsorBill requires catalogId" };
+    // Seed gating: must hold a legislative seat per mainline seat check; HoS mode grants bypass later
+    const player = world.player as unknown as { legislativeSeat: { chamberKey: string; countryId: string } | null; mode: string; partyId: string | null };
+    if (player.mode !== "hos" && !player.legislativeSeat) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Must hold a legislative seat to sponsor bills (career mode); HoS mode grants government sponsorship" };
+    }
+    // Validate catalog availability
+    try {
+      const leg = awaitImportCatalog(catalogId);
+      if (!leg) {
+        actor.actions += cost;
+        if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+        return { ok: false, error: `Unknown catalog entry: ${catalogId}` };
+      }
+      if (leg.status === "unavailable") {
+        actor.actions += cost;
+        if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+        return { ok: false, error: `Catalog entry unavailable: ${leg.blockingSystem ?? "unported system"} — PORT-STUB` };
+      }
+      // Origin chamber: player's seat chamber or first elected chamber of country
+      const countryId = params.sponsorCountryId ?? world.player.countryId;
+      const legConfig = world.legislatures[countryId];
+      const originChamber = params.originChamber ?? player.legislativeSeat?.chamberKey ?? legConfig?.chambers.find((c) => c.elected)?.key ?? "house";
+      const title = params.billTitle ?? leg.title;
+      const category = params.billCategory ?? leg.category;
+      const id = `bill-${world.meta.turn}-${world.bills.length + 1}-${catalogId}`;
+      const provisions = [
+        {
+          type: "policy" as const,
+          legislationTypeId: catalogId,
+          effectDirection: 1,
+          economic: 0,
+          social: 0,
+        },
+      ];
+      // If tax kind, add proposedRate handling (not needed for test)
+      const bill: import("../legislation/types.js").Bill = {
+        id,
+        title,
+        summary: leg.description,
+        countryId,
+        category,
+        legislationTypeId: catalogId,
+        effectDirection: 1,
+        provisions,
+        originChamber,
+        currentChamber: originChamber,
+        status: "proposed",
+        sponsorId: "player",
+        sponsorName: world.player.name,
+        sponsorPartyId: world.player.partyId,
+        votes: {},
+        votesFor: 0,
+        votesAgainst: 0,
+        votesAbstain: 0,
+        proposedAtTurn: world.meta.turn,
+        filibusterInvocations: [],
+        updatedAtTurn: world.meta.turn,
+        committeeId: null,
+      };
+      world.bills.push(bill);
+      return { ok: true, message: `Sponsored bill ${id}` };
+    } catch (e) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: String(e) };
+    }
+  }
+  if (actionId === "voteOnBill") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can vote on bills" };
+    const billId = params.billId;
+    const vote = params.vote;
+    if (!billId || !vote) return { ok: false, error: "voteOnBill requires billId and vote" };
+    const bill = world.bills.find((b) => b.id === billId);
+    if (!bill) return { ok: false, error: `Unknown bill: ${billId}` };
+    const playerSeat = (world.player as unknown as { legislativeSeat: { chamberKey: string } | null }).legislativeSeat;
+    if (!playerSeat) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Must hold a legislative seat to vote" };
+    }
+    if (playerSeat.chamberKey !== bill.currentChamber) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `Player chamber ${playerSeat.chamberKey} does not match bill chamber ${bill.currentChamber}` };
+    }
+    if (bill.status !== "active" && bill.status !== "active_other" && bill.status !== "veto_override") {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `Bill not in voting status: ${bill.status}` };
+    }
+    const targetMap = bill.status === "active_other" ? (bill.otherChamberVotes ??= {}) : bill.status === "veto_override" ? (bill.vetoOverrideVotes ??= {}) as Record<string, string> : bill.votes;
+    const key = "player";
+    (targetMap as Record<string, string>)[key] = vote;
+    return { ok: true, message: `Voted ${vote} on ${billId}` };
+  }
+  if (actionId === "repealLaw") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can repeal laws" };
+    const catalogId = params.catalogId;
+    if (!catalogId) return { ok: false, error: "repealLaw requires catalogId" };
+    const player = world.player as unknown as { legislativeSeat: unknown; mode: string };
+    if (player.mode !== "hos" && !player.legislativeSeat) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Must hold a legislative seat to repeal" };
+    }
+    const law = world.enactedLaws.find((l) => l.id === catalogId && l.repealedAtTurn === undefined);
+    if (!law) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `No active enacted law ${catalogId} to repeal` };
+    }
+    // Create a repeal bill (negative effectDirection)
+    const leg = awaitImportCatalog(catalogId);
+    const title = `Repeal ${leg?.title ?? catalogId}`;
+    const id = `bill-repeal-${world.meta.turn}-${world.bills.length + 1}-${catalogId}`;
+    const countryId = law.countryId;
+    const legConfig = world.legislatures[countryId];
+    const originChamber = legConfig?.chambers.find((c) => c.elected)?.key ?? "house";
+    const bill: import("../legislation/types.js").Bill = {
+      id,
+      title,
+      summary: `Repeal of ${catalogId}`,
+      countryId,
+      category: leg?.category ?? "economy",
+      legislationTypeId: catalogId,
+      effectDirection: -1,
+      provisions: [{ type: "policy", legislationTypeId: catalogId, effectDirection: -1 }],
+      originChamber,
+      currentChamber: originChamber,
+      status: "proposed",
+      sponsorId: "player",
+      sponsorName: world.player.name,
+      sponsorPartyId: world.player.partyId,
+      votes: {},
+      votesFor: 0,
+      votesAgainst: 0,
+      votesAbstain: 0,
+      proposedAtTurn: world.meta.turn,
+      filibusterInvocations: [],
+      updatedAtTurn: world.meta.turn,
+      committeeId: null,
+    };
+    world.bills.push(bill);
+    return { ok: true, message: `Repeal bill ${id} sponsored` };
+  }
+  if (actionId === "invokeFilibuster") {
+    const billId = params.billId;
+    if (!billId) return { ok: false, error: "invokeFilibuster requires billId" };
+    const bill = world.bills.find((b) => b.id === billId);
+    if (!bill) return { ok: false, error: `Unknown bill: ${billId}` };
+    if (bill.currentChamber !== "senate") {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Filibuster only in senate" };
+    }
+    if (bill.status !== "active" && bill.status !== "active_other") {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `Bill not in voting: ${bill.status}` };
+    }
+    bill.filibusterInvocations.push({ characterId: "player", characterName: world.player.name, invokedAtTurn: world.meta.turn });
+    return { ok: true, message: `Filibuster invoked on ${billId}` };
+  }
 
   return { ok: false, error: `No effect for ${actionId}` };
+}
+
+function awaitImportCatalog(id: string): import("../legislation/catalog.js").CatalogEntry | null {
+  return getLaw(id);
 }

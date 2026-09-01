@@ -8,7 +8,7 @@ import {
   getEraCommodityBasePrice,
 } from "./commodity/constants.js";
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -260,6 +260,42 @@ export function createWorld(options: NewWorldOptions): WorldState {
   const { regions, electoratePools, regionTurnouts, partyRegions, partyPressures, candidateSupports } =
     seedSupport(pack, parties, politicians);
 
+  // Seed committees to the depth billLifecycle requires (not live gating)
+  const bills: WorldState["bills"] = [];
+  const committees: WorldState["committees"] = [];
+  for (const countryId of playableIds) {
+    const leg = legislatures[countryId];
+    if (!leg) continue;
+    // Create committees via legislation/committees helper (import lazily to avoid cycle)
+    // Inline seeding to avoid import at top-level: simple 2 per elected chamber
+    for (const chamber of leg.chambers) {
+      if (!chamber.elected) continue;
+      const members = politicians.filter((p) => p.countryId === countryId && p.chamberKey === chamber.key).map((p) => p.id);
+      if (members.length === 0) continue;
+      const chair = members[0] ?? null;
+      committees.push({
+        id: `com-${countryId}-${chamber.key}-finance`,
+        countryId,
+        chamberKey: chamber.key,
+        name: `${chamber.name} Finance`,
+        memberIds: members.slice(0, Math.ceil(members.length / 2)),
+        chairId: chair,
+        jurisdiction: ["economy", "infrastructure"],
+        createdAtTurn: 0,
+      });
+      committees.push({
+        id: `com-${countryId}-${chamber.key}-judiciary`,
+        countryId,
+        chamberKey: chamber.key,
+        name: `${chamber.name} Judiciary`,
+        memberIds: members.slice(Math.ceil(members.length / 2)),
+        chairId: chair,
+        jurisdiction: ["governance", "order"],
+        createdAtTurn: 0,
+      });
+    }
+  }
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -301,7 +337,13 @@ export function createWorld(options: NewWorldOptions): WorldState {
       lastPartySwitchTurn: null,
       purgeRejoinBlocks: [],
       caucusId: null,
+      legislativeSeat: null,
+      mode: "career",
     },
+    bills,
+    committees,
+    enactedLaws: [],
+    stateBills: [],
     news: [{ turn: 0, date: pack.era.startDate, headline: "A new game begins." }],
   };
   return world;
