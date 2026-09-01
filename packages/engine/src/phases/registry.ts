@@ -68,6 +68,12 @@ import {
 } from "../budget/phases.js";
 import { centralBankChairTurnPhase, centralBankChairSelectionPhase } from "../centralBank/phases.js";
 import { corporationTurnPhase } from "../corporation/corporationTurn.js";
+import {
+  campaignSpendResetPhase,
+  campaignTurnPhase,
+  campaignPartySubsidyPhase,
+  campaignNpcInvestmentPhase,
+} from "../campaigns/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -136,5 +142,23 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // downstream rng draw for existing goldens). See corporation/corporationTurn.ts
   // file doc for the resulting one-turn lag on the macroCountryTurn wire.
   corporationTurnPhase,
+  // W26 campaign cluster at end of ported subset, before newsMaintenance —
+  // same rng-stream-stability rule as every other tail cluster above.
+  // Deviation from mainline order (see campaigns/phases.ts file doc for the
+  // full explanation): mainline runs campaignTurn BEFORE voteAccumulation
+  // and campaignSpendReset AFTER it, same turn. Tail placement means this
+  // whole cluster runs after THIS turn's voteAccumulationPhase /
+  // electionResolutionPhase already executed, so campaign spend and media
+  // favorability become visible to the tally starting NEXT turn (one-turn
+  // lag). campaignSpendReset runs FIRST in the cluster (clearing what this
+  // turn's earlier voteAccumulation just read) so campaignTurn's fresh
+  // accrual is what next turn's tally sees, not a double-counted carry-over.
+  // campaignPartySubsidy (funds the NPC investment below) then
+  // campaignNpcInvestment (spends it) both mutate spendThisTurn further
+  // this same turn — also visible next turn.
+  campaignSpendResetPhase,
+  campaignTurnPhase,
+  campaignPartySubsidyPhase,
+  campaignNpcInvestmentPhase,
   newsMaintenancePhase,
 ];

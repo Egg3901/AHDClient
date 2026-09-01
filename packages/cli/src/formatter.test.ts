@@ -42,6 +42,7 @@ function makeWorld(): WorldState {
     nppSponsorLastTurn: {},
     corporations: {},
     corpRevenueSnapshots: {},
+    campaigns: {},
     news: [],
   };
 }

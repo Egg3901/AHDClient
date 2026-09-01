@@ -112,6 +112,80 @@ export interface WorldState {
    * macroCountryTurn growth signal. Maintained by corporationTurn.ts. Schema v19.
    */
   corpRevenueSnapshots: Record<string, CorpRevenueSnapshot>;
+  /**
+   * Per-candidate campaign state for campaign-eligible elections (W26).
+   * Ports src/lib/db/types/campaign.ts Campaign, restricted to the live
+   * branch-tree ("Strategic Operations v2") model — mainline's legacy
+   * linear-level fields exist only for pre-migration Mongo rows, which have
+   * no solo equivalent (every solo world is created fresh), so they are not
+   * ported. Keyed by `${electionId}:${candidateId}` (see campaigns/lifecycle.ts
+   * campaignKey). Created on candidate entry, archived on election resolution
+   * or withdrawal. Only exists for elections where isCampaignEligibleElection
+   * is true (ports src/lib/campaigns/isCampaignEligible.ts): US house/senate
+   * this wave (president/governor/stateSenate absent from solo's election
+   * types; UK/RU/DD non-presidential campaign finance never enabled in
+   * mainline either).
+   */
+  campaigns: Record<string, Campaign>;
+}
+
+/**
+ * One lever's Strategic Operations v2 branch-tree state.
+ * Ports CampaignOpsTree (src/lib/db/types/campaign.ts): a boolean starter
+ * unlock plus three independently-levelled branches (a/b/c), each 0..
+ * OPS_MAX_BRANCH_LEVEL (see campaigns/upgradeCosts.ts).
+ */
+export interface CampaignOpsTree {
+  starter: boolean;
+  a: number;
+  b: number;
+  c: number;
+}
+
+/**
+ * Per-candidate campaign (W26). Ports src/lib/db/types/campaign.ts Campaign,
+ * trimmed to the fields the ported turn loop and tally integration need:
+ * treasury (funds/actions), the four ops-lever trees, and per-turn spend
+ * accounting. Cut vs mainline: managerId (no Campaign Manager NPC-hire UI
+ * this wave), donationLog/activityHistory/fogOfWar (UI-facing history, no
+ * consumer in solo), oppositionTargetId (opposition-research targeting is
+ * PORT-STUB — see campaigns/opsEffects.ts), campaignStrength (player
+ * contribution mechanic — PORT-STUB, see campaigns/README note in
+ * campaigns/lifecycle.ts).
+ */
+export interface Campaign {
+  /** `${electionId}:${candidateId}` — see campaigns/lifecycle.ts campaignKey. */
+  id: string;
+  electionId: string;
+  /** "player" or a politician id. */
+  candidateId: string;
+  candidateIsNPP: boolean;
+  partyId: string;
+  countryId: string;
+  /** Election.electionType at creation — drives the family scalar (upgradeCosts.ts). */
+  electionType: string;
+  status: "active" | "archived";
+  /** Local currency (campaignCurrency.ts — decoupled from live forex). */
+  funds: number;
+  /** Campaign's own action pool, separate from the candidate's politician/player actions. */
+  actions: number;
+  fundraisingTree: CampaignOpsTree;
+  oppositionResearchTree: CampaignOpsTree;
+  groundGameTree: CampaignOpsTree;
+  mediaSpendingTree: CampaignOpsTree;
+  /**
+   * Per-turn spend accumulator (local currency) — the swing-flow money
+   * driver's input (electionEngine/fundsByParty.ts, tallyAdapter.ts).
+   * Ports Campaign.spendThisTurn. Reset each turn by campaigns/phases.ts
+   * campaignSpendResetPhase; accrued by campaignTurnPhase (maintenance) and
+   * campaignNpcInvestmentPhase (upgrade purchases).
+   */
+  spendThisTurn: number;
+  totalFundsGenerated: number;
+  totalFundsSpent: number;
+  totalActionsGenerated: number;
+  totalActionsSpent: number;
+  createdAtTurn: number;
 }
 
 export interface Politician {

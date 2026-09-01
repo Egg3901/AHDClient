@@ -14,6 +14,7 @@ import {
 } from "../electionEngine/resolution/generalResolution.js";
 import { generateNpcNameAndGender } from "../npp/nameGenerator.js";
 import { realAccumulate } from "./tallyAdapter.js";
+import { ensureCampaignsForElection, archiveCampaignsForElection } from "../campaigns/lifecycle.js";
 
 /**
  * W21c orchestration: turns the pure election library into live world behavior.
@@ -169,6 +170,9 @@ export function fillCandidates(world: WorldState, rng: WorldRng, rec: ElectionRe
       have++;
     }
   }
+  // W26: campaign creation on candidate entry (createInitialCampaign port).
+  // No-op for non-campaign-eligible races (isCampaignEligible.ts).
+  ensureCampaignsForElection(world, rec);
 }
 
 /**
@@ -316,6 +320,10 @@ export function applyResolution(world: WorldState, rec: ElectionRecord): void {
   rec.winners = [...winnerIds];
   rec.resolvedTurn = world.meta.turn;
   recomputeComposition(world, rec.countryId, rec.chamberKey);
+  // W26: archive campaigns tied to a resolved election (mirrors mainline
+  // deleting Campaign docs at resolution — solo archives instead of
+  // deleting so history stays inspectable).
+  archiveCampaignsForElection(world, rec.id);
 
   const label = rec.state ? `${rec.state} ${rec.electionType}` : `${rec.countryId} ${rec.electionType}`;
   const topWinner = rec.candidates.find((c) => winnerIds.has(c.id));

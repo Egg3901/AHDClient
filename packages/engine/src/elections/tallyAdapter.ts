@@ -13,6 +13,8 @@ import type {
 } from "../electionEngine/tally/types.js";
 import { enrichCandidates } from "../electionEngine/candidateEnrichment.js";
 import type { StateDemographics as EngineStateDemographics } from "../electionEngine/types.js";
+import { aggregateFundsByParty } from "../electionEngine/fundsByParty.js";
+import { campaignKey } from "../campaigns/lifecycle.js";
 
 /**
  * W21c tally wiring: feeds the ported accumulateVoteTurn from WorldState.
@@ -63,12 +65,19 @@ function derivedInputs(world: WorldState, rec: ElectionRecord): TallyDerivedInpu
       }
     }
   }
-  const fundsByParty = new Map<string, number>();
-  for (const cand of rec.candidates) {
-    const pol = world.politicians.find((p) => p.id === cand.id);
-    const funds = cand.id === "player" ? world.player.funds : pol?.funds ?? 0;
-    fundsByParty.set(cand.partyId, (fundsByParty.get(cand.partyId) ?? 0) + funds);
-  }
+  // W26: fundsByParty now reads the real per-turn campaign spend
+  // (Campaign.spendThisTurn via campaigns/phases.ts), exactly mirroring
+  // mainline's getFundsByPartyForElection (which reads the `campaigns`
+  // collection's spendThisTurn, not a raw funds stock). Ported verbatim via
+  // electionEngine/fundsByParty.ts aggregateFundsByParty. Races without
+  // campaigns (isCampaignEligible.ts gates which races get one) correctly
+  // yield an empty map, same as mainline where no Campaign doc exists.
+  const fundsByParty = aggregateFundsByParty(
+    rec.candidates.map((cand) => ({
+      party: cand.partyId,
+      spendThisTurn: world.campaigns[campaignKey(rec.id, cand.id)]?.spendThisTurn ?? 0,
+    })),
+  );
   return {
     // PORT-STUB: no approval system yet; mainline neutral.
     approvalPct: 50,

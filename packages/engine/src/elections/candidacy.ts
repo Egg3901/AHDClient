@@ -1,5 +1,7 @@
 import type { WorldState } from "../types.js";
 import { findBlockingActiveCandidacy } from "../electionEngine/resolution/activeCandidacy.js";
+import { ensureCampaign, archiveCampaign } from "../campaigns/lifecycle.js";
+import { isCampaignEligibleElection } from "../campaigns/isCampaignEligible.js";
 
 export interface CandidacyResult {
   ok: boolean;
@@ -45,6 +47,18 @@ export function declareCandidacy(world: WorldState, electionId: string): Candida
     date: world.meta.date,
     headline: `You declare for the ${rec.state ? `${rec.state} ` : ""}${rec.electionType} race`,
   });
+  // W26: create the player's campaign (no-op for non-eligible races).
+  if (isCampaignEligibleElection(rec)) {
+    ensureCampaign(world, {
+      electionId: rec.id,
+      candidateId: "player",
+      candidateIsNPP: false,
+      partyId,
+      countryId: rec.countryId,
+      electionType: rec.electionType,
+      turn: world.meta.turn,
+    });
+  }
   return { ok: true };
 }
 
@@ -56,5 +70,6 @@ export function withdrawCandidacy(world: WorldState, electionId: string): Candid
   if (idx < 0) return { ok: false, error: "Not a candidate here" };
   rec.candidates.splice(idx, 1);
   delete rec.tally["player"];
+  archiveCampaign(world, rec.id, "player");
   return { ok: true };
 }

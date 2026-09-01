@@ -17,7 +17,7 @@ import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/co
 import type { CentralBank } from "./centralBank/types.js";
 import { seedCorporations } from "./corporation/founding.js";
 
-export const SCHEMA_VERSION = 19;
+export const SCHEMA_VERSION = 20;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -368,6 +368,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     centralBanks,
     corporations,
     corpRevenueSnapshots,
+    campaigns: {},
     player: {
       name: options.playerName,
       countryId: options.countryId,

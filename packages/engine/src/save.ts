@@ -934,5 +934,22 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 19;
   }
+  // v19 -> v20: W26 campaigns — add the new `campaigns` map (empty for
+  // every pre-existing save; campaigns are created going forward by
+  // elections/orchestration.ts + elections/candidacy.ts as candidates enter
+  // campaign-eligible races). Pre-allocated v20 for this wave; v19 and v21
+  // are held by parallel waves. RESOLVER NOTE: this block only touches the
+  // `campaigns` field and is safe to run in either order relative to
+  // whatever v19 adds — on merge, chain the blocks in strict ascending
+  // schemaVersion order (v18 -> v19 -> v20) and confirm v19 does not also
+  // introduce a field named `campaigns` (it should not; W26 is authoritative
+  // for that name).
+  if (save.schemaVersion < 20) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (w["campaigns"] == null || typeof w["campaigns"] !== "object") {
+      w["campaigns"] = {};
+    }
+    save.world.meta.schemaVersion = 20;
+  }
   return save.world;
 }
