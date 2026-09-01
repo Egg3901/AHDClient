@@ -28,6 +28,8 @@ import { NewsScreen, NewsWidget } from "./news/NewsFeed.js";
 import "./news/news.css";
 import { CongressScreen } from "./congress/Congress.js";
 import "./congress/congress.css";
+import { ElectionsScreen } from "./elections/Elections.js";
+import "./elections/elections.css";
 
 const ONLINE_URL = "https://www.ahousedividedgame.com";
 
@@ -760,6 +762,7 @@ function Dashboard({
   const [characterOpen, setCharacterOpen] = useState(false);
   const [newsOpen, setNewsOpen] = useState(false);
   const [congressOpen, setCongressOpen] = useState(false);
+  const [electionsOpen, setElectionsOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const advance = async () => {
@@ -866,6 +869,21 @@ function Dashboard({
     );
   }
 
+  if (electionsOpen) {
+    return (
+      <ElectionsScreen
+        world={world}
+        onWorld={(w) => onWorld(w)}
+        onToast={(msg) => setToast(msg)}
+        onBack={() => setElectionsOpen(false)}
+        onOpenCharacter={() => {
+          setElectionsOpen(false);
+          setCharacterOpen(true);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="dashboard">
       <header className="row spread dashboard-header">
@@ -893,6 +911,9 @@ function Dashboard({
           </button>
           <button className="secondary small-btn" onClick={() => setCongressOpen(true)}>
             CONGRESS
+          </button>
+          <button className="secondary small-btn" onClick={() => setElectionsOpen(true)}>
+            ELECTIONS
           </button>
           <button className="secondary small-btn" onClick={() => setNewsOpen(true)}>
             NEWS
