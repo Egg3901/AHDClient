@@ -7,6 +7,8 @@ import { createWorldWithOverrides, listCountries } from "./worldSetup.js";
 import type { WorldOverrides, CountryEconomyOverride } from "./worldSetup.js";
 import { applyCheat, describeCheat } from "./cheats.js";
 import type { CheatOp } from "./cheats.js";
+import { GovernmentScreen } from "./government/Government.js";
+import "./government/government.css";
 
 const ONLINE_URL = "https://www.ahousedividedgame.com";
 
@@ -725,6 +727,7 @@ function Dashboard({
   const [cheatOpen, setCheatOpen] = useState(false);
   const [cheatsUsed, setCheatsUsed] = useState(false);
   const [cheatLog, setCheatLog] = useState<string[]>([]);
+  const [govOpen, setGovOpen] = useState(false);
 
   const advance = async () => {
     setBusy(true);
@@ -779,6 +782,16 @@ function Dashboard({
     return () => window.removeEventListener("keydown", onKey);
   }, [cheatOpen]);
 
+  if (govOpen) {
+    return (
+      <GovernmentScreen
+        world={world}
+        onBack={() => setGovOpen(false)}
+        initialCountryId={world.player.countryId}
+      />
+    );
+  }
+
   return (
     <div className="dashboard">
       <header className="row spread dashboard-header">
@@ -789,6 +802,9 @@ function Dashboard({
           {cheatsUsed && <span className="cheats-tag">CHEATS ACTIVE</span>}
         </div>
         <div className="row">
+          <button className="secondary small-btn" onClick={() => setGovOpen(true)}>
+            GOVERNMENT
+          </button>
           <button className="secondary small-btn cheat-toggle" onClick={() => setCheatOpen((v) => !v)}>
             CHEATS
           </button>
