@@ -254,7 +254,7 @@
   (function frame(now) {
     const dt = Math.min((now - last) / 1000, 0.05); last = now;
     // fade previous frame toward paper: this is what leaves the streaks
-    ctx.fillStyle = `rgba(${PAPER},0.045)`;
+    ctx.fillStyle = `rgba(${PAPER},0.085)`;
     ctx.fillRect(0, 0, W, H);
     for (const a of agents) a.step(dt);
     requestAnimationFrame(frame);
