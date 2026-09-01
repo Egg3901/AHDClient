@@ -13,3 +13,4 @@ export * from "./candidateEnrichment.js";
 export * from "./fundsByParty.js";
 export * from "./economicReferendum.js";
 export type * from "./types.js";
+export * as resolution from "./resolution/index.js";
