@@ -3,6 +3,7 @@ import type { Bill, Committee, EnactedLaw } from "./legislation/types.js";
 import type { CountryBudget, RegionalBudget } from "./budget/types.js";
 import type { CentralBank } from "./centralBank/types.js";
 import type { Corporation, CorpRevenueSnapshot } from "./corporation/types.js";
+import type { GovernmentState } from "./government/types.js";
 
 /**
  * The entire game world is one serializable document. No database: the world
@@ -133,6 +134,14 @@ export interface WorldState {
   nationalCommitteeElections: import("./intraparty/types.js").NationalCommitteeElectionRecord[];
   /** Coalitions (W20). Ports src/lib/coalitions + src/lib/turn/coalitionDisbandCheck.ts. Schema v21. */
   coalitions: import("./intraparty/types.js").CoalitionRecord[];
+  /**
+   * Parliamentary government-formation state (W23), one entry per country in
+   * government/constants.ts GOVERNMENT_CHAMBER_BY_COUNTRY (UK/RU/DD). Ports
+   * mainline's `governmentFormations` collection (src/lib/db/types/
+   * governmentFormation.ts GovernmentFormation, `_id` = countryId).
+   * Maintained by government/phases.ts. Schema v22.
+   */
+  governments: Record<string, GovernmentState>;
 }
 
 /**

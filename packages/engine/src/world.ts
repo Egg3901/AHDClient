@@ -17,7 +17,7 @@ import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/co
 import type { CentralBank } from "./centralBank/types.js";
 import { seedCorporations } from "./corporation/founding.js";
 
-export const SCHEMA_VERSION = 21;
+export const SCHEMA_VERSION = 22;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -377,6 +377,14 @@ export function createWorld(options: NewWorldOptions): WorldState {
     nationalPartyElections: [],
     nationalCommitteeElections: [],
     coalitions: [],
+    // W23: parliamentary government state is lazily created by
+    // government/phases.ts governmentFormationPhase on its first run per
+    // country, not seeded here — mirrors how elections/orchestration.ts
+    // lazily spawns the first ElectionRecord rather than world.ts hardcoding
+    // one, so the formation logic has exactly one code path (no
+    // seed-vs-runtime duplication) for both a fresh world and a country that
+    // is created without a legislature this era.
+    governments: {},
     player: {
       name: options.playerName,
       countryId: options.countryId,

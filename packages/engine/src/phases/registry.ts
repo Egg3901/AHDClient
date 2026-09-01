@@ -81,6 +81,7 @@ import {
   coalitionDisbandPhase,
   leadershipElectionsPhase,
 } from "../intraparty/phases.js";
+import { governmentFormationPhase, governmentVacancyWatcherPhase } from "../government/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -179,5 +180,19 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   nationalCommitteeElectionsPhase,
   coalitionDisbandPhase,
   leadershipElectionsPhase,
+  // W23 parliamentary government cluster, at the end of the ported subset,
+  // before newsMaintenance — same rng-stream-stability rule as every other
+  // tail cluster above (this repo has no interactive vote/appointment
+  // system yet, so these two phases are also rng-free in practice, but the
+  // placement rule is about not shifting every later phase's rng draws for
+  // existing goldens, not about this cluster's own rng use). Relative order
+  // mirrors mainline turnPhaseRegistry.ts indices 85-87 (parliamentaryGovernmentFormation
+  // + parliamentaryGovernmentPhases, merged into governmentFormationPhase —
+  // see government/phases.ts file doc — before parliamentaryVacancyWatcher):
+  // governmentFormationPhase runs first so a government seated this turn has
+  // its PM vacancy deadline cleared before governmentVacancyWatcherPhase
+  // checks it, exactly as mainline's pmVacancyDeadline.ts requires.
+  governmentFormationPhase,
+  governmentVacancyWatcherPhase,
   newsMaintenancePhase,
 ];

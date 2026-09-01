@@ -985,5 +985,26 @@ export function deserializeSave(raw: string): WorldState {
     // Ensure v19/v20 gaps are marked as passed through for chained migration tests
     save.world.meta.schemaVersion = 21;
   }
+  // v21 -> v22: W23 parliamentary government — add the new `governments`
+  // map (empty for every pre-existing save; entries are lazily created by
+  // government/phases.ts governmentFormationPhase the next time it runs for
+  // each of UK/RU/DD, exactly as a fresh world leaves it empty at creation —
+  // see world.ts's `governments: {}` comment). Pre-allocated v22 for this
+  // wave; v21 is held by a parallel wave that had not merged as of W23, so
+  // this block jumps straight from v20 to v22 rather than chaining through
+  // an intermediate v21 step. RESOLVER NOTE: this block only touches the
+  // `governments` field. On merging the v21 wave, re-chain in strict
+  // ascending schemaVersion order (v20 -> v21 -> v22) and confirm v21 does
+  // not also introduce a field named `governments` (it should not; W23 is
+  // authoritative for that name) — if it does, keep both blocks but resolve
+  // the name collision before merging rather than silently letting the
+  // later block clobber the earlier one.
+  if (save.schemaVersion < 22) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (w["governments"] == null || typeof w["governments"] !== "object") {
+      w["governments"] = {};
+    }
+    save.world.meta.schemaVersion = 22;
+  }
   return save.world;
 }

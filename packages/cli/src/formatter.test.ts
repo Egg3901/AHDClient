@@ -47,6 +47,7 @@ function makeWorld(): WorldState {
     nationalPartyElections: [],
     nationalCommitteeElections: [],
     coalitions: [],
+    governments: {},
     news: [],
   };
 }
