@@ -13,6 +13,9 @@ import { EconomyScreen } from "./economy/Economy.js";
 import "./economy/economy.css";
 import { createHistoryMap, pushHistory, pushHistoryWithTurn } from "./economy/history.js";
 import type { HistoryMap } from "./economy/history.js";
+import { SavesScreen } from "./saves/SavesScreen.js";
+import "./saves/saves.css";
+import { maybeAutosave } from "./saves.js";
 
 const ONLINE_URL = "https://www.ahousedividedgame.com";
 
@@ -719,7 +722,7 @@ function Dashboard({
   world,
   onWorld,
   onExit,
-  onSaved,
+  onOpenSaves,
   isDirty,
   history,
   onRecordHistory,
@@ -727,7 +730,7 @@ function Dashboard({
   world: WorldState;
   onWorld: (world: WorldState) => void;
   onExit: () => void;
-  onSaved: () => void;
+  onOpenSaves: () => void;
   isDirty: boolean;
   history: HistoryMap;
   onRecordHistory: (w: WorldState, count?: number) => void;
@@ -742,24 +745,20 @@ function Dashboard({
   const [ecoOpen, setEcoOpen] = useState(false);
 
   const advance = async () => {
+    const prevTurn = world.meta.turn;
     setBusy(true);
     try {
       const { report, world: next } = await game.advanceTurn();
       setLastReport(report);
       onRecordHistory(next);
       onWorld(next);
+      try {
+        await maybeAutosave(prevTurn, next);
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setBusy(false);
-    }
-  };
-
-  const handleSave = async () => {
-    setSaveError(null);
-    try {
-      const result = await game.save();
-      if (result.saved) onSaved();
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -771,10 +770,20 @@ function Dashboard({
     onExit();
   };
 
-  const handleCheatApplied = (entry: string) => {
+  const handleCheatApplied = (entry: string, advanceCount?: number) => {
     setCheatsUsed(true);
     const ts = new Date().toLocaleTimeString("en-GB", { hour12: false });
     setCheatLog((prev) => [...prev, `[${ts}] ${entry}`]);
+    if (advanceCount !== undefined && advanceCount > 0) {
+      const current = game.getStateSync();
+      if (current) {
+        // Cheat batch advanceTurns already mutated world; try autosave
+        const prevTurn = current.meta.turn - advanceCount;
+        void maybeAutosave(prevTurn, current).catch((e) => {
+          setSaveError(e instanceof Error ? e.message : String(e));
+        });
+      }
+    }
   };
 
   useEffect(() => {
@@ -831,7 +840,7 @@ function Dashboard({
           <button onClick={() => void advance()} disabled={busy}>
             {busy ? "Processing" : "End turn"}
           </button>
-          <button className="secondary" onClick={() => void handleSave()}>
+          <button className="secondary" onClick={onOpenSaves}>
             Save
           </button>
           <button className="secondary" onClick={handleExit}>
@@ -891,11 +900,13 @@ function Dashboard({
 // -------------------------------------------------------------------
 
 export function App() {
-  const [screen, setScreen] = useState<"launcher" | "newWorld" | "game">("launcher");
+  const [screen, setScreen] = useState<"launcher" | "newWorld" | "game" | "saves">("launcher");
+  const [savesReturn, setSavesReturn] = useState<"launcher" | "game">("launcher");
   const [pendingEra, setPendingEra] = useState<string | null>(null);
   const [world, setWorld] = useState<WorldState | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [launcherError, setLauncherError] = useState<string | null>(null);
+  const [savesError, setSavesError] = useState<string | null>(null);
   const historyRef = React.useRef<HistoryMap>(createHistoryMap());
   const [historyVersion, setHistoryVersion] = useState(0);
 
@@ -925,18 +936,29 @@ export function App() {
     setScreen("game");
   };
 
-  const handleLoad = async () => {
+  const openSavesFromLauncher = () => {
+    setSavesError(null);
+    setSavesReturn("launcher");
+    setScreen("saves");
+  };
+
+  const openSavesFromGame = () => {
+    setSavesError(null);
+    setSavesReturn("game");
+    setScreen("saves");
+  };
+
+  const handleSavesClose = () => {
+    setScreen(savesReturn);
+  };
+
+  const handleSavesLoad = (loaded: WorldState) => {
+    resetHistory(loaded);
+    setWorld(loaded);
+    setIsDirty(false);
     setLauncherError(null);
-    try {
-      const loaded = await game.load();
-      if (!loaded) return;
-      resetHistory(loaded);
-      setWorld(loaded);
-      setIsDirty(false);
-      setScreen("game");
-    } catch (e) {
-      setLauncherError(e instanceof Error ? e.message : String(e));
-    }
+    setSavesError(null);
+    setScreen("game");
   };
 
   const handleAdvanceWorld = (w: WorldState) => {
@@ -944,15 +966,27 @@ export function App() {
     setIsDirty(true);
   };
 
-  const handleSaved = () => {
-    setIsDirty(false);
-  };
-
   const handleExitToLauncher = () => {
     setWorld(null);
     setIsDirty(false);
     setScreen("launcher");
   };
+
+  if (screen === "saves") {
+    return (
+      <>
+        <SavesScreen currentWorld={world} onLoad={handleSavesLoad} onClose={handleSavesClose} isDirty={isDirty} />
+        {savesError && (
+          <div className="panel error-banner" role="alert" style={{ margin: 12 }}>
+            <span>{savesError}</span>
+            <button className="secondary small-btn" onClick={() => setSavesError(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
+      </>
+    );
+  }
 
   if (screen === "game" && world) {
     // historyVersion forces re-render when history mutates; map reference stays stable
@@ -962,7 +996,7 @@ export function App() {
         world={world}
         onWorld={handleAdvanceWorld}
         onExit={handleExitToLauncher}
-        onSaved={handleSaved}
+        onOpenSaves={openSavesFromGame}
         isDirty={isDirty}
         history={historyRef.current}
         onRecordHistory={recordHistory}
@@ -981,15 +1015,25 @@ export function App() {
   }
 
   return (
-    <Launcher
-      onPlayOnline={() => void openOnline()}
-      onNewWorld={(eraId) => {
-        setPendingEra(eraId);
-        setScreen("newWorld");
-      }}
-      onLoad={() => void handleLoad()}
-      error={launcherError}
-      onClearError={() => setLauncherError(null)}
-    />
+    <>
+      <Launcher
+        onPlayOnline={() => void openOnline()}
+        onNewWorld={(eraId) => {
+          setPendingEra(eraId);
+          setScreen("newWorld");
+        }}
+        onLoad={openSavesFromLauncher}
+        error={launcherError}
+        onClearError={() => setLauncherError(null)}
+      />
+      {savesError && (
+        <div className="panel error-banner" role="alert" style={{ margin: 12 }}>
+          <span>{savesError}</span>
+          <button className="secondary small-btn" onClick={() => setSavesError(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+    </>
   );
 }
