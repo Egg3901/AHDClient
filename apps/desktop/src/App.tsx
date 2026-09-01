@@ -11,6 +11,8 @@ import { GovernmentScreen } from "./government/Government.js";
 import "./government/government.css";
 import { EconomyScreen } from "./economy/Economy.js";
 import "./economy/economy.css";
+import { WorldMapScreen } from "./worldMap/WorldMap.js";
+import "./worldMap/worldMap.css";
 import { createHistoryMap, pushHistory, pushHistoryWithTurn } from "./economy/history.js";
 import type { HistoryMap } from "./economy/history.js";
 import { SavesScreen } from "./saves/SavesScreen.js";
@@ -743,6 +745,7 @@ function Dashboard({
   const [cheatLog, setCheatLog] = useState<string[]>([]);
   const [govOpen, setGovOpen] = useState(false);
   const [ecoOpen, setEcoOpen] = useState(false);
+  const [worldOpen, setWorldOpen] = useState(false);
 
   const advance = async () => {
     const prevTurn = world.meta.turn;
@@ -804,6 +807,10 @@ function Dashboard({
     return () => window.removeEventListener("keydown", onKey);
   }, [cheatOpen]);
 
+  if (worldOpen) {
+    return <WorldMapScreen world={world} onBack={() => setWorldOpen(false)} />;
+  }
+
   if (govOpen) {
     return (
       <GovernmentScreen
@@ -828,6 +835,9 @@ function Dashboard({
           {cheatsUsed && <span className="cheats-tag">CHEATS ACTIVE</span>}
         </div>
         <div className="row">
+          <button className="secondary small-btn" onClick={() => setWorldOpen(true)}>
+            WORLD
+          </button>
           <button className="secondary small-btn" onClick={() => setGovOpen(true)}>
             GOVERNMENT
           </button>
