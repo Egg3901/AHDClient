@@ -87,6 +87,12 @@ import { impeachmentLifecyclePhase } from "../impeachment/phases.js";
 import { presidentialSuccessionPhase } from "../executive/phases.js";
 import { cabinetTransitionPhase, cabinetNominationLifecyclePhase } from "../cabinet/phases.js";
 import { scotusTurnPhase, ukJrSurpriseTurnPhase } from "../judiciary/phases.js";
+import {
+  worldEventsMaintenancePhase,
+  worldEventsSchedulerPhase,
+  playerRandomEventsPhase,
+  crisisTurnPhase,
+} from "../events/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -239,5 +245,20 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // other phase in this worktree mutates world.corporations, so nothing
   // between the two matters to the ordering.
   recomputeSharePricesPhase,
+  // W31 events cluster at END before newsMaintenance — ordering deviation:
+  // Mainline runs worldEventsMaintenance (53) and worldEventsScheduler (54)
+  // alongside playerRandomEvents (52) and crisisTurn (Group 11, Effects) mid-
+  // pipeline, before nppActionProcessing and well before history snapshots.
+  // Solo defers the entire W31 cluster to the tail before newsMaintenance to
+  // avoid shifting shared RNG streams under existing integration goldens — same
+  // rule as every other tail cluster above. A dedicated re-golden will restore
+  // mainline order. Relative order inside this cluster mirrors mainline:
+  // worldEventsMaintenance before worldEventsScheduler (so expired modifiers
+  // are swept before this turn's scheduling pass), then playerRandomEvents,
+  // then crisisTurn (which may spawn news that newsMaintenance will trim).
+  worldEventsMaintenancePhase,
+  worldEventsSchedulerPhase,
+  playerRandomEventsPhase,
+  crisisTurnPhase,
   newsMaintenancePhase,
 ];

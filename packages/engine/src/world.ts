@@ -20,7 +20,7 @@ import { seedCorporations } from "./corporation/founding.js";
 // Pre-allocated v26 for W10 (markets: share price, stock exchange). Main is
 // v25 as of this wave's branch point; a parallel wave holds v27. See save.ts
 // v25->v26 migration for the resolver note on merge-order splitting.
-export const SCHEMA_VERSION = 26;
+export const SCHEMA_VERSION = 27;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -399,6 +399,10 @@ export function createWorld(options: NewWorldOptions): WorldState {
     scotusNominations: [],
     docketCases: [],
     ukJudicialReviewCases: [],
+    worldEventLedger: {},
+    activeWorldModifiers: [],
+    crises: [],
+    playerEventLog: [],
     player: {
       name: options.playerName,
       countryId: options.countryId,

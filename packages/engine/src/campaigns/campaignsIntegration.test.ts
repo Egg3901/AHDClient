@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createWorld } from "../world.js";
+import { createWorld, SCHEMA_VERSION } from "../world.js";
 import { advanceTurn } from "../engine.js";
 import { deserializeSave, serializeSave } from "../save.js";
 import type { SaveFile } from "../save.js";
@@ -113,7 +113,7 @@ describe("migration (v<20 -> v20)", () => {
     delete (raw.world as unknown as Record<string, unknown>)["campaigns"];
 
     const migrated = deserializeSave(JSON.stringify(raw));
-    expect(migrated.meta.schemaVersion).toBe(26);
+    expect(migrated.meta.schemaVersion).toBe(27);
     expect(migrated.campaigns).toEqual({});
   });
 

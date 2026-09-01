@@ -180,6 +180,20 @@ export interface WorldState {
    * Small per-turn hazard producing a ruling from proxy court lean. Schema v25.
    */
   ukJudicialReviewCases: import("./judiciary/types.js").UkJudicialReviewCase[];
+  /**
+   * W31 events cluster: world events + player random events + crises.
+   * Ports src/lib/events/worldEvents/definitions.ts WORLD_EVENT_SEED_DEFINITIONS
+   * (20 kinds), src/lib/events/worldEvents/scheduler.ts windowGapTurns cadence,
+   * src/lib/events/pree/seedDefinitions.ts PREE events (12), src/lib/crises/templates.ts
+   * (8 crisis templates), src/lib/turn/crisisTurn.ts tickDecayFactor lifecycle,
+   * and src/lib/events/substrate/countryModifiers.ts modifiers.
+   * Schema v27 (main v25; v26 reserved for parallel wave — see save.ts resolver note).
+   * All randomness via WorldRng; news items use mainline headline copy verbatim.
+   */
+  worldEventLedger: Record<string, Record<string, number>>;
+  activeWorldModifiers: WorldModifier[];
+  crises: CrisisRecord[];
+  playerEventLog: PlayerEventLogEntry[];
 }
 
 /**
@@ -805,4 +819,35 @@ export interface NppRelationship {
   /** Score in [-100, 100]; decays toward 0 */
   score: number;
   updatedAtTurn: number;
+}
+
+export interface WorldModifier {
+  countryId: string;
+  kind: string;
+  sectorType?: string;
+  pct: number;
+  expiresAtTurn: number;
+}
+
+export interface CrisisRecord {
+  id: string;
+  kind: string;
+  name: string;
+  description: string;
+  scope: "country" | "global";
+  countryIds: string[];
+  startTurn: number;
+  durationTurns: number | null;
+  effects: Array<{ type: string; value: number; effectType: "flat" | "tick" | "decay" }>;
+  status: "active" | "resolved";
+  endTurn?: number;
+  wireMessageOnStart: string;
+  wireMessageOnEnd: string;
+  playerResponse?: string | null;
+}
+
+export interface PlayerEventLogEntry {
+  turn: number;
+  kind: string;
+  headline: string;
 }

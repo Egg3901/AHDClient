@@ -56,6 +56,10 @@ function makeWorld(): WorldState {
     scotusNominations: [],
     docketCases: [],
     ukJudicialReviewCases: [],
+    worldEventLedger: {},
+    activeWorldModifiers: [],
+    crises: [],
+    playerEventLog: [],
     news: [],
   };
 }

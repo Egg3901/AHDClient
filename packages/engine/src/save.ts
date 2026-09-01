@@ -1107,5 +1107,32 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 26;
   }
+  // v25 -> v26: pre-allocated for parallel wave (holds v26) — no fields added
+  // by this wave. This stub preserves chained migration ordering: latest is 27.
+  // RESOLVER NOTE: if the v26 wave lands first with real fields, its block
+  // replaces this stub and the v27 guard below is renumbered from 27 to
+  // 26->27 accordingly; no name collision expected (W31 owns worldEventLedger,
+  // activeWorldModifiers, crises, playerEventLog). Verify ascending schemaVersion
+  // order (v25 -> v26 -> v27) and that v26 does not introduce any of those names.
+  if (save.schemaVersion < 26) {
+    save.world.meta.schemaVersion = 26;
+  }
+  // v26 -> v27: W31 events cluster (worldEventLedger, activeWorldModifiers,
+  // crises, playerEventLog). Ports src/lib/events/worldEvents/definitions.ts
+  // WORLD_EVENT_SEED_DEFINITIONS (20 kinds), src/lib/events/pree/*
+  // (player random events), src/lib/crises/templates.ts (8 templates),
+  // src/lib/turn/crisisTurn.ts lifecycle, and
+  // src/lib/events/substrate/countryModifiers.ts modifiers.
+  // Main v25; parallel wave holds v26; this wave is pre-allocated v27.
+  if (save.schemaVersion < 27) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (typeof w["worldEventLedger"] !== "object" || w["worldEventLedger"] === null || Array.isArray(w["worldEventLedger"])) {
+      w["worldEventLedger"] = {};
+    }
+    if (!Array.isArray(w["activeWorldModifiers"])) w["activeWorldModifiers"] = [];
+    if (!Array.isArray(w["crises"])) w["crises"] = [];
+    if (!Array.isArray(w["playerEventLog"])) w["playerEventLog"] = [];
+    save.world.meta.schemaVersion = 27;
+  }
   return save.world;
 }

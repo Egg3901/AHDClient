@@ -107,19 +107,16 @@ describe("commodity price evolution (golden values)", () => {
     for (let i = 0; i < 10; i++) advanceTurn(w);
     // Golden value derived from deterministic run with seed golden-seed-42
     // If commodity drift formula changes, update goldens deliberately.
-    // Re-baselined for W24: the presidential election cluster (see
-    // phases/registry.ts) draws rng from turn 1 (candidate generation for the
-    // cycle-1 race, whose canonical startTurn is 1) onward, shifting the
-    // shared rng stream for every phase downstream — including
-    // commodityPrices — exactly the same class of shift W9's corporationTurn
-    // insertion caused (see the prior re-baseline note this replaces). Steel
-    // moved from 11.37 to 11.56, oil from 1.15 to 1.21 (both W9 baselines);
-    // this is a pure rng-stream shift, not a formula change (see
-    // docs/ROADMAP-1.0.md rng-stream-stability
-    // note on the elections/demographics/budget/central-bank/corporation/
-    // presidential blocks in phases/registry.ts).
-    expect(w.commodityPrices["steel"]!.globalPrice).toBeCloseTo(11.56, 1);
-    expect(w.commodityPrices["oil"]!.globalPrice).toBeCloseTo(1.21, 1);
+    // Re-baselined for W31: the events cluster (worldEventsScheduler,
+    // playerRandomEvents, crisisTurn) at the tail draws rng after corporationTurn
+    // onward for host selection / weighted picks / hazard checks, shifting the
+    // shared rng stream for the next turn's commodityPrices (one-turn lag,
+    // same class as W9 corporationTurn / W24 presidential re-baselines). Steel
+    // moved from 11.56 to 11.11, oil from 1.21 to 1.14; this is a pure
+    // rng-stream shift, not a formula change (see phases/registry.ts
+    // ordering-deviation note).
+    expect(w.commodityPrices["steel"]!.globalPrice).toBeCloseTo(11.11, 1);
+    expect(w.commodityPrices["oil"]!.globalPrice).toBeCloseTo(1.14, 1);
   });
 
   it("golden: rare_earth premium persists (high base, demand drift)", () => {
@@ -129,9 +126,10 @@ describe("commodity price evolution (golden values)", () => {
     expect(w.commodityPrices["rare_earth"]!.globalPrice).toBeGreaterThan(
       w.commodityPrices["steel"]!.globalPrice,
     );
-    // Golden after 50 turns (seed golden-seed-42) — re-baselined for W24's
-    // rng-stream shift (see steel/oil golden above), from 314.46 (W9 baseline).
-    expect(w.commodityPrices["rare_earth"]!.globalPrice).toBeCloseTo(293.42, 0);
+    // Golden after 50 turns (seed golden-seed-42) — re-baselined for W31's
+    // rng-stream shift (see steel/oil golden above), from 293.42 (W24) and
+    // 314.46 (W9). New baseline 260.41 with W31 events tail RNG consumption.
+    expect(w.commodityPrices["rare_earth"]!.globalPrice).toBeCloseTo(260.41, 0);
   });
 
   it("prices stay within 0.1x–10x base bounds even after 200 turns (bounds)", () => {
@@ -356,7 +354,7 @@ describe("schema migration v6->v7", () => {
       },
     });
     const w = deserializeSave(raw);
-    expect(w.meta.schemaVersion).toBe(26);
+    expect(w.meta.schemaVersion).toBe(27);
     expect(typeof w.commodityPrices).toBe("object");
     expect(Object.keys(w.commodityPrices).length).toBe(COMMODITY_TYPES.length);
     expect(Array.isArray(w.extractionContracts)).toBe(true);

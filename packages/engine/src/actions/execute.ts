@@ -813,6 +813,58 @@ export function executeAction(
     return { ok: true, message: `Sold ${shares} shares of ${corp.tickerSymbol} for ${notional}` };
   }
 
+  // W31 crisis action hooks — player responses to active crises.
+  // Each action targets the active crisis for the player's country (or first active if none country-specific).
+  // Effects mirror src/lib/crises/optionActions.ts: bailout shortens banking crisis, stimulus shortens recession,
+  // generic response shortens any crisis by 1, monitor is no-op. All consume AP + fundCost already deducted.
+  if (actionId === "crisisBailout" || actionId === "crisisStimulus" || actionId === "crisisRespond" || actionId === "crisisMonitor") {
+    const countryId = world.player.countryId;
+    const crisis = world.crises.find((c) => c.status === "active" && c.countryIds.includes(countryId))
+      ?? world.crises.find((c) => c.status === "active");
+    if (!crisis) {
+      // No active crisis: no-op success (same as mainline's autoResolveOnExpiry fallback — action doesn't error, just no effect)
+      return { ok: true, message: "No active crisis to respond to." };
+    }
+    if (crisis.playerResponse) {
+      actor.actions += cost;
+      actor.funds += fundCost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Already responded to this crisis" };
+    }
+    if (actionId === "crisisBailout") {
+      if (crisis.kind !== "crisis.bankingCrisis") {
+        actor.actions += cost;
+        actor.funds += fundCost;
+        if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+        return { ok: false, error: "Bailout is only for banking crises" };
+      }
+      // Treasury already debited via fundCost; also shorten duration
+      crisis.durationTurns = Math.max(1, (crisis.durationTurns ?? 8) - 3);
+      crisis.playerResponse = "bailout";
+      return { ok: true, message: "Bailout authorized: crisis shortened by 3 turns." };
+    }
+    if (actionId === "crisisStimulus") {
+      if (crisis.kind !== "crisis.recession") {
+        actor.actions += cost;
+        actor.funds += fundCost;
+        if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+        return { ok: false, error: "Stimulus is only for recessions" };
+      }
+      crisis.durationTurns = Math.max(1, (crisis.durationTurns ?? 12) - 2);
+      crisis.playerResponse = "stimulus";
+      return { ok: true, message: "Stimulus passed: recession shortened by 2 turns." };
+    }
+    if (actionId === "crisisRespond") {
+      crisis.durationTurns = Math.max(1, (crisis.durationTurns ?? 8) - 1);
+      crisis.playerResponse = "respond";
+      return { ok: true, message: "Crisis response coordinated: shortened by 1 turn." };
+    }
+    if (actionId === "crisisMonitor") {
+      crisis.playerResponse = "monitor";
+      return { ok: true, message: "Monitoring crisis: no action taken." };
+    }
+  }
+
   return { ok: false, error: `No effect for ${actionId}` };
 }
 
