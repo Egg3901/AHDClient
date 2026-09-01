@@ -72,6 +72,15 @@ function applyCheat(world: WorldState, op: CheatOp): void   // validates, throws
 
 Cheats are singleplayer-only UI; the panel must never render in multiplayer mode. Cheat mutations are ordinary world changes: saves made afterward are ordinary saves. A `meta.cheatsUsed` flag is set by `applyCheat` (schema bump owned by the engine wave that implements it).
 
+## Play modes (binding)
+
+Singleplayer has two modes chosen at world creation:
+
+- **Career** (default): the player is a politician climbing the existing systems.
+- **Head of State**: the player is the ruling party/government of a chosen country: legislative agenda, economic direction (NPP economy encouragement, subsidies, state levers), wars and foreign policy.
+
+The rule that keeps modes safe: **a mode is who the player is, never how the world works.** The turn pipeline, phase logic, and formulas are mode-blind; there is no `if (mode)` inside any phase. A mode only changes which existing action surfaces the player holds (the levers party/executive NPCs already operate) and which UI hub renders. `player.mode` lives on the player document; action gating happens at the action layer; NPCs fill whatever roles the player does not hold, identically in both modes. Any feature that cannot be built under this rule needs an explicit owner decision before it is built.
+
 ## Security doctrine (binding)
 
 1. **Singleplayer is fully local.** No server process, no listeners, no network requests from SP surfaces. The engine is a library in the app process; turns cost the player's CPU and nothing else.

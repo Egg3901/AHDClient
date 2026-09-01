@@ -1,0 +1,31 @@
+# Boundary: this repo vs mainline A House Divided
+
+This document defines the boundary between ROTUNDA (this repo, private) and mainline A House Divided (`Egg3901/AHDGame`, public). Mainline's mirror of this boundary is documented internally on the mainline side, not in its public repo. This repo has no public documentation surface; the public AHD repo is the only public surface and does not reference this project.
+
+## What each side is
+
+- **Mainline**: the live multiplayer service. Server-authoritative, real-time turns, accounts, moderation, Mongo persistence.
+- **ROTUNDA**: the unified desktop client. Multiplayer viewer (hardened webview onto the live site) plus fully local singleplayer running its own engine. No server components, ever.
+
+## Direction of flow
+
+- **Mainline to here**: simulation logic (formulas, constants, phase behavior), seed data, name pools, geometry. Ports carry source citations. The mainline checkout on the dev box is read-only for all agents.
+- **Here to mainline**: nothing flows back automatically. Candidates for upstreaming (balance findings from CLI sims, era seed packs once the shared format stabilizes, bug discoveries made while porting) go through the owner as explicit mainline work items, never direct commits.
+- **Never crosses the boundary in either direction**: cheats and overrides (solo-only by definition), Head of State mode (solo-only play mode), multiplayer anti-abuse/moderation systems (N/A in solo, see ROADMAP), server infrastructure, accounts/auth.
+
+## Shared conventions (keep aligned)
+
+- Country ids: mainline uppercase `CountryId` values, exactly.
+- Party ideology: mainline's economic/social axes on -5..5.
+- Era ids: strings keyed to mainline presets ("1953", "1960").
+- Save format marker `ahdsolo-save` is this repo's wire format and is independent of project naming.
+- License: PolyForm Noncommercial 1.0.0 on both sides, which is what makes code flow legal and frictionless.
+
+## Divergences (deliberate, documented)
+
+- On-demand turns, one turn = one in-game week (mainline: real-time cadence, 48-turn annualization constants are kept where mainline's balance was tuned per-turn).
+- Deterministic seeded RNG stored in the world; mainline is not replayable.
+- Local JSON saves with schema migrations; mainline persists in Mongo.
+- Solo-only surfaces: granular world creation overrides, cheat panel, Head of State mode.
+
+Changes to this boundary require an owner decision and an update to this file plus the internal mainline-side mirror.

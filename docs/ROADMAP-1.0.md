@@ -82,6 +82,14 @@ Engine core (turn pipeline, RNG, saves) - real seed packs, 27 countries, both er
 
 - W41 snapshot phases become WorldHistory: metric/approval/portfolio/wealth/interest/moneySupply history for charts; ledgerReconcile and balance snapshots become invariant checks wired into CLI and tests
 
+## Lane 12: Head of State mode (after Lanes 1, 6, 7 land their cores)
+
+Binding rule in FRAMEWORK.md: a mode is who the player is, never how the world works. No `if (mode)` in any phase.
+
+- M1 engine: `player.mode` ("career" | "headOfState"), ruling-party/government binding at creation, action-layer gating that grants the player the existing party/executive action surfaces; NPCs fill unheld roles identically in both modes; schema bump
+- M2 creation flow: mode picker; HoS variant selects country + ruling party instead of character career start
+- M3 HoS UI hub: legislative agenda console, economic direction console (NPP economy encouragement, subsidies, state levers), war and foreign policy console; reuses U-lane screens with the HoS lever set
+
 ## N/A for singleplayer (recorded, not silently dropped)
 
 activityLogging (server telemetry), auditAnomalyScan / suspiciousDetection / financialSuspectScan (anti-abuse against human opponents), bannedShareholderRelease / inactiveShareholderShareRelease (moderation and absent-human recovery; NPC ownership handled inside Lane 2), altDetection, auth/account/discord/masscomm/analytics/adsense infra. Reason: these exist because other humans exist. gameHealthSnapshot maps to CLI invariants instead.
