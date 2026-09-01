@@ -10,8 +10,10 @@ import {
   COMMODITY_TYPES,
   getEraCommodityBasePrice,
 } from "./commodity/constants.js";
+import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/constants.js";
+import type { CentralBank } from "./centralBank/types.js";
 
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -306,6 +308,9 @@ export function createWorld(options: NewWorldOptions): WorldState {
   // ── Budgets (W2) ───────────────────────────────────────────
   const { budgets, regionalBudgets } = seedBudgets(pack, regions);
 
+  // ── Central banks (W3) ────────────────────────────────────────
+  const centralBanks = seedCentralBanks(countries);
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -341,6 +346,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     regionalBudgets,
     nppRelationships: {},
     nppSponsorLastTurn: {},
+    centralBanks,
     player: {
       name: options.playerName,
       countryId: options.countryId,
@@ -881,4 +887,37 @@ function seedBudgets(
   }
 
   return { budgets, regionalBudgets };
+}
+
+/**
+ * Seed one central bank per playable country, bootstrapped directly in the
+ * autonomous "npp" chair mode (see centralBank/types.ts file doc for why: no
+ * president/player pool exists yet to seat a character or FOMC-nominated
+ * chair). primeRate seeds from each country's authored defaultPrimeRate —
+ * the same value mainline's real seeder writes (src/lib/centralBank/helpers.ts
+ * getDefaultBank), not the era-graduated neutralPrimeRate (see conformance.test.ts
+ * "uses seeder defaultPrimeRate, not era monetary baseline").
+ * Term expiry seeds at turn 0 + CHAIR_TERM_TURNS, mirroring appointNppChair.ts's
+ * `currentTurn + TERM_TURNS` at initial appointment (currentTurn = 0 here).
+ */
+function seedCentralBanks(countries: WorldState["countries"]): WorldState["centralBanks"] {
+  const banks: WorldState["centralBanks"] = {};
+  for (const country of Object.values(countries)) {
+    if (!country.playable) continue;
+    const anchor = CENTRAL_BANK_COUNTRY_ANCHORS[country.id];
+    if (!anchor) continue; // Playable country without an authored central-bank anchor (future era pack) — no bank until one is authored.
+    const bank: CentralBank = {
+      countryId: country.id,
+      primeRate: anchor.defaultPrimeRate,
+      chairMode: "npp",
+      chairAlignment: null,
+      chairInfamy: 0,
+      resolveStreak: 0,
+      lastRateChangeTurn: null,
+      chairTermExpiresAtTurn: CHAIR_TERM_TURNS,
+      interestRateHistory: [],
+    };
+    banks[country.id] = bank;
+  }
+  return banks;
 }

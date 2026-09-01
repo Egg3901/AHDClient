@@ -1,6 +1,7 @@
 import type { RngState } from "./rng.js";
 import type { Bill, Committee, EnactedLaw } from "./legislation/types.js";
 import type { CountryBudget, RegionalBudget } from "./budget/types.js";
+import type { CentralBank } from "./centralBank/types.js";
 
 /**
  * The entire game world is one serializable document. No database: the world
@@ -94,6 +95,11 @@ export interface WorldState {
    * NPP_SPONSOR_TYPE_REPEAT_COOLDOWN_TURNS throttling.
    */
   nppSponsorLastTurn: Record<string, number>;
+  /**
+   * Central banks, one per playable country (US/UK/RU/DD). Ports src/lib/db/types/centralBank.ts
+   * CentralBank (subset — see centralBank/types.ts file doc for what's cut and why). Schema v17.
+   */
+  centralBanks: Record<string, CentralBank>;
 }
 
 export interface Politician {

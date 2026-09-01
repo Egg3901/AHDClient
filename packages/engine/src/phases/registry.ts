@@ -66,6 +66,7 @@ import {
   fiscalYearPhase,
   regionalBudgetProcessingPhase,
 } from "../budget/phases.js";
+import { centralBankChairTurnPhase, centralBankChairSelectionPhase } from "../centralBank/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -120,5 +121,13 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   subsidyBudgetPhase,
   fiscalYearPhase,
   regionalBudgetProcessingPhase,
+  // W3 central bank cluster at end of ported subset, before newsMaintenance —
+  // same rng-stream-stability rule as the elections/demographics/budget blocks
+  // above (mainline runs this cluster mid-pipeline, at turnPhaseNames.ts
+  // indices 116-121; inserting it there would shift every downstream rng draw
+  // for existing goldens). centralBankChairTurn before centralBankChairSelection
+  // mirrors mainline's relative order.
+  centralBankChairTurnPhase,
+  centralBankChairSelectionPhase,
   newsMaintenancePhase,
 ];

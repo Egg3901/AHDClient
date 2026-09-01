@@ -33,6 +33,7 @@ function makeWorld(): WorldState {
     laborForces: {},
     budgets: {},
     regionalBudgets: {},
+    centralBanks: {},
     bills: [],
     committees: [],
     enactedLaws: [],

@@ -1,5 +1,6 @@
 import { SCHEMA_VERSION } from "./world.js";
 import { assignUsSeatGeography } from "./elections/seatGeography.js";
+import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/constants.js";
 import type { WorldState } from "./types.js";
 
 /**
@@ -670,6 +671,45 @@ export function deserializeSave(raw: string): WorldState {
       w["nppSponsorLastTurn"] = {};
     }
     save.world.meta.schemaVersion = 16;
+  }
+  // v16 -> v17: W3 central banks (this worktree branched at v15; v16 is another
+  // wave's pre-allocated slot merging in parallel. Written as a direct jump to
+  // the target v17 per the wave brief — the merge resolver may need to split
+  // this into a proper v15->v16 (whatever v16's wave adds) -> v16->v17 (this
+  // block, renumbered) chain depending on merge order. Seeds one central bank
+  // per playable country (mirrors world.ts seedCentralBanks): bootstrapped
+  // directly in autonomous "npp" chair mode at that country's defaultPrimeRate
+  // anchor, term expiring at CHAIR_TERM_TURNS from now (not from turn 0 — an
+  // in-progress save should not immediately roll the chair on load).
+  if (save.schemaVersion < 17) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (typeof w["centralBanks"] !== "object" || w["centralBanks"] === null || Array.isArray(w["centralBanks"])) {
+      w["centralBanks"] = {};
+    }
+    const centralBanks = w["centralBanks"] as Record<string, unknown>;
+    const countries = w["countries"] as Record<string, Record<string, unknown>> | undefined;
+    const meta = w["meta"] as Record<string, unknown> | undefined;
+    const currentTurn = typeof meta?.["turn"] === "number" ? (meta["turn"] as number) : 0;
+    if (countries) {
+      for (const [countryId, country] of Object.entries(countries)) {
+        if (country["playable"] !== true) continue;
+        if (centralBanks[countryId]) continue;
+        const anchor = CENTRAL_BANK_COUNTRY_ANCHORS[countryId];
+        if (!anchor) continue;
+        centralBanks[countryId] = {
+          countryId,
+          primeRate: anchor.defaultPrimeRate,
+          chairMode: "npp",
+          chairAlignment: null,
+          chairInfamy: 0,
+          resolveStreak: 0,
+          lastRateChangeTurn: null,
+          chairTermExpiresAtTurn: currentTurn + CHAIR_TERM_TURNS,
+          interestRateHistory: [],
+        };
+      }
+    }
+    save.world.meta.schemaVersion = 17;
   }
   return save.world;
 }

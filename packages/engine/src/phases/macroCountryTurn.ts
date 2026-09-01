@@ -36,6 +36,7 @@ import {
   NEUTRAL_LABOR_PARTICIPATION,
   potentialGrowth,
 } from "../demographics/laborForce.js";
+import { CENTRAL_BANK_COUNTRY_ANCHORS, computeMonetaryTerm } from "../centralBank/constants.js";
 
 // ── Pure helpers (exported for golden-value tests) ─────────────────────
 
@@ -94,8 +95,8 @@ export function computeFiscalTerm(surplus: number, gdp: number): number {
 /**
  * Simplified country-level inflation.
  * Pure core of /root/projects/AHDGame/src/lib/budget/inflation.ts calculateInflationWithBreakdown
- * with neutral values for every input that requires unported systems except the fiscal term,
- * which is now wired from real budget state (deficit/GDP) per W2.
+ * with neutral values for every input that requires unported systems except the fiscal term
+ * (W2, deficit/GDP) and the monetary term (W3, central-bank rate gap with lag).
  */
 export function computeInflation(
   previousInflationPct: number,
@@ -103,12 +104,12 @@ export function computeInflation(
   gdpGrowthPct: number,
   surplus: number = 0,
   gdp: number = 0,
+  monetaryTerm: number = 0,
 ): number {
-  // Central bank primeRate vs neutral — PORT-STUB neutral 0 monetary term
   // Tariff cost-push — PORT-STUB at baseline (0)
   // Wage growth — PORT-STUB at baseline (0)
   // Commodity/forex/savings/housing/policy/moneySupply — all PORT-STUB 0
-  // Fiscal term is now real (deficit/GDP), not stubbed.
+  // Fiscal term (W2) and monetary term (W3) are now real; the rest remain neutral.
 
   const target = INFLATION_BASE_TARGET;
 
@@ -123,7 +124,7 @@ export function computeInflation(
 
   const fiscalTerm = computeFiscalTerm(surplus, gdp);
 
-  const raw = target + unemploymentTerm + gdpTerm + fiscalTerm; // stubs for tariffs/wage/commodity/forex/savings remain 0
+  const raw = target + unemploymentTerm + gdpTerm + fiscalTerm + monetaryTerm; // stubs for tariffs/wage/commodity/forex/savings remain 0
 
   // Inertia smoothing — source: inflation.ts
   const smoothedRaw = INFLATION_INERTIA * previousInflationPct + (1 - INFLATION_INERTIA) * raw;
@@ -224,14 +225,35 @@ export const macroCountryTurnPhase: TurnPhase = {
 
       // ── Inflation ─────────────────────────────────────────────────
       // Formula: source budget/inflation.ts calculateInflationWithBreakdown
-      // Fiscal term is now real: deficit/GDP from budget.surplus/gdp via FISCAL_COEFF_*
+      // Fiscal term is real: deficit/GDP from budget.surplus/gdp via FISCAL_COEFF_*
       // (source: inflation.ts FISCAL_COEFF_DEFICIT 0.15, FISCAL_COEFF_SURPLUS 0.08).
-      // Monetary/tariffs/wage/commodity/forex/savings/housing/policy/moneySupply remain neutral.
-      // Cite inflation.ts.
+      // Monetary term (W3) is real for countries with a central bank: rate gap vs
+      // neutral, lagged via the 12-turn trailing average, scaled by MONETARY_COEFF_*
+      // and dampened by chair scrutiny (source: inflation.ts "2. Monetary policy" +
+      // centralBank/constants.ts computeMonetaryTerm). Countries without a bank get 0.
+      // Tariffs/wage/commodity/forex/savings/housing/policy/moneySupply remain neutral.
       const budget = world.budgets?.[id];
       const surplus = budget?.surplus ?? 0;
       const gdpForFiscal = budget?.gdp ?? econ.gdp;
-      let newInflPct = computeInflation(prevInflPct, newUnempPct, step.gdpGrowth, surplus, gdpForFiscal);
+      const bank = world.centralBanks?.[id];
+      const bankAnchor = CENTRAL_BANK_COUNTRY_ANCHORS[id];
+      const monetaryTerm =
+        bank && bankAnchor
+          ? computeMonetaryTerm(
+              bank.primeRate,
+              bank.interestRateHistory.map((s) => s.rate),
+              bankAnchor.neutralPrimeRate,
+              bank.chairInfamy,
+            )
+          : 0;
+      let newInflPct = computeInflation(
+        prevInflPct,
+        newUnempPct,
+        step.gdpGrowth,
+        surplus,
+        gdpForFiscal,
+        monetaryTerm,
+      );
       // Small RNG shock for deterministic variation (kept bounded by the
       // per-turn clamp already applied; shock is added after so it stays
       // within overall INFLATION_MIN/MAX).

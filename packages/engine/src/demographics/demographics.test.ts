@@ -222,7 +222,7 @@ describe("demographicEffects determinism (src/lib/demographicEffects.ts)", () =>
 describe("migration v14", () => {
   it("new worlds are schema 14 and carry demographics", () => {
     const world = createWorld({ seed: "m", playerName: "P", countryId: "US", era: "1953" });
-    expect(world.meta.schemaVersion).toBe(16);
+    expect(world.meta.schemaVersion).toBe(17);
     expect(Object.keys(world.stateDemographics)).toHaveLength(57);
     expect(Object.keys(world.baselineDemographics)).toHaveLength(57);
     expect(Object.keys(world.demographicCategories).length).toBeGreaterThan(0);
@@ -248,7 +248,7 @@ describe("migration v14", () => {
     const raw = JSON.stringify(fakeV13);
     const a = deserializeSave(raw);
     const b = deserializeSave(raw);
-    expect(a.meta.schemaVersion).toBe(16);
+    expect(a.meta.schemaVersion).toBe(17);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(Object.keys(a.stateDemographics).length).toBeGreaterThan(0);
   });
