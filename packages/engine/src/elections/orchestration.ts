@@ -176,14 +176,20 @@ export function fillCandidates(world: WorldState, rng: WorldRng, rec: ElectionRe
  * candidate favorability, scaled by electorate size, deterministic via rng
  * for sub-point noise. Replaced wholesale by accumulateVoteTurn.
  */
-export function stubAccumulate(world: WorldState, rng: WorldRng, rec: ElectionRecord): void {
+export function stubAccumulate(
+  world: WorldState,
+  rng: WorldRng,
+  rec: ElectionRecord,
+  politicianById?: Map<string, Politician>,
+): void {
+  const byId = politicianById ?? new Map(world.politicians.map((p) => [p.id, p]));
   const regionKey = rec.state ?? Object.values(world.regions ?? {}).find((r) => (r as { countryId: string }).countryId === rec.countryId);
   for (const cand of rec.candidates) {
     const party = world.parties[cand.partyId];
     const pr = rec.state ? world.partyRegions?.[`${rec.state}:${cand.partyId}`] : undefined;
     const reg = (pr as { registration?: number } | undefined)?.registration ?? 20;
     const org = (pr as { organization?: number } | undefined)?.organization ?? party?.organization ?? 10;
-    const pol = world.politicians.find((p) => p.id === cand.id);
+    const pol = byId.get(cand.id);
     const fav = pol?.favorability ?? (cand.id === "player" ? world.player.favorability ?? 50 : 50);
     const base = reg * 3 + org + (fav - 50) / 5 + (cand.incumbent ? 5 : 0);
     const votes = Math.max(0, base * 100 + Math.floor(rng.next() * 100));
@@ -387,10 +393,15 @@ export function runElectionTimers(world: WorldState, rng: WorldRng): void {
 }
 
 export function runVoteAccumulation(world: WorldState, rng: WorldRng): void {
-  for (const rec of [...world.elections].sort((a, b) => a.id.localeCompare(b.id))) {
-    if (rec.status === "active" && world.meta.turn > rec.primaryEndTurn && world.meta.turn <= rec.endTurn) {
-      stubAccumulate(world, rng, rec);
-    }
+  const inWindow = world.elections.filter(
+    (rec) => rec.status === "active" && world.meta.turn > rec.primaryEndTurn && world.meta.turn <= rec.endTurn,
+  );
+  if (inWindow.length === 0) return;
+  // One id index per turn: the per-candidate lookup made this phase 1000x
+  // costlier than every other phase (bench finding).
+  const byId = new Map(world.politicians.map((p) => [p.id, p]));
+  for (const rec of inWindow.sort((a, b) => a.id.localeCompare(b.id))) {
+    stubAccumulate(world, rng, rec, byId);
   }
 }
 
