@@ -316,15 +316,18 @@ describe("determinism", () => {
 });
 
 describe("schema bump and migration", () => {
-  it("createWorld seeds 57 regions (48 US states + 9 opaque UK/RU/DD) and related maps", () => {
+  it("createWorld seeds 80 regions (48 US +12 UK +14 RU +6 DD) and related maps for 1953", () => {
     const world = createWorld(OPTS);
-    expect(Object.keys(world.regions)).toHaveLength(57);
-    expect(Object.keys(world.electoratePools)).toHaveLength(57);
-    expect(Object.keys(world.regionTurnouts)).toHaveLength(57);
+    expect(Object.keys(world.regions)).toHaveLength(80);
+    expect(Object.keys(world.electoratePools)).toHaveLength(80);
+    expect(Object.keys(world.regionTurnouts)).toHaveLength(80);
     expect(Object.keys(world.regions).filter((k) => world.regions[k]!.countryId === "US")).toHaveLength(48);
+    expect(Object.keys(world.regions).filter((k) => world.regions[k]!.countryId === "UK")).toHaveLength(12);
+    expect(Object.keys(world.regions).filter((k) => world.regions[k]!.countryId === "RU")).toHaveLength(14);
+    expect(Object.keys(world.regions).filter((k) => world.regions[k]!.countryId === "DD")).toHaveLength(6);
     // partyRegions: 57 regions * parties per country
     expect(Object.keys(world.partyRegions).length).toBeGreaterThan(0);
-    expect(world.meta.schemaVersion).toBe(17);
+    expect(world.meta.schemaVersion).toBe(18);
   });
   it("chained migration v7->v9 seeds W19 maps and migrates US to 48 states", () => {
     const oldWorld = {
@@ -350,12 +353,12 @@ describe("schema bump and migration", () => {
     };
     const raw = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 7, savedAt: "2026-01-01", world: oldWorld });
     const migrated = deserializeSave(raw);
-    expect(migrated.meta.schemaVersion).toBe(17);
+    expect(migrated.meta.schemaVersion).toBe(18);
     expect(Object.keys((migrated as unknown as { regions: Record<string, unknown> }).regions).length).toBeGreaterThan(0);
     expect(Object.keys((migrated as unknown as { candidateSupports: Record<string, unknown> }).candidateSupports).length).toBe(1);
     // round-trip preserves
     const re = deserializeSave(serializeSave(migrated, "2026-01-02"));
-    expect(re.meta.schemaVersion).toBe(17);
+    expect(re.meta.schemaVersion).toBe(18);
   });
   it("US seed registration reflects 1953 southern strong-D lane (via MS/AL overrides, disenfranchisement modeled)", () => {
     const world = createWorld(OPTS);
@@ -366,5 +369,113 @@ describe("schema bump and migration", () => {
     // disenfranchisement via unregistered pool
     expect(world.electoratePools["MS"]!.unregistered).toBe(25);
     expect(world.electoratePools["AL"]!.unregistered).toBe(22);
+  });
+  it("W39 UK/RU/DD seed registration and bridge determinism", () => {
+    const world = createWorld(OPTS);
+    // UK NIR SF 30, LON LAB 51 etc via polling
+    expect(world.partyRegions["NIR:UK_SF"]!.registration).toBe(30);
+    expect(world.partyRegions["LON:UK_LAB"]!.registration).toBe(51);
+    // RU CEN CPSU 98, MOL 91
+    expect(world.partyRegions["CEN:RU_CPSU"]!.registration).toBe(98);
+    expect(world.partyRegions["MOL:RU_CPSU"]!.registration).toBe(91);
+    // DD BEO SED 66, MV DBD 13
+    expect(world.partyRegions["BEO:DD_SED"]!.registration).toBe(66);
+    expect(world.partyRegions["MV:DD_DBD"]!.registration).toBe(13);
+    // Electorate pools reflect registration lanes (UK independent small, RU/DD independent = 100 - sum)
+    expect(world.electoratePools["LON"]!.independent).toBe(1);
+    expect(world.electoratePools["NIR"]!.independent).toBe(0);
+    expect(world.electoratePools["CEN"]!.independent).toBe(2);
+    expect(world.electoratePools["BEO"]!.independent).toBe(14);
+    // Bridge determinism: v15 -> v18 migration is deterministic (averaged split)
+    const base = createWorld({ seed: "w39-bridge", playerName: "P", countryId: "UK", era: "1953" });
+    const v15 = {
+      format: "ahdsolo-save" as const,
+      schemaVersion: 15,
+      savedAt: "2026-01-01T00:00:00Z",
+      world: {
+        ...base,
+        meta: { ...base.meta, schemaVersion: 15 },
+        regions: {
+          "UK-R1": { id: "UK-R1", countryId: "UK", name: "UK Region 1" },
+          "UK-R2": { id: "UK-R2", countryId: "UK", name: "UK Region 2" },
+          "UK-R3": { id: "UK-R3", countryId: "UK", name: "UK Region 3" },
+          "RU-R1": { id: "RU-R1", countryId: "RU", name: "RU Region 1" },
+          "RU-R2": { id: "RU-R2", countryId: "RU", name: "RU Region 2" },
+          "RU-R3": { id: "RU-R3", countryId: "RU", name: "RU Region 3" },
+          "DD-R1": { id: "DD-R1", countryId: "DD", name: "DD Region 1" },
+          "DD-R2": { id: "DD-R2", countryId: "DD", name: "DD Region 2" },
+          "DD-R3": { id: "DD-R3", countryId: "DD", name: "DD Region 3" },
+          "US-R1": { id: "US-R1", countryId: "US", name: "US Region 1" },
+          "US-R2": { id: "US-R2", countryId: "US", name: "US Region 2" },
+          "US-R3": { id: "US-R3", countryId: "US", name: "US Region 3" },
+        },
+        partyRegions: {
+          "UK-R1:UK_LAB": { regionId: "UK-R1", partyId: "UK_LAB", countryId: "UK", organization: 30, registration: 50 },
+          "UK-R2:UK_LAB": { regionId: "UK-R2", partyId: "UK_LAB", countryId: "UK", organization: 20, registration: 30 },
+          "UK-R3:UK_LAB": { regionId: "UK-R3", partyId: "UK_LAB", countryId: "UK", organization: 25, registration: 40 },
+          "RU-R1:RU_CPSU": { regionId: "RU-R1", partyId: "RU_CPSU", countryId: "RU", organization: 96, registration: 96 },
+          "RU-R2:RU_CPSU": { regionId: "RU-R2", partyId: "RU_CPSU", countryId: "RU", organization: 94, registration: 94 },
+          "RU-R3:RU_CPSU": { regionId: "RU-R3", partyId: "RU_CPSU", countryId: "RU", organization: 92, registration: 92 },
+          "DD-R1:DD_SED": { regionId: "DD-R1", partyId: "DD_SED", countryId: "DD", organization: 60, registration: 60 },
+          "DD-R2:DD_SED": { regionId: "DD-R2", partyId: "DD_SED", countryId: "DD", organization: 55, registration: 55 },
+          "DD-R3:DD_SED": { regionId: "DD-R3", partyId: "DD_SED", countryId: "DD", organization: 50, registration: 50 },
+        },
+        electoratePools: {
+          "UK-R1": { regionId: "UK-R1", countryId: "UK", independent: 8, unregistered: 8 },
+          "UK-R2": { regionId: "UK-R2", countryId: "UK", independent: 6, unregistered: 7 },
+          "UK-R3": { regionId: "UK-R3", countryId: "UK", independent: 7, unregistered: 6 },
+          "RU-R1": { regionId: "RU-R1", countryId: "RU", independent: 3, unregistered: 2 },
+          "RU-R2": { regionId: "RU-R2", countryId: "RU", independent: 3, unregistered: 2 },
+          "RU-R3": { regionId: "RU-R3", countryId: "RU", independent: 3, unregistered: 2 },
+          "DD-R1": { regionId: "DD-R1", countryId: "DD", independent: 5, unregistered: 3 },
+          "DD-R2": { regionId: "DD-R2", countryId: "DD", independent: 5, unregistered: 3 },
+          "DD-R3": { regionId: "DD-R3", countryId: "DD", independent: 5, unregistered: 3 },
+        },
+        regionTurnouts: {
+          "UK-R1": { regionId: "UK-R1", countryId: "UK", modifiers: { uk_voterGroups: { post_industrial_workers: 0 } }, lastDecayAppliedTurn: 0 },
+          "UK-R2": { regionId: "UK-R2", countryId: "UK", modifiers: { uk_voterGroups: { post_industrial_workers: 0 } }, lastDecayAppliedTurn: 0 },
+          "UK-R3": { regionId: "UK-R3", countryId: "UK", modifiers: { uk_voterGroups: { post_industrial_workers: 0 } }, lastDecayAppliedTurn: 0 },
+          "RU-R1": { regionId: "RU-R1", countryId: "RU", modifiers: { su_voterGroups: { party_nomenklatura: 0 } }, lastDecayAppliedTurn: 0 },
+          "RU-R2": { regionId: "RU-R2", countryId: "RU", modifiers: { su_voterGroups: { party_nomenklatura: 0 } }, lastDecayAppliedTurn: 0 },
+          "RU-R3": { regionId: "RU-R3", countryId: "RU", modifiers: { su_voterGroups: { party_nomenklatura: 0 } }, lastDecayAppliedTurn: 0 },
+          "DD-R1": { regionId: "DD-R1", countryId: "DD", modifiers: { dd_voterGroups: { party_nomenklatura: 0 } }, lastDecayAppliedTurn: 0 },
+          "DD-R2": { regionId: "DD-R2", countryId: "DD", modifiers: { dd_voterGroups: { party_nomenklatura: 0 } }, lastDecayAppliedTurn: 0 },
+          "DD-R3": { regionId: "DD-R3", countryId: "DD", modifiers: { dd_voterGroups: { party_nomenklatura: 0 } }, lastDecayAppliedTurn: 0 },
+          "US-R1": { regionId: "US-R1", countryId: "US", modifiers: { voterGroups: { young_renters: 0 } }, lastDecayAppliedTurn: 0 },
+          "US-R2": { regionId: "US-R2", countryId: "US", modifiers: { voterGroups: { young_renters: 0 } }, lastDecayAppliedTurn: 0 },
+          "US-R3": { regionId: "US-R3", countryId: "US", modifiers: { voterGroups: { young_renters: 0 } }, lastDecayAppliedTurn: 0 },
+        },
+        partyPressures: {},
+        stateDemographics: {},
+        baselineDemographics: {},
+        demographicCategories: base.demographicCategories,
+        laborForces: {},
+        budgets: base.budgets,
+        regionalBudgets: base.regionalBudgets,
+      },
+    };
+    const raw = JSON.stringify(v15);
+    const a = deserializeSave(raw);
+    const b = deserializeSave(raw);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    // All opaque replaced
+    expect(a.regions["UK-R1"]).toBeUndefined();
+    expect(a.regions["RU-R1"]).toBeUndefined();
+    expect(a.regions["DD-R1"]).toBeUndefined();
+    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "UK").length).toBe(12);
+    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "RU").length).toBe(14);
+    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "DD").length).toBe(6);
+    // Averaged split: UK_LAB org avg (30+20+25)/3=25, reg avg (50+30+40)/3=40
+    expect(a.partyRegions["LON:UK_LAB"]!.organization).toBe(25);
+    expect(a.partyRegions["LON:UK_LAB"]!.registration).toBe(40);
+    // RU CPSU avg (96+94+92)/3=94
+    expect(a.partyRegions["CEN:RU_CPSU"]!.organization).toBe(94);
+    expect(a.partyRegions["CEN:RU_CPSU"]!.registration).toBe(94);
+    // DD SED avg (60+55+50)/3=55
+    expect(a.partyRegions["BEO:DD_SED"]!.organization).toBe(55);
+    // Electorate averaged
+    expect(a.electoratePools["LON"]!.independent).toBe(7);
+    expect(a.electoratePools["BEO"]!.independent).toBe(5);
+    expect(a.meta.schemaVersion).toBe(18);
   });
 });

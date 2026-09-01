@@ -341,13 +341,13 @@ describe("political structures", () => {
 });
 
 describe("W38 US states layer", () => {
-  it("1953 world has 48 US state regions, 57 total (48 + 3*3 UK/RU/DD)", () => {
+  it("1953 world has 48 US state regions, 80 total (48 +12+14+6)", () => {
     const world = createWorld({ seed: "s", playerName: "P", countryId: "US", era: "1953" });
     const usRegions = Object.values(world.regions).filter((r) => r.countryId === "US");
     expect(usRegions.length).toBe(48);
     expect(usRegions.some((r) => r.id === "AK")).toBe(false);
     expect(usRegions.some((r) => r.id === "HI")).toBe(false);
-    expect(Object.keys(world.regions).length).toBe(48 + 9); // 48 US + 3 each UK/RU/DD
+    expect(Object.keys(world.regions).length).toBe(80); // 48 US +12 UK +14 RU +6 DD
   });
 
   it("apportionment sums to 435 and per-state senate sum to 1925 (50-state chamber is 1972)", () => {
@@ -380,14 +380,24 @@ describe("W38 US states layer", () => {
     expect(world.regions["TX"]!.senateClasses).toEqual([1, 2]);
   });
 
-  it("pack validation extended: 48 states, apportionment 435, population plausible", async () => {
+  it("pack validation extended: 80 states (48 US +12 UK +14 RU +6 DD), apportionment 435 for US", async () => {
     // use imported pack directly
     const { pack1953: p1953 } = await import("@rotunda/content");
-    expect(p1953.states!.length).toBe(48);
-    const sum = p1953.states!.reduce((a, s) => a + s.houseSeats, 0);
+    expect(p1953.states!.length).toBe(80);
+    expect(p1953.states!.filter((s) => s.countryId === "US").length).toBe(48);
+    expect(p1953.states!.filter((s) => s.countryId === "UK").length).toBe(12);
+    expect(p1953.states!.filter((s) => s.countryId === "RU").length).toBe(14);
+    expect(p1953.states!.filter((s) => s.countryId === "DD").length).toBe(6);
+    const sum = p1953.states!.filter((s) => s.countryId === "US").reduce((a, s) => a + s.houseSeats, 0);
     expect(sum).toBe(435);
-    const pop = p1953.states!.reduce((a, s) => a + s.population, 0);
-    expect(pop).toBe(149_895_183);
+    const popUS = p1953.states!.filter((s) => s.countryId === "US").reduce((a, s) => a + s.population, 0);
+    expect(popUS).toBe(149_895_183);
+    const popUK = p1953.states!.filter((s) => s.countryId === "UK").reduce((a, s) => a + s.population, 0);
+    expect(popUK).toBe(52600000);
+    const popRU = p1953.states!.filter((s) => s.countryId === "RU").reduce((a, s) => a + s.population, 0);
+    expect(popRU).toBe(148500000);
+    const popDD = p1953.states!.filter((s) => s.countryId === "DD").reduce((a, s) => a + s.population, 0);
+    expect(popDD).toBe(18400000);
   });
 
   it("region bridge determinism: v8->v9 migration is deterministic and preserves UK/RU/DD", async () => {
@@ -487,12 +497,13 @@ describe("W38 US states layer", () => {
     const a = deserializeSave(raw);
     const b = deserializeSave(raw);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
-    // US now 48, UK/RU/DD still 3 each
+    // W39: all 80 subdivisions real (US 48, UK 12, RU 14, DD 6)
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "US").length).toBe(48);
-    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "UK").length).toBe(3);
-    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "RU").length).toBe(3);
-    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "DD").length).toBe(3);
-    expect(a.meta.schemaVersion).toBe(17);
+    // W39 replaced the opaque triads with real subdivisions (UK 12, RU 14, DD 6)
+    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "UK").length).toBe(12);
+    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "RU").length).toBe(14);
+    expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "DD").length).toBe(6);
+    expect(a.meta.schemaVersion).toBe(18);
     // No opaque US left
     expect(a.regions["US-R1"]).toBeUndefined();
     // Deterministic: partyRegions for US states are uniform averaged (round)

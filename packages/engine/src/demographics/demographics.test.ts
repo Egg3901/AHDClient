@@ -89,13 +89,11 @@ describe("CATEGORIES_BY_COUNTRY_1953", () => {
     expect(CATEGORIES_BY_COUNTRY_1953["DD"]![0]!.groups).toHaveLength(6);
   });
 
-  it("UK/RU/DD document mainline gaps: opaque regions until W39", () => {
-    // Mainline has real region tables (ruRegions1953 14, ddRegions1953 6, ukRegionDemographics 12)
-    // but engine retains 3 opaque per country until W39. This is documented in categories.ts
-    // and world.ts seedDemographics fallback. Test that opaque fallback produces uniform valid demographics.
+  it("UK/RU/DD have real Layer1-derived demographics for 1953 (W39)", () => {
+    // W39 ships UK 12, RU 14, DD 6 Layer1-derived demographics via derive.ts from census + positions
     const world = createWorld({ seed: "s", playerName: "P", countryId: "UK", era: "1953" });
     const ukRegions = Object.values(world.regions).filter((r) => r.countryId === "UK");
-    expect(ukRegions).toHaveLength(3);
+    expect(ukRegions).toHaveLength(12);
     for (const r of ukRegions) {
       const demo = world.stateDemographics[r.id];
       expect(demo, `missing demo for ${r.id}`).toBeDefined();
@@ -131,7 +129,7 @@ describe("laborForce goldens (src/lib/metricEngine/potentialGrowth.ts)", () => {
   it("createWorld seeds laborForces and integrates via macroCountryTurn", () => {
     const world = createWorld({ seed: "lab", playerName: "P", countryId: "US", era: "1953" });
     // laborForces seeded for each region (double-round: round(pop*0.58) then round(*0.625))
-    expect(Object.keys(world.laborForces).length).toBe(57);
+    expect(Object.keys(world.laborForces).length).toBe(80);
     for (const [rid, lf] of Object.entries(world.laborForces)) {
       const region = world.regions[rid]!;
       const workingAge = Math.round((region.population ?? 0) * 0.58);
@@ -222,11 +220,11 @@ describe("demographicEffects determinism (src/lib/demographicEffects.ts)", () =>
 describe("migration v14", () => {
   it("new worlds are schema 14 and carry demographics", () => {
     const world = createWorld({ seed: "m", playerName: "P", countryId: "US", era: "1953" });
-    expect(world.meta.schemaVersion).toBe(17);
-    expect(Object.keys(world.stateDemographics)).toHaveLength(57);
-    expect(Object.keys(world.baselineDemographics)).toHaveLength(57);
+    expect(world.meta.schemaVersion).toBe(18);
+    expect(Object.keys(world.stateDemographics)).toHaveLength(80);
+    expect(Object.keys(world.baselineDemographics)).toHaveLength(80);
     expect(Object.keys(world.demographicCategories).length).toBeGreaterThan(0);
-    expect(Object.keys(world.laborForces)).toHaveLength(57);
+    expect(Object.keys(world.laborForces)).toHaveLength(80);
     expect(world.census).toBeDefined();
   });
 
@@ -248,7 +246,7 @@ describe("migration v14", () => {
     const raw = JSON.stringify(fakeV13);
     const a = deserializeSave(raw);
     const b = deserializeSave(raw);
-    expect(a.meta.schemaVersion).toBe(17);
+    expect(a.meta.schemaVersion).toBe(18);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(Object.keys(a.stateDemographics).length).toBeGreaterThan(0);
   });

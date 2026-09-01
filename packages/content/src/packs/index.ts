@@ -2,7 +2,13 @@ import type { SeedPack } from "../types.js";
 import { pack1953 } from "./1953.js";
 import { pack1960 } from "./1960.js";
 export { US_STATE_DEMOGRAPHICS_1953 } from "./usStateDemographics1953.js";
+export { UK_DEMOGRAPHICS_1953 } from "./ukDemographics1953.js";
+export { RU_DEMOGRAPHICS_1953 } from "./ruDemographics1953.js";
+export { DD_DEMOGRAPHICS_1953 } from "./ddDemographics1953.js";
 export type { StateDemographicsSeed } from "./usStateDemographics1953.js";
+export { ukRegions1953 } from "./ukRegions1953.js";
+export { ruRegions1953 } from "./ruRegions1953.js";
+export { ddRegions1953 } from "./ddRegions1953.js";
 
 export { pack1953 } from "./1953.js";
 export { pack1960 } from "./1960.js";

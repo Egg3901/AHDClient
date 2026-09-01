@@ -160,8 +160,12 @@ describe("validatePack", () => {
     }
   });
 
-  it("1953 pack has 48 US states, AK/HI absent, DC absent", () => {
-    expect(pack1953.states!.length).toBe(48);
+  it("1953 pack has 80 states (48 US +12 UK +14 RU +6 DD), AK/HI absent", () => {
+    expect(pack1953.states!.length).toBe(80);
+    expect(pack1953.states!.filter((s) => s.countryId === "US").length).toBe(48);
+    expect(pack1953.states!.filter((s) => s.countryId === "UK").length).toBe(12);
+    expect(pack1953.states!.filter((s) => s.countryId === "RU").length).toBe(14);
+    expect(pack1953.states!.filter((s) => s.countryId === "DD").length).toBe(6);
     const ids = new Set(pack1953.states!.map((s) => s.id));
     expect(ids.has("AK")).toBe(false);
     expect(ids.has("HI")).toBe(false);
@@ -169,8 +173,10 @@ describe("validatePack", () => {
     expect(ids.has("CA")).toBe(true);
     expect(ids.has("NY")).toBe(true);
     expect(ids.has("TX")).toBe(true);
-    // all 48 contiguous
-    expect(ids.size).toBe(48);
+    expect(ids.has("LON")).toBe(true);
+    expect(ids.has("CEN")).toBe(true);
+    expect(ids.has("BEO")).toBe(true);
+    expect(ids.size).toBe(80);
   });
 
   it("1953 US states houseSeats sum to 435 (83rd Congress apportionment)", () => {
@@ -179,9 +185,14 @@ describe("validatePack", () => {
   });
 
   it("1953 US states population sums plausible vs mainline total (149,895,183 from 1950 Census)", () => {
-    const total = pack1953.states!.reduce((a, s) => a + s.population, 0);
-    expect(total).toBe(149_895_183);
-    // Allow small drift if future pack tweaks gdp but population must remain exact 1950 Census sum
+    const totalUS = pack1953.states!.filter((s) => s.countryId === "US").reduce((a, s) => a + s.population, 0);
+    expect(totalUS).toBe(149_895_183);
+    const totalUK = pack1953.states!.filter((s) => s.countryId === "UK").reduce((a, s) => a + s.population, 0);
+    expect(totalUK).toBe(52600000);
+    const totalRU = pack1953.states!.filter((s) => s.countryId === "RU").reduce((a, s) => a + s.population, 0);
+    expect(totalRU).toBe(148500000);
+    const totalDD = pack1953.states!.filter((s) => s.countryId === "DD").reduce((a, s) => a + s.population, 0);
+    expect(totalDD).toBe(18400000);
   });
 
   it("1953 US states have senateClasses I/II/III and gdp/region Registration modeled", () => {
@@ -206,8 +217,8 @@ describe("validatePack", () => {
     expect(stateSenate.seats).toBe(1972);
     expect(stateSenate.composition.vacancies).toBe(1972);
     expect(Object.keys(stateSenate.composition.seatsByParty).length).toBe(0);
-    // Sum of per-state senateSeats for 1953 (48 states) is 1925
-    const sum = pack1953.states!.reduce((a, s) => a + s.senateSeats, 0);
+    // Sum of per-state senateSeats for 1953 US 48 states is 1925
+    const sum = pack1953.states!.filter((s) => s.countryId === "US").reduce((a, s) => a + s.senateSeats, 0);
     expect(sum).toBe(1925);
   });
 
@@ -218,5 +229,32 @@ describe("validatePack", () => {
     const bad2: SeedPack = structuredClone(pack1953) as SeedPack;
     bad2.states![0]!.houseSeats += 1;
     expect(() => validatePack(bad2)).toThrow(/houseSeats sum/i);
+  });
+
+  it("W39: UK 12, RU 14, DD 6 houseSeats sum to mainline totals (625, 526, 500) and gdp/population plausible", () => {
+    const ukSum = pack1953.states!.filter((s) => s.countryId === "UK").reduce((a, s) => a + s.houseSeats, 0);
+    expect(ukSum).toBe(625);
+    const ruSum = pack1953.states!.filter((s) => s.countryId === "RU").reduce((a, s) => a + s.houseSeats, 0);
+    expect(ruSum).toBe(526);
+    const ddSum = pack1953.states!.filter((s) => s.countryId === "DD").reduce((a, s) => a + s.houseSeats, 0);
+    expect(ddSum).toBe(500);
+    // gdp positive and region field present for all W39 subdivisions
+    for (const st of pack1953.states!.filter((s) => ["UK", "RU", "DD"].includes(s.countryId))) {
+      expect(st.gdp).toBeGreaterThan(0);
+      expect(st.region).not.toBe("");
+    }
+  });
+
+  it("W39: UK/RU/DD registration anchors reflect mainline polling/org tables (no invented numbers)", () => {
+    // UK NIR SF 30, CON 63; SCO SNP 0 but present; RU CEN CPSU 98; DD BEO SED 66
+    const nir = pack1953.states!.find((s) => s.id === "NIR")!;
+    expect(nir.registration.parties.find((p) => p.abbr === "SF")!.reg).toBe(30);
+    expect(nir.registration.parties.find((p) => p.abbr === "CON")!.reg).toBe(63);
+    const sco = pack1953.states!.find((s) => s.id === "SCO")!;
+    expect(sco.registration.parties.find((p) => p.abbr === "SNP")!.reg).toBe(0);
+    const cen = pack1953.states!.find((s) => s.id === "CEN")!;
+    expect(cen.registration.parties.find((p) => p.abbr === "CPSU")!.reg).toBe(98);
+    const beo = pack1953.states!.find((s) => s.id === "BEO")!;
+    expect(beo.registration.parties.find((p) => p.abbr === "SED")!.reg).toBe(66);
   });
 });

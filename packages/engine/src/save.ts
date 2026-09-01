@@ -711,5 +711,183 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 17;
   }
+  // v17 -> v18: W39 UK/RU/DD subdivisions — replace opaque UK-R1..R3, RU-R1..R3, DD-R1..R3 with real tables.
+  // Pre-allocated v18 for this wave; parallel waves hold 16 and 17. Note for merge resolver: renumber to next free if collision.
+  // Bridge decision: same deterministic averaged-split approach as W38's US bridge (docs/support/W19_BRIDGE.md): pooled org/reg totals across 3 opaque regions are averaged and assigned uniformly to new subdivisions. Sorted tables ensure determinism. UK 12 regions (1951 Census, 625 commons), RU 14 (1939/1950 Census, 526 Union seats), DD 6 Laender (18.4M, 500 Volkskammer). Demographics for new regions are seeded as uniform stubs here; new worlds use Layer1-derived tables via seedDemographics.
+  if (save.schemaVersion < 18) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const regions = w["regions"] as Record<string, Record<string, unknown>> | undefined;
+    const partyRegions = w["partyRegions"] as Record<string, Record<string, unknown>> | undefined;
+    const electoratePools = w["electoratePools"] as Record<string, Record<string, unknown>> | undefined;
+    const regionTurnouts = w["regionTurnouts"] as Record<string, Record<string, unknown>> | undefined;
+    const partyPressures = w["partyPressures"] as Record<string, Record<string, unknown>> | undefined;
+    const parties = w["parties"] as Record<string, Record<string, unknown>> | undefined;
+    const stateDemographics = w["stateDemographics"] as Record<string, unknown> | undefined;
+    const baselineDemographics = w["baselineDemographics"] as Record<string, unknown> | undefined;
+    const laborForces = w["laborForces"] as Record<string, unknown> | undefined;
+    const demographicCategories = w["demographicCategories"] as Record<string, unknown> | undefined;
+
+    // Inline real region metadata for migration (sorted for determinism). Sources: ukRegions1953.ts, ruRegions1953.ts, ddRegions1953.ts
+    const UK_REGIONS_1953: Array<{ id: string; name: string; population: number; houseSeats: number; senateSeats: number; senateClasses: [1 | 2 | 3, 1 | 2 | 3]; region: string; gdp: number }> = [
+      { id: "EAE", name: "East of England", population: 3700000, houseSeats: 47, senateSeats: 39, senateClasses: [1, 2], region: "East of England", gdp: 1300 },
+      { id: "EMI", name: "East Midlands", population: 3200000, houseSeats: 37, senateSeats: 39, senateClasses: [1, 2], region: "East Midlands", gdp: 1100 },
+      { id: "LON", name: "London", population: 8200000, houseSeats: 91, senateSeats: 32, senateClasses: [1, 2], region: "London", gdp: 3800 },
+      { id: "NEE", name: "North East England", population: 3100000, houseSeats: 27, senateSeats: 17, senateClasses: [1, 2], region: "North East", gdp: 1000 },
+      { id: "NIR", name: "Northern Ireland", population: 1400000, houseSeats: 12, senateSeats: 90, senateClasses: [1, 2], region: "Northern Ireland", gdp: 370 },
+      { id: "NWE", name: "North West England", population: 6500000, houseSeats: 75, senateSeats: 27, senateClasses: [1, 2], region: "North West", gdp: 2400 },
+      { id: "SCO", name: "Scotland", population: 5100000, houseSeats: 71, senateSeats: 129, senateClasses: [1, 2], region: "Scotland", gdp: 1500 },
+      { id: "SEE", name: "South East England", population: 6100000, houseSeats: 81, senateSeats: 67, senateClasses: [1, 2], region: "South East", gdp: 2800 },
+      { id: "SWE", name: "South West England", population: 3400000, houseSeats: 43, senateSeats: 39, senateClasses: [1, 2], region: "South West", gdp: 1200 },
+      { id: "WAL", name: "Wales", population: 2600000, houseSeats: 36, senateSeats: 60, senateClasses: [1, 2], region: "Wales", gdp: 630 },
+      { id: "WMI", name: "West Midlands", population: 4700000, houseSeats: 53, senateSeats: 18, senateClasses: [1, 2], region: "West Midlands", gdp: 1900 },
+      { id: "YHU", name: "Yorkshire & the Humber", population: 4600000, houseSeats: 52, senateSeats: 21, senateClasses: [1, 2], region: "Yorkshire", gdp: 1800 },
+    ];
+    const RU_REGIONS_1953: Array<{ id: string; name: string; population: number; houseSeats: number; senateSeats: number; senateClasses: [1 | 2 | 3, 1 | 2 | 3]; region: string; gdp: number }> = [
+      { id: "CAS", name: "Central Asia", population: 14000000, houseSeats: 50, senateSeats: 500, senateClasses: [1, 2], region: "Central Asia", gdp: 58333 },
+      { id: "CBE", name: "Central Black Earth", population: 8500000, houseSeats: 30, senateSeats: 164, senateClasses: [1, 2], region: "Russia", gdp: 37500 },
+      { id: "CEN", name: "Central Russia", population: 22500000, houseSeats: 80, senateSeats: 575, senateClasses: [1, 2], region: "Russia", gdp: 179167 },
+      { id: "ESB", name: "East Siberia", population: 6000000, houseSeats: 21, senateSeats: 164, senateClasses: [1, 2], region: "Russia", gdp: 45833 },
+      { id: "FEA", name: "Russian Far East", population: 5200000, houseSeats: 18, senateSeats: 143, senateClasses: [1, 2], region: "Russia", gdp: 41667 },
+      { id: "KAZ", name: "Kazakhstan", population: 8500000, houseSeats: 30, senateSeats: 510, senateClasses: [1, 2], region: "Kazakhstan", gdp: 45833 },
+      { id: "MOL", name: "Moldova", population: 2500000, houseSeats: 9, senateSeats: 350, senateClasses: [1, 2], region: "Moldova", gdp: 12500 },
+      { id: "NCA", name: "North Caucasus", population: 13000000, houseSeats: 46, senateSeats: 307, senateClasses: [1, 2], region: "Russia", gdp: 66667 },
+      { id: "NOR", name: "European North", population: 4800000, houseSeats: 17, senateSeats: 123, senateClasses: [1, 2], region: "Russia", gdp: 33333 },
+      { id: "NWR", name: "Northwest Russia", population: 10500000, houseSeats: 37, senateSeats: 266, senateClasses: [1, 2], region: "Russia", gdp: 91667 },
+      { id: "TRA", name: "Transcaucasia", population: 11000000, houseSeats: 39, senateSeats: 440, senateClasses: [1, 2], region: "Caucasus", gdp: 58333 },
+      { id: "URA", name: "Urals", population: 15500000, houseSeats: 55, senateSeats: 389, senateClasses: [1, 2], region: "Russia", gdp: 158333 },
+      { id: "VOL", name: "Volga", population: 17000000, houseSeats: 60, senateSeats: 410, senateClasses: [1, 2], region: "Russia", gdp: 116667 },
+      { id: "WSB", name: "West Siberia", population: 9500000, houseSeats: 34, senateSeats: 246, senateClasses: [1, 2], region: "Russia", gdp: 83333 },
+    ];
+    const DD_REGIONS_1953: Array<{ id: string; name: string; population: number; houseSeats: number; senateSeats: number; senateClasses: [1 | 2 | 3, 1 | 2 | 3]; region: string; gdp: number }> = [
+      { id: "BB", name: "Brandenburg", population: 2620000, houseSeats: 71, senateSeats: 11, senateClasses: [1, 2], region: "North", gdp: 5600 },
+      { id: "BEO", name: "Berlin (Ost)", population: 1190000, houseSeats: 32, senateSeats: 5, senateClasses: [1, 2], region: "Berlin", gdp: 5200 },
+      { id: "MV", name: "Mecklenburg-Vorpommern", population: 2120000, houseSeats: 58, senateSeats: 9, senateClasses: [1, 2], region: "North", gdp: 3900 },
+      { id: "SN", name: "Sachsen", population: 5560000, houseSeats: 151, senateSeats: 24, senateClasses: [1, 2], region: "South", gdp: 13900 },
+      { id: "ST", name: "Sachsen-Anhalt", population: 4120000, houseSeats: 112, senateSeats: 18, senateClasses: [1, 2], region: "North", gdp: 9900 },
+      { id: "TH", name: "Thüringen", population: 2790000, houseSeats: 76, senateSeats: 13, senateClasses: [1, 2], region: "South", gdp: 5500 },
+    ];
+
+    function migrateCountry(countryId: string, opaqueIds: string[], realRegions: typeof UK_REGIONS_1953) {
+      if (!regions || !partyRegions || !electoratePools || !regionTurnouts || !partyPressures) return;
+      const hasOpaque = opaqueIds.some((id) => id in regions);
+      if (!hasOpaque) return;
+      const countryPartyIds = parties ? Object.keys(parties).filter((pid) => (parties[pid] as Record<string, unknown>)["countryId"] === countryId) : [];
+      const avgOrgByParty = new Map<string, number>();
+      const avgRegByParty = new Map<string, number>();
+      for (const pid of countryPartyIds) {
+        let sumOrg = 0, sumReg = 0, count = 0;
+        for (const rid of opaqueIds) {
+          const key = `${rid}:${pid}`;
+          const pr = partyRegions[key] as Record<string, unknown> | undefined;
+          if (pr && typeof pr["organization"] === "number" && typeof pr["registration"] === "number") {
+            sumOrg += pr["organization"] as number;
+            sumReg += pr["registration"] as number;
+            count++;
+          }
+        }
+        avgOrgByParty.set(pid, count ? Math.round(sumOrg / count) : 0);
+        avgRegByParty.set(pid, count ? Math.round(sumReg / count) : 0);
+      }
+      let sumInd = 0, sumUnreg = 0, countPools = 0;
+      for (const rid of opaqueIds) {
+        const pool = electoratePools[rid] as Record<string, unknown> | undefined;
+        if (pool && typeof pool["independent"] === "number" && typeof pool["unregistered"] === "number") {
+          sumInd += pool["independent"] as number;
+          sumUnreg += pool["unregistered"] as number;
+          countPools++;
+        }
+      }
+      const avgInd = countPools ? Math.round(sumInd / countPools) : (countryId === "UK" ? 8 : countryId === "RU" ? 3 : 5);
+      const avgUnreg = countPools ? Math.round(sumUnreg / countPools) : (countryId === "UK" ? 8 : countryId === "RU" ? 2 : 3);
+      let turnoutMods: Record<string, Record<string, number>> | null = null;
+      for (const rid of opaqueIds) {
+        const rt = regionTurnouts[rid] as Record<string, unknown> | undefined;
+        if (rt && typeof rt["modifiers"] === "object" && rt["modifiers"] !== null) {
+          turnoutMods = rt["modifiers"] as Record<string, Record<string, number>>;
+          break;
+        }
+      }
+      if (!turnoutMods) {
+        const groups: string[] = countryId === "UK" ? ["urban_progressives", "rural_traditionalists", "suburban_centrists"] : countryId === "RU" ? ["workers", "urban_progressives"] : ["workers", "bloc_centrists"];
+        const mods: Record<string, number> = {};
+        for (const g of groups) mods[g] = 0;
+        turnoutMods = { voterGroups: mods } as unknown as Record<string, Record<string, number>>;
+      }
+      for (const rid of opaqueIds) {
+        delete regions[rid];
+        delete electoratePools[rid];
+        delete regionTurnouts[rid];
+      }
+      for (const key of Object.keys(partyRegions)) {
+        if (opaqueIds.some((rid) => key.startsWith(`${rid}:`))) delete partyRegions[key];
+      }
+      for (const key of Object.keys(partyPressures)) {
+        if (opaqueIds.some((rid) => key.endsWith(`:${rid}`))) delete partyPressures[key];
+      }
+      for (const st of realRegions) {
+        const rid = st.id;
+        regions[rid] = { id: rid, countryId, name: st.name, population: st.population, houseSeats: st.houseSeats, senateSeats: st.senateSeats, senateClasses: st.senateClasses, censusRegion: st.region, gdp: st.gdp };
+        electoratePools[rid] = { regionId: rid, countryId, independent: avgInd, unregistered: avgUnreg };
+        regionTurnouts[rid] = { regionId: rid, countryId, modifiers: JSON.parse(JSON.stringify(turnoutMods)), lastDecayAppliedTurn: 0 };
+        for (const pid of countryPartyIds) {
+          const org = avgOrgByParty.get(pid) ?? 0;
+          const reg = avgRegByParty.get(pid) ?? 0;
+          const key = `${rid}:${pid}`;
+          partyRegions[key] = { regionId: rid, partyId: pid, countryId, organization: org, registration: reg };
+          const pkey = `${pid}:${rid}`;
+          partyPressures[pkey] = { partyId: pid, regionId: rid, countryId, value: 0 };
+        }
+      }
+      if (parties) {
+        for (const p of Object.values(parties)) {
+          const pr = (p as Record<string, unknown>)["priorityRegion"] as Record<string, unknown> | undefined;
+          if (pr && Array.isArray(pr["regionIds"])) {
+            const ids = pr["regionIds"] as string[];
+            const filtered = ids.filter((id) => !opaqueIds.includes(id));
+            if (filtered.length !== ids.length) pr["regionIds"] = filtered;
+          }
+        }
+      }
+      // Seed demographics stubs for new regions if missing (so tally has input; real tables used for new worlds via seedDemographics)
+      if (stateDemographics && baselineDemographics && laborForces && demographicCategories) {
+        for (const st of realRegions) {
+          const rid = st.id;
+          if (typeof stateDemographics[rid] === "undefined") {
+            const catList = (demographicCategories as Record<string, unknown>)[countryId] as Array<{ _id: string; defaultWeight: number; groups: Array<{ id: string; defaultEconomicLean: number; defaultSocialLean: number; defaultTurnout?: number }> }> | undefined;
+            const catsFor = Array.isArray(catList) ? catList : [];
+            const groups: Record<string, { population: number; economicLean: number; socialLean: number; turnout: number }> = {};
+            for (const cat of catsFor) {
+              const share = 100 / cat.groups.length;
+              for (const g of cat.groups) groups[g.id] = { population: Math.round(share*100)/100, economicLean: g.defaultEconomicLean, socialLean: g.defaultSocialLean, turnout: g.defaultTurnout ?? 50 };
+            }
+            const total = Object.values(groups).reduce((s,v)=>s+v.population,0);
+            const diff = Math.round((100-total)*100)/100;
+            if (Math.abs(diff)>0.001) {
+              const first = Object.keys(groups)[0];
+              if (first) groups[first]!.population = Math.round((groups[first]!.population+diff)*100)/100;
+            }
+            const weights: Record<string, number> = {};
+            for (const c of catsFor) weights[c._id]=c.defaultWeight;
+            const nowIso = (w["meta"] as Record<string, unknown>)?.["date"] as string ?? "1953-01-06T00:00:00.000Z";
+            const demo = { _id: rid, countryId, categoryWeights: weights, groups, lastUpdated: nowIso };
+            stateDemographics[rid] = demo;
+            baselineDemographics[rid] = JSON.parse(JSON.stringify(demo));
+            const pop = st.population;
+            const workingAge = Math.round(pop*0.58);
+            laborForces[rid] = Math.round(workingAge*0.625);
+            (regions[rid] as Record<string, unknown>)["workingAgePopulation"] = workingAge;
+            (regions[rid] as Record<string, unknown>)["votingEligiblePopulation"] = Math.round(pop*0.70);
+            (regions[rid] as Record<string, unknown>)["militaryServicePopulation"] = 0;
+          }
+        }
+      }
+    }
+
+    migrateCountry("UK", ["UK-R1", "UK-R2", "UK-R3"], UK_REGIONS_1953);
+    migrateCountry("RU", ["RU-R1", "RU-R2", "RU-R3"], RU_REGIONS_1953);
+    migrateCountry("DD", ["DD-R1", "DD-R2", "DD-R3"], DD_REGIONS_1953);
+
+    save.world.meta.schemaVersion = 18;
+  }
   return save.world;
 }
