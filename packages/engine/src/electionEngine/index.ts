@@ -13,4 +13,6 @@ export * from "./candidateEnrichment.js";
 export * from "./fundsByParty.js";
 export * from "./economicReferendum.js";
 export type * from "./types.js";
+export * from "./tally/index.js";
+export * as tally from "./tally/index.js";
 export * as resolution from "./resolution/index.js";
