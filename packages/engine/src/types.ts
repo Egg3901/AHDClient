@@ -23,6 +23,10 @@ export interface WorldState {
   legislatures: Record<string, Legislature>;
   /** Politicians holding legislature seats. Populated at world creation. */
   politicians: Politician[];
+  /** Party charters (charter lifecycle). Ports src/lib/db/types/partyCharter.ts. */
+  charters: PartyCharter[];
+  /** Caucuses (faction sub-groups). Ports src/lib/db/types/caucus.ts. */
+  caucuses: Caucus[];
 }
 
 export interface Politician {
@@ -36,6 +40,18 @@ export interface Politician {
   chamberKey: string;
   ideology: PoliticianIdeology;
   age: number;
+  /**
+   * Accumulated party influence (per-politician).
+   * Ports Character.partyInfluence (src/lib/turn/partyInfluenceTurn.ts).
+   * Seeded 0; updated by partyInfluenceTurn each turn.
+   */
+  partyInfluence: number;
+  /**
+   * Per-turn bonus actions granted by influence share.
+   * Ports the bonus-actions side effect of partyInfluenceTurn.
+   * PORT-STUB: Solo has no action economy yet; stored as a counter.
+   */
+  bonusActions: number;
 }
 
 export interface PoliticianIdeology {
@@ -99,6 +115,10 @@ export interface NewsItem {
  * economicPosition and socialPosition on -5..+5 (left/libertarian negative,
  * right/authoritarian positive) as authored in src/lib/seeds/*Parties.ts and
  * src/lib/seeds/reference/politicalParties.ts. No new axis invented.
+ *
+ * Organization, tier, treasury, and member-count fields port
+ * src/lib/turn/partyOrg, src/lib/parties/partyTier, and
+ * src/lib/politicalStrength/strengthConstants. See per-field citations.
  */
 export interface Party {
   /** Party id — the abbreviation uppercased (e.g. "DEM", "LAB", "CPSU", "SED"). */
@@ -111,6 +131,94 @@ export interface Party {
   economicPosition: number;
   /** Social libertarian (-5) to authoritarian (+5). */
   socialPosition: number;
+  /**
+   * Treasury in local currency units. Seeded from
+   * src/lib/seeds/reference/politicalParties.ts and per-country
+   * *Parties.ts (e.g. 1_000_000 for US/UK majors, 2_000_000 for RU CPSU,
+   * 220k-1_000_000 for DD bloc). Neutral default 1_000_000 where seed not
+   * in content pack (pack carries no treasury; world.ts seeds from a
+   * looked-up table).
+   */
+  treasury: number;
+  /**
+   * Political Strength reserve (renamed from actionPool).
+   * Seeded 0 per all PartySeed definitions
+   * (src/lib/seeds/reference/politicalParties.ts). Gains via
+   * partyActionGeneration passive + treasury-driven investment (see
+   * src/lib/politicalStrength/strengthConstants.ts).
+   */
+  politicalStrength: number;
+  /**
+   * Single national organization level 0-100.
+   * PORT-STUB: mainline stores per-state `StatePartyOrg.organization`
+   * per state (src/lib/turn/partyOrg/turnProcessing.ts). Solo collapses
+   * to one national value; decay semantics mirror mainline
+   * ORG_DECAY_RATE / MIN_PRESENCE_ORG.
+   */
+  organization: number;
+  /**
+   * Major/Minor tier driving PS cap.
+   * Seeded via MAJOR_DEFAULT_PARTIES logic (src/lib/seeds/defaultPartyTiers.ts):
+   * e.g. 1953 majors US DEM/REP, UK LAB/CON, RU CPSU, DD SED.
+   */
+  tier: "major" | "minor";
+  /** Regions earned for Minor cap hysteresis (Tiers 20%/10%). PORT-STUB empty until regional org lands. */
+  psCapEarnedRegions: string[];
+  /** Active Major→Minor demotion warning countdown. */
+  majorDemotionWarning?: { startedTurn: number };
+  /**
+   * Denormalized member count — politicians + (future) NPP population.
+   * PORT-STUB: mainline counts characters + active NPPs
+   * (src/lib/turn/partyOrg/reconcileMemberCounts.ts); Solo counts
+   * politicians (seat-holders) until NPP population exists.
+   */
+  memberCount: number;
+  /** True for seeded default parties; custom parties are non-default. */
+  isDefault: boolean;
+}
+
+/**
+ * Minimal party charter for the charter lifecycle.
+ * Ports src/lib/db/types/partyCharter.ts PartyCharterStatus + expiry
+ * fields needed by expireCharters (src/lib/turn/charters/expireCharters.ts).
+ */
+export type CharterStatus =
+  | "draft"
+  | "pending-signatures"
+  | "ratified"
+  | "founder-replacement"
+  | "rejected"
+  | "expired"
+  | "migrated"
+  | "migrated-incomplete";
+
+export interface PartyCharter {
+  id: string;
+  countryId: string;
+  partyId: string | null;
+  status: CharterStatus;
+  /** Turn-based expiry for draft/pending. Null for ratified/migrated. */
+  expiresOnTurn: number | null;
+  /** Legacy date mirror. Null for ratified/migrated. */
+  expiresAt: string | null;
+  founderReplacementDeadlineTurn: number | null;
+  founderReplacementDeadline: string | null;
+}
+
+/**
+ * Minimal caucus for the tax pass.
+ * Ports src/lib/db/types/caucus.ts Caucus fields read by
+ * src/lib/turn/caucusTax.ts (taxRate, treasury, disbandedAt).
+ */
+export interface Caucus {
+  id: string;
+  countryId: string;
+  partyId: string;
+  name: string;
+  treasury: number;
+  taxRate: number;
+  disbandedAt: string | null;
+  memberIds: string[];
 }
 
 /**

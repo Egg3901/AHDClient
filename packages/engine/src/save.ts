@@ -80,5 +80,31 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 5;
   }
+  // v5 -> v6: party organization cluster (treasury, PS, org, tier, memberCount, charters, caucuses, politician influence)
+  if (save.schemaVersion < 6) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (!Array.isArray(w["charters"])) w["charters"] = [];
+    if (!Array.isArray(w["caucuses"])) w["caucuses"] = [];
+    const parties = w["parties"] as Record<string, Record<string, unknown>> | undefined;
+    if (parties && typeof parties === "object") {
+      for (const p of Object.values(parties)) {
+        if (typeof p["treasury"] !== "number") p["treasury"] = 1_000_000;
+        if (typeof p["politicalStrength"] !== "number") p["politicalStrength"] = 0;
+        if (typeof p["organization"] !== "number") p["organization"] = 0;
+        if (p["tier"] !== "major" && p["tier"] !== "minor") p["tier"] = "minor";
+        if (!Array.isArray(p["psCapEarnedRegions"])) p["psCapEarnedRegions"] = [];
+        if (typeof p["memberCount"] !== "number") p["memberCount"] = 0;
+        if (typeof p["isDefault"] !== "boolean") p["isDefault"] = true;
+      }
+    }
+    const politicians = w["politicians"] as Array<Record<string, unknown>> | undefined;
+    if (Array.isArray(politicians)) {
+      for (const pol of politicians) {
+        if (typeof pol["partyInfluence"] !== "number") pol["partyInfluence"] = 0;
+        if (typeof pol["bonusActions"] !== "number") pol["bonusActions"] = 0;
+      }
+    }
+    save.world.meta.schemaVersion = 6;
+  }
   return save.world;
 }

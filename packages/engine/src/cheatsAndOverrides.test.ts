@@ -228,7 +228,7 @@ describe("save migration v4 -> v5", () => {
     const rawWithout = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 4, savedAt: "2026-01-01T00:00:00Z", world: parsed.world });
     const migrated = deserializeSave(rawWithout);
     expect(migrated.meta.cheatsUsed).toBe(false);
-    expect(migrated.meta.schemaVersion).toBe(5);
+    expect(migrated.meta.schemaVersion).toBe(SCHEMA_VERSION);
   });
 
   it("preserves cheatsUsed true on round-trip", () => {
@@ -238,7 +238,7 @@ describe("save migration v4 -> v5", () => {
     const raw = serializeSave(world, "2026-01-01T00:00:00Z");
     const restored = deserializeSave(raw);
     expect(restored.meta.cheatsUsed).toBe(true);
-    expect(restored.meta.schemaVersion).toBe(5);
+    expect(restored.meta.schemaVersion).toBe(SCHEMA_VERSION);
   });
 
   it("v1 save migrates through v2,v3,v4,v5", () => {
@@ -265,7 +265,6 @@ describe("save migration v4 -> v5", () => {
     delete (parsed.world["meta"] as Record<string, unknown>)["cheatsUsed"];
     const migrated = deserializeSave(JSON.stringify({ format: "ahdsolo-save", schemaVersion: 1, savedAt: "2026-01-01T00:00:00Z", world: parsed.world }));
     expect(migrated.meta.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(migrated.meta.schemaVersion).toBe(5);
     expect(migrated.meta.cheatsUsed).toBe(false);
     expect(Array.isArray((migrated as unknown as { politicians: unknown[] }).politicians)).toBe(true);
     for (const c of Object.values(migrated.countries)) {
@@ -276,6 +275,6 @@ describe("save migration v4 -> v5", () => {
   it("fresh world has cheatsUsed false and schema 5", () => {
     const world = createWorld(OPTS);
     expect(world.meta.cheatsUsed).toBe(false);
-    expect(world.meta.schemaVersion).toBe(5);
+    expect(world.meta.schemaVersion).toBe(SCHEMA_VERSION);
   });
 });

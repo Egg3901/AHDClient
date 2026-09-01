@@ -104,6 +104,8 @@ export function generatePolitician(
     chamberKey: opts.chamberKey,
     ideology,
     age,
+    partyInfluence: 0,
+    bonusActions: 0,
   };
 }
 

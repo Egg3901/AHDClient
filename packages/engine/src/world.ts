@@ -3,7 +3,34 @@ import type { WorldState } from "./types.js";
 import { getPackByEra, PACKS_BY_DATE } from "@rotunda/content";
 import { createPoliticiansForWorld } from "./politician.js";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
+
+/** Treasury overrides per party id where mainline diverges from the 1M default. */
+const TREASURY_BY_PARTY: Record<string, number> = {
+  // Source: src/lib/seeds/ru/ruParties.ts
+  RU_CPSU: 2_000_000,
+  // Source: src/lib/seeds/dd/ddParties.ts
+  DD_SED: 1_000_000,
+  DD_CDU: 300_000,
+  DD_LDPD: 250_000,
+  DD_NDPD: 220_000,
+  DD_DBD: 250_000,
+};
+
+const DEFAULT_TREASURY = 1_000_000; // Source: src/lib/seeds/reference/politicalParties.ts
+
+/** Major defaults for 1953 preset per src/lib/seeds/defaultPartyTiers.ts MAJOR_DEFAULT_PARTIES. */
+function isMajor1953(partyId: string): boolean {
+  // US DEM/REP, UK LAB/CON, RU CPSU, DD SED are majors in 1953-default.
+  return (
+    partyId === "US_DEM" ||
+    partyId === "US_REP" ||
+    partyId === "UK_LAB" ||
+    partyId === "UK_CON" ||
+    partyId === "RU_CPSU" ||
+    partyId === "DD_SED"
+  );
+}
 
 export interface EraInfo {
   id: string;
@@ -158,7 +185,16 @@ export function createWorld(options: NewWorldOptions): WorldState {
 
   const parties: WorldState["parties"] = {};
   for (const p of pack.parties ?? []) {
-    parties[p.id] = { ...p };
+    parties[p.id] = {
+      ...p,
+      treasury: TREASURY_BY_PARTY[p.id] ?? DEFAULT_TREASURY,
+      politicalStrength: 0,
+      organization: 0,
+      tier: isMajor1953(p.id) ? "major" : "minor",
+      psCapEarnedRegions: [],
+      memberCount: 0,
+      isDefault: true,
+    };
   }
 
   const legislatures: WorldState["legislatures"] = {};
@@ -194,6 +230,12 @@ export function createWorld(options: NewWorldOptions): WorldState {
     era: pack.era.id,
   });
 
+  // Reconcile memberCount from politicians (NPC-only; PORT-STUB mainline also counts NPPs).
+  for (const pol of politicians) {
+    const party = parties[pol.partyId];
+    if (party) party.memberCount++;
+  }
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -208,6 +250,8 @@ export function createWorld(options: NewWorldOptions): WorldState {
     parties,
     legislatures,
     politicians,
+    charters: [],
+    caucuses: [],
     player: {
       name: options.playerName,
       countryId: options.countryId,
