@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { TurnReport, WorldState } from "@rotunda/engine";
 import { listEras, listPlayableCountries } from "@rotunda/engine";
 import { game } from "./game.js";
@@ -9,6 +9,10 @@ import { applyCheat, describeCheat } from "./cheats.js";
 import type { CheatOp } from "./cheats.js";
 import { GovernmentScreen } from "./government/Government.js";
 import "./government/government.css";
+import { EconomyScreen } from "./economy/Economy.js";
+import "./economy/economy.css";
+import { createHistoryMap, pushHistory, pushHistoryWithTurn } from "./economy/history.js";
+import type { HistoryMap } from "./economy/history.js";
 
 const ONLINE_URL = "https://www.ahousedividedgame.com";
 
@@ -514,7 +518,7 @@ function CheatPanel({
   onClose: () => void;
   world: WorldState;
   onWorld: (w: WorldState) => void;
-  onCheatApplied: (entry: string) => void;
+  onCheatApplied: (entry: string, advanceCount?: number) => void;
   log: string[];
 }) {
   const [cashInput, setCashInput] = useState("");
@@ -583,7 +587,10 @@ function CheatPanel({
       const op: CheatOp = { kind: "advanceTurns", count };
       const { elapsedMs } = applyCheat(op);
       if (elapsedMs !== undefined) setLastElapsed(elapsedMs);
-      onCheatApplied(describeCheat(op, elapsedMs !== undefined ? `(${elapsedMs.toFixed(1)}ms)` : undefined));
+      onCheatApplied(
+        describeCheat(op, elapsedMs !== undefined ? `(${elapsedMs.toFixed(1)}ms)` : undefined),
+        count,
+      );
       refreshWorld();
     } catch (e) {
       setCheatError(e instanceof Error ? e.message : String(e));
@@ -714,12 +721,16 @@ function Dashboard({
   onExit,
   onSaved,
   isDirty,
+  history,
+  onRecordHistory,
 }: {
   world: WorldState;
   onWorld: (world: WorldState) => void;
   onExit: () => void;
   onSaved: () => void;
   isDirty: boolean;
+  history: HistoryMap;
+  onRecordHistory: (w: WorldState, count?: number) => void;
 }) {
   const [lastReport, setLastReport] = useState<TurnReport | null>(null);
   const [busy, setBusy] = useState(false);
@@ -728,12 +739,14 @@ function Dashboard({
   const [cheatsUsed, setCheatsUsed] = useState(false);
   const [cheatLog, setCheatLog] = useState<string[]>([]);
   const [govOpen, setGovOpen] = useState(false);
+  const [ecoOpen, setEcoOpen] = useState(false);
 
   const advance = async () => {
     setBusy(true);
     try {
       const { report, world: next } = await game.advanceTurn();
       setLastReport(report);
+      onRecordHistory(next);
       onWorld(next);
     } finally {
       setBusy(false);
@@ -792,6 +805,10 @@ function Dashboard({
     );
   }
 
+  if (ecoOpen) {
+    return <EconomyScreen world={world} history={history} onBack={() => setEcoOpen(false)} />;
+  }
+
   return (
     <div className="dashboard">
       <header className="row spread dashboard-header">
@@ -804,6 +821,9 @@ function Dashboard({
         <div className="row">
           <button className="secondary small-btn" onClick={() => setGovOpen(true)}>
             GOVERNMENT
+          </button>
+          <button className="secondary small-btn" onClick={() => setEcoOpen(true)}>
+            ECONOMY
           </button>
           <button className="secondary small-btn cheat-toggle" onClick={() => setCheatOpen((v) => !v)}>
             CHEATS
@@ -824,8 +844,16 @@ function Dashboard({
         open={cheatOpen}
         onClose={() => setCheatOpen(false)}
         world={world}
-        onWorld={onWorld}
-        onCheatApplied={handleCheatApplied}
+        onWorld={(w) => {
+          onWorld(w);
+        }}
+        onCheatApplied={(entry, count) => {
+          handleCheatApplied(entry);
+          const current = game.getStateSync();
+          if (current) {
+            onRecordHistory(current, count);
+          }
+        }}
         log={cheatLog}
       />
 
@@ -837,32 +865,6 @@ function Dashboard({
           </button>
         </div>
       )}
-
-      <div className="panel">
-        <h2>Economies</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Country</th>
-              <th>GDP ($M)</th>
-              <th>Growth</th>
-              <th>Inflation</th>
-              <th>Unemployment</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.values(world.countries).map((c) => (
-              <tr key={c.id}>
-                <td>{c.name}</td>
-                <td>{Math.round(c.economy.gdp).toLocaleString("en-US")}</td>
-                <td>{formatPct(c.economy.growthRate)}</td>
-                <td>{formatPct(c.economy.inflationRate)}</td>
-                <td>{formatPct(c.economy.unemploymentRate)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
 
       <div className="panel">
         <h2>News</h2>
@@ -894,8 +896,30 @@ export function App() {
   const [world, setWorld] = useState<WorldState | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [launcherError, setLauncherError] = useState<string | null>(null);
+  const historyRef = React.useRef<HistoryMap>(createHistoryMap());
+  const [historyVersion, setHistoryVersion] = useState(0);
+
+  const recordHistory = (w: WorldState, count?: number) => {
+    if (count !== undefined && Number.isFinite(count) && count > 1) {
+      const endTurn = typeof w.meta?.turn === "number" && Number.isFinite(w.meta.turn) ? w.meta.turn : 0;
+      const startTurn = endTurn - count + 1;
+      for (let t = startTurn; t <= endTurn; t++) {
+        pushHistoryWithTurn(historyRef.current, w, t);
+      }
+    } else {
+      pushHistory(historyRef.current, w);
+    }
+    setHistoryVersion((v) => v + 1);
+  };
+
+  const resetHistory = (w: WorldState) => {
+    historyRef.current.clear();
+    pushHistory(historyRef.current, w);
+    setHistoryVersion((v) => v + 1);
+  };
 
   const handleNewWorldCreated = (w: WorldState) => {
+    resetHistory(w);
     setWorld(w);
     setIsDirty(false);
     setScreen("game");
@@ -906,6 +930,7 @@ export function App() {
     try {
       const loaded = await game.load();
       if (!loaded) return;
+      resetHistory(loaded);
       setWorld(loaded);
       setIsDirty(false);
       setScreen("game");
@@ -930,6 +955,8 @@ export function App() {
   };
 
   if (screen === "game" && world) {
+    // historyVersion forces re-render when history mutates; map reference stays stable
+    void historyVersion;
     return (
       <Dashboard
         world={world}
@@ -937,6 +964,8 @@ export function App() {
         onExit={handleExitToLauncher}
         onSaved={handleSaved}
         isDirty={isDirty}
+        history={historyRef.current}
+        onRecordHistory={recordHistory}
       />
     );
   }
