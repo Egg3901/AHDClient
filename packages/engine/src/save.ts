@@ -951,5 +951,39 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 20;
   }
+  // v20 -> v21: W20 intra-party democracy (state/national/committee elections + coalitions).
+  // Pre-allocated v21: mainline is v18; parallel waves hold v19 and v20. This migration jumps
+  // from latest known (v18) to v21. Merge resolver note: if v19/v20 land before this, split this
+  // block into chained v18->v19 (their wave) ->v19->v20 (their wave) ->v20->v21 (this block renumbered)
+  // and adjust SCHEMA_VERSION sequencing accordingly. Splitting is mechanical: rename the version guard
+  // below and preserve ordering.
+  // Seeds empty coalition array and empty intra-party election arrays; backfills Party leadership fields
+  // (chairId/viceChairId/treasurerId/committeeIds) and PartyRegion chair fields so older saves load.
+  if (save.schemaVersion < 21) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (!Array.isArray(w["statePartyElections"])) w["statePartyElections"] = [];
+    if (!Array.isArray(w["nationalPartyElections"])) w["nationalPartyElections"] = [];
+    if (!Array.isArray(w["nationalCommitteeElections"])) w["nationalCommitteeElections"] = [];
+    if (!Array.isArray(w["coalitions"])) w["coalitions"] = [];
+    const parties = w["parties"] as Record<string, Record<string, unknown>> | undefined;
+    if (parties) {
+      for (const p of Object.values(parties)) {
+        if (!("chairId" in p) || p["chairId"] === undefined) p["chairId"] = null;
+        if (!("viceChairId" in p) || p["viceChairId"] === undefined) p["viceChairId"] = null;
+        if (!("treasurerId" in p) || p["treasurerId"] === undefined) p["treasurerId"] = null;
+        if (!Array.isArray(p["committeeIds"])) p["committeeIds"] = [];
+      }
+    }
+    const partyRegions = w["partyRegions"] as Record<string, Record<string, unknown>> | undefined;
+    if (partyRegions) {
+      for (const pr of Object.values(partyRegions)) {
+        if (!("chairId" in pr) || pr["chairId"] === undefined) pr["chairId"] = null;
+        if (!("viceChairId" in pr) || pr["viceChairId"] === undefined) pr["viceChairId"] = null;
+        if (!("treasurerId" in pr) || pr["treasurerId"] === undefined) pr["treasurerId"] = null;
+      }
+    }
+    // Ensure v19/v20 gaps are marked as passed through for chained migration tests
+    save.world.meta.schemaVersion = 21;
+  }
   return save.world;
 }

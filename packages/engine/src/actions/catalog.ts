@@ -35,7 +35,15 @@ export type ActionId =
   | "repealLaw"
   | "invokeFilibuster"
   | "declareCandidacy"
-  | "withdrawCandidacy";
+  | "withdrawCandidacy"
+  | "contestPartyLeadership"
+  | "votePartyLeadership"
+  | "contestCommittee"
+  | "voteCommittee"
+  | "createCoalition"
+  | "joinCoalition"
+  | "initiateCoalitionDisband"
+  | "voteCoalitionDisband";
 
 // Costs mirror mainline's dynamic tier functions but collapsed to neutral
 // goldens for solo's simpler state (no per-state GDP tier). Cited.
@@ -341,6 +349,86 @@ export const ACTION_CATALOG: Record<ActionId, ActionCatalogEntry> = {
     cooldown: 0,
     fundCost: 0,
     systems: ["elections"],
+    status: "available",
+  },
+  contestPartyLeadership: {
+    id: "contestPartyLeadership",
+    name: "Contest Party Leadership",
+    description: "Enter a state or national party leadership race (chair/viceChair/treasurer) for your current party. Ports src/lib/statePartyElections.ts and src/lib/nationalPartyElections.ts candidacy entry (24h cooldown and party tenure gates are PORT-STUB with infamy 0). Cost 2 AP. Where mainline gates on human entry, NPCs are auto-entered by phase.",
+    baseCost: 2,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["intraparty/partyElections"],
+    status: "available",
+  },
+  votePartyLeadership: {
+    id: "votePartyLeadership",
+    name: "Vote in Party Leadership Election",
+    description: "Cast ballot in a state or national party leadership election for your party. Single-choice per election. Ports StatePartyVote/NationalPartyVote ballot. NPC votes use NPP ballot logic per src/lib/turn/nppVoteLogic.ts calculateBaseVote (loyalty->abstain, ideology proximity). Cost 1 AP.",
+    baseCost: 1,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["intraparty/partyElections"],
+    status: "available",
+  },
+  contestCommittee: {
+    id: "contestCommittee",
+    name: "Contest Committee Seat",
+    description: "Enter the national committee election for your party (6 seats, up to 6 votes per voter). Ports src/lib/nationalCommitteeElections.ts COMMITTEE_SIZE=6, MAX_VOTES_PER_VOTER=6.",
+    baseCost: 2,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["intraparty/committee"],
+    status: "available",
+  },
+  voteCommittee: {
+    id: "voteCommittee",
+    name: "Vote in Committee Election",
+    description: "Cast ballot for up to 6 candidates in a committee election. Ports NationalCommitteeVote candidateIds tally. NPC votes by ballot.ts pickCommitteeCandidatesForVoter (NPP logic). Cost 1 AP.",
+    baseCost: 1,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["intraparty/committee"],
+    status: "available",
+  },
+  createCoalition: {
+    id: "createCoalition",
+    name: "Create Coalition",
+    description: "Found a coalition with your current party as lead. Ports src/lib/coalitions/types.ts Coalition + creation. Cost 3 AP.",
+    baseCost: 3,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["coalition"],
+    status: "available",
+  },
+  joinCoalition: {
+    id: "joinCoalition",
+    name: "Join Coalition",
+    description: "Join an existing coalition with your current party. Ports CoalitionMember join flow.",
+    baseCost: 2,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["coalition"],
+    status: "available",
+  },
+  initiateCoalitionDisband: {
+    id: "initiateCoalitionDisband",
+    name: "Initiate Coalition Disband Vote",
+    description: "Start a majority disband vote in your coalition. Expires in 168 turns; threshold floor(n/2)+1 per src/lib/turn/coalitionDisbandCheck.ts. Cost 2 AP.",
+    baseCost: 2,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["coalition/disband"],
+    status: "available",
+  },
+  voteCoalitionDisband: {
+    id: "voteCoalitionDisband",
+    name: "Vote on Coalition Disband",
+    description: "Cast yes/no on an active coalition disband vote. One vote per member party, majority wins. Ports coalitionDisbandCheck majority logic.",
+    baseCost: 1,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["coalition/disband"],
     status: "available",
   },
 };

@@ -14,6 +14,7 @@ import * as Membership from "../membership.js";
 import * as Caucus from "../caucus.js";
 import * as Endorsement from "../endorsement.js";
 import * as Candidacy from "../elections/candidacy.js";
+import * as Coalition from "../intraparty/coalitions.js";
 import { getLaw } from "../legislation/catalog.js";
 
 export type ExecuteActionParams = {
@@ -37,6 +38,16 @@ export type ExecuteActionParams = {
   billTitle?: string;
   billCategory?: string;
   originChamber?: string;
+  // Intra-party ballots
+  intrapartyElectionId?: string;
+  candidateId?: string;
+  committeeCandidateIds?: string[];
+  coalitionId?: string;
+  coalitionName?: string;
+  coalitionAbbr?: string;
+  position?: "chair" | "viceChair" | "treasurer";
+  countryId?: string;
+  disbandVote?: "yes" | "no";
 };
 
 export type ExecuteActionResult =
@@ -527,6 +538,197 @@ export function executeAction(
     }
     bill.filibusterInvocations.push({ characterId: "player", characterName: world.player.name, invokedAtTurn: world.meta.turn });
     return { ok: true, message: `Filibuster invoked on ${billId}` };
+  }
+
+  // Intra-party ballot actions (W20, W34 catalog pattern)
+  if (actionId === "contestPartyLeadership") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can contest party leadership" };
+    if (!world.player.partyId) return { ok: false, error: "Must be party member to contest" };
+    const targetId = params.intrapartyElectionId;
+    const position = params.position;
+    // If specific election id given, enter that one; otherwise find first matching voting race for player's party
+    let election: import("../intraparty/types.js").StatePartyElectionRecord | import("../intraparty/types.js").NationalPartyElectionRecord | undefined;
+    if (targetId) {
+      election = (world.statePartyElections as unknown as Array<{ id: string }>).find((e) => e.id === targetId) as unknown as typeof election
+        ?? (world.nationalPartyElections as unknown as Array<{ id: string }>).find((e) => e.id === targetId) as unknown as typeof election;
+    } else if (position) {
+      // Try state first: need regionId; use player's country first region
+      const playerCountry = world.player.countryId;
+      const regionIds = Object.values(world.regions).filter((r) => r.countryId === playerCountry).map((r) => r.id);
+      for (const rid of regionIds) {
+        const cand = world.statePartyElections.find((e) => e.status === "voting" && e.partyId === world.player.partyId && e.regionId === rid && e.position === position);
+        if (cand) { election = cand; break; }
+      }
+      if (!election) {
+        election = world.nationalPartyElections.find((e) => e.status === "voting" && e.partyId === world.player.partyId && e.position === position);
+      }
+    } else {
+      return { ok: false, error: "contestPartyLeadership requires intrapartyElectionId or position" };
+    }
+    if (!election) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "No matching party leadership election found" };
+    }
+    const rec = election as unknown as { candidateIds: string[]; partyId: string };
+    if (rec.candidateIds.includes("player")) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Already a candidate in this election" };
+    }
+    if (rec.partyId !== world.player.partyId) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Election is for a different party" };
+    }
+    rec.candidateIds.push("player");
+    return { ok: true, message: `Entered ${election.id} as candidate` };
+  }
+  if (actionId === "votePartyLeadership") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can vote" };
+    if (!world.player.partyId) return { ok: false, error: "Must be party member to vote" };
+    const electionId = params.intrapartyElectionId;
+    const candidateId = params.candidateId;
+    if (!electionId || !candidateId) return { ok: false, error: "votePartyLeadership requires intrapartyElectionId and candidateId" };
+    const election = (world.statePartyElections.find((e) => e.id === electionId)
+      ?? world.nationalPartyElections.find((e) => e.id === electionId)) as unknown as { votes: Record<string, string>; candidateIds: string[]; partyId: string; status: string } | undefined;
+    if (!election) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `Unknown election ${electionId}` };
+    }
+    if (election.status !== "voting") {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Election not in voting status" };
+    }
+    if (election.partyId !== world.player.partyId) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Election is for a different party" };
+    }
+    if (!election.candidateIds.includes(candidateId)) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `Candidate ${candidateId} not in this election` };
+    }
+    election.votes["player"] = candidateId;
+    return { ok: true, message: `Voted for ${candidateId} in ${electionId}` };
+  }
+  if (actionId === "contestCommittee") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can contest committee" };
+    if (!world.player.partyId) return { ok: false, error: "Must be party member" };
+    const electionId = params.intrapartyElectionId;
+    let election: import("../intraparty/types.js").NationalCommitteeElectionRecord | undefined;
+    if (electionId) election = world.nationalCommitteeElections.find((e) => e.id === electionId);
+    else election = world.nationalCommitteeElections.find((e) => e.status === "voting" && e.partyId === world.player.partyId);
+    if (!election) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "No committee election found for your party" };
+    }
+    if (election.candidateIds.includes("player")) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Already a candidate" };
+    }
+    election.candidateIds.push("player");
+    return { ok: true, message: `Entered committee ${election.id}` };
+  }
+  if (actionId === "voteCommittee") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can vote committee" };
+    const electionId = params.intrapartyElectionId;
+    const picks = params.committeeCandidateIds ?? (params.candidateId ? [params.candidateId] : undefined);
+    if (!electionId || !picks) return { ok: false, error: "voteCommittee requires intrapartyElectionId and committeeCandidateIds" };
+    const election = world.nationalCommitteeElections.find((e) => e.id === electionId);
+    if (!election) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `Unknown committee election ${electionId}` };
+    }
+    if (election.status !== "voting") {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Not in voting" };
+    }
+    if (election.partyId !== world.player.partyId) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Wrong party" };
+    }
+    const maxVotes = 6; // COMMITTEE SIZE
+    if (picks.length > maxVotes) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `Too many picks, max ${maxVotes}` };
+    }
+    for (const cid of picks) {
+      if (!election.candidateIds.includes(cid)) {
+        actor.actions += cost;
+        if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+        return { ok: false, error: `Candidate ${cid} not in race` };
+      }
+    }
+    election.votes["player"] = picks;
+    return { ok: true, message: `Voted committee ${picks.join(",")} in ${electionId}` };
+  }
+  if (actionId === "createCoalition") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can create coalition" };
+    if (!world.player.partyId) return { ok: false, error: "Must be party member" };
+    const name = params.coalitionName ?? `Coalition ${world.coalitions.length + 1}`;
+    const abbr = params.coalitionAbbr ?? `C${world.coalitions.length + 1}`;
+    const countryId = params.countryId ?? world.player.countryId;
+    try {
+      const co = Coalition.createCoalition(world, { countryId, name, abbreviation: abbr, founderPartyId: world.player.partyId });
+      return { ok: true, message: `Created coalition ${co.id}` };
+    } catch (e) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: String(e) };
+    }
+  }
+  if (actionId === "joinCoalition") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can join" };
+    if (!world.player.partyId) return { ok: false, error: "Must be party member" };
+    const coalitionId = params.coalitionId;
+    if (!coalitionId) return { ok: false, error: "joinCoalition requires coalitionId" };
+    try {
+      Coalition.joinCoalition(world, coalitionId, world.player.partyId);
+      return { ok: true, message: `Joined ${coalitionId}` };
+    } catch (e) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: String(e) };
+    }
+  }
+  if (actionId === "initiateCoalitionDisband") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can initiate" };
+    const coalitionId = params.coalitionId;
+    if (!coalitionId) return { ok: false, error: "requires coalitionId" };
+    if (!world.player.partyId) return { ok: false, error: "Must be member" };
+    try {
+      Coalition.initiateDisbandVote(world, coalitionId, world.player.partyId);
+      return { ok: true, message: `Disband vote started for ${coalitionId}` };
+    } catch (e) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: String(e) };
+    }
+  }
+  if (actionId === "voteCoalitionDisband") {
+    if (found.kind !== "player") return { ok: false, error: "Only player can vote" };
+    const coalitionId = params.coalitionId;
+    const vote = params.disbandVote ?? (params.vote as "yes" | "no" | undefined);
+    if (!coalitionId || !vote) return { ok: false, error: "requires coalitionId and disbandVote" };
+    if (!world.player.partyId) return { ok: false, error: "Must be member" };
+    try {
+      Coalition.voteDisband(world, coalitionId, world.player.partyId, vote);
+      return { ok: true, message: `Voted ${vote} on ${coalitionId} disband` };
+    } catch (e) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: String(e) };
+    }
   }
 
   return { ok: false, error: `No effect for ${actionId}` };

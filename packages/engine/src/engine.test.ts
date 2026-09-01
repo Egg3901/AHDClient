@@ -126,6 +126,11 @@ describe("advanceTurn", () => {
       "campaignTurn",
       "campaignPartySubsidy",
       "campaignNpcInvestment",
+      "statePartyElections",
+      "nationalPartyElections",
+      "nationalCommitteeElections",
+      "coalitionDisband",
+      "leadershipElections",
       "newsMaintenance",
     ]);
   });
@@ -508,8 +513,9 @@ describe("W38 US states layer", () => {
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "UK").length).toBe(12);
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "RU").length).toBe(14);
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "DD").length).toBe(6);
-    expect(a.meta.schemaVersion).toBe(20);
-    expect(a.meta.schemaVersion).toBe(20);
+    expect(a.meta.schemaVersion).toBe(21);
+    expect(a.meta.schemaVersion).toBe(21);
+    expect(a.meta.schemaVersion).toBe(21);
     // No opaque US left
     expect(a.regions["US-R1"]).toBeUndefined();
     // Deterministic: partyRegions for US states are uniform averaged (round)

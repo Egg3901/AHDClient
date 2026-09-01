@@ -127,6 +127,12 @@ export interface WorldState {
    * mainline either).
    */
   campaigns: Record<string, Campaign>;
+  /** Intra-party elections (W20). Ports statePartyElections, nationalPartyElections, nationalCommitteeElections. Schema v21. */
+  statePartyElections: import("./intraparty/types.js").StatePartyElectionRecord[];
+  nationalPartyElections: import("./intraparty/types.js").NationalPartyElectionRecord[];
+  nationalCommitteeElections: import("./intraparty/types.js").NationalCommitteeElectionRecord[];
+  /** Coalitions (W20). Ports src/lib/coalitions + src/lib/turn/coalitionDisbandCheck.ts. Schema v21. */
+  coalitions: import("./intraparty/types.js").CoalitionRecord[];
 }
 
 /**
@@ -438,6 +444,19 @@ export interface Party {
    * W38 will migrate to real state ids.
    */
   priorityRegion?: PartyPriorityRegion;
+  /**
+   * Intra-party leadership (W20). Ports PoliticalParty chair/viceChair/treasurer +
+   * committeeIds per src/lib/db/types/party.ts and statePartyOrg national layer.
+   * Custom election duration mirrors customElectionDurationTurns used by
+   * createMissingNational/Committee elections (168-420).
+   */
+  chairId?: string | null;
+  viceChairId?: string | null;
+  treasurerId?: string | null;
+  committeeIds?: string[];
+  customElectionDurationTurns?: number;
+  leadershipElectionMethod?: "party" | "influence" | "committee";
+  coalitionId?: string | null;
 }
 
 /**
@@ -614,6 +633,7 @@ export interface Region {
  * Ports StatePartyOrg organization/registration pair
  * (src/lib/db/types/statePartyOrg.ts, src/lib/turn/partyOrg/regDriftDecay.ts).
  * Solo keys by `${regionId}:${partyId}` in WorldState.partyRegions.
+ * W20 adds per-state leadership chairId/viceChairId/treasurerId per StatePartyOrg.
  */
 export interface PartyRegion {
   regionId: string;
@@ -621,6 +641,10 @@ export interface PartyRegion {
   countryId: string;
   organization: number;
   registration: number;
+  chairId?: string | null;
+  viceChairId?: string | null;
+  treasurerId?: string | null;
+  campaignerId?: string | null;
 }
 
 /**

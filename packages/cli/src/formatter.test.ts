@@ -43,6 +43,10 @@ function makeWorld(): WorldState {
     corporations: {},
     corpRevenueSnapshots: {},
     campaigns: {},
+    statePartyElections: [],
+    nationalPartyElections: [],
+    nationalCommitteeElections: [],
+    coalitions: [],
     news: [],
   };
 }

@@ -74,6 +74,13 @@ import {
   campaignPartySubsidyPhase,
   campaignNpcInvestmentPhase,
 } from "../campaigns/phases.js";
+import {
+  statePartyElectionsPhase,
+  nationalPartyElectionsPhase,
+  nationalCommitteeElectionsPhase,
+  coalitionDisbandPhase,
+  leadershipElectionsPhase,
+} from "../intraparty/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -160,5 +167,17 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   campaignTurnPhase,
   campaignPartySubsidyPhase,
   campaignNpcInvestmentPhase,
+  // W20 intra-party democracy cluster at END before newsMaintenance.
+  // Ordering deviation: mainline runs statePartyElections/nationalPartyElections/
+  // nationalCommitteeElections and coalitionDisbandCheck interleaved with partyOrg
+  // and election timers (see turnPhaseNames.ts). Solo defers this entire block to
+  // the tail before newsMaintenance to avoid shifting shared RNG streams under
+  // existing integration goldens; a dedicated re-golden will restore mainline order.
+  // Relative order inside block mirrors mainline: state -> national -> committee -> coalition -> leadership(Port-Stub).
+  statePartyElectionsPhase,
+  nationalPartyElectionsPhase,
+  nationalCommitteeElectionsPhase,
+  coalitionDisbandPhase,
+  leadershipElectionsPhase,
   newsMaintenancePhase,
 ];
