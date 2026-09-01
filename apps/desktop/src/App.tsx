@@ -24,6 +24,8 @@ import { CharacterPanel } from "./character/CharacterPanel.js";
 import "./character/character.css";
 import { ActionsHub } from "./actions/ActionsHub.js";
 import "./actions/actions.css";
+import { NewsScreen, NewsWidget } from "./news/NewsFeed.js";
+import "./news/news.css";
 
 const ONLINE_URL = "https://www.ahousedividedgame.com";
 
@@ -754,6 +756,7 @@ function Dashboard({
   const [worldOpen, setWorldOpen] = useState(false);
   const [partiesOpen, setPartiesOpen] = useState(false);
   const [characterOpen, setCharacterOpen] = useState(false);
+  const [newsOpen, setNewsOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const advance = async () => {
@@ -845,6 +848,10 @@ function Dashboard({
     return <EconomyScreen world={world} history={history} onBack={() => setEcoOpen(false)} />;
   }
 
+  if (newsOpen) {
+    return <NewsScreen news={world.news} onBack={() => setNewsOpen(false)} worldTurn={world.meta.turn} worldDate={world.meta.date} />;
+  }
+
   return (
     <div className="dashboard">
       <header className="row spread dashboard-header">
@@ -869,6 +876,9 @@ function Dashboard({
           </button>
           <button className="secondary small-btn" onClick={() => setEcoOpen(true)}>
             ECONOMY
+          </button>
+          <button className="secondary small-btn" onClick={() => setNewsOpen(true)}>
+            NEWS
           </button>
           <button className="secondary small-btn cheat-toggle" onClick={() => setCheatOpen((v) => !v)}>
             CHEATS
@@ -919,16 +929,7 @@ function Dashboard({
         </div>
       )}
 
-      <div className="panel">
-        <h2>News</h2>
-        <ul className="news">
-          {world.news.slice(-10).reverse().map((n, i) => (
-            <li key={`${n.turn}-${i}`}>
-              <span className="muted">t{n.turn}</span> {n.headline}
-            </li>
-          ))}
-        </ul>
-      </div>
+      <NewsWidget news={world.news} onOpen={() => setNewsOpen(true)} />
 
       <div className="panel">
         <ActionsHub
