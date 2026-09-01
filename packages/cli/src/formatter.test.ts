@@ -75,6 +75,10 @@ function makeWorld(): WorldState {
     commodityPriceHistory: {},
     economicVitalSigns: null,
     vitalSignsHistory: [],
+    commandEconomy: {},
+    capitalStock: {},
+    capitalGrowth: {},
+    unownedSectors: {},
   };
 }
 

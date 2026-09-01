@@ -104,6 +104,13 @@ import { nationalMetricsPhase } from "../metrics/nationalMetrics.js";
 import { economicModelPhase } from "../metrics/economicModel.js";
 import { inflationRecalcPhase } from "../metrics/inflationRecalc.js";
 import { economicVitalSignsPhase } from "../metrics/economicVitalSigns.js";
+import { tradeGrowthPhase, tradeGrowthMirrorPhase } from "../trade/phases.js";
+import { commandEconomyPhase } from "../commandEconomy/phases.js";
+import {
+  advanceCapitalStockPhase,
+  unownedSectorGrowthPhase,
+  stateOwnershipConcentrationPhase,
+} from "../economy/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -154,6 +161,14 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // regionalBudgetProcessing, both after metricEngine and before final diagnostics.
   // Solo deviation: placed at tail to avoid shifting existing RNG streams; re-golden will restore mainline order.
   // Deferred variants: JP (src/lib/turn/jpRegionalBudget.ts) and DE (src/lib/turn/deRegionalBudget.ts) — those countries not playable.
+  //
+  // W8 tradeGrowthPhase inserted immediately before fiscalBaseGrowthPhase,
+  // mirroring mainline's real ordering (stateEffectsPhase.ts runs
+  // computeNationalMetrics — which recomputes economic.tradeGrowth — before
+  // processFiscalBaseGrowth reads it, per fiscalBaseGrowth.ts's own file-doc
+  // citation of tradeGrowthMirror running AFTER it). RNG-free, so this
+  // insertion does not shift any other phase's rng draws.
+  tradeGrowthPhase,
   fiscalBaseGrowthPhase,
   subsidyBudgetPhase,
   fiscalYearPhase,
@@ -338,6 +353,32 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // rng-free; forexTurn draws deterministic jitter from WorldRng (pegged
   // regimes skip drift, see forex/regime.ts — 1953 managed pegs vs float
   // port faithfully: the Bretton Woods world must NOT float like modern).
+  // W7 command economy + W14 sector cleanup, at END before newsMaintenance —
+  // same rng-stream-stability rule as every other tail cluster above (all
+  // four phases below are RNG-free, but the placement rule is about not
+  // shifting every later phase's rng draws for existing goldens, not about
+  // this cluster's own rng use). Relative order:
+  //   advanceCapitalStock (rolls up world.capitalGrowth for NEXT turn's
+  //     macroCountryTurn gK read — see macroCountryTurn.ts file doc) →
+  //   unownedSectorGrowth (reads this turn's corp.currentGrowthRate, already
+  //     settled by corporationTurnPhase above) →
+  //   commandEconomy (drifts marketizationLevel from this turn's
+  //     world.governments[countryId].governingPartyId, settled by
+  //     governmentFormationPhase above) →
+  //   stateOwnershipConcentration (reads the marketizationLevel
+  //     commandEconomyPhase JUST drifted, not last turn's — must run after it).
+  advanceCapitalStockPhase,
+  unownedSectorGrowthPhase,
+  commandEconomyPhase,
+  stateOwnershipConcentrationPhase,
+  // W8 trade, at END before newsMaintenance — mirrors mainline's real
+  // ordering (stateEffectsPhase.ts: tradeGrowthMirror → inflationRecalc →
+  // commandEconomy → ledgerPreForexSnapshot, all in Group 12 immediately
+  // before forex). tradeGrowthMirrorPhase must run after tradeGrowthPhase
+  // (which ran earlier, in the W2 budget cluster above) settled this turn's
+  // economicFactors.tradeGrowth, and before forexTurnPhase reads
+  // centralBanks.tradeGrowth below.
+  tradeGrowthMirrorPhase,
   ledgerPreForexSnapshotPhase,
   forexTurnPhase,
   // W6 metric engine cluster at END before newsMaintenance — ordering deviation:

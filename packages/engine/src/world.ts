@@ -19,13 +19,17 @@ import { seedCorporations } from "./corporation/founding.js";
 import { seedNpcBanks } from "./banking/npcBanks.js";
 import { seedUnions } from "./unions/founding.js";
 import { seedExchangeRates } from "./forex/founding.js";
+import { MARKETIZATION_SCHEDULE, scheduledMarketizationLevel, NPP_DEFAULT_BUDGET_SOFTNESS, NPP_DEFAULT_INTERNAL_REPRESSION, NPP_DEFAULT_REFORMISM } from "./commandEconomy/constants.js";
+import type { CommandEconomyState } from "./commandEconomy/types.js";
+import { seedCapitalStock } from "./economy/capitalStock.js";
+import type { UnownedSectorState } from "./economy/types.js";
 
 // Pre-allocated v33 for W6 metrics. Main is v32 as of this wave's branch point;
 // parallel wave holds v29 which will insert earlier in the chain (between v28
 // and v30). See save.ts v32->v33 migration for resolver note on merge-order
 // splitting (latest ->33 chain preserves both waves; no renumbering needed for
 // v30->v31->v32->v33 beyond verifying ascending order).
-export const SCHEMA_VERSION = 33;
+export const SCHEMA_VERSION = 34;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -368,6 +372,59 @@ export function createWorld(options: NewWorldOptions): WorldState {
     pack.era.id,
   );
 
+  // ── Command economy (W7) ────────────────────────────────────────
+  // One entry per country carrying a MARKETIZATION_SCHEDULE (RU/DD in the
+  // 1953 pack). Seeded at the era-schedule level for the world's start year;
+  // commandEconomyPhase drifts it every turn.
+  const startYear = Number(pack.era.startDate.slice(0, 4));
+  const commandEconomy: WorldState["commandEconomy"] = {};
+  for (const countryId of Object.keys(MARKETIZATION_SCHEDULE)) {
+    if (!countries[countryId]?.playable) continue;
+    const state: CommandEconomyState = {
+      countryId,
+      marketizationLevel: scheduledMarketizationLevel(countryId, startYear),
+      monetaryOverhang: 0,
+      shortageIndex: 0,
+      blackMarketPremium: 0,
+      secondEconomyShare: 0,
+      blackMarketPressureBase: 0,
+      blackMarketPressureEffective: 0,
+      governmentReformism: NPP_DEFAULT_REFORMISM,
+      internalRepression: NPP_DEFAULT_INTERNAL_REPRESSION,
+      budgetSoftness: NPP_DEFAULT_BUDGET_SOFTNESS,
+    };
+    commandEconomy[countryId] = state;
+  }
+
+  // ── Capital stock (W14) ─────────────────────────────────────────
+  // Seed every region's Solow capital stock at CAPITAL_OUTPUT_RATIO_TARGET ×
+  // its GDP (capitalStock.ts seedCapitalStock — same steady-state seed
+  // mainline uses). capitalGrowth starts empty: macroCountryTurn.ts's gK read
+  // falls back to 0 until advanceCapitalStockPhase runs at least once (same
+  // cold-start shape as corpRevenueSnapshots).
+  const capitalStock: WorldState["capitalStock"] = {};
+  for (const [regionId, region] of Object.entries(regions)) {
+    capitalStock[regionId] = seedCapitalStock(region.gdp ?? 0);
+  }
+  const capitalGrowth: WorldState["capitalGrowth"] = {};
+
+  // ── Unowned sector pools (W14) ───────────────────────────────────
+  // One pool per founded corp, seeded at parity with the corp's own founding
+  // revenue (PROVISIONAL multiple — flagged for user review, same doctrine as
+  // centralBank/types.ts externalBroadMoney: Rotunda has no per-state
+  // corporate-sector market-size figure to seed the real headroom from, so
+  // the pool starts sized to the corp that already exists in its sector).
+  const unownedSectors: WorldState["unownedSectors"] = {};
+  for (const corp of Object.values(corporations)) {
+    const key = `${corp.countryId}:${corp.sectorType}`;
+    const state: UnownedSectorState = {
+      countryId: corp.countryId,
+      sectorType: corp.sectorType,
+      revenue: corp.foundingRevenue,
+    };
+    unownedSectors[key] = state;
+  }
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -472,6 +529,10 @@ export function createWorld(options: NewWorldOptions): WorldState {
     commodityPriceHistory,
     economicVitalSigns: null,
     vitalSignsHistory: [],
+    commandEconomy,
+    capitalStock,
+    capitalGrowth,
+    unownedSectors,
   };
   assignUsSeatGeography(world);
   // W12: charter the financial-sector NPC corp of every playable country as
@@ -898,6 +959,7 @@ function seedBudgets(
       economicFactors: { ...b.economicFactors },
       baselineSpendingByCategory: { ...b.baselineSpendingByCategory },
       baselineStateGrants: b.baselineStateGrants,
+      stateOwnershipConcentration: 0, // W14: recomputed each turn by economy/phases.ts stateOwnershipConcentrationPhase
     };
   }
 
@@ -958,6 +1020,7 @@ function seedBudgets(
       economicFactors: { gdpGrowth: 2.5, wageGrowth: 3.0, inflationRate: 2.0, tradeGrowth: 3.0 },
       baselineSpendingByCategory: { ...cat },
       baselineStateGrants: Math.round(gdp * 0.05),
+      stateOwnershipConcentration: 0,
     };
   }
 
@@ -1028,6 +1091,7 @@ function seedCentralBanks(countries: WorldState["countries"]): WorldState["centr
       // (~8% of the pool, deposits.ts NPC_DEPOSIT_BASE_SHARE) lands in the
       // same order of magnitude as its own posted capital.
       externalBroadMoney: Math.round(country.economy.gdp * 1_000_000 * EXTERNAL_BROAD_MONEY_GDP_SHARE),
+      tradeGrowth: 0, // W8: mirrored each turn by trade/phases.ts tradeGrowthMirrorPhase
     };
     banks[country.id] = bank;
   }

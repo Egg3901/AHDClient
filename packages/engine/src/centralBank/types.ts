@@ -99,4 +99,13 @@ export interface CentralBank {
    * constant substituting for mainline's FX/history-anchored figures.
    */
   externalBroadMoney: number;
+  /**
+   * W8: mirrored from CountryBudget.economicFactors.tradeGrowth each turn by
+   * trade/phases.ts tradeGrowthMirrorPhase — a verbatim port of
+   * src/lib/turn/tradeGrowthMirror.ts. forexTurnPhase reads this field (not
+   * the budget) so rate computation never crosses collections, exactly as
+   * mainline's own forexTurn.ts reads `bank.tradeGrowth`. Defaults to 0 for
+   * any bank the mirror hasn't reached yet.
+   */
+  tradeGrowth: number;
 }

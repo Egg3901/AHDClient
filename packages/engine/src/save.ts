@@ -7,6 +7,14 @@ import type { WorldState } from "./types.js";
 import type { CorporationType, ShareholderEntry } from "./corporation/types.js";
 import { CEO_INITIAL_SHARES, NPC_FOUNDER_SHARE_FRACTION, DEFAULT_SHARE_PRICE } from "./market/constants.js";
 import { seedUnions } from "./unions/founding.js";
+import {
+  MARKETIZATION_SCHEDULE,
+  scheduledMarketizationLevel,
+  NPP_DEFAULT_BUDGET_SOFTNESS,
+  NPP_DEFAULT_INTERNAL_REPRESSION,
+  NPP_DEFAULT_REFORMISM,
+} from "./commandEconomy/constants.js";
+import { seedCapitalStock } from "./economy/capitalStock.js";
 
 /**
  * Save file = versioned JSON envelope around the full WorldState. Older
@@ -1415,6 +1423,122 @@ export function deserializeSave(raw: string): WorldState {
       }
     }
     save.world.meta.schemaVersion = 33;
+  }
+  // v32 -> v33: pre-allocated for a parallel wave (holds v33) — no fields
+  // added by this batch. This stub preserves chained migration ordering:
+  // latest is 34. RESOLVER NOTE: if the v33 wave lands first with real
+  // fields, its block replaces this stub and the v34 guard below is
+  // renumbered from 34 to 33->34 accordingly; no name collision expected
+  // (this batch — W7/W8/W14 — owns commandEconomy, capitalStock,
+  // capitalGrowth, unownedSectors, budgets[].stateOwnershipConcentration,
+  // centralBanks[].tradeGrowth). Verify ascending schemaVersion order
+  // (v32 -> v33 -> v34) and that v33 does not introduce any of those names.
+  if (save.schemaVersion < 33) {
+    save.world.meta.schemaVersion = 33;
+  }
+  // v33 -> v34: batch W7 command economy + W8 trade + W14 sector cleanup.
+  // Pre-allocated v34 for this batch; main is v32; parallel wave holds v33
+  // (stub above). This is the latest migration, jumping from latest known
+  // (v32, via the v33 stub) to v34.
+  //
+  // Adds:
+  //  - `commandEconomy`: one entry per country carrying a
+  //    MARKETIZATION_SCHEDULE row (RU/DD in the 1953 pack — see
+  //    commandEconomy/constants.ts). Backfilled at the era-schedule level for
+  //    the save's meta.era (defaulting "1953"), same seed world.ts uses for a
+  //    fresh world — a save with neither RU nor DD playable gets an empty map.
+  //  - `capitalStock` (per region) and `capitalGrowth` (per country, empty —
+  //    the next advanceCapitalStockPhase run populates it): capitalStock is
+  //    backfilled at CAPITAL_OUTPUT_RATIO_TARGET × the region's current gdp
+  //    (economy/capitalStock.ts seedCapitalStock — the same steady-state seed
+  //    a fresh world uses), not turn 0's gdp, so a mid-campaign save doesn't
+  //    understate an economy that has grown since founding.
+  //  - `unownedSectors`: one pool per existing corp, backfilled at parity with
+  //    that corp's CURRENT revenue × GROWTH_RATE_TURNS_PER_YEAR (annualized) —
+  //    the closest analogue available at load time to world.ts's founding-time
+  //    seed (foundingRevenue is not reconstructable for an existing corp).
+  //  - `budgets[countryId].stateOwnershipConcentration`: backfilled 0 (it is
+  //    recomputed fresh next turn by stateOwnershipConcentrationPhase).
+  //  - `centralBanks[countryId].tradeGrowth`: backfilled from the paired
+  //    budget's economicFactors.tradeGrowth (the mirror phase's own logic),
+  //    or 0 when no budget exists.
+  //
+  // No RNG is consumed — every backfill is deterministic given the save's
+  // existing state, so migration must not disturb world.meta.rng.
+  if (save.schemaVersion < 34) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const countries = w["countries"] as Record<string, { id: string; playable: boolean }> | undefined;
+    const regions = w["regions"] as Record<string, { countryId: string; gdp?: number }> | undefined;
+    const budgets = w["budgets"] as Record<string, { economicFactors?: { tradeGrowth?: number }; stateOwnershipConcentration?: number }> | undefined;
+    const centralBanksW = w["centralBanks"] as Record<string, Record<string, unknown>> | undefined;
+    const corporationsW = w["corporations"] as Record<string, { countryId: string; sectorType: string; revenue: number }> | undefined;
+    const meta = w["meta"] as Record<string, unknown> | undefined;
+    const era = typeof meta?.["era"] === "string" ? (meta["era"] as string) : "1953";
+    const currentYear = era === "1953" ? 1953 : era === "1960" ? 1960 : Number(era) || 1953;
+
+    if (typeof w["commandEconomy"] !== "object" || w["commandEconomy"] === null || Array.isArray(w["commandEconomy"])) {
+      const commandEconomy: Record<string, unknown> = {};
+      for (const countryId of Object.keys(MARKETIZATION_SCHEDULE)) {
+        if (!countries?.[countryId]?.playable) continue;
+        commandEconomy[countryId] = {
+          countryId,
+          marketizationLevel: scheduledMarketizationLevel(countryId, currentYear),
+          monetaryOverhang: 0,
+          shortageIndex: 0,
+          blackMarketPremium: 0,
+          secondEconomyShare: 0,
+          blackMarketPressureBase: 0,
+          blackMarketPressureEffective: 0,
+          governmentReformism: NPP_DEFAULT_REFORMISM,
+          internalRepression: NPP_DEFAULT_INTERNAL_REPRESSION,
+          budgetSoftness: NPP_DEFAULT_BUDGET_SOFTNESS,
+        };
+      }
+      w["commandEconomy"] = commandEconomy;
+    }
+
+    if (typeof w["capitalStock"] !== "object" || w["capitalStock"] === null || Array.isArray(w["capitalStock"])) {
+      const capitalStock: Record<string, number> = {};
+      if (regions) {
+        for (const [rid, region] of Object.entries(regions)) {
+          capitalStock[rid] = seedCapitalStock(region.gdp ?? 0);
+        }
+      }
+      w["capitalStock"] = capitalStock;
+    }
+    if (typeof w["capitalGrowth"] !== "object" || w["capitalGrowth"] === null || Array.isArray(w["capitalGrowth"])) {
+      w["capitalGrowth"] = {};
+    }
+
+    if (typeof w["unownedSectors"] !== "object" || w["unownedSectors"] === null || Array.isArray(w["unownedSectors"])) {
+      const unownedSectors: Record<string, unknown> = {};
+      if (corporationsW) {
+        for (const corp of Object.values(corporationsW)) {
+          const key = `${corp.countryId}:${corp.sectorType}`;
+          unownedSectors[key] = {
+            countryId: corp.countryId,
+            sectorType: corp.sectorType,
+            revenue: Math.round((corp.revenue ?? 0) * 48),
+          };
+        }
+      }
+      w["unownedSectors"] = unownedSectors;
+    }
+
+    if (budgets) {
+      for (const budget of Object.values(budgets)) {
+        if (typeof budget.stateOwnershipConcentration !== "number") budget.stateOwnershipConcentration = 0;
+      }
+    }
+    if (centralBanksW) {
+      for (const [countryId, bank] of Object.entries(centralBanksW)) {
+        if (typeof bank["tradeGrowth"] !== "number") {
+          bank["tradeGrowth"] = budgets?.[countryId]?.economicFactors?.tradeGrowth ?? 0;
+        }
+      }
+    }
+
+    save.world.meta.schemaVersion = 34;
   }
   return save.world;
 }

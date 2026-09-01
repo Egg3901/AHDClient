@@ -54,7 +54,10 @@ export function forexTurnPhase(world: WorldState, rng: WorldRng): void {
         primeRate: finiteOr(bank.primeRate, 0),
         inflationRate: finiteOr(country.economy.inflationRate * 100, 0),
         gdpGrowth: finiteOr(country.economy.growthRate * 100, 0),
-        tradeGrowth: 0,
+        // W8: real trade signal, mirrored from budgets.economicFactors.tradeGrowth
+        // by trade/phases.ts tradeGrowthMirrorPhase (registry.ts runs it before
+        // this phase). Was a PORT-STUB flat 0 through W4.
+        tradeGrowth: finiteOr(bank.tradeGrowth, 0),
       };
       const { macroTarget } = computeRateUpdate(currentRate, baseRate, countryId, macro, 0, era, driftMult);
       (ex as ExchangeRate).macroTarget = macroTarget;
@@ -71,7 +74,7 @@ export function forexTurnPhase(world: WorldState, rng: WorldRng): void {
       primeRate: finiteOr(bank.primeRate, 0),
       inflationRate: finiteOr(country.economy.inflationRate * 100, 0),
       gdpGrowth: finiteOr(country.economy.growthRate * 100, 0),
-      tradeGrowth: 0,
+      tradeGrowth: finiteOr(bank.tradeGrowth, 0), // W8: see hard-peg branch above
     };
     // Deterministic noise in [-RATE_NOISE_MAX, +RATE_NOISE_MAX] via WorldRng
     const unit = rng.next() * 2 - 1; // rng.next() in [0,1)

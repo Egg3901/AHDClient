@@ -198,6 +198,6 @@ describe("migration v32->v33", () => {
     expect(migrated.vitalSignsHistory).toBeDefined();
   });
   it("SCHEMA_VERSION is 33", () => {
-    expect(SCHEMA_VERSION).toBe(33);
+    expect(SCHEMA_VERSION).toBe(34);
   });
 });

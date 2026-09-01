@@ -271,6 +271,34 @@ export interface WorldState {
   economicVitalSigns: import("./metrics/economicVitalSigns.js").EconomicVitalSigns | null;
   /** Vital signs rolling history (last 48 turns' narrow projection). Schema v33. */
   vitalSignsHistory: import("./metrics/economicVitalSigns.js").VitalSignsHistoryRow[];
+  /**
+   * Command-economy per-country macro state (W7), one entry per planned
+   * economy — RU and DD in 1953 (MARKETIZATION_SCHEDULE). Ports the
+   * marketizationLevel/monetaryOverhang/shortageIndex/blackMarketPremium/
+   * secondEconomyShare cluster of FederalBudget.economicFactors. Ships ON
+   * (no commandEconomyEnabled flag — see commandEconomy/constants.ts file
+   * doc). Schema v34.
+   */
+  commandEconomy: Record<string, import("./commandEconomy/types.js").CommandEconomyState>;
+  /**
+   * Per-region Solow capital stock K, millions (same unit as Region.gdp).
+   * Ports src/lib/metricEngine/capitalStock.ts. Key regionId. Schema v34.
+   */
+  capitalStock: Record<string, number>;
+  /**
+   * Per-country aggregate annualized ΔK/K, one turn lagged — the gK input
+   * macroCountryTurn.ts's potential-growth term reads (previously a
+   * PORT-STUB flat 0). Maintained by economy/phases.ts advanceCapitalStockPhase.
+   * Schema v34.
+   */
+  capitalGrowth: Record<string, number>;
+  /**
+   * Unowned-sector revenue pools, one per (playable country, founded-corp
+   * sector) pair. Key `${countryId}:${sectorType}`. Ports the pre-plants
+   * branch of src/lib/turn/unownedSectorGrowth.ts — see
+   * economy/unownedSectorGrowth.ts file doc. Schema v34.
+   */
+  unownedSectors: Record<string, import("./economy/types.js").UnownedSectorState>;
 }
 
 /**

@@ -190,8 +190,12 @@ export const macroCountryTurnPhase: TurnPhase = {
       // Source: src/lib/metricEngine/potentialGrowth.ts computeLaborForce +
       // potentialGrowth (Solow LEVEL form). Labor participation is 62.5% default;
       // workingAge and militaryService come from demographics flows (per-region).
-      // Capital stock growth and TFP basket remain PORT-STUB (0 / TFP_BASELINE)
-      // until those systems land — stub comment names what remains.
+      // W14: capital stock growth (gK) is now real too — see below. What
+      // remains PORT-STUB is only the TFP basket (tfpBasket() in
+      // potentialGrowth.ts needs rdIntensity/workforceSkill/transportEfficiency/
+      // broadbandAccess/powerGridReliability/urbanizationRate inputs Rotunda
+      // has no education/infrastructure/urbanization metrics for yet); `tfp`
+      // stays flat at TFP_BASELINE until that basket lands.
       const regionIds = Object.values(world.regions)
         .filter((r) => r.countryId === id)
         .map((r) => r.id);
@@ -219,7 +223,12 @@ export const macroCountryTurnPhase: TurnPhase = {
       const gL = hasLabor && prevTotalLaborForce > 0
         ? annualizedGrowthRate(totalLaborForce, prevTotalLaborForce, TURNS_PER_YEAR)
         : 0;
-      const gK = 0; // PORT-STUB: capital stock growth (needs advanceCapitalStock per region)
+      // W14: real capital-stock growth, one turn lagged — advanceCapitalStockPhase
+      // runs in the tail (after this phase, see registry.ts) and writes
+      // world.capitalGrowth for THIS turn, which this read only sees NEXT
+      // turn. Same lag shape as the corpRevenueSnapshot sectorSignal above.
+      // Falls back to 0 for the first turn or two before the phase has run.
+      const gK = world.capitalGrowth?.[id] ?? 0;
       const tfp = TFP_BASELINE; // PORT-STUB: TFP basket (needs rdIntensity/skill/infra/urbanization)
       const potential = hasLabor ? potentialGrowth(gL, gK, tfp) : NEUTRAL_GDP_GROWTH;
       const step = advanceOutputGap(prevGap, sectorSignal, potential, TURNS_PER_YEAR);

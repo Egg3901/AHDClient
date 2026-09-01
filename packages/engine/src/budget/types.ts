@@ -92,6 +92,15 @@ export interface CountryBudget {
   investorConfidenceUpdatedAtTurn?: number;
   /** W6: debtToGdpRatio mirror for governance.debtToGdp (optional, not computed until fiscal wave) */
   debtToGdpRatio?: number;
+  /**
+   * W14: State Ownership Concentration Index, 0..100. Ports
+   * src/lib/nationalization/concentration.ts's stored
+   * FederalBudget.stateOwnershipConcentration field. See
+   * economy/stateOwnershipConcentration.ts file doc for the plannedShare
+   * substitution (Rotunda has no per-corp nationalization flag). 0 for every
+   * market country; only RU/DD carry a live value.
+   */
+  stateOwnershipConcentration: number;
 }
 
 /**
