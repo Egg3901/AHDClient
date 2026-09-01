@@ -11,6 +11,8 @@ import { GovernmentScreen } from "./government/Government.js";
 import "./government/government.css";
 import { EconomyScreen } from "./economy/Economy.js";
 import "./economy/economy.css";
+import { MarketsScreen } from "./markets/Markets.js";
+import "./markets/markets.css";
 import { WorldMapScreen } from "./worldMap/WorldMap.js";
 import "./worldMap/worldMap.css";
 import { PartiesScreen } from "./parties/Parties.js";
@@ -1027,6 +1029,7 @@ function Dashboard({
   const [cheatLog, setCheatLog] = useState<string[]>([]);
   const [govOpen, setGovOpen] = useState(false);
   const [ecoOpen, setEcoOpen] = useState(false);
+  const [marketsOpen, setMarketsOpen] = useState(false);
   const [worldOpen, setWorldOpen] = useState(false);
   const [partiesOpen, setPartiesOpen] = useState(false);
   const [characterOpen, setCharacterOpen] = useState(false);
@@ -1124,6 +1127,10 @@ function Dashboard({
     return <EconomyScreen world={world} history={history} onBack={() => setEcoOpen(false)} />;
   }
 
+  if (marketsOpen) {
+    return <MarketsScreen world={world} onWorld={(w) => onWorld(w)} onBack={() => setMarketsOpen(false)} />;
+  }
+
   if (newsOpen) {
     return <NewsScreen news={world.news} onBack={() => setNewsOpen(false)} worldTurn={world.meta.turn} worldDate={world.meta.date} />;
   }
@@ -1178,6 +1185,9 @@ function Dashboard({
           </button>
           <button className="secondary small-btn" onClick={() => setEcoOpen(true)}>
             ECONOMY
+          </button>
+          <button className="secondary small-btn" onClick={() => setMarketsOpen(true)}>
+            MARKETS
           </button>
           <button className="secondary small-btn" onClick={() => setCongressOpen(true)}>
             CONGRESS
