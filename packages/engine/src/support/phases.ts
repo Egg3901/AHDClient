@@ -11,7 +11,8 @@ import type { TurnPhase } from "../phases/types.js";
 import type { WorldState } from "../types.js";
 import { DEFAULT_CANDIDATE_SUPPORT, SUPPORT_DECAY_PER_TURN } from "./constants.js";
 import { decaySupport, tickSupportAccrual } from "./support.js";
-import { applyTurnoutDecay, applyBoost, calculateAlignmentMultiplier, getVoterGroups, DEFAULT_GOTV_CATEGORY, DOLLARS_PER_TURNOUT_POINT_DEFAULT, calculateGOTVSpend, calculateNationalGOTVBoost, stubRevenueFromOrgPs } from "./turnout.js";
+import { applyTurnoutDecay, applyBoost, calculateAlignmentMultiplier, getVoterGroups, DEFAULT_GOTV_CATEGORY, DOLLARS_PER_TURNOUT_POINT_DEFAULT, calculateGOTVSpend, calculateNationalGOTVBoost } from "./turnout.js";
+import { computePartyRevenue } from "../actions/fundGenerationPhase.js";
 import { computeDriftDeltas, computeDecayDeltas } from "./regDrift.js";
 import { decayPressure } from "./pressure.js";
 import { filterEligiblePriorityRegions } from "./priorityRegion.js";
@@ -80,12 +81,13 @@ export const turnoutDecayPhase: TurnPhase = {
 // ---------------------------------------------------------------------------
 // partyGOTV
 // Source: src/lib/turn/demographicTurnoutTurn.ts processPartyGOTV
-// PORT-STUB: mainline computes revenue from fundGeneration (donorBase etc).
-// Solo derives revenue from party organization + politicalStrength (schema v6 fields)
-// via stubRevenueFromOrgPs at neutral scale; GOTV percent is 10% (midpoint of
-// mainline 0-25% slider). Boost distributed via national per-region division
-// (totalSpend / numRegions) * alignment, then applyBoost with diminishing returns.
-// Uses party org/PS as inputs per brief.
+// W34: now uses real revenue via computePartyRevenue (derived from fundGeneration
+// per-member generation * tax). Replaces the W19 stubRevenueFromOrgPs PORT-STUB.
+// GOTV percent is 10% (midpoint of mainline 0-25% slider). Boost distributed via
+// national per-region division (totalSpend / numRegions) * alignment, then
+// applyBoost with diminishing returns.
+// Cited: src/lib/turn/demographicTurnoutTurn.ts calculatePartyRevenueFromContext
+// and src/lib/utils/fundGeneration.ts projectCharacterGeneration.
 // ---------------------------------------------------------------------------
 export const partyGOTVPhase: TurnPhase = {
   name: "partyGOTV",
@@ -95,11 +97,9 @@ export const partyGOTVPhase: TurnPhase = {
     for (const r of regions) regionCountByCountry.set(r.countryId, (regionCountByCountry.get(r.countryId) ?? 0) + 1);
 
     for (const party of Object.values(world.parties)) {
-      const org = party.organization ?? 0;
-      const ps = party.politicalStrength ?? 0;
-      if (org <= 0 && ps <= 0) continue;
-      const revenue = stubRevenueFromOrgPs(org, ps);
-      const spend = calculateGOTVSpend(revenue, 10, 0); // PORT-STUB 10% GOTV allocation
+      const revenue = computePartyRevenue(world, party.id);
+      if (revenue <= 0) continue;
+      const spend = calculateGOTVSpend(revenue, 10, 0); // 10% GOTV allocation
       if (spend <= 0) continue;
       const numRegions = regionCountByCountry.get(party.countryId) ?? 0;
       if (numRegions === 0) continue;

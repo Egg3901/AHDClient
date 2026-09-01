@@ -106,6 +106,13 @@ export function generatePolitician(
     age,
     partyInfluence: 0,
     bonusActions: 0,
+    actions: 25,
+    funds: 0,
+    donorBaseLevel: 0,
+    politicalInfluence: 0,
+    favorability: 50,
+    infamy: 0,
+    actionCooldowns: {},
   };
 }
 

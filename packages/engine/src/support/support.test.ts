@@ -3,7 +3,7 @@ import { createWorld } from "../world.js";
 import { advanceTurn } from "../engine.js";
 import { deserializeSave, serializeSave } from "../save.js";
 import { regressToward, decaySupport, tickSupportAccrual, buildRallyAccrualEntry } from "./support.js";
-import { applyTurnoutDecay, applyDiminishingReturns, calculateGOTVSpend, calculateNationalGOTVBoost, calculateStateGOTVBoost, isWithinTwoPoints, calculateAlignmentMultiplier, stubRevenueFromOrgPs } from "./turnout.js";
+import { applyTurnoutDecay, applyDiminishingReturns, calculateGOTVSpend, calculateNationalGOTVBoost, calculateStateGOTVBoost, isWithinTwoPoints, calculateAlignmentMultiplier } from "./turnout.js";
 import { computeDriftDeltas, computeDecayDeltas } from "./regDrift.js";
 import { decayPressure } from "./pressure.js";
 import { filterEligiblePriorityRegions } from "./priorityRegion.js";
@@ -182,10 +182,6 @@ describe("GOTV golden values", () => {
     expect(applyDiminishingReturns(20, 1.0)).toBeCloseTo(0);
     expect(applyDiminishingReturns(-10, -1.0)).toBeCloseTo(-0.5);
   });
-  it("stubRevenueFromOrgPs neutral at 0", () => {
-    expect(stubRevenueFromOrgPs(0, 0)).toBe(0);
-    expect(stubRevenueFromOrgPs(50, 20)).toBeGreaterThan(0);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -326,7 +322,7 @@ describe("schema bump and migration", () => {
     expect(Object.keys(world.regionTurnouts)).toHaveLength(12);
     // partyRegions: 12 regions * parties per country
     expect(Object.keys(world.partyRegions).length).toBeGreaterThan(0);
-    expect(world.meta.schemaVersion).toBe(8);
+    expect(world.meta.schemaVersion).toBe(9);
   });
   it("chained migration v7->v8 seeds W19 maps from old save", () => {
     const oldWorld = {
@@ -352,12 +348,12 @@ describe("schema bump and migration", () => {
     };
     const raw = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 7, savedAt: "2026-01-01", world: oldWorld });
     const migrated = deserializeSave(raw);
-    expect(migrated.meta.schemaVersion).toBe(8);
+    expect(migrated.meta.schemaVersion).toBe(9);
     expect(Object.keys((migrated as unknown as { regions: Record<string, unknown> }).regions).length).toBeGreaterThan(0);
     expect(Object.keys((migrated as unknown as { candidateSupports: Record<string, unknown> }).candidateSupports).length).toBe(1);
     // round-trip preserves
     const re = deserializeSave(serializeSave(migrated, "2026-01-02"));
-    expect(re.meta.schemaVersion).toBe(8);
+    expect(re.meta.schemaVersion).toBe(9);
   });
   it("US seed registration reflects 1953 southern strong-D lane (PORT-STUB but historically biased)", () => {
     const world = createWorld(OPTS);

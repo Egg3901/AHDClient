@@ -130,18 +130,3 @@ export function getVoterGroups(countryId: string): VoterGroupLean[] {
 
 export const DEFAULT_GOTV_CATEGORY = "voterGroups";
 export const DOLLARS_PER_TURNOUT_POINT_DEFAULT = DOLLARS_PER_TURNOUT_POINT;
-
-/**
- * PORT-STUB revenue for GOTV spend calculation.
- * Mainline: revenue = sum of tax income from fundGeneration per member (src/lib/turn/demographicTurnoutTurn.ts).
- * Solo: no fundGeneration; derive revenue from party-org fields per brief:
- *   revenue = organization (0-100) * 500 + politicalStrength (0-280) * 100
- * This keeps the door open to spend via organization and PS without a treasury
- * simulation. GOTV percent is applied on top via calculateGOTVSpend.
- * Cited as PORT-STUB at mainline-neutral scale (org 0 -> revenue 0, org 50 + PS 20 -> ~27k).
- */
-export function stubRevenueFromOrgPs(organization: number, politicalStrength: number): number {
-  const org = Math.max(0, Math.min(100, organization));
-  const ps = Math.max(0, politicalStrength);
-  return Math.floor(org * 500 + ps * 100);
-}

@@ -458,6 +458,13 @@ describe("emptyPartyCleanup phase", () => {
       age: 40,
       partyInfluence: 0,
       bonusActions: 0,
+      actions: 25,
+      funds: 0,
+      donorBaseLevel: 0,
+      politicalInfluence: 0,
+      favorability: 50,
+      infamy: 0,
+      actionCooldowns: {},
     });
     advanceTurn(world);
     // reconcile will fix memberCount first, then cleanup should not delete
@@ -527,7 +534,7 @@ describe("save migration v5 -> v6", () => {
     delete parsed.world["charters"];
     delete parsed.world["caucuses"];
     const migrated = deserializeSave(JSON.stringify({ format: "ahdsolo-save", schemaVersion: 5, savedAt: "2026-01-01T00:00:00Z", world: parsed.world }));
-    expect(migrated.meta.schemaVersion).toBe(8);
+    expect(migrated.meta.schemaVersion).toBe(9);
     expect(Array.isArray(migrated.charters)).toBe(true);
     expect(Array.isArray(migrated.caucuses)).toBe(true);
     for (const party of Object.values(migrated.parties)) {

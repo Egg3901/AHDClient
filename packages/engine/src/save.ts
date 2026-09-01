@@ -239,5 +239,32 @@ export function deserializeSave(raw: string): WorldState {
     w["candidateSupports"] = candidateSupports;
     save.world.meta.schemaVersion = 8;
   }
+  // v8 -> v9: W34 action economy (actions, funds, donorBase, influence, favorability, infamy, cooldowns)
+  if (save.schemaVersion < 9) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const politicians = w["politicians"] as Array<Record<string, unknown>> | undefined;
+    if (Array.isArray(politicians)) {
+      for (const pol of politicians) {
+        if (typeof pol["actions"] !== "number") pol["actions"] = 25;
+        if (typeof pol["funds"] !== "number") pol["funds"] = 0;
+        if (typeof pol["donorBaseLevel"] !== "number") pol["donorBaseLevel"] = 0;
+        if (typeof pol["politicalInfluence"] !== "number") pol["politicalInfluence"] = 0;
+        if (typeof pol["favorability"] !== "number") pol["favorability"] = 50;
+        if (typeof pol["infamy"] !== "number") pol["infamy"] = 0;
+        if (typeof pol["actionCooldowns"] !== "object" || pol["actionCooldowns"] === null || Array.isArray(pol["actionCooldowns"])) pol["actionCooldowns"] = {};
+      }
+    }
+    const player = w["player"] as Record<string, unknown> | undefined;
+    if (player && typeof player === "object") {
+      if (typeof player["actions"] !== "number") player["actions"] = 25;
+      if (typeof player["funds"] !== "number") player["funds"] = 0;
+      if (typeof player["donorBaseLevel"] !== "number") player["donorBaseLevel"] = 0;
+      if (typeof player["politicalInfluence"] !== "number") player["politicalInfluence"] = 0;
+      if (typeof player["favorability"] !== "number") player["favorability"] = 50;
+      if (typeof player["infamy"] !== "number") player["infamy"] = 0;
+      if (typeof player["actionCooldowns"] !== "object" || player["actionCooldowns"] === null || Array.isArray(player["actionCooldowns"])) player["actionCooldowns"] = {};
+    }
+    save.world.meta.schemaVersion = 9;
+  }
   return save.world;
 }

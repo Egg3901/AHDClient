@@ -69,9 +69,29 @@ export interface Politician {
   /**
    * Per-turn bonus actions granted by influence share.
    * Ports the bonus-actions side effect of partyInfluenceTurn.
-   * PORT-STUB: Solo has no action economy yet; stored as a counter.
+   * Now consumed by actionRefresh into `actions`.
    */
   bonusActions: number;
+  /**
+   * Action points available this turn.
+   * Ports Character.actions per src/lib/turn/actionRefresh.ts:
+   * base 4 per turn, office bonus, hoard penalty 4 over 100, cap 200.
+   * Cited as mainline-neutral values; energy-scaled caps (200-250, 100-125)
+   * are PORT-STUB at neutral (energy 1) since solo has no stat system.
+   */
+  actions: number;
+  /** Campaign funds (local currency) for this politician. Port of Character.funds/campaign. */
+  funds: number;
+  /** Donor base level 0-75 driving fundGeneration and fundraise yield. */
+  donorBaseLevel: number;
+  /** State political influence 0-100 for fund generation and campaign actions. */
+  politicalInfluence: number;
+  /** Favorability 0-100 (for advertise costs). */
+  favorability: number;
+  /** Infamy 0-100 (for decay during actionRefresh). */
+  infamy: number;
+  /** Action cooldowns: actionId -> turn when next available. */
+  actionCooldowns: Record<string, number>;
 }
 
 export interface PoliticianIdeology {
@@ -122,6 +142,20 @@ export interface PlayerCharacter {
   name: string;
   countryId: string;
   cash: number;
+  /**
+   * Action points mirroring mainline Character.actions refresh cadence.
+   * Cites src/lib/turn/actionRefresh.ts MIN_BASE_ACTIONS_PER_TURN=4,
+   * ACTION_HOARD_PENALTY=4, threshold 100, cap 200 at PORT-STUB neutral.
+   */
+  actions: number;
+  /** Campaign funds (local) for player. */
+  funds: number;
+  donorBaseLevel: number;
+  politicalInfluence: number;
+  favorability: number;
+  infamy: number;
+  /** Action cooldowns: actionId -> turn when next available. */
+  actionCooldowns: Record<string, number>;
 }
 
 export interface NewsItem {

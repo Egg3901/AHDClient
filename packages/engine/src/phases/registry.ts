@@ -1,6 +1,8 @@
 import type { TurnPhase } from "./types.js";
 import { advanceCalendarPhase } from "./advanceCalendar.js";
 import { macroCountryTurnPhase } from "./macroCountryTurn.js";
+import { actionRefreshPhase } from "../actions/actionRefresh.js";
+import { fundGenerationPhase } from "../actions/fundGenerationPhase.js";
 import { commodityPricesPhase } from "../commodity/commodityPrices.js";
 import { contractSettlementPhase } from "../commodity/contractSettlement.js";
 import { newsMaintenancePhase } from "./newsMaintenance.js";
@@ -19,6 +21,10 @@ import {
  * Ordered turn pipeline. Mainline runs ~60 phases (see AHDGame
  * src/simulation/phases/turnPhaseNames.ts); systems port over here one phase
  * at a time, preserving mainline's relative ordering as they land.
+ *
+ * W34 inserts actionRefresh (mainline index 3) and fundGeneration (index 4)
+ * immediately after advanceCalendar, mirroring BASE_TURN_PHASE_NAMES:
+ *   actionRefresh → fundGeneration → partyInfluenceTurn → caucusTax → macroCountryTurn
  *
  * Party cluster order (per mainline BASE_TURN_PHASE_NAMES indices):
  *  partyInfluenceTurn (8) → caucusTax (9) → macroCountryTurn (19) →
@@ -45,6 +51,8 @@ import {
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
+  actionRefreshPhase,
+  fundGenerationPhase,
   partyInfluenceTurnPhase,
   caucusTaxPhase,
   macroCountryTurnPhase,

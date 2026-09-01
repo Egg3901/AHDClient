@@ -81,6 +81,8 @@ describe("advanceTurn", () => {
     expect(world.meta.date).toBe("1953-01-13");
     expect(report.phaseTimings.map((p) => p.name)).toEqual([
       "advanceCalendar",
+      "actionRefresh",
+      "fundGeneration",
       "partyInfluenceTurn",
       "caucusTax",
       "macroCountryTurn",

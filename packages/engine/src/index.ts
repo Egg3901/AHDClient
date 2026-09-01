@@ -13,4 +13,7 @@ export * from "./npp/nameGenerator.js";
 export * from "./npp/nameEra.js";
 export * from "./politician.js";
 export * from "./support/index.js";
+export * from "./actions/catalog.js";
+export * from "./actions/execute.js";
+export * from "./actions/fundGeneration.js";
 export type * from "./types.js";
