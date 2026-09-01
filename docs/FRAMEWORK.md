@@ -37,6 +37,41 @@ function deserializeSave(raw: string): WorldState
 
 Era ids are strings sourced from seed packs, not a hardcoded union. `createWorld` throws on unknown era or non-playable country.
 
+## Engine contract (v2 additions): custom creation and cheats
+
+Singleplayer worlds are the player's property: world creation is granular and an explicit cheat surface exists. Both are engine-validated mutations, never raw UI pokes at state.
+
+```ts
+interface CountryEconomyOverride {
+  gdp?: number
+  growthRate?: number
+  inflationRate?: number
+  unemploymentRate?: number
+}
+interface WorldOverrides {
+  playerCash?: number
+  countries?: Record<string, CountryEconomyOverride>   // uppercase country ids
+}
+// NewWorldOptions gains: overrides?: WorldOverrides
+// createWorld validates overrides (finite numbers, gdp > 0, rates in pack bounds)
+// and throws on unknown country ids.
+
+function listCountries(era: string): {
+  id: string; name: string; playable: boolean; economy: CountryEconomy
+}[]   // full pack roster with default anchors, for the creation editor
+
+type CheatOp =
+  | { kind: "setPlayerCash"; amount: number }
+  | { kind: "setCountryEconomy"; countryId: string;
+      field: "gdp" | "growthRate" | "inflationRate" | "unemploymentRate" | "outputGap";
+      value: number }
+  | { kind: "advanceTurns"; count: number }
+  | { kind: "addNews"; headline: string }
+function applyCheat(world: WorldState, op: CheatOp): void   // validates, throws on bad input
+```
+
+Cheats are singleplayer-only UI; the panel must never render in multiplayer mode. Cheat mutations are ordinary world changes: saves made afterward are ordinary saves. A `meta.cheatsUsed` flag is set by `applyCheat` (schema bump owned by the engine wave that implements it).
+
 ## Security doctrine (binding)
 
 1. **Singleplayer is fully local.** No server process, no listeners, no network requests from SP surfaces. The engine is a library in the app process; turns cost the player's CPU and nothing else.
