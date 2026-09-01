@@ -45,7 +45,11 @@ export type ActionId =
   | "initiateCoalitionDisband"
   | "voteCoalitionDisband"
   | "buyShares"
-  | "sellShares";
+  | "sellShares"
+  | "crisisBailout"
+  | "crisisStimulus"
+  | "crisisRespond"
+  | "crisisMonitor";
 
 // Costs mirror mainline's dynamic tier functions but collapsed to neutral
 // goldens for solo's simpler state (no per-state GDP tier). Cited.
@@ -459,6 +463,55 @@ export const ACTION_CATALOG: Record<ActionId, ActionCatalogEntry> = {
     cooldown: 0,
     fundCost: 0,
     systems: ["market"],
+    status: "available",
+  },
+  // ── W31 crisis action hooks ─────────────────────────────────────
+  // Crisis responses where mainline gives players crisis interaction decision
+  // trees (src/lib/crises/interactionEngine.ts + templates.ts decisionTree).
+  // In solo, each active crisis can be responded to once via a costed action;
+  // the optionActions hook (crisisResponseOptions in events/crisis.ts) runs
+  // the chosen response's effect (shorten duration, treasury cost). These
+  // actions are gated on an active crisis for the player's country — when
+  // none is active they are available but no-op (same as mainline's
+  // interactionEngine autoResolveOnExpiry fallback). Source: src/lib/crises/optionActions.ts
+  crisisBailout: {
+    id: "crisisBailout",
+    name: "Authorize Crisis Bailout",
+    description: "Inject treasury funds to shorten an active banking crisis by 3 turns. Ports crisis.bankingCrisis bailout_yes option (costs 2% GDP). Requires active crisis for player's country; otherwise no-op.",
+    baseCost: 4,
+    cooldown: 1,
+    fundCost: 20000,
+    systems: ["crisis"],
+    status: "available",
+  },
+  crisisStimulus: {
+    id: "crisisStimulus",
+    name: "Pass Crisis Stimulus",
+    description: "Stimulus package to shorten an active recession by 2 turns. Ports crisis.recession stimulus_moderate option (costs 1.5% GDP). Requires active crisis for player's country; otherwise no-op.",
+    baseCost: 4,
+    cooldown: 1,
+    fundCost: 15000,
+    systems: ["crisis"],
+    status: "available",
+  },
+  crisisRespond: {
+    id: "crisisRespond",
+    name: "Coordinate Crisis Response",
+    description: "Generic crisis response: mobilize government to shorten any active crisis by 1 turn. Ports crisis interaction generic fallback (W34 action catalog hook).",
+    baseCost: 3,
+    cooldown: 1,
+    fundCost: 5000,
+    systems: ["crisis"],
+    status: "available",
+  },
+  crisisMonitor: {
+    id: "crisisMonitor",
+    name: "Monitor Crisis",
+    description: "Take no direct action on the active crisis. No cost beyond 1 AP, crisis runs its course. Ports crisis interaction wait/decline option.",
+    baseCost: 1,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["crisis"],
     status: "available",
   },
 };
