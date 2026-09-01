@@ -1,6 +1,8 @@
 import { SCHEMA_VERSION } from "./world.js";
 import { assignUsSeatGeography } from "./elections/seatGeography.js";
 import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/constants.js";
+import { seedCorporations } from "./corporation/founding.js";
+import { rngFromSeed } from "./rng.js";
 import type { WorldState } from "./types.js";
 
 /**
@@ -888,6 +890,49 @@ export function deserializeSave(raw: string): WorldState {
     migrateCountry("DD", ["DD-R1", "DD-R2", "DD-R3"], DD_REGIONS_1953);
 
     save.world.meta.schemaVersion = 18;
+  }
+  // v18 -> v19: W9 corporations. This worktree branched at v17; v18 is another
+  // wave's pre-allocated slot merging in parallel. Written as a direct jump to
+  // the target v19 per the wave brief — the merge resolver may need to split
+  // this into a proper v17->v18 (whatever v18's wave adds) -> v18->v19 (this
+  // block, renumbered) chain depending on merge order.
+  //
+  // Seeds corporations for every playable country with authored 1953 sector
+  // weights, exactly as world.ts createWorld does — but from a migration-only
+  // rng derived from the save's own seed (never the save's live meta.rng
+  // state: that stream must stay untouched so future turns continue exactly
+  // where an in-progress campaign left off). A save loaded mid-campaign gets
+  // corporations "founded" at the save's current turn rather than turn 0 —
+  // there is no way to reconstruct what turn-0 founding would have produced
+  // without replaying the whole campaign, and founding-at-load is the same
+  // shape as a fresh createWorld seed step, just later.
+  if (save.schemaVersion < 19) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (typeof w["corporations"] !== "object" || w["corporations"] === null || Array.isArray(w["corporations"])) {
+      const countries = w["countries"] as Record<string, { id: string; playable: boolean; economy: { gdp: number; growthRate: number } }> | undefined;
+      const turn = typeof (w["meta"] as Record<string, unknown> | undefined)?.["turn"] === "number" ? ((w["meta"] as Record<string, unknown>)["turn"] as number) : 0;
+      const seed = typeof (w["meta"] as Record<string, unknown> | undefined)?.["seed"] === "string" ? ((w["meta"] as Record<string, unknown>)["seed"] as string) : "migration";
+      const migrationRng = rngFromSeed(`${seed}:corp-migration-v19`);
+      const corporations = countries
+        ? seedCorporations(
+            Object.values(countries).map((c) => ({ id: c.id, playable: c.playable, gdp: c.economy.gdp, growthRate: c.economy.growthRate })),
+            migrationRng,
+            turn,
+          )
+        : {};
+      w["corporations"] = corporations;
+      const corpRevenueSnapshots: Record<string, { current: number; previous: number; turn: number }> = {};
+      for (const corp of Object.values(corporations)) {
+        const existing = corpRevenueSnapshots[corp.countryId];
+        const total = (existing?.current ?? 0) + corp.revenue;
+        corpRevenueSnapshots[corp.countryId] = { current: total, previous: total, turn };
+      }
+      w["corpRevenueSnapshots"] = corpRevenueSnapshots;
+    }
+    if (typeof w["corpRevenueSnapshots"] !== "object" || w["corpRevenueSnapshots"] === null || Array.isArray(w["corpRevenueSnapshots"])) {
+      w["corpRevenueSnapshots"] = {};
+    }
+    save.world.meta.schemaVersion = 19;
   }
   return save.world;
 }

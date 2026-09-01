@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { advanceTurn } from "../engine.js";
-import { createWorld } from "../world.js";
+import { createWorld, SCHEMA_VERSION } from "../world.js";
 import { deserializeSave, serializeSave } from "../save.js";
 import { executeAction } from "../actions/execute.js";
 
@@ -97,7 +97,7 @@ describe("election orchestration (W21c)", () => {
       delete p.senateClass;
     }
     const migrated = deserializeSave(JSON.stringify(raw));
-    expect(migrated.meta.schemaVersion).toBe(18);
+    expect(migrated.meta.schemaVersion).toBe(19);
     expect(Array.isArray(migrated.elections)).toBe(true);
     const houseWithState = migrated.politicians.filter((p) => p.chamberKey === "house" && p.electedState);
     expect(houseWithState.length).toBeGreaterThan(400);

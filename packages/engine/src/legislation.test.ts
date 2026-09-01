@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createWorld } from "./world.js";
+import { createWorld, SCHEMA_VERSION } from "./world.js";
 import { advanceTurn } from "./engine.js";
 import { deserializeSave, serializeSave } from "./save.js";
 import { rngFromSeed } from "./rng.js";
@@ -311,10 +311,22 @@ describe("bill lifecycle stage goldens", () => {
       votes,
     });
     world.bills.push(bill);
-    // Advance both worlds identically; only world has the bill
-    advanceTurn(world); advanceTurn(control);
-    expect(world.bills[0]!.status).toBe("enrolled");
-    for (let i = 0; i < 3; i++) { advanceTurn(world); advanceTurn(control); }
+    // Advance both worlds identically (only world has the bill) turn by turn
+    // until the bill signs. Under W9's real corp-driven growth signal,
+    // growthRate is recomputed fresh every turn from corp revenue + output gap
+    // rather than carried forward as accumulated state (see
+    // corporation/corporationTurn.ts file doc) — so the bill's one-time
+    // growthRate bump is only observable in the same turn it is applied,
+    // before the next macroCountryTurn overwrites it. Advancing to a fixed
+    // turn count (as opposed to the exact signing turn) is not robust to rng
+    // stream shifts from other waves, so this polls for the "signed"
+    // transition directly instead of assuming which turn it lands on.
+    let turns = 0;
+    while (world.bills[0]!.status !== "signed" && turns < 20) {
+      advanceTurn(world);
+      advanceTurn(control);
+      turns++;
+    }
     expect(world.bills[0]!.status).toBe("signed");
     // Bill adds growthRate delta, so world should be higher than control by ~0.001
     expect(world.countries["US"]!.economy.growthRate).toBeGreaterThan(control.countries["US"]!.economy.growthRate);
@@ -375,7 +387,7 @@ describe("migration v11 -> v12", () => {
     };
     const raw = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 11, savedAt: "2026-01-01T00:00:00Z", world: v11World });
     const migrated = deserializeSave(raw);
-    expect(migrated.meta.schemaVersion).toBe(18);
+    expect(migrated.meta.schemaVersion).toBe(19);
     expect(migrated.bills).toEqual([]);
     expect(migrated.committees).toEqual([]);
     expect(migrated.enactedLaws).toEqual([]);

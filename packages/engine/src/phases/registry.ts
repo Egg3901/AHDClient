@@ -67,6 +67,7 @@ import {
   regionalBudgetProcessingPhase,
 } from "../budget/phases.js";
 import { centralBankChairTurnPhase, centralBankChairSelectionPhase } from "../centralBank/phases.js";
+import { corporationTurnPhase } from "../corporation/corporationTurn.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -129,5 +130,11 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // mirrors mainline's relative order.
   centralBankChairTurnPhase,
   centralBankChairSelectionPhase,
+  // W9 corporations at the end of the ported subset, before newsMaintenance —
+  // same rng-stream-stability rule as every block above (mainline runs
+  // corporationTurn mid-pipeline; inserting it there would shift every
+  // downstream rng draw for existing goldens). See corporation/corporationTurn.ts
+  // file doc for the resulting one-turn lag on the macroCountryTurn wire.
+  corporationTurnPhase,
   newsMaintenancePhase,
 ];

@@ -2,6 +2,7 @@ import type { RngState } from "./rng.js";
 import type { Bill, Committee, EnactedLaw } from "./legislation/types.js";
 import type { CountryBudget, RegionalBudget } from "./budget/types.js";
 import type { CentralBank } from "./centralBank/types.js";
+import type { Corporation, CorpRevenueSnapshot } from "./corporation/types.js";
 
 /**
  * The entire game world is one serializable document. No database: the world
@@ -100,6 +101,17 @@ export interface WorldState {
    * CentralBank (subset — see centralBank/types.ts file doc for what's cut and why). Schema v17.
    */
   centralBanks: Record<string, CentralBank>;
+  /**
+   * NPC corporations, one national corp per (playable country, nonzero-weight
+   * 1953 sector) pair. Ports mainline's Corporation+CorporateSector (merged,
+   * single-sector — see corporation/types.ts file doc). Schema v19.
+   */
+  corporations: Record<string, Corporation>;
+  /**
+   * Per-country aggregate corporate revenue, one turn apart, feeding the
+   * macroCountryTurn growth signal. Maintained by corporationTurn.ts. Schema v19.
+   */
+  corpRevenueSnapshots: Record<string, CorpRevenueSnapshot>;
 }
 
 export interface Politician {

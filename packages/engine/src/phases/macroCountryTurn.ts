@@ -3,7 +3,6 @@ import {
   GAP_CLOSURE,
   GROWTH_RATE_MAX,
   GROWTH_RATE_MIN,
-  GROWTH_SHOCK_PCT,
   INFLATION_BASE_TARGET,
   INFLATION_FISCAL_COEFF_DEFICIT,
   INFLATION_FISCAL_COEFF_SURPLUS,
@@ -29,6 +28,8 @@ import {
   WEEKS_PER_YEAR,
   NEUTRAL_GDP_GROWTH,
   TFP_BASELINE,
+  SECTOR_SIGNAL_MIN,
+  SECTOR_SIGNAL_MAX,
 } from "../economy/macroConstants.js";
 import {
   annualizedGrowthRate,
@@ -37,6 +38,7 @@ import {
   potentialGrowth,
 } from "../demographics/laborForce.js";
 import { CENTRAL_BANK_COUNTRY_ANCHORS, computeMonetaryTerm } from "../centralBank/constants.js";
+import { computeRealizedRevenueGrowthRate } from "../corporation/constants.js";
 
 // ── Pure helpers (exported for golden-value tests) ─────────────────────
 
@@ -165,16 +167,24 @@ export const macroCountryTurnPhase: TurnPhase = {
       const prevInflPct = econ.inflationRate * 100;
 
       // ── Growth via output gap ─────────────────────────────────────
-      // PORT-STUB: sector signal replaces missing realized-revenue delta
-      // (mainline src/lib/turn/gdpGrowth.ts computeRealizedRevenueGrowthRate /
-      //  computeTrailingRevenueGrowthRate). Neutral value: previous growth plus
-      //  small RNG shock, so the gap integration has an impulse without
-      //  corporations/sectors/trade. Cite gdpGrowth.ts + outputGap.ts.
-      const sectorNoise = (rng.next() - 0.5) * GROWTH_SHOCK_PCT;
+      // THE KEY WIRE (W9): sectorSignal is now the real corporate-revenue
+      // growth signal, replacing the random-walk PORT-STUB (previous growth
+      // plus RNG shock). Source: src/lib/turn/gdpGrowth.ts
+      // computeRealizedRevenueGrowthRate (ported verbatim in
+      // corporation/constants.ts) fed by corporationTurn.ts's per-country
+      // revenue rollup (world.corpRevenueSnapshots — one turn lagged, see
+      // corporation/corporationTurn.ts file doc for why). Falls back to flat
+      // (no shock) previous growth for countries with no corp data — either a
+      // non-playable country (W9 only seeds playable countries) or the first
+      // turn or two after world creation before the snapshot has a real prior.
+      const revenueSnapshot = world.corpRevenueSnapshots?.[id];
+      const realizedGrowth = revenueSnapshot
+        ? computeRealizedRevenueGrowthRate(revenueSnapshot.current, revenueSnapshot.previous, 1, TURNS_PER_YEAR)
+        : null;
       const sectorSignal = clamp(
-        prevGrowthPct + sectorNoise,
-        -10,
-        15,
+        realizedGrowth ?? prevGrowthPct,
+        SECTOR_SIGNAL_MIN,
+        SECTOR_SIGNAL_MAX,
       );
       // Labor force → potential growth (real laborForce replacing the PORT-STUB).
       // Source: src/lib/metricEngine/potentialGrowth.ts computeLaborForce +

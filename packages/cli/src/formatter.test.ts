@@ -40,6 +40,8 @@ function makeWorld(): WorldState {
     stateBills: [],
     nppRelationships: {},
     nppSponsorLastTurn: {},
+    corporations: {},
+    corpRevenueSnapshots: {},
     news: [],
   };
 }

@@ -15,8 +15,9 @@ import {
 } from "./commodity/constants.js";
 import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/constants.js";
 import type { CentralBank } from "./centralBank/types.js";
+import { seedCorporations } from "./corporation/founding.js";
 
-export const SCHEMA_VERSION = 18;
+export const SCHEMA_VERSION = 19;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -314,6 +315,21 @@ export function createWorld(options: NewWorldOptions): WorldState {
   // ── Central banks (W3) ────────────────────────────────────────
   const centralBanks = seedCentralBanks(countries);
 
+  // ── Corporations (W9) ──────────────────────────────────────────
+  // Uses the same world rng, after every other rng-consuming seed step, so
+  // capturing rng.state() below for meta.rng includes corp personality draws.
+  const corporations = seedCorporations(
+    Object.values(countries).map((c) => ({ id: c.id, playable: c.playable, gdp: c.economy.gdp, growthRate: c.economy.growthRate })),
+    rng,
+    0,
+  );
+  const corpRevenueSnapshots: WorldState["corpRevenueSnapshots"] = {};
+  for (const corp of Object.values(corporations)) {
+    const existing = corpRevenueSnapshots[corp.countryId];
+    const total = (existing?.current ?? 0) + corp.revenue;
+    corpRevenueSnapshots[corp.countryId] = { current: total, previous: total, turn: 0 };
+  }
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -350,6 +366,8 @@ export function createWorld(options: NewWorldOptions): WorldState {
     nppRelationships: {},
     nppSponsorLastTurn: {},
     centralBanks,
+    corporations,
+    corpRevenueSnapshots,
     player: {
       name: options.playerName,
       countryId: options.countryId,

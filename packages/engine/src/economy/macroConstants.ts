@@ -67,8 +67,8 @@ export const INFLATION_MIN = -2.0; // source: inflation.ts MIN_INFLATION (percen
 export const INFLATION_MAX = 100.0; // source: inflation.ts MAX_INFLATION (percent)
 
 // ── Stochastic shock magnitudes ────────────────────────────────────────
-// Not mainline constants — local tuning for the PORT-STUB sector signal noise
-// (replaces missing realized-revenue delta). Kept small so RNG does not
-// dominate the ported formulas.
-export const GROWTH_SHOCK_PCT = 1.0; // +/-0.5pp uniform noise on sector signal (percent)
+// Not a mainline constant — local tuning for inflation noise. GROWTH_SHOCK_PCT
+// (sector-signal noise) was removed in W9: the sector signal is now the real
+// corporate-revenue growth rate (see phases/macroCountryTurn.ts THE KEY WIRE),
+// not an RNG-driven PORT-STUB.
 export const INFLATION_SHOCK_PCT = 0.2; // +/-0.1pp uniform noise on inflation (percent)

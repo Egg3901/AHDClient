@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { advanceTurn } from "./engine.js";
 import { deserializeSave, serializeSave } from "./save.js";
-import { createWorld, listEras, listPlayableCountries } from "./world.js";
+import { createWorld, listEras, listPlayableCountries, SCHEMA_VERSION } from "./world.js";
 import { rngFromSeed, rngFromState } from "./rng.js";
 import { dateForTurn, eraForDate } from "./calendar.js";
 import { PACKS } from "@rotunda/content";
@@ -121,6 +121,7 @@ describe("advanceTurn", () => {
       "regionalBudgetProcessing",
       "centralBankChairTurn",
       "centralBankChairSelection",
+      "corporationTurn",
       "newsMaintenance",
     ]);
   });
@@ -503,7 +504,7 @@ describe("W38 US states layer", () => {
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "UK").length).toBe(12);
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "RU").length).toBe(14);
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "DD").length).toBe(6);
-    expect(a.meta.schemaVersion).toBe(18);
+    expect(a.meta.schemaVersion).toBe(19);
     // No opaque US left
     expect(a.regions["US-R1"]).toBeUndefined();
     // Deterministic: partyRegions for US states are uniform averaged (round)

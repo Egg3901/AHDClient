@@ -18,6 +18,7 @@ import type { Bill } from "./types.js";
 import { didPass, didPassWithFilibusterCheck, tallyVotes } from "./billVoteLogic.js";
 import { assignBillToCommittee } from "./committees.js";
 import { getLaw } from "./catalog.js";
+import { UNEMPLOYMENT_MIN, UNEMPLOYMENT_MAX } from "../economy/macroConstants.js";
 
 const VOTING_TURNS = 2;
 const EXEC_WINDOW_TURNS = 2;
@@ -259,8 +260,13 @@ function applyEffectToWorld(world: WorldState, bill: Bill, effect: NonNullable<i
       if (effect.economy.inflationRate !== undefined) econ.inflationRate += effect.economy.inflationRate;
       if (effect.economy.unemploymentRate !== undefined) econ.unemploymentRate += effect.economy.unemploymentRate;
       if (effect.economy.outputGap !== undefined) econ.outputGap += effect.economy.outputGap;
-      // Clamp unemployment 0..1
-      econ.unemploymentRate = Math.max(0, Math.min(1, econ.unemploymentRate));
+      // Clamp unemployment to macroCountryTurn's own bounds (UNEMPLOYMENT_MIN/MAX,
+      // percent), not the wider [0,1] fraction range: an unclamped-to-macro-bounds
+      // bill effect could otherwise push unemployment below the 1% floor
+      // macroCountryTurn always enforces, surfacing as an intermittent bounds-sanity
+      // failure whenever the rng stream happens to enact such a bill near the floor
+      // (residual found and fixed during W9; not corporation-specific).
+      econ.unemploymentRate = Math.max(UNEMPLOYMENT_MIN / 100, Math.min(UNEMPLOYMENT_MAX / 100, econ.unemploymentRate));
     }
   }
   if (effect.partySupport) {

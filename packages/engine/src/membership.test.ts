@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createWorld } from "./world.js";
+import { createWorld, SCHEMA_VERSION } from "./world.js";
 import { advanceTurn } from "./engine.js";
 import { deserializeSave, serializeSave } from "./save.js";
 import { executeAction } from "./actions/execute.js";
@@ -394,7 +394,7 @@ describe("schema migration v10->v11", () => {
     const parsed = JSON.parse(rawV10) as { world: Record<string, unknown> };
     delete (parsed.world as Record<string, unknown>)["endorsements"];
     const migrated = deserializeSave(JSON.stringify({ format: "ahdsolo-save", schemaVersion: 10, savedAt: "2026-01-01T00:00:00Z", world: parsed.world }));
-    expect(migrated.meta.schemaVersion).toBe(18);
+    expect(migrated.meta.schemaVersion).toBe(19);
     expect(migrated.player.partyId).toBe(null);
     expect(migrated.player.purgeRejoinBlocks).toEqual([]);
     expect(migrated.player.caucusId).toBe(null);

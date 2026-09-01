@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createWorld } from "../world.js";
+import { createWorld, SCHEMA_VERSION } from "../world.js";
 import { advanceTurn } from "../engine.js";
 import { deserializeSave, serializeSave } from "../save.js";
 import { CATEGORIES_BY_COUNTRY_1953, US_CATEGORY_1953 } from "./categories.js";
@@ -220,7 +220,7 @@ describe("demographicEffects determinism (src/lib/demographicEffects.ts)", () =>
 describe("migration v14", () => {
   it("new worlds are schema 14 and carry demographics", () => {
     const world = createWorld({ seed: "m", playerName: "P", countryId: "US", era: "1953" });
-    expect(world.meta.schemaVersion).toBe(18);
+    expect(world.meta.schemaVersion).toBe(19);
     expect(Object.keys(world.stateDemographics)).toHaveLength(80);
     expect(Object.keys(world.baselineDemographics)).toHaveLength(80);
     expect(Object.keys(world.demographicCategories).length).toBeGreaterThan(0);
@@ -246,7 +246,7 @@ describe("migration v14", () => {
     const raw = JSON.stringify(fakeV13);
     const a = deserializeSave(raw);
     const b = deserializeSave(raw);
-    expect(a.meta.schemaVersion).toBe(18);
+    expect(a.meta.schemaVersion).toBe(19);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(Object.keys(a.stateDemographics).length).toBeGreaterThan(0);
   });

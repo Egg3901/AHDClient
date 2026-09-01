@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createWorld } from "../world.js";
+import { createWorld, SCHEMA_VERSION } from "../world.js";
 import { advanceTurn } from "../engine.js";
 import { deserializeSave, serializeSave } from "../save.js";
 import type { SaveFile } from "../save.js";
@@ -206,7 +206,7 @@ describe("migration (v<17 -> v17)", () => {
     delete (raw.world as unknown as Record<string, unknown>)["centralBanks"];
 
     const migrated = deserializeSave(JSON.stringify(raw));
-    expect(migrated.meta.schemaVersion).toBe(18);
+    expect(migrated.meta.schemaVersion).toBe(19);
     for (const [countryId, anchor] of Object.entries(CENTRAL_BANK_COUNTRY_ANCHORS)) {
       const bank = migrated.centralBanks[countryId];
       expect(bank, `expected a migrated bank for ${countryId}`).toBeDefined();
