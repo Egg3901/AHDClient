@@ -32,6 +32,10 @@ import { CongressScreen } from "./congress/Congress.js";
 import "./congress/congress.css";
 import { ElectionsScreen } from "./elections/Elections.js";
 import "./elections/elections.css";
+import { CorporationsScreen } from "./corporations/Corporations.js";
+import "./corporations/corporations.css";
+import { CampaignsScreen } from "./campaigns/Campaigns.js";
+import "./campaigns/campaigns.css";
 
 const ONLINE_URL = "https://www.ahousedividedgame.com";
 
@@ -1036,6 +1040,8 @@ function Dashboard({
   const [newsOpen, setNewsOpen] = useState(false);
   const [congressOpen, setCongressOpen] = useState(false);
   const [electionsOpen, setElectionsOpen] = useState(false);
+  const [corpsOpen, setCorpsOpen] = useState(false);
+  const [campaignsOpen, setCampaignsOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const advance = async () => {
@@ -1161,6 +1167,14 @@ function Dashboard({
     );
   }
 
+  if (corpsOpen) {
+    return <CorporationsScreen world={world} onBack={() => setCorpsOpen(false)} />;
+  }
+
+  if (campaignsOpen) {
+    return <CampaignsScreen world={world} onBack={() => setCampaignsOpen(false)} />;
+  }
+
   return (
     <div className="dashboard">
       <header className="row spread dashboard-header">
@@ -1194,6 +1208,12 @@ function Dashboard({
           </button>
           <button className="secondary small-btn" onClick={() => setElectionsOpen(true)}>
             ELECTIONS
+          </button>
+          <button className="secondary small-btn" onClick={() => setCorpsOpen(true)}>
+            CORPORATIONS
+          </button>
+          <button className="secondary small-btn" onClick={() => setCampaignsOpen(true)}>
+            CAMPAIGNS
           </button>
           <button className="secondary small-btn" onClick={() => setNewsOpen(true)}>
             NEWS
