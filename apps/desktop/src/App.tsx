@@ -13,6 +13,8 @@ import { EconomyScreen } from "./economy/Economy.js";
 import "./economy/economy.css";
 import { WorldMapScreen } from "./worldMap/WorldMap.js";
 import "./worldMap/worldMap.css";
+import { PartiesScreen } from "./parties/Parties.js";
+import "./parties/parties.css";
 import { createHistoryMap, pushHistory, pushHistoryWithTurn } from "./economy/history.js";
 import type { HistoryMap } from "./economy/history.js";
 import { SavesScreen } from "./saves/SavesScreen.js";
@@ -746,6 +748,7 @@ function Dashboard({
   const [govOpen, setGovOpen] = useState(false);
   const [ecoOpen, setEcoOpen] = useState(false);
   const [worldOpen, setWorldOpen] = useState(false);
+  const [partiesOpen, setPartiesOpen] = useState(false);
 
   const advance = async () => {
     const prevTurn = world.meta.turn;
@@ -821,6 +824,10 @@ function Dashboard({
     );
   }
 
+  if (partiesOpen) {
+    return <PartiesScreen world={world} onBack={() => setPartiesOpen(false)} initialCountryId={world.player.countryId} />;
+  }
+
   if (ecoOpen) {
     return <EconomyScreen world={world} history={history} onBack={() => setEcoOpen(false)} />;
   }
@@ -840,6 +847,9 @@ function Dashboard({
           </button>
           <button className="secondary small-btn" onClick={() => setGovOpen(true)}>
             GOVERNMENT
+          </button>
+          <button className="secondary small-btn" onClick={() => setPartiesOpen(true)}>
+            PARTIES
           </button>
           <button className="secondary small-btn" onClick={() => setEcoOpen(true)}>
             ECONOMY
