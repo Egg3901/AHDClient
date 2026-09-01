@@ -26,6 +26,9 @@ export interface GameApi {
   load(): Promise<WorldState | null>;
 }
 
+if (typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>)["__game"] = null;
+}
 export const game: GameApi = {
   async newGame(options: NewWorldOptions): Promise<WorldState> {
     world = createWorld(options);
@@ -79,3 +82,7 @@ export const game: GameApi = {
     return world;
   },
 };
+
+if (typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>)["__game"] = game;
+}
