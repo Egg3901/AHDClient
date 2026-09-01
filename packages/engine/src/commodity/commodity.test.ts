@@ -107,7 +107,7 @@ describe("commodity price evolution (golden values)", () => {
     for (let i = 0; i < 10; i++) advanceTurn(w);
     // Golden value derived from deterministic run with seed golden-seed-42
     // If commodity drift formula changes, update goldens deliberately.
-    expect(w.commodityPrices["steel"]!.globalPrice).toBeCloseTo(11.13, 1);
+    expect(w.commodityPrices["steel"]!.globalPrice).toBeCloseTo(11.04, 1);
     expect(w.commodityPrices["oil"]!.globalPrice).toBeCloseTo(1.15, 1);
   });
 
@@ -119,7 +119,7 @@ describe("commodity price evolution (golden values)", () => {
       w.commodityPrices["steel"]!.globalPrice,
     );
     // Golden after 50 turns (seed golden-seed-42)
-    expect(w.commodityPrices["rare_earth"]!.globalPrice).toBeCloseTo(367.57, 0);
+    expect(w.commodityPrices["rare_earth"]!.globalPrice).toBeCloseTo(279.25, 0);
   });
 
   it("prices stay within 0.1x–10x base bounds even after 200 turns (bounds)", () => {
@@ -344,7 +344,7 @@ describe("schema migration v6->v7", () => {
       },
     });
     const w = deserializeSave(raw);
-    expect(w.meta.schemaVersion).toBe(12);
+    expect(w.meta.schemaVersion).toBe(13);
     expect(typeof w.commodityPrices).toBe("object");
     expect(Object.keys(w.commodityPrices).length).toBe(COMMODITY_TYPES.length);
     expect(Array.isArray(w.extractionContracts)).toBe(true);

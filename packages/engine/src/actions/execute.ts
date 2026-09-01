@@ -13,6 +13,7 @@ import { decayPressure } from "../support/pressure.js";
 import * as Membership from "../membership.js";
 import * as Caucus from "../caucus.js";
 import * as Endorsement from "../endorsement.js";
+import * as Candidacy from "../elections/candidacy.js";
 import { getLaw } from "../legislation/catalog.js";
 
 export type ExecuteActionParams = {
@@ -27,6 +28,7 @@ export type ExecuteActionParams = {
   endorsedId?: string;
   endorsedType?: "party" | "politician";
   endorsementId?: string;
+  electionId?: string;
   // Legislation
   catalogId?: string;
   billId?: string;
@@ -341,6 +343,21 @@ export function executeAction(
       return { ok: false, error: res.error };
     }
     return { ok: true, message: `Endorsed ${params.endorsedId}` };
+  }
+  if (actionId === "declareCandidacy" || actionId === "withdrawCandidacy") {
+    if (found.kind !== "player") return { ok: false, error: "Only the player files candidacies" };
+    if (!params.electionId) return { ok: false, error: `${actionId} requires electionId` };
+    const res =
+      actionId === "declareCandidacy"
+        ? Candidacy.declareCandidacy(world, params.electionId)
+        : Candidacy.withdrawCandidacy(world, params.electionId);
+    if (!res.ok) {
+      actor.actions += cost;
+      actor.funds += fundCost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: res.error ?? "Candidacy action failed" };
+    }
+    return { ok: true, message: actionId === "declareCandidacy" ? "Candidacy declared" : "Candidacy withdrawn" };
   }
   if (actionId === "sponsorBill") {
     if (found.kind !== "player") return { ok: false, error: "Only player can sponsor bills" };

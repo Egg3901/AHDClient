@@ -24,6 +24,8 @@ export interface WorldState {
   legislatures: Record<string, Legislature>;
   /** Politicians holding legislature seats. Populated at world creation. */
   politicians: Politician[];
+  /** Live election records (W21c). Maintained by the election phases. */
+  elections: import("./elections/types.js").ElectionRecord[];
   /** Party charters (charter lifecycle). Ports src/lib/db/types/partyCharter.ts. */
   charters: PartyCharter[];
   /** Caucuses (faction sub-groups). Ports src/lib/db/types/caucus.ts. */
@@ -72,8 +74,12 @@ export interface Politician {
   gender: "male" | "female";
   countryId: string;
   partyId: string;
-  /** Chamber key this politician holds (e.g. "house", "volkskammer") */
+  /** Chamber key this politician holds (e.g. "house", "volkskammer"); "" = unseated. */
   chamberKey: string;
+  /** US state whose seat is held (house/senate). */
+  electedState?: string | undefined;
+  /** US senate class of the held seat. */
+  senateClass?: 1 | 2 | 3 | undefined;
   ideology: PoliticianIdeology;
   age: number;
   /**

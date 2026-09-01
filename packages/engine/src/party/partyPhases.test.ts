@@ -478,7 +478,8 @@ describe("partyMemberCountReconcile phase", () => {
     const world = createWorld(OPTS);
     world.parties["US_DEM"]!.memberCount = 999;
     advanceTurn(world);
-    const expected = world.politicians.filter((p) => p.partyId === "US_DEM").length;
+    // Election challengers spawn after reconcile within the same turn; count the cast reconcile saw.
+    const expected = world.politicians.filter((p) => p.partyId === "US_DEM" && !p.id.includes("-CH:")).length;
     expect(world.parties["US_DEM"]!.memberCount).toBe(expected);
   });
 
@@ -535,7 +536,7 @@ describe("save migration v5 -> v6", () => {
     delete parsed.world["charters"];
     delete parsed.world["caucuses"];
     const migrated = deserializeSave(JSON.stringify({ format: "ahdsolo-save", schemaVersion: 5, savedAt: "2026-01-01T00:00:00Z", world: parsed.world }));
-    expect(migrated.meta.schemaVersion).toBe(12);
+    expect(migrated.meta.schemaVersion).toBe(13);
     expect(Array.isArray(migrated.charters)).toBe(true);
     expect(Array.isArray(migrated.caucuses)).toBe(true);
     for (const party of Object.values(migrated.parties)) {

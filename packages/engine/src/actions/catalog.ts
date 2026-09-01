@@ -33,7 +33,9 @@ export type ActionId =
   | "sponsorBill"
   | "voteOnBill"
   | "repealLaw"
-  | "invokeFilibuster";
+  | "invokeFilibuster"
+  | "declareCandidacy"
+  | "withdrawCandidacy";
 
 // Costs mirror mainline's dynamic tier functions but collapsed to neutral
 // goldens for solo's simpler state (no per-state GDP tier). Cited.
@@ -319,6 +321,26 @@ export const ACTION_CATALOG: Record<ActionId, ActionCatalogEntry> = {
     cooldown: 0,
     fundCost: 0,
     systems: ["legislation/cloture"],
+    status: "available",
+  },
+  declareCandidacy: {
+    id: "declareCandidacy",
+    name: "Declare Candidacy",
+    description: "File for an open or upcoming race in your country. Party ballot line; one active candidacy at a time.",
+    baseCost: 2,
+    cooldown: 0,
+    fundCost: 0, // PORT-STUB: mainline filing fee not yet ported
+    systems: ["elections"],
+    status: "available",
+  },
+  withdrawCandidacy: {
+    id: "withdrawCandidacy",
+    name: "Withdraw Candidacy",
+    description: "Withdraw from a race before it resolves.",
+    baseCost: 0,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["elections"],
     status: "available",
   },
 };

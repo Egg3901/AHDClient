@@ -50,6 +50,7 @@ import {
   supportAccrualPhase,
 } from "../support/phases.js";
 import { billLifecyclePhase } from "./billLifecyclePhase.js";
+import { voteAccumulationPhase, electionTimersPhase, electionResolutionPhase } from "../elections/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -75,5 +76,12 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   billLifecyclePhase,
   commodityPricesPhase,
   contractSettlementPhase,
+  // Elections run at the end of the ported subset for now: inserting them at
+  // mainline's absolute position would shift the shared rng stream under every
+  // integration golden. A dedicated re-ordering pass re-goldens once the phase
+  // set stabilizes (mainline: commodity < bills < elections).
+  voteAccumulationPhase,
+  electionTimersPhase,
+  electionResolutionPhase,
   newsMaintenancePhase,
 ];

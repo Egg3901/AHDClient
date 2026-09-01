@@ -1,4 +1,5 @@
 import { SCHEMA_VERSION } from "./world.js";
+import { assignUsSeatGeography } from "./elections/seatGeography.js";
 import type { WorldState } from "./types.js";
 
 /**
@@ -493,6 +494,14 @@ export function deserializeSave(raw: string): WorldState {
       }
     }
     save.world.meta.schemaVersion = 12;
+  }
+  // v12 -> v13: W21c live elections. Empty election list; US seated politicians
+  // gain deterministic state/class geography (sorted fill, see seatGeography.ts).
+  if (save.schemaVersion < 13) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (!Array.isArray(w["elections"])) w["elections"] = [];
+    assignUsSeatGeography(save.world);
+    save.world.meta.schemaVersion = 13;
   }
   return save.world;
 }

@@ -394,7 +394,7 @@ describe("schema migration v10->v11", () => {
     const parsed = JSON.parse(rawV10) as { world: Record<string, unknown> };
     delete (parsed.world as Record<string, unknown>)["endorsements"];
     const migrated = deserializeSave(JSON.stringify({ format: "ahdsolo-save", schemaVersion: 10, savedAt: "2026-01-01T00:00:00Z", world: parsed.world }));
-    expect(migrated.meta.schemaVersion).toBe(12);
+    expect(migrated.meta.schemaVersion).toBe(13);
     expect(migrated.player.partyId).toBe(null);
     expect(migrated.player.purgeRejoinBlocks).toEqual([]);
     expect(migrated.player.caucusId).toBe(null);
@@ -430,9 +430,11 @@ describe("politician defection not wired (cited)", () => {
   it("politicians retain partyId across turns (no autonomous defection)", () => {
     // Cite: search found no NPP partyId mutation outside charter splits; solo leaves static.
     const w = createWorld(OPTS);
-    const before = w.politicians.map((p) => p.partyId);
+    // W21c generates election challengers mid-run; compare only the original cast.
+    const before = new Map(w.politicians.map((p) => [p.id, p.partyId]));
     for (let i = 0; i < 10; i++) advanceTurn(w);
-    const after = w.politicians.map((p) => p.partyId);
-    expect(after).toEqual(before);
+    for (const p of w.politicians) {
+      if (before.has(p.id)) expect(p.partyId).toBe(before.get(p.id));
+    }
   });
 });

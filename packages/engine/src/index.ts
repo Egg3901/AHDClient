@@ -21,3 +21,6 @@ export * from "./caucus.js";
 export * from "./endorsement.js";
 export type * from "./types.js";
 export * as electionEngine from "./electionEngine/index.js";
+export { declareCandidacy, withdrawCandidacy } from "./elections/candidacy.js";
+export { electionSeriesForWorld, recomputeComposition, seatHolders } from "./elections/orchestration.js";
+export type { ElectionRecord, ElectionCandidate, ElectionStatus } from "./elections/types.js";

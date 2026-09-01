@@ -103,6 +103,9 @@ describe("advanceTurn", () => {
       "billLifecycle",
       "commodityPrices",
       "contractSettlement",
+      "voteAccumulation",
+      "electionTimers",
+      "electionResolution",
       "newsMaintenance",
     ]);
   });
@@ -474,7 +477,7 @@ describe("W38 US states layer", () => {
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "UK").length).toBe(3);
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "RU").length).toBe(3);
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "DD").length).toBe(3);
-    expect(a.meta.schemaVersion).toBe(12);
+    expect(a.meta.schemaVersion).toBe(13);
     // No opaque US left
     expect(a.regions["US-R1"]).toBeUndefined();
     // Deterministic: partyRegions for US states are uniform averaged (round)

@@ -1,4 +1,5 @@
 import { rngFromSeed } from "./rng.js";
+import { assignUsSeatGeography } from "./elections/seatGeography.js";
 import type { WorldState } from "./types.js";
 import { getPackByEra, PACKS_BY_DATE } from "@rotunda/content";
 import { createPoliticiansForWorld } from "./politician.js";
@@ -8,7 +9,7 @@ import {
   getEraCommodityBasePrice,
 } from "./commodity/constants.js";
 
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -310,6 +311,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     parties,
     legislatures,
     politicians,
+    elections: [],
     charters: [],
     caucuses: [],
     endorsements: [],
@@ -346,6 +348,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     stateBills: [],
     news: [{ turn: 0, date: pack.era.startDate, headline: "A new game begins." }],
   };
+  assignUsSeatGeography(world);
   return world;
 }
 
