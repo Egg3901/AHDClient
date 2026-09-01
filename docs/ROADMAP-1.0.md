@@ -100,6 +100,10 @@ The 2080-turn runs hold every invariant (finite, clamped, deterministic) with th
 - Near-empty news feed - owned by W31.
 - Default majors demoted by t300 (no org maintenance without players/NPCs): PORT-STUB exemption shipped, removed at W37.
 
+## Milestone: elections live (2026-09-01)
+
+W21a/b/c complete: worlds run continuous election cycles from mainline canonical anchors (US house per state, senate by class, UK commons, RU soviets, DD Volkskammer); the player can join a party, declare, and win or lose a seat. Seat invariants exact at 700 turns. Vote tallies run on a marked PORT-STUB pending W16 demographics, after which the ported `accumulateVoteTurn` wires in (it hard-requires demographic inputs). Sequencing: W16 next in engine lane, then the tally wiring pass, then W20/W22-26 depth (primaries, conventions, campaigns, presidential).
+
 ## N/A for singleplayer (recorded, not silently dropped)
 
 activityLogging (server telemetry), auditAnomalyScan / suspiciousDetection / financialSuspectScan (anti-abuse against human opponents), bannedShareholderRelease / inactiveShareholderShareRelease (moderation and absent-human recovery; NPC ownership handled inside Lane 2), altDetection, auth/account/discord/masscomm/analytics/adsense infra. Reason: these exist because other humans exist. gameHealthSnapshot maps to CLI invariants instead.
