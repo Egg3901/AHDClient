@@ -9,39 +9,57 @@ import {
 } from "../electionEngine/resolution/contingentData.js";
 import { resolveContingentElection, type ContingentElectionResult } from "../electionEngine/resolution/contingentElection.js";
 import { archiveCampaignsForElection } from "../campaigns/lifecycle.js";
+import { allocateElectoralVotes, electoralMajorityFor } from "./presidentialElectoralCollege.js";
 
 /**
- * Presidential general-election resolution — W24 port.
+ * Presidential general-election resolution — W24 port, W24b real Electoral
+ * College replacement.
  *
- * DESIGN DECISION (documented per the FRAMEWORK determinism/port doctrine):
- * mainline's live presidential general (`src/lib/presidentialElectionEngine.ts`
- * + `src/lib/turn/election/presidentResolution.ts`) is a per-STATE Electoral
- * College accumulation — ~1000 lines of bespoke per-unit logic (VP home-state
- * bonus, governor endorsements, granular per-unit electorate) entirely
- * separate from the general-purpose per-state tally every other race uses.
- * Porting that wholesale is out of scope for one wave. Rotunda instead
- * resolves the president as ONE nationwide race — the same "aggregate every
- * state into a single uniform electorate" shape mainline's own
- * `nationwideElectorate.ts` already uses for the presidential PRIMARY (see
- * `electionEngine/tallyAdapter.ts` for the accumulation side of this) — and
- * treats the 12th Amendment contingent-election path as: no candidate clears
- * an outright MAJORITY of the national vote. This is a deliberate
- * simplification, not a mainline behavior change: mainline's real general
- * remains state-by-state EV accumulation with the classic 270-elector
- * majority test. (Note for anyone tracing this against ops-knowledge memory
- * `ahd-presidential-uniform-national-vote`: that entry documents a mainline
- * BUG post-mortem — flat national multipliers washing out geographic
- * appeal — not an actual conversion away from the Electoral College. No such
- * conversion exists in mainline; "ruleset v3" is the unrelated September 2026
- * presidential-campaign-mechanics rework version number.)
+ * W24b: replaces the W24 nationwide-majority simplification with mainline's
+ * real per-state Electoral College — `presidentialElectoralCollege.ts`
+ * allocates each state's electors winner-take-all from the per-state
+ * cumulative tallies `tallyAdapter.ts`'s `realAccumulatePresident` now
+ * writes to `rec.stateTallyStates` (see that file for the EV-source
+ * citation and the ME/NE-district / DC non-applicability rationale). The
+ * majority test below is against the era's ACTUAL college size (531 for the
+ * 1953 pack: 435 house seats + 2×48 senators, AK/HI/DC absent — never a
+ * hardcoded 270), computed fresh each resolution from
+ * `electoralMajorityFor(totalEv)`.
+ *
+ * FALLBACK (documented, defensive): when `rec.stateTallyStates` is absent —
+ * either the accumulation phase never actually ran against per-state
+ * tallies (e.g. `presidentialResolution.test.ts`'s pure-formula unit tests,
+ * which hand-build an `ElectionRecord` and call this function directly), or
+ * a world's states carry no demographic tables at all so
+ * `realAccumulatePresident` fell back to `nationwideSliceFor` — resolution
+ * falls back to the W24 shape: raw national vote counts in `rec.tally`
+ * stand in for the ranking/majority score, majority is of the national vote
+ * total. This mirrors `tallyAdapter.ts`'s own stub-accumulator fallback
+ * pattern (real math where data exists, a documented simplification where
+ * it does not) rather than being a second bespoke design.
  *
  * The 12th Amendment machinery itself — `contingentElection.ts` (House
  * state-delegation ballot for President, Senate ballot for VP) — IS ported
- * verbatim and reused unmodified here via `loadContingentElectionDataPlain`,
- * which already builds house-delegation/senator voter profiles from plain
- * inputs. Raw national vote counts stand in for "electoral votes" as the
- * ranking/tiebreak score — the pure function only needs a per-candidate
- * score to rank the top 3, not real electors.
+ * verbatim and reused unmodified here via `loadContingentElectionDataPlain`.
+ * It now receives REAL electoral votes as `electoralVotesByCandidate` on the
+ * EC path (previously raw national vote counts stood in for EVs on the
+ * only path that existed; the fallback path still uses that stand-in, same
+ * as before).
+ *
+ * Not ported this wave (out of scope, per the FRAMEWORK "changing a
+ * contract requires updating it" doctrine — flagged here so it isn't lost):
+ * mainline's presidentialElectionEngine.ts VP home-state bonus, governor
+ * endorsements, and granular per-unit electorate substrate. Those are
+ * presidential-specific vote-multiplier factors layered ON TOP OF the
+ * general per-state tally `accumulateVoteTurn.ts` already runs identically
+ * for house/senate; the Electoral College STRUCTURE (per-state
+ * winner-take-all, real EV apportionment, real majority test, 12th
+ * Amendment fallback) is what this wave replaces, matching the wave brief.
+ * `presidentialCoattail.ts`'s self-exclusion (`isHeadOfGovernmentRace`) and
+ * the sitting president's coattail into down-ballot races (already wired,
+ * W24 `derivedInputs.president` in tallyAdapter.ts) now apply symmetrically
+ * per state to the president's own race too, for free, as soon as it runs
+ * through the same per-state `accumulateVoteTurn` every other US race uses.
  *
  * Scope: US only (see executive/types.ts file doc).
  */
@@ -161,8 +179,13 @@ export function applyPresidentialResolution(world: WorldState, rec: ElectionReco
     return;
   }
 
-  const ranked = Object.entries(rec.tally).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const majorityThreshold = Math.floor(totalVotes / 2) + 1;
+  // Real per-state Electoral College when per-state tallies ran (W24b);
+  // documented nationwide-vote fallback otherwise (see file doc).
+  const ec = allocateElectoralVotes(world, rec);
+  const scoreTally = ec ? ec.evByCandidate : rec.tally;
+  const majorityThreshold = ec ? electoralMajorityFor(ec.totalEv) : Math.floor(totalVotes / 2) + 1;
+
+  const ranked = Object.entries(scoreTally).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
   let winnerId: string;
   let vpWinnerId: string | null;
@@ -182,7 +205,7 @@ export function applyPresidentialResolution(world: WorldState, rec: ElectionReco
     const loaded = loadContingentElectionDataPlain({
       countryId,
       candidates,
-      electoralVotesByCandidate: rec.tally,
+      electoralVotesByCandidate: scoreTally,
       characters,
       npps: [],
       partyMap,
@@ -192,7 +215,7 @@ export function applyPresidentialResolution(world: WorldState, rec: ElectionReco
     });
     contingentResult = resolveContingentElection({
       electionId: rec.id,
-      electoralVotesByCandidate: rec.tally,
+      electoralVotesByCandidate: scoreTally,
       presidentCandidates: loaded.presidentCandidates,
       vicePresidentCandidates: loaded.vicePresidentCandidates,
       houseDelegations: loaded.houseDelegations,
@@ -246,7 +269,8 @@ export function applyPresidentialResolution(world: WorldState, rec: ElectionReco
   archiveCampaignsForElection(world, rec.id);
 
   const winnerName = winnerId === "player" ? world.player.name : (winnerCand?.name ?? winnerId);
-  const modeLabel = resolutionMode === "majority" ? "national majority" : "House contingent election";
+  const modeLabel =
+    resolutionMode !== "majority" ? "House contingent election" : ec ? "electoral college majority" : "national majority";
   world.news.push({
     turn: world.meta.turn,
     date: world.meta.date,

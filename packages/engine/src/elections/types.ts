@@ -44,6 +44,21 @@ export interface ElectionRecord {
   tally: Record<string, number>;
   /** Full tally document for the ported accumulateVoteTurn (US races). */
   tallyState?: unknown;
+  /**
+   * Per-state cumulative tally documents for the presidential general (W24b
+   * real Electoral College port) — `stateId -> TallyInput` (same opaque
+   * shape as `tallyState`, one independent accumulator per state). Absent
+   * for every non-president race, and absent for president when the world's
+   * states lack demographic tables — that absence is exactly what
+   * `presidentialResolution.ts` reads as "run the nationwide-aggregate
+   * fallback instead" (see that file's doc comment). Not schema-migrated: a
+   * save file loaded mid-accumulation of an old-shape (nationwide-only)
+   * presidential race simply starts per-state accumulation fresh for its
+   * remaining turns — additive optional field, no crash, no invalid state,
+   * self-resolves by the election's endTurn (see presidentialResolution.ts
+   * for the full compatibility rationale; no SCHEMA_VERSION bump needed).
+   */
+  stateTallyStates?: Record<string, unknown>;
   winners?: string[];
   resolvedTurn?: number;
 }

@@ -46,7 +46,7 @@ Engine core (turn pipeline, RNG, saves) - real seed packs, 27 countries, both er
 - W22 candidates: generateChallengers, candidatePartySweep, staleCandidateCleanup, withdrawInactiveCandidates, autoReelectionEntry
 - W23 parliamentary: governmentFormation, parliamentaryGovernmentPhases, vacancy watcher, leadershipVacate
 - W24 presidential: DONE as nationwide-majority + 12th Amendment contingent (documented simplification; the brief's "uniform national vote" premise was wrong — mainline still runs per-state EV)
-- W24b Electoral College: port mainline's per-state EV engine (presidentialElectionEngine.ts, ~1000 lines: per-state winner-take-all, 270-equivalent majority, EV apportionment) replacing the nationwide simplification. Required for 1.0; swing-state gameplay depends on it
+- W24b Electoral College: DONE — real per-state Electoral College (`presidentialElectoralCollege.ts` + `tallyAdapter.ts`'s `realAccumulatePresident`): per-state winner-take-all, EV = house seats + 2 senators (531-EV 1953 college, 266 majority, never hardcoded 270), 12th Amendment contingent fallback on real EVs. Nationwide-vote path kept only as the defensive fallback for a world whose states lack demographics. Not ported (documented, out of scope): mainline's VP home-state bonus, governor endorsements, granular per-unit electorate substrate — structure over per-unit flavor
 - W25 referendums: referendumLifecycle, independenceDesireDrift
 - W26 campaigns: campaignTurn, canvassing, campaign ops trees, debates, campaignSpendReset, primarySnapshots
 

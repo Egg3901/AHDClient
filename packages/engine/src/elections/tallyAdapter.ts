@@ -26,6 +26,12 @@ import { buildNationwideElectoratePreload } from "../electionEngine/nationwideEl
  * US races run the real mainline vote math against W16 demographics.
  * Races whose state lacks demographic tables (UK/RU/DD until W39) return
  * false and stay on the stub accumulator.
+ *
+ * W24b: the presidential general now runs the SAME per-state accumulation
+ * every US state actually holds its own tally against — real Electoral
+ * College, not a nationwide aggregate — via `realAccumulatePresident`. The
+ * nationwide aggregate (`nationwideSliceFor`) survives only as its defensive
+ * fallback for a world whose states carry no demographics at all.
  */
 
 function worldNow(world: WorldState): Date {
@@ -245,6 +251,27 @@ function nationwideSliceFor(world: WorldState, countryId: string): StateSlice | 
 
 /** Shared accumulate core: mirrors mainline's per-turn tally write against a resolved state/nationwide slice. */
 function runAccumulate(world: WorldState, rng: WorldRng, rec: ElectionRecord, slice: StateSlice): boolean {
+  const result = runAccumulateCore(world, rng, rec, slice, rec.tallyState);
+  if (!result) return false;
+  rec.tallyState = result.tallyState as unknown as ElectionRecord["tallyState"];
+  rec.tally = { ...result.totals };
+  return true;
+}
+
+/**
+ * State-agnostic accumulate core (W24b): identical math to the single-state
+ * `runAccumulate`, but takes/returns the prior tally state explicitly
+ * instead of reading/writing `rec.tallyState` directly, so the presidential
+ * per-state path (`realAccumulatePresident`) can call it once per state
+ * against N independent tally documents sharing one `ElectionRecord`.
+ */
+function runAccumulateCore(
+  world: WorldState,
+  rng: WorldRng,
+  rec: ElectionRecord,
+  slice: StateSlice,
+  priorTallyState: unknown,
+): { tallyState: unknown; totals: Record<string, number> } | null {
   const { stateId, state, demographics, turnout, statePartyOrgs } = slice;
 
   const now = worldNow(world);
@@ -262,7 +289,7 @@ function runAccumulate(world: WorldState, rng: WorldRng, rec: ElectionRecord, sl
     };
   });
 
-  let tallyState = rec.tallyState as TallyInput | undefined;
+  let tallyState = priorTallyState as TallyInput | undefined;
   if (!tallyState) {
     const init = initElectionVoteTally({ electionId: rec.id, candidates, state: stateId, now });
     tallyState = init.tally;
@@ -331,19 +358,75 @@ function runAccumulate(world: WorldState, rng: WorldRng, rec: ElectionRecord, sl
   };
 
   const result = accumulateVoteTurn(input);
-  if (!result) return false;
-  rec.tallyState = result.tally as unknown as ElectionRecord["tallyState"];
-  rec.tally = { ...result.newTotals };
+  if (!result) return null;
+  return { tallyState: result.tally, totals: { ...result.newTotals } };
+}
+
+/**
+ * Presidential per-state accumulation (W24b): the real Electoral College
+ * path. Runs `runAccumulateCore` once per US state that has a valid tally
+ * slice (real region + demographics), each against its own persisted
+ * `rec.stateTallyStates[stateId]` tally document, and folds the per-state
+ * cumulative totals into `rec.tally` as the national popular-vote sum (kept
+ * for display/withdrawal-cleanup parity with every other race — NOT used
+ * for the majority test, which `presidentialResolution.ts` computes from
+ * real per-state electoral votes).
+ *
+ * Iteration order is the sorted state id list: `rng` is a single shared
+ * stream consumed once per state per turn, so a stable order is required
+ * for determinism (same doctrine as `runVoteAccumulation`'s sorted record
+ * iteration).
+ *
+ * Falls back to the nationwide aggregate (`nationwideSliceFor`, the W24
+ * shape) only when NOT ONE state produces a valid slice — i.e. the world's
+ * states carry no demographic tables at all (defensive; mirrors this
+ * adapter's own stub-fallback pattern for non-US races). With the shipped
+ * 1953 pack (48 states, all demographic-seeded) this branch is unreachable
+ * in practice; it exists for future eras/content packs that ship states
+ * without demographics yet.
+ */
+function realAccumulatePresident(world: WorldState, rng: WorldRng, rec: ElectionRecord): boolean {
+  const regions = Object.values(world.regions).filter((r) => r.countryId === rec.countryId);
+  const stateIds = regions.map((r) => r.id).sort((a, b) => a.localeCompare(b));
+
+  const slices = new Map<string, StateSlice>();
+  for (const stateId of stateIds) {
+    const slice = stateSliceFor(world, stateId);
+    if (slice) slices.set(stateId, slice);
+  }
+
+  if (slices.size === 0) {
+    const nw = nationwideSliceFor(world, rec.countryId);
+    if (!nw) return false;
+    return runAccumulate(world, rng, rec, nw);
+  }
+
+  const stateTallyStates = { ...(rec.stateTallyStates ?? {}) };
+  const nationalTotals: Record<string, number> = {};
+  let ranAny = false;
+
+  for (const [stateId, slice] of slices) {
+    const result = runAccumulateCore(world, rng, rec, slice, stateTallyStates[stateId]);
+    if (!result) continue;
+    ranAny = true;
+    stateTallyStates[stateId] = result.tallyState;
+    for (const [candId, votes] of Object.entries(result.totals)) {
+      nationalTotals[candId] = (nationalTotals[candId] ?? 0) + votes;
+    }
+  }
+
+  if (!ranAny) return false;
+  rec.stateTallyStates = stateTallyStates as Record<string, unknown>;
+  rec.tally = nationalTotals;
   return true;
 }
 
 /** Returns true when the real tally ran; false = caller falls back to the stub. */
 export function realAccumulate(world: WorldState, rng: WorldRng, rec: ElectionRecord): boolean {
-  const slice = rec.state
-    ? stateSliceFor(world, rec.state)
-    : rec.electionType === "president"
-      ? nationwideSliceFor(world, rec.countryId)
-      : null;
+  if (rec.electionType === "president") {
+    return realAccumulatePresident(world, rng, rec);
+  }
+  const slice = rec.state ? stateSliceFor(world, rec.state) : null;
   if (!slice) return false;
   return runAccumulate(world, rng, rec, slice);
 }

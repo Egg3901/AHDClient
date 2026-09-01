@@ -70,6 +70,16 @@ export function withdrawCandidacy(world: WorldState, electionId: string): Candid
   if (idx < 0) return { ok: false, error: "Not a candidate here" };
   rec.candidates.splice(idx, 1);
   delete rec.tally["player"];
+  // W24b: also purge the player's frozen per-state EC entries — without one
+  // more accumulation turn to naturally drop them (accumulateVoteTurn only
+  // carries forward candidates still in `rec.candidates`), a withdrawal on
+  // the final pre-resolution turn would otherwise leave a stale winning
+  // per-state tally on the board for a candidate no longer in the race.
+  if (rec.stateTallyStates) {
+    for (const state of Object.values(rec.stateTallyStates) as Array<{ totalVotes?: Record<string, number> }>) {
+      if (state?.totalVotes) delete state.totalVotes["player"];
+    }
+  }
   archiveCampaign(world, rec.id, "player");
   return { ok: true };
 }
