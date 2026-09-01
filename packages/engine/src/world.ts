@@ -8,7 +8,7 @@ import {
   getEraCommodityBasePrice,
 } from "./commodity/constants.js";
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -257,6 +257,9 @@ export function createWorld(options: NewWorldOptions): WorldState {
     };
   }
 
+  const { regions, electoratePools, regionTurnouts, partyRegions, partyPressures, candidateSupports } =
+    seedW19Support(pack, parties, politicians);
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -275,6 +278,12 @@ export function createWorld(options: NewWorldOptions): WorldState {
     caucuses: [],
     commodityPrices,
     extractionContracts: [],
+    regions,
+    partyRegions,
+    electoratePools,
+    regionTurnouts,
+    partyPressures,
+    candidateSupports,
     player: {
       name: options.playerName,
       countryId: options.countryId,
@@ -283,4 +292,164 @@ export function createWorld(options: NewWorldOptions): WorldState {
     news: [{ turn: 0, date: pack.era.startDate, headline: "A new game begins." }],
   };
   return world;
+}
+
+/**
+ * Seed W19 support/electorate state.
+ * Regions are 3 opaque per playable country (US/UK/RU/DD = 12 total).
+ * W38 will remap to real state ids — see docs/support/W19_BRIDGE.md.
+ *
+ * Registration/org seeding:
+ * - US: derived from src/lib/seeds/registration/registrationLanes1953.ts lanes
+ *   (curated from 1950s SoS registration + 1952 partisan map). Three regions
+ *   sample leanD / competitiveD / leanR archetypes plus southern strong-D
+ *   override pattern for the southern region.
+ * - UK: PORT-STUB neutral/historical-lean from UK_REGION_POLLING_1951 averages
+ *   (Craig 1951). Seeded LAB/CON 30-35 reg with LIB minor; SNP/PC/SF zero.
+ *   Cited as PORT-STUB with mainline-neutral equivalent.
+ * - RU/DD: PORT-STUB one-party dominant from RU_REGION_ORG_1953 / DD org
+ *   calculations (CPSU ~95-98, SED ~80-85). Bloc parties lower. PORT-STUB.
+ * Turnout modifiers start at 0. Candidate supports start at 50 (DEFAULT).
+ */
+function seedW19Support(
+  pack: { countries: Array<{ id: string; playable: boolean }> },
+  parties: WorldState["parties"],
+  politicians: WorldState["politicians"],
+): {
+  regions: WorldState["regions"];
+  partyRegions: WorldState["partyRegions"];
+  electoratePools: WorldState["electoratePools"];
+  regionTurnouts: WorldState["regionTurnouts"];
+  partyPressures: WorldState["partyPressures"];
+  candidateSupports: WorldState["candidateSupports"];
+} {
+  const playable = pack.countries.filter((c) => c.playable).map((c) => c.id);
+  const regions: WorldState["regions"] = {};
+  const electoratePools: WorldState["electoratePools"] = {};
+  const regionTurnouts: WorldState["regionTurnouts"] = {};
+  const partyRegions: WorldState["partyRegions"] = {};
+  const partyPressures: WorldState["partyPressures"] = {};
+
+  const regionIdsByCountry = new Map<string, string[]>();
+
+  for (const countryId of playable) {
+    const ids: string[] = [];
+    for (let i = 1; i <= 3; i++) {
+      const rid = `${countryId}-R${i}`;
+      ids.push(rid);
+      regions[rid] = { id: rid, countryId, name: `${countryId} Region ${i}` };
+      regionIdsByCountry.set(countryId, ids);
+    }
+  }
+  // Ensure map fully populated before seeding per-region structures
+  for (const countryId of playable) {
+    const rids = regionIdsByCountry.get(countryId)!;
+    for (const rid of rids) {
+      electoratePools[rid] = seedPool(countryId, rid);
+      regionTurnouts[rid] = { regionId: rid, countryId, modifiers: seedTurnoutModifiers(countryId), lastDecayAppliedTurn: 0 };
+    }
+  }
+
+  for (const party of Object.values(parties)) {
+    const rids = regionIdsByCountry.get(party.countryId);
+    if (!rids) continue;
+    for (const rid of rids) {
+      const key = `${rid}:${party.id}`;
+      const { organization, registration } = seedPartyRegion(party, rid);
+      partyRegions[key] = { regionId: rid, partyId: party.id, countryId: party.countryId, organization, registration };
+      const pkey = `${party.id}:${rid}`;
+      partyPressures[pkey] = { partyId: party.id, regionId: rid, countryId: party.countryId, value: 0 };
+    }
+  }
+
+  const candidateSupports: WorldState["candidateSupports"] = {};
+  for (const pol of politicians) {
+    candidateSupports[pol.id] = {
+      id: pol.id,
+      partyId: pol.partyId,
+      countryId: pol.countryId,
+      support: 50,
+      supportAccrual: [],
+      status: "active",
+    };
+  }
+
+  return { regions, electoratePools, regionTurnouts, partyRegions, partyPressures, candidateSupports };
+}
+
+function seedPool(countryId: string, _regionId: string): WorldState["electoratePools"][string] {
+  if (countryId === "US") {
+    // Mix of leanD/competitive/southern override independent/unregistered
+    // Southern region (R2) gets higher unregistered from disenfranchisement (MS-like 25)
+    // Others use lane defaults 7-8.
+    const isSouth = _regionId.endsWith("-R2");
+    return { regionId: _regionId, countryId, independent: isSouth ? 3 : 8, unregistered: isSouth ? 22 : 7 };
+  }
+  if (countryId === "UK") return { regionId: _regionId, countryId, independent: 8, unregistered: 8 };
+  if (countryId === "RU") return { regionId: _regionId, countryId, independent: 3, unregistered: 2 };
+  if (countryId === "DD") return { regionId: _regionId, countryId, independent: 5, unregistered: 3 };
+  return { regionId: _regionId, countryId, independent: 8, unregistered: 8 };
+}
+
+function seedTurnoutModifiers(countryId: string): Record<string, Record<string, number>> {
+  // Single category voterGroups, groups per support/turnout.ts VOTER_GROUPS_BY_COUNTRY
+  const groups: string[] =
+    countryId === "US"
+      ? ["urban_progressives", "rural_conservatives", "suburban_moderates"]
+      : countryId === "UK"
+        ? ["urban_progressives", "rural_traditionalists", "suburban_centrists"]
+        : countryId === "RU"
+          ? ["workers", "urban_progressives"]
+          : countryId === "DD"
+            ? ["workers", "bloc_centrists"]
+            : ["general"];
+  const mods: Record<string, number> = {};
+  for (const g of groups) mods[g] = 0;
+  return { voterGroups: mods };
+}
+
+function seedPartyRegion(party: { id: string; countryId: string }, regionId: string): { organization: number; registration: number } {
+  const suffix = regionId.slice(-2); // -R1, -R2, -R3
+  if (party.countryId === "US") {
+    if (party.id === "US_DEM") {
+      if (suffix === "R1") return { organization: 34, registration: 50 }; // leanD (MI/MN lane 1953)
+      if (suffix === "R2") return { organization: 38, registration: 66 }; // southern strong-D (MS-like override)
+      return { organization: 24, registration: 35 }; // leanR
+    }
+    if (party.id === "US_REP") {
+      if (suffix === "R1") return { organization: 24, registration: 35 };
+      if (suffix === "R2") return { organization: 8, registration: 6 };
+      return { organization: 34, registration: 50 };
+    }
+  }
+  if (party.countryId === "UK") {
+    // PORT-STUB historical lean: LAB stronger in R1 (London/YHU-like 51), CON in R2 (SEE 58), R3 mixed
+    // Values sourced as registrationShare-like lean from UK_REGION_POLLING_1951 averages
+    if (party.id === "UK_LAB") {
+      if (suffix === "R1") return { organization: 32, registration: 38 };
+      if (suffix === "R2") return { organization: 24, registration: 30 };
+      return { organization: 28, registration: 34 };
+    }
+    if (party.id === "UK_CON") {
+      if (suffix === "R1") return { organization: 28, registration: 34 };
+      if (suffix === "R2") return { organization: 36, registration: 42 };
+      return { organization: 30, registration: 36 };
+    }
+    if (party.id === "UK_LIB") {
+      return { organization: 8, registration: 5 };
+    }
+    return { organization: 2, registration: 1 }; // SNP/PC/SF: PORT-STUB minimal in 1953
+  }
+  if (party.countryId === "RU") {
+    if (party.id === "RU_CPSU") return { organization: 96, registration: 92 };
+    return { organization: 0, registration: 0 };
+  }
+  if (party.countryId === "DD") {
+    if (party.id === "DD_SED") return { organization: 82, registration: 78 };
+    if (party.id === "DD_CDU") return { organization: 22, registration: 18 };
+    if (party.id === "DD_LDPD") return { organization: 18, registration: 15 };
+    if (party.id === "DD_NDPD") return { organization: 18, registration: 15 };
+    if (party.id === "DD_DBD") return { organization: 20, registration: 16 };
+  }
+  return { organization: 10, registration: 10 };
 }

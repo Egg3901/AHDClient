@@ -12,4 +12,5 @@ export type { TurnPhase, TurnReport, PhaseTiming } from "./phases/types.js";
 export * from "./npp/nameGenerator.js";
 export * from "./npp/nameEra.js";
 export * from "./politician.js";
+export * from "./support/index.js";
 export type * from "./types.js";

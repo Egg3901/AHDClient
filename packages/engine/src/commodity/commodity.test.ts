@@ -344,7 +344,7 @@ describe("schema migration v6->v7", () => {
       },
     });
     const w = deserializeSave(raw);
-    expect(w.meta.schemaVersion).toBe(7);
+    expect(w.meta.schemaVersion).toBe(8);
     expect(typeof w.commodityPrices).toBe("object");
     expect(Object.keys(w.commodityPrices).length).toBe(COMMODITY_TYPES.length);
     expect(Array.isArray(w.extractionContracts)).toBe(true);

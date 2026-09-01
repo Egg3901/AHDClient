@@ -26,13 +26,36 @@ import {
  *  expireCharters (40) → emptyPartyCleanup (41) → … → partyMemberCountReconcile (119) →
  *  commodityPrices → contractSettlement (commodityPrices before contractSettlement
  *  so settlement sees this turn's market, same as mainline turnPhaseRegistry.ts)
+ *
+ * W19 support cluster (per mainline turnPhaseRegistry.ts demographicsAndPartySetup
+ * + support blocks, indices 28-34): turnoutDecay → partyGOTV → partyOrgTurn →
+ * regDriftDecay → pressureDecay → priorityRegionDecay → supportDecay → supportAccrual
+ * Solo ordering mirrors mainline: turnout before GOTV, drift/decay after org,
+ * support accrual AFTER decay so drip is fresh for tally.
  */
+import {
+  turnoutDecayPhase,
+  partyGOTVPhase,
+  regDriftDecayPhase,
+  pressureDecayPhase,
+  priorityRegionDecayPhase,
+  supportDecayPhase,
+  supportAccrualPhase,
+} from "../support/phases.js";
+
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
   partyInfluenceTurnPhase,
   caucusTaxPhase,
   macroCountryTurnPhase,
+  turnoutDecayPhase,
+  partyGOTVPhase,
   partyOrgTurnPhase,
+  regDriftDecayPhase,
+  pressureDecayPhase,
+  priorityRegionDecayPhase,
+  supportDecayPhase,
+  supportAccrualPhase,
   partyTierTurnPhase,
   partyActionGenerationPhase,
   expireChartersPhase,

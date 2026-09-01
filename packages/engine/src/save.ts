@@ -131,5 +131,113 @@ export function deserializeSave(raw: string): WorldState {
     if (!Array.isArray(w["extractionContracts"])) w["extractionContracts"] = [];
     save.world.meta.schemaVersion = 7;
   }
+  // v7 -> v8: W19 support/electorate cluster (opaque regions per playable country)
+  if (save.schemaVersion < 8) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const parties = w["parties"] as Record<string, Record<string, unknown>> | undefined;
+    const politicians = w["politicians"] as Array<Record<string, unknown>> | undefined;
+    // Build regions deterministically from parties' countryIds (playable set implied)
+    const playableCountries = new Set<string>();
+    if (parties) for (const p of Object.values(parties)) if (typeof p["countryId"] === "string") playableCountries.add(p["countryId"] as string);
+    const regions: Record<string, unknown> = {};
+    const electoratePools: Record<string, unknown> = {};
+    const regionTurnouts: Record<string, unknown> = {};
+    const partyRegions: Record<string, unknown> = {};
+    const partyPressures: Record<string, unknown> = {};
+    const candidateSupports: Record<string, unknown> = {};
+
+    if (typeof w["regions"] !== "object" || w["regions"] === null || Array.isArray(w["regions"])) w["regions"] = regions;
+    else Object.assign(regions, w["regions"] as Record<string, unknown>);
+    if (typeof w["electoratePools"] !== "object" || w["electoratePools"] === null || Array.isArray(w["electoratePools"])) w["electoratePools"] = electoratePools;
+    else Object.assign(electoratePools, w["electoratePools"] as Record<string, unknown>);
+    if (typeof w["regionTurnouts"] !== "object" || w["regionTurnouts"] === null || Array.isArray(w["regionTurnouts"])) w["regionTurnouts"] = regionTurnouts;
+    else Object.assign(regionTurnouts, w["regionTurnouts"] as Record<string, unknown>);
+    if (typeof w["partyRegions"] !== "object" || w["partyRegions"] === null || Array.isArray(w["partyRegions"])) w["partyRegions"] = partyRegions;
+    else Object.assign(partyRegions, w["partyRegions"] as Record<string, unknown>);
+    if (typeof w["partyPressures"] !== "object" || w["partyPressures"] === null || Array.isArray(w["partyPressures"])) w["partyPressures"] = partyPressures;
+    else Object.assign(partyPressures, w["partyPressures"] as Record<string, unknown>);
+    if (typeof w["candidateSupports"] !== "object" || w["candidateSupports"] === null || Array.isArray(w["candidateSupports"])) w["candidateSupports"] = candidateSupports;
+    else Object.assign(candidateSupports, w["candidateSupports"] as Record<string, unknown>);
+
+    // If regions empty, seed 3 opaque per country as in world.ts seedW19Support
+    const existingRegionCount = Object.keys(regions).length;
+    if (existingRegionCount === 0 && playableCountries.size > 0) {
+      for (const countryId of playableCountries) {
+        for (let i = 1; i <= 3; i++) {
+          const rid = `${countryId}-R${i}`;
+          if (!regions[rid]) regions[rid] = { id: rid, countryId, name: `${countryId} Region ${i}` };
+          if (!electoratePools[rid]) {
+            const isSouth = countryId === "US" && rid.endsWith("-R2");
+            electoratePools[rid] = {
+              regionId: rid,
+              countryId,
+              independent: countryId === "RU" ? 3 : countryId === "DD" ? 5 : isSouth ? 3 : 8,
+              unregistered: countryId === "RU" ? 2 : countryId === "DD" ? 3 : isSouth ? 22 : 7,
+            };
+          }
+          if (!regionTurnouts[rid]) {
+            const groups: string[] =
+              countryId === "US" ? ["urban_progressives", "rural_conservatives", "suburban_moderates"]
+              : countryId === "UK" ? ["urban_progressives", "rural_traditionalists", "suburban_centrists"]
+              : countryId === "RU" ? ["workers", "urban_progressives"]
+              : countryId === "DD" ? ["workers", "bloc_centrists"]
+              : ["general"];
+            const mods: Record<string, number> = {};
+            for (const g of groups) mods[g] = 0;
+            regionTurnouts[rid] = { regionId: rid, countryId, modifiers: { voterGroups: mods }, lastDecayAppliedTurn: 0 };
+          }
+        }
+      }
+      if (parties) {
+        for (const [partyId, party] of Object.entries(parties)) {
+          const countryId = party["countryId"] as string | undefined;
+          if (!countryId) continue;
+          for (let i = 1; i <= 3; i++) {
+            const rid = `${countryId}-R${i}`;
+            const key = `${rid}:${partyId}`;
+            if (partyRegions[key]) continue;
+            let org = 10, reg = 10;
+            if (countryId === "US") {
+              if (partyId === "US_DEM") org = rid.endsWith("-R1") ? 34 : rid.endsWith("-R2") ? 38 : 24, reg = rid.endsWith("-R1") ? 50 : rid.endsWith("-R2") ? 66 : 35;
+              else if (partyId === "US_REP") org = rid.endsWith("-R1") ? 24 : rid.endsWith("-R2") ? 8 : 34, reg = rid.endsWith("-R1") ? 35 : rid.endsWith("-R2") ? 6 : 50;
+            } else if (countryId === "UK") {
+              if (partyId === "UK_LAB") org = rid.endsWith("-R1") ? 32 : rid.endsWith("-R2") ? 24 : 28, reg = rid.endsWith("-R1") ? 38 : rid.endsWith("-R2") ? 30 : 34;
+              else if (partyId === "UK_CON") org = rid.endsWith("-R1") ? 28 : rid.endsWith("-R2") ? 36 : 30, reg = rid.endsWith("-R1") ? 34 : rid.endsWith("-R2") ? 42 : 36;
+              else if (partyId === "UK_LIB") org = 8, reg = 5;
+              else org = 2, reg = 1;
+            } else if (countryId === "RU") org = partyId === "RU_CPSU" ? 96 : 0, reg = partyId === "RU_CPSU" ? 92 : 0;
+            else if (countryId === "DD") {
+              if (partyId === "DD_SED") org = 82, reg = 78;
+              else if (partyId === "DD_CDU") org = 22, reg = 18;
+              else if (partyId === "DD_LDPD") org = 18, reg = 15;
+              else if (partyId === "DD_NDPD") org = 18, reg = 15;
+              else if (partyId === "DD_DBD") org = 20, reg = 16;
+            }
+            partyRegions[key] = { regionId: rid, partyId, countryId, organization: org, registration: reg };
+            const pkey = `${partyId}:${rid}`;
+            if (!partyPressures[pkey]) partyPressures[pkey] = { partyId, regionId: rid, countryId, value: 0 };
+          }
+        }
+      }
+      if (politicians && Array.isArray(politicians)) {
+        for (const pol of politicians) {
+          const id = pol["id"] as string | undefined;
+          const partyId = pol["partyId"] as string | undefined;
+          const countryId = pol["countryId"] as string | undefined;
+          if (!id || !partyId || !countryId) continue;
+          if (!candidateSupports[id]) candidateSupports[id] = { id, partyId, countryId, support: 50, supportAccrual: [], status: "active" };
+        }
+      }
+    }
+    // Ensure priorityRegion field exists (optional) — no migration needed, leave undefined
+
+    w["regions"] = regions;
+    w["electoratePools"] = electoratePools;
+    w["regionTurnouts"] = regionTurnouts;
+    w["partyRegions"] = partyRegions;
+    w["partyPressures"] = partyPressures;
+    w["candidateSupports"] = candidateSupports;
+    save.world.meta.schemaVersion = 8;
+  }
   return save.world;
 }

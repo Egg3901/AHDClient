@@ -35,6 +35,18 @@ export interface WorldState {
   commodityPrices: Record<string, CommodityState>;
   /** Extraction contracts. Ports src/lib/db/types/extractionContract.ts. */
   extractionContracts: ExtractionContract[];
+  /** Opaque regions per playable country. W19: 3 per playable (12 total). W38 replaces with real state ids. */
+  regions: Record<string, Region>;
+  /** Per-region per-party org/reg. Key `${regionId}:${partyId}`. Ports StatePartyOrg. */
+  partyRegions: Record<string, PartyRegion>;
+  /** Per-region non-party registration buckets. Key regionId. Ports StateRegistrationPool. */
+  electoratePools: Record<string, ElectoratePool>;
+  /** Per-region turnout modifiers. Key regionId. Ports StateDemographicTurnout. */
+  regionTurnouts: Record<string, RegionTurnout>;
+  /** Per-party per-region PS pressure. Key `${partyId}:${regionId}`. Ports PartyStrengthPressure. */
+  partyPressures: Record<string, PartyPressure>;
+  /** Candidate support mood per politician. Key candidate id. Ports ElectionCandidate support fields. */
+  candidateSupports: Record<string, CandidateSupport>;
 }
 
 export interface Politician {
@@ -183,6 +195,12 @@ export interface Party {
   memberCount: number;
   /** True for seeded default parties; custom parties are non-default. */
   isDefault: boolean;
+  /**
+   * Priority region cluster (W19). Ports PoliticalParty.priorityRegion.
+   * Opaque region ids; evicted by priorityRegionDecay when org drops to 0.
+   * W38 will migrate to real state ids.
+   */
+  priorityRegion?: PartyPriorityRegion;
 }
 
 /**
@@ -315,4 +333,101 @@ export interface ExtractionContract {
    * computes royalties and advances lifecycle.
    */
   corporationId: string | null;
+}
+
+/**
+ * Opaque region (state/province/constituency) for party-support modeling.
+ * W19 models 3 opaque regions per playable country (US/UK/RU/DD = 12 total).
+ * W38 will replace opaque ids with real state ids (US 51, UK ~11 etc) and
+ * migrate via id remapping; see docs/support/W19_BRIDGE.md and the priorityRegion
+ * bridge note below.
+ *
+ * Mainline source: State collection (src/lib/db/types/state.ts) per-state rows
+ * and StatePartyOrg per (state,party) rows. Solo collapses to this flat map.
+ */
+export interface Region {
+  id: string;
+  countryId: string;
+  name: string;
+}
+
+/**
+ * Per-region per-party organization and registration.
+ * Ports StatePartyOrg organization/registration pair
+ * (src/lib/db/types/statePartyOrg.ts, src/lib/turn/partyOrg/regDriftDecay.ts).
+ * Solo keys by `${regionId}:${partyId}` in WorldState.partyRegions.
+ */
+export interface PartyRegion {
+  regionId: string;
+  partyId: string;
+  countryId: string;
+  organization: number;
+  registration: number;
+}
+
+/**
+ * Per-region non-party registration buckets.
+ * Ports StateRegistrationPool (src/lib/db/types/stateRegistrationPool.ts).
+ * Solo keys by regionId in WorldState.electoratePools.
+ */
+export interface ElectoratePool {
+  regionId: string;
+  countryId: string;
+  independent: number;
+  unregistered: number;
+}
+
+/**
+ * Per-region turnout modifiers.
+ * Ports StateDemographicTurnout (src/lib/db/types/stateDemographicTurnout.ts).
+ * Solo keys by regionId. Modifiers are DemographicModifiers as in mainline:
+ * Record<category, Record<group, number>> clamped to [-20, +20].
+ */
+export interface RegionTurnout {
+  regionId: string;
+  countryId: string;
+  modifiers: Record<string, Record<string, number>>;
+  lastDecayAppliedTurn: number;
+}
+
+/**
+ * Per-region per-party PS pressure.
+ * Ports PartyStrengthPressure (src/lib/db/types/partyStrengthPressure.ts).
+ * Solo keys by `${partyId}:${regionId}` in WorldState.partyPressures.
+ */
+export interface PartyPressure {
+  partyId: string;
+  regionId: string;
+  countryId: string;
+  value: number;
+}
+
+/**
+ * Candidate support (short-term mood) with queued accruals.
+ * Ports ElectionCandidate.support + supportAccrual
+ * (src/lib/db/types/election.ts, src/lib/turn/elections/supportDecay.ts,
+ *  src/lib/turn/elections/supportAccrual.ts).
+ * Solo keys by candidate id (politician id) in WorldState.candidateSupports.
+ */
+export interface CandidateSupport {
+  id: string;
+  partyId: string;
+  countryId: string;
+  regionId?: string;
+  /** Election grouping, optional until elections land. */
+  electionId?: string;
+  support: number;
+  supportAccrual: Array<{ amountPerTurn: number; turnsRemaining: number }>;
+  status: "active" | "withdrawn";
+}
+
+/**
+ * Party priority region cluster (per-party per-country prioritized region ids).
+ * Ports PoliticalParty.priorityRegion (src/lib/db/types/politicalParties.ts,
+ * src/lib/turn/politicalStrength/priorityRegionDecay.ts).
+ * Solo stores on Party.priorityRegion; ids are opaque region ids until W38.
+ */
+export interface PartyPriorityRegion {
+  regionIds: string[];
+  setAtTurn: number;
 }
