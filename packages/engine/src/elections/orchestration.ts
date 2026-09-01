@@ -15,6 +15,7 @@ import {
 import { generateNpcNameAndGender } from "../npp/nameGenerator.js";
 import { realAccumulate } from "./tallyAdapter.js";
 import { ensureCampaignsForElection, archiveCampaignsForElection } from "../campaigns/lifecycle.js";
+import { applyPresidentialResolution } from "./presidentialResolution.js";
 
 /**
  * W21c orchestration: turns the pure election library into live world behavior.
@@ -72,6 +73,12 @@ export function electionSeriesForWorld(world: WorldState): SeriesSpec[] {
     for (const cls of r.senateClasses ?? []) {
       specs.push({ electionType: "senate", countryId: "US", chamberKey: "senate", state: r.id, senateClass: cls as 1 | 2 | 3, totalSeats: 1 });
     }
+  }
+  // US president (W24): one nationwide record, no `state`. Scope is US only —
+  // see executive/types.ts file doc for why other presidential countries are
+  // PORT-STUB this wave.
+  if (world.legislatures["US"]) {
+    specs.push({ electionType: "president", countryId: "US", chamberKey: "president", totalSeats: 1 });
   }
   // UK: commons, national list over constituencies-to-come (W39); single national record.
   if (world.legislatures["UK"]) {
@@ -145,8 +152,61 @@ function makeChallenger(world: WorldState, rng: WorldRng, rec: ElectionRecord, p
   } as unknown as Politician;
 }
 
+/**
+ * President-specific candidate fill (W24): the incumbent comes from
+ * `world.executives`, not `seatHolders` (the presidency is not a
+ * `Politician.chamberKey` seat), and each ticket carries a generated running
+ * mate — reuses `makeChallenger`'s exact generation logic (name/ideology/age)
+ * with the id's "-CH:" marker swapped for "-VP:" so the running mate is
+ * distinguishable in NPC-population cleanup (applyPresidentialResolution).
+ */
+function fillPresidentialCandidates(world: WorldState, rng: WorldRng, rec: ElectionRecord): void {
+  const seen = new Set(rec.candidates.map((c) => c.id));
+  const exec = world.executives[rec.countryId];
+
+  if (exec?.presidentId && !seen.has(exec.presidentId)) {
+    const id = exec.presidentId;
+    const name = id === "player" ? world.player.name : (world.politicians.find((p) => p.id === id)?.name ?? id);
+    rec.candidates.push({
+      id,
+      name,
+      partyId: exec.presidentParty ?? "independent",
+      isNPP: id !== "player",
+      incumbent: true,
+      runningMateId: exec.vicePresidentId ?? undefined,
+    });
+    seen.add(id);
+  }
+
+  const incumbentPartyId = exec?.presidentId ? exec.presidentParty : null;
+  const majorParties = Object.values(world.parties).filter(
+    (p) => p.countryId === rec.countryId && (p.tier === "major" || p.id === incumbentPartyId),
+  );
+  for (const party of majorParties.sort((a, b) => a.id.localeCompare(b.id))) {
+    if (rec.candidates.some((c) => c.partyId === party.id)) continue;
+    const ch = makeChallenger(world, rng, rec, party.id, 0);
+    world.politicians.push(ch);
+    const vp = makeChallenger(world, rng, rec, party.id, 1);
+    vp.id = vp.id.replace(`${rec.countryId}-CH:`, `${rec.countryId}-VP:`);
+    world.politicians.push(vp);
+    rec.candidates.push({
+      id: ch.id,
+      name: ch.name,
+      partyId: party.id,
+      isNPP: true,
+      incumbent: false,
+      runningMateId: vp.id,
+    });
+  }
+  ensureCampaignsForElection(world, rec);
+}
+
 /** Fill candidacies: incumbents re-enter, majors field challengers, player joins if declared. */
 export function fillCandidates(world: WorldState, rng: WorldRng, rec: ElectionRecord): void {
+  if (rec.electionType === "president") {
+    fillPresidentialCandidates(world, rng, rec);
+    return;
+  }
   const holders = seatHolders(world, rec);
   const seen = new Set(rec.candidates.map((c) => c.id));
   for (const h of holders) {
@@ -225,6 +285,10 @@ export function recomputeComposition(world: WorldState, countryId: string, chamb
 }
 
 export function applyResolution(world: WorldState, rec: ElectionRecord): void {
+  if (rec.electionType === "president") {
+    applyPresidentialResolution(world, rec);
+    return;
+  }
   const candidates: CandidateInput[] = rec.candidates.map((c) => ({
     _id: c.id,
     electionId: rec.id,

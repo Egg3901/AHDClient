@@ -16,15 +16,19 @@
  *     not stubbed, just structurally inapplicable while chairMode is always
  *     "npp" (mainline's own code skips it identically for npp chairs).
  *
- *  2. centralBankChairSelectionPhase — term-expiry rotation. Mirrors the one
- *     mainline branch that needs no president: src/lib/turn/
- *     centralBankChairSelection.ts's `appointNppChair` fallback, taken when a
- *     term expires and (as always in solo) no player/president candidate
- *     exists. Alignment flips hawk<->dove each rotation (oppositeAlignment),
- *     scrutiny partially carries over (CHAIR_CHANGE_SCRUTINY_RETAINED) — same
- *     as a mainline chair replacement. The presidential-nomination pool, FOMC
- *     board reseating, and player accept/decline flow are PORT-STUB, blocked
- *     on "presidential executive, W24".
+ *  2. centralBankChairSelectionPhase — term-expiry rotation. Mirrors the
+ *     mainline `appointNppChair` fallback branch (src/lib/turn/
+ *     centralBankChairSelection.ts), taken whenever a term expires and no
+ *     candidate is nominated. Solo has no character-chair-candidate pool
+ *     (W24 note: this is no longer blocked on "presidential executive" — a
+ *     president now exists via `world.executives`; the nomination pool
+ *     itself is a separate, larger, not-yet-scoped system), so this always
+ *     takes that branch. Alignment flips hawk<->dove each rotation
+ *     (oppositeAlignment), scrutiny partially carries over
+ *     (CHAIR_CHANGE_SCRUTINY_RETAINED) — same as a mainline chair
+ *     replacement. W24 adds attribution: `chairAppointedBy` records the
+ *     sitting president (if any) at the rotation. The FOMC board reseating
+ *     and player accept/decline flow remain PORT-STUB.
  *
  * Registered at the END of the phase list (registry.ts), just before
  * newsMaintenancePhase, per the same rng-stream-stability rule the elections
@@ -113,13 +117,17 @@ export const centralBankChairSelectionPhase: TurnPhase = {
   run(world) {
     for (const bank of Object.values(world.centralBanks)) {
       if (world.meta.turn < bank.chairTermExpiresAtTurn) continue;
-      // Term expired. No president/player candidate pool exists in solo, so this
-      // always takes appointNppChair's fallback branch: rotate the technocrat,
-      // flip temperament, carry over most of the institution's scrutiny.
+      // Term expired. No character-chair-candidate pool exists in solo, so
+      // this always takes appointNppChair's fallback branch: rotate the
+      // technocrat, flip temperament, carry over most of the institution's
+      // scrutiny. W24: attribute the rotation to the sitting president (if
+      // any) — see centralBank/types.ts file doc for why this is attribution
+      // only and does not change chair selection.
       bank.chairAlignment = bank.chairAlignment ? oppositeAlignment(bank.chairAlignment) : "hawk";
       bank.chairInfamy = clamp01to100(bank.chairInfamy * CHAIR_CHANGE_SCRUTINY_RETAINED);
       bank.resolveStreak = 0;
       bank.chairTermExpiresAtTurn = world.meta.turn + CHAIR_TERM_TURNS;
+      bank.chairAppointedBy = world.executives[bank.countryId]?.presidentId ?? null;
     }
   },
 };

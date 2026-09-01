@@ -15,6 +15,8 @@ function makeWorld(): WorldState {
     legislatures: {},
     politicians: [],
     elections: [],
+    executives: {},
+    impeachments: [],
     charters: [],
     caucuses: [],
     endorsements: [],

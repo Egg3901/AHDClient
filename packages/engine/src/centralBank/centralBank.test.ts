@@ -179,6 +179,30 @@ describe("central bank world state (W3)", () => {
     expect(rotated.chairInfamy).toBeLessThan(40);
     expect(rotated.chairTermExpiresAtTurn).toBe(world.meta.turn + CHAIR_TERM_TURNS);
   });
+
+  it("W24: chair rotation attributes the appointment to the sitting president, null when vacant", () => {
+    const vacant = createWorld(OPTS);
+    const vacantBank = vacant.centralBanks["US"]!;
+    vacantBank.chairTermExpiresAtTurn = vacant.meta.turn + 1;
+    advanceTurn(vacant);
+    expect(vacant.centralBanks["US"]!.chairAppointedBy).toBeNull();
+
+    const seated = createWorld(OPTS);
+    seated.executives["US"] = {
+      countryId: "US",
+      presidentId: "player",
+      presidentParty: "US_DEM",
+      termStartTurn: seated.meta.turn,
+      vicePresidentId: null,
+      vicePresidentParty: null,
+    };
+    const seatedBank = seated.centralBanks["US"]!;
+    seatedBank.chairTermExpiresAtTurn = seated.meta.turn + 1;
+    advanceTurn(seated);
+    expect(seated.centralBanks["US"]!.chairAppointedBy).toBe("player");
+    // Chair SELECTION stays the autonomous NPP technocrat — attribution only.
+    expect(seated.centralBanks["US"]!.chairMode).toBe("npp");
+  });
 });
 
 describe("determinism (W3)", () => {
@@ -206,7 +230,7 @@ describe("migration (v<17 -> v17)", () => {
     delete (raw.world as unknown as Record<string, unknown>)["centralBanks"];
 
     const migrated = deserializeSave(JSON.stringify(raw));
-    expect(migrated.meta.schemaVersion).toBe(22);
+    expect(migrated.meta.schemaVersion).toBe(23);
     for (const [countryId, anchor] of Object.entries(CENTRAL_BANK_COUNTRY_ANCHORS)) {
       const bank = migrated.centralBanks[countryId];
       expect(bank, `expected a migrated bank for ${countryId}`).toBeDefined();

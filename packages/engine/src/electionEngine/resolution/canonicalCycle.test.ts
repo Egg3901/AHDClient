@@ -285,6 +285,19 @@ describe("canonicalTurnsForCycle", () => {
       expect(t2019.endTurn - t1991.endTurn).toBe(96);
     });
   });
+
+  describe("1953-default preset anchors (W24: Rotunda's live cycleContextForWorld preset)", () => {
+    const ctx1953 = { startingYear: 1953, preset: "1953-default" };
+
+    it("US President cycle 1 = 1956 (Eisenhower re-election) = turn 192 (= (1956 − 1953 + 1) × 48)", () => {
+      expect(canonicalTurnsForCycle({ electionType: "president", cycle: 1, ctx: ctx1953 })?.endTurn).toBe(192);
+    });
+
+    it("cycle N advances by 192 turns (4 game-years) per cycle, not dur.durationHours coincidentally equal", () => {
+      expect(canonicalTurnsForCycle({ electionType: "president", cycle: 2, ctx: ctx1953 })?.endTurn).toBe(384); // 1960
+      expect(canonicalTurnsForCycle({ electionType: "president", cycle: 3, ctx: ctx1953 })?.endTurn).toBe(576); // 1964
+    });
+  });
 });
 
 describe("pickNextCanonicalCycle — 24h+24h gate", () => {

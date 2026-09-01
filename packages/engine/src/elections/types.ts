@@ -11,6 +11,13 @@ export interface ElectionCandidate {
   isNPP: boolean;
   /** True for the seat holder entering the race. */
   incumbent: boolean;
+  /**
+   * Running mate id (politician id or "player"), president races only.
+   * Ports `ElectionCandidate.runningMateId` (src/lib/db/types/electionCandidate.ts).
+   * PORT-STUB: no player-facing running-mate picker this wave, so player
+   * presidential candidacies always carry an undefined running mate.
+   */
+  runningMateId?: string | undefined;
 }
 
 export type ElectionStatus = "upcoming" | "active" | "resolved";

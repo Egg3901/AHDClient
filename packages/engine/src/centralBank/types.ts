@@ -8,21 +8,35 @@
  * character/player chair via presidential appointment (or Senate-confirmed FOMC
  * nomination for the US Fed), and only falls back to an NPP technocrat when no
  * candidate is available (src/lib/turn/centralBankChairSelection.ts, the
- * `appointNppChair` branch). Solo has no president and no player-character pool at
- * all yet (blocked on "presidential executive, W24"), so every bank starts — and
- * stays — in that fallback mode until W24 ports the appointment path.
+ * `appointNppChair` branch).
+ *
+ * W24 wires the appointment ATTRIBUTION half of this: `chairAppointedBy`
+ * records the sitting president (if any) at each term-expiry rotation
+ * (centralBank/phases.ts `centralBankChairChairSelectionPhase`), the same
+ * field mainline's `chairAppointedBy` carries. What stays PORT-STUB is the
+ * NOMINATION half — mainline's `nominations`/`lobbyingPool` pool of
+ * player-characters the president chooses from. Rotunda has no candidate
+ * pool separate from the single player + generated NPC roster to draw a
+ * "nominee" from, so every bank's chair remains the autonomous NPP
+ * technocrat regardless of whether a president is seated; the president's
+ * only observable effect this wave is the attribution stamp. A real
+ * nomination flow is blocked on a character-chair-candidate pool (and, for
+ * the US, an FOMC board) — neither exists yet, and neither is scoped to
+ * "presidential executive" specifically anymore now that W24 has landed.
  *
  * Fields mainline carries that solo omits (cited, not silently dropped):
- *  - chairCharacterId/chairCharacterName/chairAppointedAt/chairAppointedBy,
- *    nominations, lobbyingPool, chairSelectionPending, chairControlsLocked:
- *    all part of the player/president appointment apparatus — PORT-STUB, W24.
+ *  - chairCharacterId/chairCharacterName/chairAppointedAt, nominations,
+ *    lobbyingPool, chairSelectionPending, chairControlsLocked: all part of
+ *    the player/president NOMINATION apparatus — PORT-STUB, blocked on a
+ *    character-chair-candidate pool (see above).
  *  - fomcBoard/activeFomcMeeting/fomcMeetingHistory/rateChangesThisTerm/
  *    fomcTermStartedAtTurn/lastFomcMeetingTurn/lastFomcVacancyNoticeAtTurn: the
  *    FOMC committee (US only) is staffed by presidential nomination + Senate
- *    confirmation and live player ballots — PORT-STUB, W24. Every solo bank
- *    (including US) runs the single-chair autonomous fallback path instead,
- *    which is exactly what mainline does whenever a board cannot carry a motion
- *    (src/lib/centralBank/fomc.ts boardCanCarryMotions) or has no nominee.
+ *    confirmation and live player ballots — PORT-STUB, same blocker. Every
+ *    solo bank (including US) runs the single-chair autonomous fallback path
+ *    instead, which is exactly what mainline does whenever a board cannot
+ *    carry a motion (src/lib/centralBank/fomc.ts boardCanCarryMotions) or has
+ *    no nominee.
  *  - rateHistory (per-change audit log with changedBy/changedByName): needs a
  *    character to attribute the change to. interestRateHistory (turn/rate only)
  *    is kept — it drives the monetary-lag term in macroCountryTurn.
@@ -63,6 +77,13 @@ export interface CentralBank {
   lastRateChangeTurn: number | null;
   /** Turn the current chair's term expires. Source: CentralBank.chairTermExpiresAtTurn (never null in solo — every bank is appointed at bootstrap). */
   chairTermExpiresAtTurn: number;
+  /**
+   * "player", a politician id, or null — the sitting president (if any) at
+   * the chair's most recent appointment/rotation. Source: CentralBank.
+   * chairAppointedBy. W24: attribution only (see file doc); does not change
+   * chair SELECTION, which stays the autonomous NPP technocrat.
+   */
+  chairAppointedBy: string | null;
   /** Per-turn rate history, capped at 48 (1 game year). Source: CentralBank.interestRateHistory. */
   interestRateHistory: CentralBankTurnSnapshot[];
 }

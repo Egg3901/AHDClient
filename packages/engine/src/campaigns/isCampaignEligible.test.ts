@@ -18,7 +18,7 @@ describe("isCampaignEligibleElection (src/lib/campaigns/isCampaignEligible.ts po
     expect(isCampaignEligibleElection({ countryId: "DD", electionType: "volkskammerDeputy" })).toBe(false);
   });
 
-  it("president is not eligible in solo (no direct-election president type yet — PORT-STUB)", () => {
-    expect(isCampaignEligibleElection({ countryId: "US", electionType: "president" })).toBe(false);
+  it("US president is eligible (W24: direct-election head of state, mirrors mainline's isDirectElection)", () => {
+    expect(isCampaignEligibleElection({ countryId: "US", electionType: "president" })).toBe(true);
   });
 });

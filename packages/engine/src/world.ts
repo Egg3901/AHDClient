@@ -17,7 +17,7 @@ import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/co
 import type { CentralBank } from "./centralBank/types.js";
 import { seedCorporations } from "./corporation/founding.js";
 
-export const SCHEMA_VERSION = 22;
+export const SCHEMA_VERSION = 23;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -349,6 +349,11 @@ export function createWorld(options: NewWorldOptions): WorldState {
     legislatures,
     politicians,
     elections: [],
+    // W24: no authored incumbent seed exists in packages/content (see
+    // types.ts WorldState.executives file doc) — every fresh world starts
+    // with a vacant presidency, exactly like an un-elected chamber seat.
+    executives: {},
+    impeachments: [],
     charters: [],
     caucuses: [],
     endorsements: [],
@@ -951,6 +956,7 @@ function seedCentralBanks(countries: WorldState["countries"]): WorldState["centr
       lastRateChangeTurn: null,
       chairTermExpiresAtTurn: CHAIR_TERM_TURNS,
       interestRateHistory: [],
+      chairAppointedBy: null,
     };
     banks[country.id] = bank;
   }

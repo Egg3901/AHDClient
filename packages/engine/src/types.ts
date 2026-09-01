@@ -4,6 +4,8 @@ import type { CountryBudget, RegionalBudget } from "./budget/types.js";
 import type { CentralBank } from "./centralBank/types.js";
 import type { Corporation, CorpRevenueSnapshot } from "./corporation/types.js";
 import type { GovernmentState } from "./government/types.js";
+import type { ExecutiveState } from "./executive/types.js";
+import type { ImpeachmentCase } from "./impeachment/types.js";
 
 /**
  * The entire game world is one serializable document. No database: the world
@@ -30,6 +32,17 @@ export interface WorldState {
   politicians: Politician[];
   /** Live election records (W21c). Maintained by the election phases. */
   elections: import("./elections/types.js").ElectionRecord[];
+  /**
+   * Presidential (and other head-of-state) executive offices, keyed by
+   * country id. W24 port. Vacant (absent key, or presidentId null) until a
+   * "president"-type election first resolves — Rotunda's content packs carry
+   * no authored incumbent seed (mainline itself has the same gap on several
+   * worlds per the 1953-preset audit), so a fresh world starts with no sitting
+   * president, exactly like a chamber with no pre-seeded winner.
+   */
+  executives: Record<string, ExecutiveState>;
+  /** Open and resolved presidential impeachment cases (W24 port, US only). */
+  impeachments: ImpeachmentCase[];
   /** Party charters (charter lifecycle). Ports src/lib/db/types/partyCharter.ts. */
   charters: PartyCharter[];
   /** Caucuses (faction sub-groups). Ports src/lib/db/types/caucus.ts. */

@@ -82,6 +82,8 @@ import {
   leadershipElectionsPhase,
 } from "../intraparty/phases.js";
 import { governmentFormationPhase, governmentVacancyWatcherPhase } from "../government/phases.js";
+import { impeachmentLifecyclePhase } from "../impeachment/phases.js";
+import { presidentialSuccessionPhase } from "../executive/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -194,5 +196,17 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // checks it, exactly as mainline's pmVacancyDeadline.ts requires.
   governmentFormationPhase,
   governmentVacancyWatcherPhase,
+  // W24 presidential succession/impeachment cluster at END before
+  // newsMaintenance — same rng-stream-stability rule as every other tail
+  // cluster above (mainline runs impeachmentLifecycle/presidentialSuccession
+  // mid-pipeline, around Group 11; inserting them there would shift every
+  // downstream rng draw for existing goldens). Relative order mirrors
+  // mainline: impeachmentLifecycle BEFORE presidentialSuccession, so a
+  // same-turn conviction vacancy is filled by succession the same turn (see
+  // impeachment/lifecycle.ts file doc). Both also run after
+  // electionResolutionPhase above, so a same-turn presidential-election
+  // winner already fills a vacancy before succession would need to.
+  impeachmentLifecyclePhase,
+  presidentialSuccessionPhase,
   newsMaintenancePhase,
 ];

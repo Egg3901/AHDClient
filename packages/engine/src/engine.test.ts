@@ -133,6 +133,8 @@ describe("advanceTurn", () => {
       "leadershipElections",
       "governmentFormation",
       "governmentVacancyWatcher",
+      "impeachmentLifecycle",
+      "presidentialSuccession",
       "newsMaintenance",
     ]);
   });
@@ -153,6 +155,59 @@ describe("save", () => {
     world.meta.schemaVersion = 999;
     const raw = serializeSave(world, "2026-01-01T00:00:00Z");
     expect(() => deserializeSave(raw)).toThrow("newer version");
+  });
+
+  it("v21 -> v23: W24 migration backfills executives, impeachments, and centralBank chairAppointedBy", () => {
+    const world = createWorld(OPTS);
+    const v21 = structuredClone(world) as unknown as Record<string, unknown>;
+    v21["meta"] = { ...world.meta, schemaVersion: 21 };
+    delete v21["executives"];
+    delete v21["impeachments"];
+    const centralBanks = v21["centralBanks"] as Record<string, Record<string, unknown>>;
+    for (const bank of Object.values(centralBanks)) delete bank["chairAppointedBy"];
+
+    const raw = JSON.stringify({
+      format: "ahdsolo-save",
+      schemaVersion: 21,
+      savedAt: "2026-01-01T00:00:00Z",
+      world: v21,
+    });
+    const a = deserializeSave(raw);
+    const b = deserializeSave(raw);
+
+    expect(a.meta.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(a.executives).toEqual({});
+    expect(a.impeachments).toEqual([]);
+    for (const bank of Object.values(a.centralBanks)) {
+      expect(bank.chairAppointedBy).toBeNull();
+    }
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+
+  it("chained migration: a v20 save (missing v21 fields too) reaches v23 cleanly", () => {
+    const world = createWorld(OPTS);
+    const v20 = structuredClone(world) as unknown as Record<string, unknown>;
+    v20["meta"] = { ...world.meta, schemaVersion: 20 };
+    delete v20["statePartyElections"];
+    delete v20["nationalPartyElections"];
+    delete v20["nationalCommitteeElections"];
+    delete v20["coalitions"];
+    delete v20["executives"];
+    delete v20["impeachments"];
+
+    const raw = JSON.stringify({
+      format: "ahdsolo-save",
+      schemaVersion: 20,
+      savedAt: "2026-01-01T00:00:00Z",
+      world: v20,
+    });
+    const migrated = deserializeSave(raw);
+
+    expect(migrated.meta.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(migrated.statePartyElections).toEqual([]);
+    expect(migrated.coalitions).toEqual([]);
+    expect(migrated.executives).toEqual({});
+    expect(migrated.impeachments).toEqual([]);
   });
 });
 
@@ -515,11 +570,14 @@ describe("W38 US states layer", () => {
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "UK").length).toBe(12);
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "RU").length).toBe(14);
     expect(Object.keys(a.regions).filter((k) => a.regions[k]!.countryId === "DD").length).toBe(6);
-    expect(a.meta.schemaVersion).toBe(22);
-    expect(a.meta.schemaVersion).toBe(22);
-    expect(a.meta.schemaVersion).toBe(22);
-    expect(a.meta.schemaVersion).toBe(22);
-    expect(a.meta.schemaVersion).toBe(22);
+    expect(a.meta.schemaVersion).toBe(23);
+    expect(a.meta.schemaVersion).toBe(23);
+    expect(a.meta.schemaVersion).toBe(23);
+    expect(a.meta.schemaVersion).toBe(23);
+    expect(a.meta.schemaVersion).toBe(23);
+    expect(a.meta.schemaVersion).toBe(23);
+    expect(a.meta.schemaVersion).toBe(23);
+    expect(a.meta.schemaVersion).toBe(23);
     // No opaque US left
     expect(a.regions["US-R1"]).toBeUndefined();
     // Deterministic: partyRegions for US states are uniform averaged (round)

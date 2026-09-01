@@ -1006,5 +1006,31 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 22;
   }
+  // v22 -> v23: W24 presidential cluster (election, succession, impeachment,
+  // central-bank chair-appointment attribution). Pre-allocated v23: mainline
+  // is v21; a parallel wave holds v22. This migration jumps straight from
+  // latest-known (v21) to v23. RESOLVER NOTE: if the v22 wave lands first,
+  // split this block into chained v21->v22 (their wave) -> v22->v23 (this
+  // block, renumbered) and confirm v22 does not also introduce a field named
+  // `executives`, `impeachments`, or `chairAppointedBy` (it should not; W24
+  // is authoritative for those names). Splitting is mechanical: rename the
+  // version guard below and preserve ordering, same pattern as the v20/v21
+  // split note above.
+  if (save.schemaVersion < 23) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (w["executives"] == null || typeof w["executives"] !== "object" || Array.isArray(w["executives"])) {
+      w["executives"] = {};
+    }
+    if (!Array.isArray(w["impeachments"])) w["impeachments"] = [];
+    const centralBanks = w["centralBanks"] as Record<string, Record<string, unknown>> | undefined;
+    if (centralBanks) {
+      for (const bank of Object.values(centralBanks)) {
+        if (!("chairAppointedBy" in bank) || bank["chairAppointedBy"] === undefined) {
+          bank["chairAppointedBy"] = null;
+        }
+      }
+    }
+    save.world.meta.schemaVersion = 23;
+  }
   return save.world;
 }

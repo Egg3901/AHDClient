@@ -39,10 +39,11 @@ describe("campaign cluster — 100-turn integration (W26)", () => {
 
     const campaigns = Object.values(w.campaigns);
     expect(campaigns.length).toBeGreaterThan(0);
-    // Every campaign is for a US house/senate race (the only eligible types solo spawns).
+    // Every campaign is for a US house/senate/president race — W24 wires the
+    // president into campaign eligibility (mirrors mainline's isDirectElection).
     for (const c of campaigns) {
       expect(c.countryId).toBe("US");
-      expect(["house", "senate"]).toContain(c.electionType);
+      expect(["house", "senate", "president"]).toContain(c.electionType);
     }
 
     const nppCampaigns = campaigns.filter((c) => c.candidateIsNPP);
@@ -112,7 +113,7 @@ describe("migration (v<20 -> v20)", () => {
     delete (raw.world as unknown as Record<string, unknown>)["campaigns"];
 
     const migrated = deserializeSave(JSON.stringify(raw));
-    expect(migrated.meta.schemaVersion).toBe(22);
+    expect(migrated.meta.schemaVersion).toBe(23);
     expect(migrated.campaigns).toEqual({});
   });
 
