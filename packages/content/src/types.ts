@@ -16,6 +16,7 @@ export interface SeedPack {
   /** Optional extension tables: states, parties, sectors. */
   states?: StateSeed[];
   parties?: PartySeed[];
+  legislatures?: LegislatureSeed[];
   sectors?: SectorSeed[];
 }
 
@@ -51,12 +52,42 @@ export interface StateSeed {
   [key: string]: unknown;
 }
 
-/** Placeholder for future parties table. */
+/**
+ * Political party seed. Ports mainline's PoliticalParty axis representation:
+ * economicPosition and socialPosition on -5..+5, as authored in
+ * src/lib/seeds/reference/politicalParties.ts and per-country *Parties.ts.
+ */
 export interface PartySeed {
   id: string;
   name: string;
   countryId: string;
-  [key: string]: unknown;
+  abbreviation: string;
+  color: string;
+  economicPosition: number;
+  socialPosition: number;
+}
+
+/** Legislature seed — one per country per era. */
+export interface LegislatureSeed {
+  countryId: string;
+  name: string;
+  bicameral: boolean;
+  chambers: ChamberSeed[];
+}
+
+export interface ChamberSeed {
+  key: string;
+  name: string;
+  shortName: string;
+  seats: number;
+  elected: boolean;
+  description?: string;
+  composition: ChamberCompositionSeed;
+}
+
+export interface ChamberCompositionSeed {
+  seatsByParty: Record<string, number>;
+  vacancies: number;
 }
 
 /** Placeholder for future sectors table (industry sectors). */

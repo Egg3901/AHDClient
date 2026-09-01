@@ -101,6 +101,83 @@ describe("bounds sanity", () => {
 });
 
 // ── Migration ──────────────────────────────────────────────────────────
+describe("save migration v2 -> v3", () => {
+  it("loads a v2 save fixture and upgrades parties and legislatures", () => {
+    const v2World: Record<string, unknown> = {
+      meta: {
+        schemaVersion: 2,
+        seed: "mig-seed-2",
+        rng: [1, 2, 3, 4] as unknown,
+        turn: 5,
+        date: "1953-02-10",
+        era: "1953",
+      },
+      countries: {
+        US: {
+          id: "US",
+          name: "United States",
+          playable: true,
+          economy: { gdp: 389000, growthRate: 0.03, inflationRate: 0.02, unemploymentRate: 0.05, outputGap: 0 },
+        },
+      },
+      player: { name: "Tester", countryId: "US", cash: 10000 },
+      news: [],
+    };
+    const raw = JSON.stringify({
+      format: "ahdsolo-save",
+      schemaVersion: 2,
+      savedAt: "2026-01-01T00:00:00Z",
+      world: v2World,
+    });
+    const loaded = deserializeSave(raw);
+    expect(loaded.meta.schemaVersion).toBe(3);
+    expect(loaded.parties).toBeDefined();
+    expect(loaded.legislatures).toBeDefined();
+    expect(Object.keys(loaded.parties).length).toBe(0);
+    expect(Object.keys(loaded.legislatures).length).toBe(0);
+    const raw2 = serializeSave(loaded, "2026-01-02T00:00:00Z");
+    const loaded2 = deserializeSave(raw2);
+    expect(loaded2.meta.schemaVersion).toBe(3);
+  });
+
+  it("loads a v1 save fixture and migrates through v2 to v3", () => {
+    const v1World: Record<string, unknown> = {
+      meta: {
+        schemaVersion: 1,
+        seed: "mig-seed-1",
+        rng: [1, 2, 3, 4] as unknown,
+        turn: 5,
+        date: "1953-02-10",
+        era: "1953",
+      },
+      countries: {
+        US: {
+          id: "US",
+          name: "United States",
+          playable: true,
+          economy: { gdp: 389000, growthRate: 0.03, inflationRate: 0.02, unemploymentRate: 0.05 },
+        },
+      },
+      player: { name: "Tester", countryId: "US", cash: 10000 },
+      news: [],
+    };
+    const raw = JSON.stringify({
+      format: "ahdsolo-save",
+      schemaVersion: 1,
+      savedAt: "2026-01-01T00:00:00Z",
+      world: v1World,
+    });
+    const loaded = deserializeSave(raw);
+    expect(loaded.meta.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(loaded.meta.schemaVersion).toBe(3);
+    for (const c of Object.values(loaded.countries)) {
+      expect((c.economy as unknown as Record<string, unknown>)["outputGap"]).toBe(0);
+    }
+    expect(loaded.parties).toBeDefined();
+    expect(loaded.legislatures).toBeDefined();
+  });
+});
+
 describe("save migration v1 -> v2", () => {
   it("loads a v1 save fixture and upgrades outputGap", () => {
     // Construct a v1 save: schemaVersion 1, country economies without outputGap
@@ -138,15 +215,17 @@ describe("save migration v1 -> v2", () => {
     });
     const loaded = deserializeSave(raw);
     expect(loaded.meta.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(loaded.meta.schemaVersion).toBe(2);
+    expect(loaded.meta.schemaVersion).toBe(3);
     for (const c of Object.values(loaded.countries)) {
       expect(c.economy.outputGap).toBe(0);
       expect(Number.isFinite(c.economy.outputGap)).toBe(true);
     }
-    // Round-trip preserves v2
+    expect(loaded.parties).toBeDefined();
+    expect(loaded.legislatures).toBeDefined();
+    // Round-trip preserves v3
     const raw2 = serializeSave(loaded, "2026-01-02T00:00:00Z");
     const loaded2 = deserializeSave(raw2);
-    expect(loaded2.meta.schemaVersion).toBe(2);
+    expect(loaded2.meta.schemaVersion).toBe(3);
     for (const c of Object.values(loaded2.countries)) {
       expect(c.economy.outputGap).toBe(0);
     }

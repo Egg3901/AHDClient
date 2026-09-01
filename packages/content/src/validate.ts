@@ -113,10 +113,91 @@ export function validatePack(pack: SeedPack): void {
   }
 
   // optional extension tables: if present, must be arrays
-  for (const key of ["states", "parties", "sectors"] as const) {
+  for (const key of ["states", "parties", "sectors", "legislatures"] as const) {
     const v = (pack as unknown as Record<string, unknown>)[key];
     if (v !== undefined && !Array.isArray(v)) {
       throw new Error(`validatePack: ${key} must be an array if present`);
+    }
+  }
+
+  // parties validation
+  if (Array.isArray(pack.parties)) {
+    const partyIds = new Set<string>();
+    for (let i = 0; i < pack.parties.length; i++) {
+      const p = pack.parties[i] as unknown as Record<string, unknown>;
+      if (typeof p !== "object" || p === null) throw new Error(`validatePack: parties[${i}] must be an object`);
+      const id = p["id"];
+      const name = p["name"];
+      const countryId = p["countryId"];
+      const abbreviation = p["abbreviation"];
+      const color = p["color"];
+      const econ = p["economicPosition"];
+      const soc = p["socialPosition"];
+      if (typeof id !== "string" || id.trim() === "") throw new Error(`validatePack: parties[${i}].id must be a non-empty string`);
+      if (partyIds.has(id)) throw new Error(`validatePack: duplicate party id "${id}"`);
+      partyIds.add(id);
+      if (typeof name !== "string" || name.trim() === "") throw new Error(`validatePack: parties[${i}].name must be a non-empty string for id "${id}"`);
+      if (typeof countryId !== "string" || countryId.trim() === "") throw new Error(`validatePack: parties[${i}].countryId must be a non-empty string for id "${id}"`);
+      if (!seen.has(countryId)) throw new Error(`validatePack: parties[${i}].countryId "${countryId}" does not match any country for party "${id}"`);
+      if (typeof abbreviation !== "string" || abbreviation.trim() === "") throw new Error(`validatePack: parties[${i}].abbreviation must be a non-empty string for id "${id}"`);
+      if (typeof color !== "string" || color.trim() === "") throw new Error(`validatePack: parties[${i}].color must be a non-empty string for id "${id}"`);
+      if (!isFiniteNumber(econ) || (econ as number) < -5 || (econ as number) > 5) throw new Error(`validatePack: parties[${i}].economicPosition must be a finite number in [-5,5] for id "${id}", got ${String(econ)}`);
+      if (!isFiniteNumber(soc) || (soc as number) < -5 || (soc as number) > 5) throw new Error(`validatePack: parties[${i}].socialPosition must be a finite number in [-5,5] for id "${id}", got ${String(soc)}`);
+    }
+  }
+
+  // legislatures validation
+  if (Array.isArray(pack.legislatures)) {
+    const partyIds = new Set<string>((pack.parties ?? []).map((p) => p.id));
+    const legislatureCountryIds = new Set<string>();
+    for (let i = 0; i < pack.legislatures.length; i++) {
+      const leg = pack.legislatures[i] as unknown as Record<string, unknown>;
+      if (typeof leg !== "object" || leg === null) throw new Error(`validatePack: legislatures[${i}] must be an object`);
+      const countryId = leg["countryId"];
+      const name = leg["name"];
+      const bicameral = leg["bicameral"];
+      const chambers = leg["chambers"];
+      if (typeof countryId !== "string" || countryId.trim() === "") throw new Error(`validatePack: legislatures[${i}].countryId must be a non-empty string`);
+      if (!seen.has(countryId)) throw new Error(`validatePack: legislatures[${i}].countryId "${countryId}" does not match any country`);
+      if (legislatureCountryIds.has(countryId)) throw new Error(`validatePack: duplicate legislature for country "${countryId}"`);
+      legislatureCountryIds.add(countryId);
+      if (typeof name !== "string" || name.trim() === "") throw new Error(`validatePack: legislatures[${i}].name must be a non-empty string for country "${countryId}"`);
+      if (typeof bicameral !== "boolean") throw new Error(`validatePack: legislatures[${i}].bicameral must be a boolean for country "${countryId}"`);
+      if (!Array.isArray(chambers)) throw new Error(`validatePack: legislatures[${i}].chambers must be an array for country "${countryId}"`);
+      if (chambers.length === 0) throw new Error(`validatePack: legislatures[${i}].chambers must not be empty for country "${countryId}"`);
+      const chamberKeys = new Set<string>();
+      for (let j = 0; j < chambers.length; j++) {
+        const ch = chambers[j] as unknown as Record<string, unknown>;
+        if (typeof ch !== "object" || ch === null) throw new Error(`validatePack: legislatures[${i}].chambers[${j}] must be an object for country "${countryId}"`);
+        const key = ch["key"];
+        const cName = ch["name"];
+        const shortName = ch["shortName"];
+        const seats = ch["seats"];
+        const elected = ch["elected"];
+        const composition = ch["composition"] as unknown as Record<string, unknown> | undefined;
+        if (typeof key !== "string" || key.trim() === "") throw new Error(`validatePack: legislatures[${i}].chambers[${j}].key must be a non-empty string for country "${countryId}"`);
+        if (chamberKeys.has(key)) throw new Error(`validatePack: duplicate chamber key "${key}" in legislatures[${i}] for country "${countryId}"`);
+        chamberKeys.add(key);
+        if (typeof cName !== "string" || cName.trim() === "") throw new Error(`validatePack: legislatures[${i}].chambers[${j}].name must be a non-empty string for country "${countryId}"`);
+        if (typeof shortName !== "string" || shortName.trim() === "") throw new Error(`validatePack: legislatures[${i}].chambers[${j}].shortName must be a non-empty string for country "${countryId}"`);
+        if (!isFiniteNumber(seats) || !Number.isInteger(seats as number) || (seats as number) <= 0) throw new Error(`validatePack: legislatures[${i}].chambers[${j}].seats must be a finite integer > 0 for country "${countryId}", got ${String(seats)}`);
+        if (typeof elected !== "boolean") throw new Error(`validatePack: legislatures[${i}].chambers[${j}].elected must be a boolean for country "${countryId}"`);
+        if (typeof composition !== "object" || composition === null) throw new Error(`validatePack: legislatures[${i}].chambers[${j}].composition must be an object for country "${countryId}"`);
+        const seatsByParty = composition["seatsByParty"] as unknown;
+        const vacancies = composition["vacancies"];
+        if (typeof seatsByParty !== "object" || seatsByParty === null || Array.isArray(seatsByParty)) throw new Error(`validatePack: legislatures[${i}].chambers[${j}].composition.seatsByParty must be an object for country "${countryId}"`);
+        if (!isFiniteNumber(vacancies) || !Number.isInteger(vacancies as number) || (vacancies as number) < 0) throw new Error(`validatePack: legislatures[${i}].chambers[${j}].composition.vacancies must be a finite integer >= 0 for country "${countryId}", got ${String(vacancies)}`);
+        let sum = vacancies as number;
+        for (const [partyId, count] of Object.entries(seatsByParty as Record<string, unknown>)) {
+          if (!isFiniteNumber(count) || !Number.isInteger(count as number) || (count as number) < 0) throw new Error(`validatePack: legislatures[${i}].chambers[${j}].composition.seatsByParty["${partyId}"] must be a finite integer >= 0 for country "${countryId}", got ${String(count)}`);
+          if (!partyIds.has(partyId)) throw new Error(`validatePack: legislatures[${i}].chambers[${j}].composition.seatsByParty["${partyId}"] references unknown party "${partyId}" for country "${countryId}"`);
+          // Also ensure the party belongs to this country? Allow cross-country? Enforce same country if parties has that mapping.
+          const party = (pack.parties ?? []).find((p) => p.id === partyId);
+          if (party && party.countryId !== countryId) throw new Error(`validatePack: legislatures[${i}].chambers[${j}].composition.seatsByParty["${partyId}"] party country "${party.countryId}" does not match legislature country "${countryId}"`);
+          sum += count as number;
+        }
+        if (sum !== (seats as number)) throw new Error(`validatePack: legislatures[${i}].chambers[${j}] composition sum ${sum} does not equal seats ${String(seats)} for country "${countryId}"`);
+      }
     }
   }
 }

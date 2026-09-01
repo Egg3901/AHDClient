@@ -2,7 +2,7 @@ import { rngFromSeed } from "./rng.js";
 import type { WorldState } from "./types.js";
 import { getPackByEra, PACKS_BY_DATE } from "@rotunda/content";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export interface EraInfo {
   id: string;
@@ -66,6 +66,33 @@ export function createWorld(options: NewWorldOptions): WorldState {
   }
 
   const rng = rngFromSeed(options.seed);
+
+  const parties: WorldState["parties"] = {};
+  for (const p of pack.parties ?? []) {
+    parties[p.id] = { ...p };
+  }
+
+  const legislatures: WorldState["legislatures"] = {};
+  for (const leg of pack.legislatures ?? []) {
+    legislatures[leg.countryId] = {
+      countryId: leg.countryId,
+      name: leg.name,
+      bicameral: leg.bicameral,
+      chambers: leg.chambers.map((c) => {
+        const chamber: WorldState["legislatures"][string]["chambers"][number] = {
+          key: c.key,
+          name: c.name,
+          shortName: c.shortName,
+          seats: c.seats,
+          elected: c.elected,
+          composition: { seatsByParty: { ...c.composition.seatsByParty }, vacancies: c.composition.vacancies },
+        };
+        if (c.description !== undefined) chamber.description = c.description;
+        return chamber;
+      }),
+    };
+  }
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -76,6 +103,8 @@ export function createWorld(options: NewWorldOptions): WorldState {
       era: pack.era.id,
     },
     countries,
+    parties,
+    legislatures,
     player: {
       name: options.playerName,
       countryId: options.countryId,

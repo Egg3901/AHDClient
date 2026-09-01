@@ -52,5 +52,16 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 2;
   }
+  // v2 -> v3: add parties and legislatures (empty for old saves)
+  if (save.schemaVersion < 3) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (typeof w["parties"] !== "object" || w["parties"] === null || Array.isArray(w["parties"])) {
+      w["parties"] = {};
+    }
+    if (typeof w["legislatures"] !== "object" || w["legislatures"] === null || Array.isArray(w["legislatures"])) {
+      w["legislatures"] = {};
+    }
+    save.world.meta.schemaVersion = 3;
+  }
   return save.world;
 }

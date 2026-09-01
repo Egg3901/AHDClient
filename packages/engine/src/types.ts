@@ -17,6 +17,10 @@ export interface WorldState {
   player: PlayerCharacter;
   /** Append-only feed of notable events, newest last. Trimmed by maintenance. */
   news: NewsItem[];
+  /** Parties seeded from mainline party seeds. Keyed by party id. */
+  parties: Record<string, Party>;
+  /** Legislatures seeded from mainline country configs. Keyed by country id. */
+  legislatures: Record<string, Legislature>;
 }
 
 export interface WorldMeta {
@@ -67,4 +71,52 @@ export interface NewsItem {
   turn: number;
   date: string;
   headline: string;
+}
+
+/**
+ * Political party. Ports mainline's PoliticalParty ideological axis:
+ * economicPosition and socialPosition on -5..+5 (left/libertarian negative,
+ * right/authoritarian positive) as authored in src/lib/seeds/*Parties.ts and
+ * src/lib/seeds/reference/politicalParties.ts. No new axis invented.
+ */
+export interface Party {
+  /** Party id — the abbreviation uppercased (e.g. "DEM", "LAB", "CPSU", "SED"). */
+  id: string;
+  name: string;
+  countryId: string;
+  abbreviation: string;
+  color: string;
+  /** Economic left (-5) to right (+5). */
+  economicPosition: number;
+  /** Social libertarian (-5) to authoritarian (+5). */
+  socialPosition: number;
+}
+
+/**
+ * Legislature for a country. Chambers are derived from mainline
+ * COUNTRY_CONFIGS and ERA_COUNTRY_CONFIG_OVERRIDES (src/lib/constants/countries.ts).
+ * The `elected` flag mirrors mainline's ChamberConfig.elected (false means appointed).
+ */
+export interface Legislature {
+  countryId: string;
+  name: string;
+  bicameral: boolean;
+  chambers: Chamber[];
+}
+
+export interface Chamber {
+  key: string;
+  name: string;
+  shortName: string;
+  seats: number;
+  /** True for elected chambers; false for appointed (e.g. UK Lords, DD Staatsrat, DE Bundesrat). */
+  elected: boolean;
+  description?: string;
+  composition: ChamberComposition;
+}
+
+export interface ChamberComposition {
+  /** Seats held per party, keyed by party id. Sum plus vacancies equals chamber seats. */
+  seatsByParty: Record<string, number>;
+  vacancies: number;
 }
