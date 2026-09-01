@@ -90,6 +90,16 @@ Binding rule in FRAMEWORK.md: a mode is who the player is, never how the world w
 - M2 creation flow: mode picker; HoS variant selects country + ruling party instead of character career start
 - M3 HoS UI hub: legislative agenda console, economic direction console (NPP economy encouragement, subsidies, state levers), war and foreign policy console; reuses U-lane screens with the HoS lever set
 
+## Integration findings ledger (40-year sims, 2026-09-01)
+
+The 2080-turn runs hold every invariant (finite, clamped, deterministic) with these known artifacts, each owned by a wave:
+
+- Growth random-walks and unemployment drifts to the 11-14% band: macro PORT-STUB inputs (sector, fiscal, monetary all neutral) - owned by W2/W3/W6/W9.
+- Party treasuries accumulate unbounded (no spending sinks) - owned by W20/W26 (elections and campaigns drain funds).
+- NPC action points peg at cap (nothing spends them) - owned by W37.
+- Near-empty news feed - owned by W31.
+- Default majors demoted by t300 (no org maintenance without players/NPCs): PORT-STUB exemption shipped, removed at W37.
+
 ## N/A for singleplayer (recorded, not silently dropped)
 
 activityLogging (server telemetry), auditAnomalyScan / suspiciousDetection / financialSuspectScan (anti-abuse against human opponents), bannedShareholderRelease / inactiveShareholderShareRelease (moderation and absent-human recovery; NPC ownership handled inside Lane 2), altDetection, auth/account/discord/masscomm/analytics/adsense infra. Reason: these exist because other humans exist. gameHealthSnapshot maps to CLI invariants instead.
