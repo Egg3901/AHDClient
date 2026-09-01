@@ -1,0 +1,21 @@
+{
+  "name": "ahdsolo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A House Divided: Solo - singleplayer desktop edition",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "dev": "npm run dev --workspace apps/desktop",
+    "verify": "npm run typecheck && npm run test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
