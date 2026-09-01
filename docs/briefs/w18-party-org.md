@@ -6,4 +6,7 @@ You own `packages/engine` party surface. Do not touch `apps/desktop`. Another en
 
 Port from mainline: the party organization phase cluster - `partyInfluenceTurn`, `partyOrgTurn`, `partyTierTurn`, `caucusTax`, `partyActionGeneration`, `expireCharters`, `emptyPartyCleanup`, `partyMemberCountReconcile` - from their modules under mainline `src/lib/` (party/parties/caucus/politicalOperations areas; follow the phase registry wiring in `src/lib/turn/`). Extend `Party` state with what these phases actually read and write (influence, org strength, tier, funds, member counts), seeded from mainline party seed values where authored, mainline-neutral defaults with citations where not. Member counts in solo derive from politicians plus NPP populations; where mainline counts human members, PORT-STUB with the NPC-only equivalent and document. Phases whose triggers cannot fire yet (charters, empty-party cleanup with only seeded parties) still port with tests constructing the triggering state directly.
 
-Final summary: mainline files, per-phase decisions, stubs, schema changes, verification.
+## Rules
+
+- When verified, COMMIT your work on this branch with a conventional commit message. This step is mandatory; uncommitted work is lost. Do not push.
+- Final summary: mainline files, per-phase decisions, stubs, schema changes, verification, and the commit hash.
