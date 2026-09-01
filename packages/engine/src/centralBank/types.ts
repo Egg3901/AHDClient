@@ -86,4 +86,17 @@ export interface CentralBank {
   chairAppointedBy: string | null;
   /** Per-turn rate history, capped at 48 (1 game year). Source: CentralBank.interestRateHistory. */
   interestRateHistory: CentralBankTurnSnapshot[];
+  /**
+   * W12: the untracked NPC household money pool. Source: CentralBank.
+   * externalBroadMoney — the central bank's counterparty for every NPC
+   * deposit/loan flow in bankingTurn.ts (mainline's `bookCentralBankInterestCreation`
+   * / deposit-flow legs). Absent from mainline's own seed path (it accrues
+   * from the live economy over time); solo has no such accrual mechanism
+   * feeding it turn over turn, so it is seeded once at world creation
+   * proportional to the country's GDP (see world.ts seedCentralBanks) and
+   * only ever drawn down/topped up by the banking cluster itself. PROVISIONAL
+   * seed multiple — flagged for user review, same as every other banking
+   * constant substituting for mainline's FX/history-anchored figures.
+   */
+  externalBroadMoney: number;
 }

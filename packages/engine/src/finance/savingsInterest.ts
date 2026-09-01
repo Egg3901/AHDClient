@@ -1,6 +1,17 @@
 // Port of savings interest turn logic. Source citations per symbol below.
 // Solo engine keeps plain input interfaces; where mainline reads a system solo
 // lacks, the stub is marked PORT-STUB with the blocker.
+//
+// This whole module is a pure formula library with no live WorldState
+// wiring (see the multi-currency CharacterInput/CentralBankInput types
+// below — Rotunda's real Politician/PlayerCharacter/CentralBank types carry
+// none of those fields yet). Below, `holder != null && holder !== "centralBank"`
+// (bank-held savings) is intentionally skipped with the comment "paid by
+// bankingTurn" — W12 (packages/engine/src/banking/bankingTurn.ts) is that
+// resolution, but for REAL WorldState (single-currency player.savings/
+// savingsHolder, not this module's hypothetical multi-currency map). This
+// module itself stays unwired pending a future wave's multi-currency/
+// per-politician-wealth retrofit.
 
 // ── Input interfaces (PORT-STUB: mainline reads Db collections) ──────────────
 // CentralBank doc: mainline src/lib/db/types/centralBank.ts

@@ -6,6 +6,7 @@ import type { Corporation, CorpRevenueSnapshot } from "./corporation/types.js";
 import type { GovernmentState } from "./government/types.js";
 import type { ExecutiveState } from "./executive/types.js";
 import type { ImpeachmentCase } from "./impeachment/types.js";
+import type { BankLoan, DepositInsuranceFund } from "./banking/types.js";
 
 /**
  * The entire game world is one serializable document. No database: the world
@@ -194,6 +195,21 @@ export interface WorldState {
   activeWorldModifiers: WorldModifier[];
   crises: CrisisRecord[];
   playerEventLog: PlayerEventLogEntry[];
+  /**
+   * Private banking (W12). Named loans + the NPC household bulk book (one
+   * tranche per credit band per chartered bank — see banking/types.js file
+   * doc). Empty for `player`/`corporation` borrowers absent a future wave's
+   * loan-origination action; `npcBulk` tranches are created/serviced entirely
+   * by bankingTurnPhase. Schema v28.
+   */
+  bankLoans: BankLoan[];
+  /**
+   * Deposit insurance funds, one per country (see banking/types.js file doc
+   * for why keyed by countryId rather than currency). Maintained by
+   * bankingTurnPhase (premiums in) and bankSolvencyTurnPhase (payouts out).
+   * Schema v28.
+   */
+  depositInsurance: Record<string, DepositInsuranceFund>;
 }
 
 /**
@@ -426,6 +442,25 @@ export interface PlayerCharacter {
    * noted in the brief; this field gates sponsorship bypass per mode rule.
    */
   mode: "career" | "hos";
+  /**
+   * W12: personal savings balance, local currency. Ports the single-currency
+   * projection of Character.currencyBalances.savings (mainline is
+   * multi-currency; solo has no live FX system on WorldState — see
+   * finance/savingsInterest.ts file doc, whose own multi-currency
+   * CharacterInput is a pure library with no WorldState wiring). Defaults 0.
+   */
+  savings: number;
+  /**
+   * Where `savings` is held: "centralBank" (mainline's default holder,
+   * earns nothing — solo has no wired savingsInterestTurn path either, see
+   * above) or a bank corp id (see corporation/types.js Corporation.
+   * bankCharter). No in-game action currently moves this away from
+   * "centralBank" (mainline's moveCharacterSavings has no solo UI/action
+   * counterpart yet); bankingTurnPhase/bankSolvencyTurnPhase honor it
+   * regardless, so the mechanism is real and tested even though it is only
+   * reachable via a save edit or cheat today. Ports SavingsHolder.
+   */
+  savingsHolder: "centralBank" | string;
 }
 
 export interface NewsItem {

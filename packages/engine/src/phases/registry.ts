@@ -93,6 +93,8 @@ import {
   playerRandomEventsPhase,
   crisisTurnPhase,
 } from "../events/phases.js";
+import { bankingTurnPhase } from "../banking/bankingTurn.js";
+import { bankSolvencyTurnPhase } from "../banking/bankSolvencyTurn.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -260,5 +262,22 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   worldEventsSchedulerPhase,
   playerRandomEventsPhase,
   crisisTurnPhase,
+  // W12 private banking, at END before newsMaintenance — same rng-stream-
+  // stability rule as every other tail cluster above (mainline runs
+  // bankingTurn/bankSolvencyTurn mid-pipeline, immediately after
+  // savingsInterestTurn / recomputeSharePrices respectively; inserting them
+  // there would shift every downstream rng draw for existing goldens — and
+  // in solo's case both phases are RNG-free regardless, so the real reason
+  // is the same append-only-tail rule recomputeSharePricesPhase's own
+  // comment states, not an rng argument). bankingTurnPhase before
+  // bankSolvencyTurnPhase mirrors mainline's real relative order (a bank's
+  // deposit/loan/interest flows settle before that same turn's solvency
+  // pass evaluates the resulting cash position) and mainline's own stated
+  // intent that bankSolvencyTurn runs "immediately after recomputeShare
+  // Prices" (bankSolvencyTurn.ts file doc) — solo drops the prop-book mark-
+  // to-market this ordering exists for (see banking/types.ts file doc: no
+  // investment-bank charter type ported), but keeps the same slot.
+  bankingTurnPhase,
+  bankSolvencyTurnPhase,
   newsMaintenancePhase,
 ];

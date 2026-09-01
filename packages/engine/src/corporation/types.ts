@@ -31,6 +31,8 @@
  * Source: /root/projects/AHDGame/src/lib/constants/corporations.ts:17-34
  * CORPORATION_TYPES (verbatim order).
  */
+import type { BankCharter } from "../banking/types.js";
+
 export const CORPORATION_TYPES = [
   "financial",
   "media",
@@ -140,6 +142,14 @@ export interface Corporation {
    * Source: Corporation.earningsHistory + turn/corporation/earningsRollingAverage.ts.
    */
   earningsHistory: number[];
+
+  // ── W12 banking ──────────────────────────────────────────────────────
+  /**
+   * Present only on the country's chartered "financial" sector corp (see
+   * banking/npcBanks.ts). Absent on every other corp — deposit-taking is not
+   * a universal corporation capability, it is what a bank charter grants.
+   */
+  bankCharter?: BankCharter;
 }
 
 /**

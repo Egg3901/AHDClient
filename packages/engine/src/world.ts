@@ -16,11 +16,12 @@ import {
 import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/constants.js";
 import type { CentralBank } from "./centralBank/types.js";
 import { seedCorporations } from "./corporation/founding.js";
+import { seedNpcBanks } from "./banking/npcBanks.js";
 
 // Pre-allocated v26 for W10 (markets: share price, stock exchange). Main is
 // v25 as of this wave's branch point; a parallel wave holds v27. See save.ts
 // v25->v26 migration for the resolver note on merge-order splitting.
-export const SCHEMA_VERSION = 27;
+export const SCHEMA_VERSION = 28;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -35,6 +36,13 @@ const TREASURY_BY_PARTY: Record<string, number> = {
 };
 
 const DEFAULT_TREASURY = 1_000_000; // Source: src/lib/seeds/reference/politicalParties.ts
+
+/**
+ * PROVISIONAL — flagged for user review (see seedCentralBanks
+ * externalBroadMoney seeding). Share of nominal GDP seeded into the W12
+ * household money pool at world creation.
+ */
+export const EXTERNAL_BROAD_MONEY_GDP_SHARE = 0.02;
 
 /** Major defaults for 1953 preset per src/lib/seeds/defaultPartyTiers.ts MAJOR_DEFAULT_PARTIES. */
 function isMajor1953(partyId: string): boolean {
@@ -421,14 +429,22 @@ export function createWorld(options: NewWorldOptions): WorldState {
       caucusId: null,
       legislativeSeat: null,
       mode: "career",
+      savings: 0,
+      savingsHolder: "centralBank",
     },
     bills,
     committees,
     enactedLaws: [],
     stateBills: [],
     news: [{ turn: 0, date: pack.era.startDate, headline: "A new game begins." }],
+    bankLoans: [],
+    depositInsurance: {},
   };
   assignUsSeatGeography(world);
+  // W12: charter the financial-sector NPC corp of every playable country as
+  // a retail bank. Mutates world.corporations in place, same post-
+  // construction-mutation pattern as assignUsSeatGeography above.
+  seedNpcBanks(world);
   return world;
 }
 
@@ -970,6 +986,15 @@ function seedCentralBanks(countries: WorldState["countries"]): WorldState["centr
       chairTermExpiresAtTurn: CHAIR_TERM_TURNS,
       interestRateHistory: [],
       chairAppointedBy: null,
+      // W12: seed the NPC household money pool proportional to the country's
+      // GDP. PROVISIONAL — flagged for user review; see centralBank/types.ts
+      // externalBroadMoney file doc for why this has no mainline seed-path
+      // equivalent (mainline's figure accrues from the live economy over
+      // time; solo seeds it once and only the banking cluster moves it
+      // afterward). Multiple chosen so a chartered bank's NPC deposit share
+      // (~8% of the pool, deposits.ts NPC_DEPOSIT_BASE_SHARE) lands in the
+      // same order of magnitude as its own posted capital.
+      externalBroadMoney: Math.round(country.economy.gdp * 1_000_000 * EXTERNAL_BROAD_MONEY_GDP_SHARE),
     };
     banks[country.id] = bank;
   }

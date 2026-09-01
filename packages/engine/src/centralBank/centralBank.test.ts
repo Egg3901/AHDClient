@@ -230,7 +230,7 @@ describe("migration (v<17 -> v17)", () => {
     delete (raw.world as unknown as Record<string, unknown>)["centralBanks"];
 
     const migrated = deserializeSave(JSON.stringify(raw));
-    expect(migrated.meta.schemaVersion).toBe(27);
+    expect(migrated.meta.schemaVersion).toBe(28);
     for (const [countryId, anchor] of Object.entries(CENTRAL_BANK_COUNTRY_ANCHORS)) {
       const bank = migrated.centralBanks[countryId];
       expect(bank, `expected a migrated bank for ${countryId}`).toBeDefined();

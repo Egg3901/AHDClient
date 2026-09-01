@@ -10,7 +10,7 @@ function makeWorld(): WorldState {
       US: { id: "US", name: "United States", playable: true, economy: { gdp: 387000, growthRate: 0.046, inflationRate: 0.0075, unemploymentRate: 0.029, outputGap: 0.5 } },
       UK: { id: "UK", name: "United Kingdom", playable: true, economy: { gdp: 40336, growthRate: 0.04, inflationRate: 0.03, unemploymentRate: 0.018, outputGap: -0.2 } },
     },
-    player: { name: "P", countryId: "US", cash: 10000, actions: 25, funds: 0, donorBaseLevel: 0, politicalInfluence: 0, favorability: 50, infamy: 0, actionCooldowns: {}, partyId: null, partyJoinedTurn: null, lastPartySwitchTurn: null, purgeRejoinBlocks: [], caucusId: null, legislativeSeat: null, mode: "career" },
+    player: { name: "P", countryId: "US", cash: 10000, actions: 25, funds: 0, donorBaseLevel: 0, politicalInfluence: 0, favorability: 50, infamy: 0, actionCooldowns: {}, partyId: null, partyJoinedTurn: null, lastPartySwitchTurn: null, purgeRejoinBlocks: [], caucusId: null, legislativeSeat: null, mode: "career", savings: 0, savingsHolder: "centralBank" },
     parties: {},
     legislatures: {},
     politicians: [],
@@ -61,6 +61,8 @@ function makeWorld(): WorldState {
     crises: [],
     playerEventLog: [],
     news: [],
+    bankLoans: [],
+    depositInsurance: {},
   };
 }
 

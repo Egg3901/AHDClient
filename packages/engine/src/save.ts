@@ -1,4 +1,4 @@
-import { SCHEMA_VERSION } from "./world.js";
+import { EXTERNAL_BROAD_MONEY_GDP_SHARE, SCHEMA_VERSION } from "./world.js";
 import { assignUsSeatGeography } from "./elections/seatGeography.js";
 import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/constants.js";
 import { seedCorporations, tickerForSector } from "./corporation/founding.js";
@@ -1133,6 +1133,39 @@ export function deserializeSave(raw: string): WorldState {
     if (!Array.isArray(w["crises"])) w["crises"] = [];
     if (!Array.isArray(w["playerEventLog"])) w["playerEventLog"] = [];
     save.world.meta.schemaVersion = 27;
+  }
+  // v27 -> v28: W12 private banking. Pre-allocated v28 (see world.ts
+  // SCHEMA_VERSION file doc for the resolver note — v27 belongs to a
+  // parallel wave not present in this worktree). Adds the fields
+  // bankingTurnPhase/bankSolvencyTurnPhase read: player.savings/
+  // savingsHolder, world.bankLoans, world.depositInsurance, and
+  // centralBank.externalBroadMoney. Deliberately does NOT retroactively
+  // charter any bank on an existing save — bankCharter is optional
+  // (corporation/types.ts), both new phases no-op on a corp without one, and
+  // seedNpcBanks moves real cash out of a corp's liquidCapital, which is not
+  // something a load-time migration should spring on an existing world.
+  // Banks only ever appear on worlds CREATED after this wave.
+  if (save.schemaVersion < 28) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const player = w["player"] as Record<string, unknown> | undefined;
+    if (player) {
+      if (typeof player["savings"] !== "number") player["savings"] = 0;
+      if (typeof player["savingsHolder"] !== "string") player["savingsHolder"] = "centralBank";
+    }
+    if (!Array.isArray(w["bankLoans"])) w["bankLoans"] = [];
+    if (typeof w["depositInsurance"] !== "object" || w["depositInsurance"] === null) {
+      w["depositInsurance"] = {};
+    }
+    const countries = w["countries"] as Record<string, { economy?: { gdp?: number } }> | undefined;
+    const centralBanks = w["centralBanks"] as Record<string, Record<string, unknown>> | undefined;
+    if (centralBanks) {
+      for (const [countryId, bank] of Object.entries(centralBanks)) {
+        if (typeof bank["externalBroadMoney"] === "number") continue;
+        const gdp = countries?.[countryId]?.economy?.gdp ?? 0;
+        bank["externalBroadMoney"] = Math.round(gdp * 1_000_000 * EXTERNAL_BROAD_MONEY_GDP_SHARE);
+      }
+    }
+    save.world.meta.schemaVersion = 28;
   }
   return save.world;
 }
