@@ -20,13 +20,12 @@ import { seedNpcBanks } from "./banking/npcBanks.js";
 import { seedUnions } from "./unions/founding.js";
 import { seedExchangeRates } from "./forex/founding.js";
 
-// Pre-allocated v32 for W4 forex. Main is v31 as of this wave's branch point;
+// Pre-allocated v33 for W6 metrics. Main is v32 as of this wave's branch point;
 // parallel wave holds v29 which will insert earlier in the chain (between v28
-// and v30). See save.ts v31->v32 migration for resolver note on merge-order
-// splitting (latest ->32 chain preserves both waves, renumbering the parallel
-// v29 block earlier; no renumbering needed for v30->v31->v32 beyond verifying
-// ascending order).
-export const SCHEMA_VERSION = 32;
+// and v30). See save.ts v32->v33 migration for resolver note on merge-order
+// splitting (latest ->33 chain preserves both waves; no renumbering needed for
+// v30->v31->v32->v33 beyond verifying ascending order).
+export const SCHEMA_VERSION = 33;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -285,6 +284,15 @@ export function createWorld(options: NewWorldOptions): WorldState {
       turn: 0,
     };
   }
+  // W6: commodity price history for annualized commodity pressure (inflationRecalc)
+  const commodityPriceHistory: WorldState["commodityPriceHistory"] = {};
+  for (const commodity of COMMODITY_TYPES) {
+    const basePrice = getEraCommodityBasePrice(
+      COMMODITY_BASE_PRICES[commodity as keyof typeof COMMODITY_BASE_PRICES],
+      pack.era.id,
+    );
+    commodityPriceHistory[commodity] = [{ turn: 0, price: basePrice }];
+  }
 
   const { regions, electoratePools, regionTurnouts, partyRegions, partyPressures, candidateSupports } =
     seedSupport(pack, parties, politicians);
@@ -458,6 +466,12 @@ export function createWorld(options: NewWorldOptions): WorldState {
     bonds: {},
     exchangeRates,
     ledgerPreForexSnapshot: null,
+    // W6 metric engine cluster
+    nationalMetrics: {},
+    economicModels: {},
+    commodityPriceHistory,
+    economicVitalSigns: null,
+    vitalSignsHistory: [],
   };
   assignUsSeatGeography(world);
   // W12: charter the financial-sector NPC corp of every playable country as

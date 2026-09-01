@@ -70,6 +70,11 @@ function makeWorld(): WorldState {
       UK: { countryId: "UK", currencyCode: "GBP", rate: 0.357, baseRate: 0.357, macroTarget: 0.357, rateHistory: [{ turn: 5, rate: 0.357 }], regime: "pegged", updatedTurn: 5 },
     },
     ledgerPreForexSnapshot: null,
+    nationalMetrics: {},
+    economicModels: {},
+    commodityPriceHistory: {},
+    economicVitalSigns: null,
+    vitalSignsHistory: [],
   };
 }
 

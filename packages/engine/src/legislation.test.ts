@@ -387,7 +387,7 @@ describe("migration v11 -> v12", () => {
     };
     const raw = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 11, savedAt: "2026-01-01T00:00:00Z", world: v11World });
     const migrated = deserializeSave(raw);
-    expect(migrated.meta.schemaVersion).toBe(32);
+    expect(migrated.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(migrated.bills).toEqual([]);
     expect(migrated.committees).toEqual([]);
     expect(migrated.enactedLaws).toEqual([]);

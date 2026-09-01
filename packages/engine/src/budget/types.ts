@@ -87,6 +87,11 @@ export interface CountryBudget {
   // Optional baseline spend for fallback
   baselineSpendingByCategory?: Record<string, number>;
   baselineStateGrants?: number;
+  /** W6: investor confidence 0-100, baseline 70, decays 5%/turn when below. Source: nationalization/constants.ts */
+  investorConfidence?: number;
+  investorConfidenceUpdatedAtTurn?: number;
+  /** W6: debtToGdpRatio mirror for governance.debtToGdp (optional, not computed until fiscal wave) */
+  debtToGdpRatio?: number;
 }
 
 /**

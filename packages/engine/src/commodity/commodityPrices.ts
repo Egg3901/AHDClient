@@ -70,17 +70,14 @@ export const commodityPricesPhase: TurnPhase = {
       const supplyJitter = (rng.next() - 0.5) * 2 * DRIFT_AMPLITUDE * GLOBAL_STABILIZER;
       const demandJitter = (rng.next() - 0.5) * 2 * DRIFT_AMPLITUDE * GLOBAL_STABILIZER;
 
-      // MAINLINE-BUG note (port concern): If mainline had used price LEVEL
-      // (P/base - 1) as the commodity contribution to inflation or as direct
-      // price input rather than RATE of change, we port that level-based
-      // behavior and mark it. Current mainline commodityPriceTurn correctly
-      // uses supply/demand ratio via computeMarketPrice and drift toward
-      // target — no level-vs-rate confusion in price evolution itself. The
-      // known level bug was in inflationRecalc (price LEVEL fed to inflation
-      // RATE) and is already fixed in mainline to RATE
-      // (annualized change pow(price/prior, TURNS_PER_YEAR/lookback)-1).
-      // This phase therefore implements the FIXED (rate-based) mainline
-      // behavior for price evolution; no MAINLINE-BUG marker needed here.
+      // Fixed wiring note: mainline's OLD commodity pressure used price LEVEL
+      // (P/base - 1) as inflation input; it is now annualized CHANGE
+      // pow(price/prior, TURNS_PER_YEAR/lookback)-1 (see inflationRecalc.ts
+      // and src/lib/turn/inflationRecalc.ts). This phase evolves prices via
+      // supply/demand ratio and drift toward target — no level-vs-rate confusion
+      // in price evolution itself, and the inflation channel now reads RATE,
+      // not LEVEL. Old MAINLINE-BUG level-vs-rate marker removed per W6 fixed
+      // wiring adoption (see metrics/inflationRecalc.ts fix-source comment).
 
       state.globalSupply = Math.max(0, Math.round((state.globalSupply + supplyJitter) * 100) / 100);
       state.globalDemand = Math.max(0, Math.round((state.globalDemand + demandJitter) * 100) / 100);
@@ -100,6 +97,17 @@ export const commodityPricesPhase: TurnPhase = {
       const maxPrice = Math.round(state.basePrice * 10 * 100) / 100;
       state.globalPrice = Math.max(minPrice, Math.min(maxPrice, state.globalPrice));
       state.turn = turn;
+
+      // Record history for fixed inflationRecalc: annualized change requires prior price
+      // at lookback distance. Solo's globalPrice is the only per-commodity price,
+      // so history stores it. Cap at 48 entries (window + 1) to bound memory.
+      const hist = world.commodityPriceHistory[commodity];
+      if (hist) {
+        hist.push({ turn, price: state.globalPrice });
+        if (hist.length > 48) hist.shift();
+      } else {
+        world.commodityPriceHistory[commodity] = [{ turn, price: state.globalPrice }];
+      }
     }
   },
 };

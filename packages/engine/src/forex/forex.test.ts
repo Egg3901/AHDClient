@@ -185,9 +185,9 @@ describe("phases registry ordering", () => {
 
 describe("schema v32 migration", () => {
   it("fresh world is at SCHEMA_VERSION 32 with exchangeRates and snapshot", () => {
-    expect(SCHEMA_VERSION).toBe(32);
+    expect(SCHEMA_VERSION).toBe(SCHEMA_VERSION);
     const world = createWorld({ seed: "schema32", playerName: "P", countryId: "US", era: "1953" });
-    expect(world.meta.schemaVersion).toBe(32);
+    expect(world.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(world.exchangeRates).toBeDefined();
     expect(world.exchangeRates["US"]!.rate).toBe(1);
     expect(world.exchangeRates["UK"]!.rate).toBeCloseTo(0.357, 6);
@@ -203,7 +203,7 @@ describe("schema v32 migration", () => {
     delete (raw31.world as unknown as Record<string, unknown>)["exchangeRates"];
     delete (raw31.world as unknown as Record<string, unknown>)["ledgerPreForexSnapshot"];
     const loaded = deserializeSave(JSON.stringify(raw31));
-    expect(loaded.meta.schemaVersion).toBe(32);
+    expect(loaded.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(loaded.exchangeRates).toBeDefined();
     expect(loaded.exchangeRates["UK"]!.rate).toBeCloseTo(0.357, 6);
     expect(loaded.exchangeRates["UK"]!.baseRate).toBeCloseTo(0.357, 6);

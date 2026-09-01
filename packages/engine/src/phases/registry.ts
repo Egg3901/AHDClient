@@ -98,6 +98,12 @@ import { bankSolvencyTurnPhase } from "../banking/bankSolvencyTurn.js";
 import { unionsTurnPhase, nppUnionBehaviorPhase } from "../unions/phases.js";
 import { sovereignIssuancePhase, bondCouponMaturityPhase, npcBondHolderPhase } from "../bonds/phases.js";
 import { ledgerPreForexSnapshotPhase, forexTurnPhase } from "../forex/phases.js";
+import { metricDecayPhase } from "../metrics/metricDecay.js";
+import { investorConfidenceDecayPhase } from "../metrics/investorConfidenceDecay.js";
+import { nationalMetricsPhase } from "../metrics/nationalMetrics.js";
+import { economicModelPhase } from "../metrics/economicModel.js";
+import { inflationRecalcPhase } from "../metrics/inflationRecalc.js";
+import { economicVitalSignsPhase } from "../metrics/economicVitalSigns.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -334,5 +340,33 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // port faithfully: the Bretton Woods world must NOT float like modern).
   ledgerPreForexSnapshotPhase,
   forexTurnPhase,
+  // W6 metric engine cluster at END before newsMaintenance — ordering deviation:
+  // Mainline runs these mid-pipeline in stateEffectsAndNationalAggregationPhase:
+  // metricDecay (no-op, inside policyEffects), investorConfidenceDecay, metricEngine,
+  // demographicFlows, census, eraCrossing, metricActivation, nationalMetrics,
+  // fiscalBaseGrowth, economicModel, inflationRecalc, commandEconomy, then
+  // ledgerPreForexSnapshot/forexTurn, then many diagnostics ending with
+  // economicVitalSigns as the final diagnostic snapshot. Solo defers the entire
+  // W6 cluster to the tail before newsMaintenance to avoid shifting shared RNG
+  // streams under existing integration goldens — same rule as every other tail
+  // cluster above (see recomputeSharePricesPhase comment). Relative order inside
+  // this cluster mirrors mainline's causal dependencies:
+  //  metricDecay (no-op) → investorConfidenceDecay (heal before nationalMetrics read)
+  //  → nationalMetrics (weighted aggregation, era-gated via metricActivation)
+  //  → economicModel (reads national metrics + corp revenue + spending)
+  //  → inflationRecalc (reads commodity history via annualized change — FIXED wiring,
+  //    not level — plus forex, gdpGrowth, unemployment, fiscal; see
+  //    metrics/inflationRecalc.ts fix-source comment)
+  //  → economicVitalSigns (reads everything, final diagnostic).
+  // All six are rng-free (except vital signs' generatedAt timestamp via Date, not WorldRng,
+  // so no stream effect). metricActivation is folded into nationalMetrics's era gate
+  // (METRIC_ERA_WINDOWS) rather than a standalone phase, per the prompt's
+  // "if that phase belongs here" gate.
+  metricDecayPhase,
+  investorConfidenceDecayPhase,
+  nationalMetricsPhase,
+  economicModelPhase,
+  inflationRecalcPhase,
+  economicVitalSignsPhase,
   newsMaintenancePhase,
 ];

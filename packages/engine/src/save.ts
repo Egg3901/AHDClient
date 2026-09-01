@@ -1357,5 +1357,64 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 32;
   }
+  // v32 -> v33: W6 metric engine cluster. Pre-allocated v33 for this wave; main is v32;
+  // parallel wave holds v29 which will insert earlier in the chain (between v28
+  // and v30). This is the latest migration, jumping from latest known (v32) to v33.
+  // RESOLVER NOTE: on merge, chain in strict ascending order
+  // (v28 -> v29 -> v30 -> v31 -> v32 -> v33) and confirm v29 does not also introduce
+  // `nationalMetrics`, `economicModels`, `commodityPriceHistory`, `economicVitalSigns`,
+  // or `vitalSignsHistory` (it should not; W6 is authoritative for those names). If the
+  // parallel v29 wave lands first with real fields, its block replaces the existing
+  // v28->v29 stub and this block remains v32->v33 — no renumbering needed beyond
+  // verifying ascending order. Splitting is mechanical: rename the version guard below
+  // if needed and preserve ordering, same pattern as the v28->v30 chain above.
+  //
+  // Seeds empty nationalMetrics/economicModels, commodityPriceHistory from base prices,
+  // and vital signs null/history. No RNG consumed — seeding is deterministic.
+  if (save.schemaVersion < 33) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (typeof w["nationalMetrics"] !== "object" || w["nationalMetrics"] === null || Array.isArray(w["nationalMetrics"])) {
+      w["nationalMetrics"] = {};
+    }
+    if (typeof w["economicModels"] !== "object" || w["economicModels"] === null || Array.isArray(w["economicModels"])) {
+      w["economicModels"] = {};
+    }
+    if (typeof w["commodityPriceHistory"] !== "object" || w["commodityPriceHistory"] === null || Array.isArray(w["commodityPriceHistory"])) {
+      const commodityPrices = w["commodityPrices"] as Record<string, { basePrice?: number; globalPrice?: number; turn?: number }> | undefined;
+      const meta = w["meta"] as Record<string, unknown> | undefined;
+      const turn = typeof meta?.["turn"] === "number" ? (meta["turn"] as number) : 0;
+      const history: Record<string, unknown> = {};
+      if (commodityPrices) {
+        for (const [k, v] of Object.entries(commodityPrices)) {
+          const price = typeof v.globalPrice === "number" ? v.globalPrice : (typeof v.basePrice === "number" ? v.basePrice : 0);
+          history[k] = [{ turn, price }];
+        }
+      }
+      w["commodityPriceHistory"] = history;
+    } else {
+      const history = w["commodityPriceHistory"] as Record<string, unknown[]>;
+      for (const arr of Object.values(history)) {
+        if (!Array.isArray(arr)) continue;
+        for (const entry of arr as Array<Record<string, unknown>>) {
+          if (typeof entry["turn"] !== "number") entry["turn"] = 0;
+          if (typeof entry["price"] !== "number" || !Number.isFinite(entry["price"])) entry["price"] = 0;
+        }
+      }
+    }
+    if (!("economicVitalSigns" in w) || (w["economicVitalSigns"] !== null && typeof w["economicVitalSigns"] !== "object")) {
+      w["economicVitalSigns"] = null;
+    }
+    if (!Array.isArray(w["vitalSignsHistory"])) w["vitalSignsHistory"] = [];
+    // Backfill investorConfidence on budgets (optional field)
+    const budgets = w["budgets"] as Record<string, Record<string, unknown>> | undefined;
+    if (budgets) {
+      for (const b of Object.values(budgets)) {
+        if (typeof b["investorConfidence"] !== "number" || !Number.isFinite(b["investorConfidence"])) {
+          // Leave absent — healed only when set; no invented default beyond seed absence
+        }
+      }
+    }
+    save.world.meta.schemaVersion = 33;
+  }
   return save.world;
 }

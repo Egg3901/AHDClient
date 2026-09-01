@@ -254,6 +254,23 @@ export interface WorldState {
    * Schema v32.
    */
   ledgerPreForexSnapshot: import("./forex/types.js").PreForexSnapshot | null;
+  /**
+   * W6 metric engine cluster. Ports src/lib/metricEngine/*, src/lib/turn/*
+   * nationalMetrics + economicModel + metricDecay + investorConfidenceDecay +
+   * inflationRecalc + economicVitalSigns.
+   * Schema v33 (main v32; parallel wave holds v29 inserting earlier;
+   * migration latest ->33 with resolver note).
+   */
+  /** Per-country national metrics aggregation (metric families). Schema v33. */
+  nationalMetrics: Record<string, import("./metrics/nationalMetrics.js").NationalMetrics>;
+  /** Per-country economic model identity. Schema v33. */
+  economicModels: Record<string, import("./metrics/economicModel.js").EconomicModelState>;
+  /** Per-commodity price history for annualized commodity pressure (inflationRecalc). Schema v33. */
+  commodityPriceHistory: Record<string, Array<{ turn: number; price: number }>>;
+  /** Latest economic vital signs snapshot. Schema v33. */
+  economicVitalSigns: import("./metrics/economicVitalSigns.js").EconomicVitalSigns | null;
+  /** Vital signs rolling history (last 48 turns' narrow projection). Schema v33. */
+  vitalSignsHistory: import("./metrics/economicVitalSigns.js").VitalSignsHistoryRow[];
 }
 
 /**

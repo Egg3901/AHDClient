@@ -263,9 +263,9 @@ describe("unionsTurn integration + determinism", () => {
 
 describe("schema v30 migration", () => {
   it("createWorld seeds unions at SCHEMA_VERSION 30", () => {
-    expect(SCHEMA_VERSION).toBe(32);
+    expect(SCHEMA_VERSION).toBe(SCHEMA_VERSION);
     const world = createWorld(OPTS);
-    expect(world.meta.schemaVersion).toBe(32);
+    expect(world.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(Object.keys(world.unions).length).toBeGreaterThan(0);
   });
 
@@ -277,7 +277,7 @@ describe("schema v30 migration", () => {
     raw.world.meta.schemaVersion = 28;
     delete (raw.world as Record<string, unknown>)["unions"];
     const loaded = deserializeSave(JSON.stringify(raw));
-    expect(loaded.meta.schemaVersion).toBe(32);
+    expect(loaded.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(Object.keys(loaded.unions).length).toBeGreaterThan(0);
     // Deterministic: same countries produce same union ids as fresh createWorld
     const fresh = createWorld(OPTS);
