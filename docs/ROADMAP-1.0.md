@@ -125,6 +125,10 @@ U1 government viewer (in flight) - U2 economy dashboard with charts - U3 corpora
 
 Lanes 1-4 and 8-11 are mutually independent; run continuously, two to three concurrent. Lane 5 needs W19 (support) and W38 (US states). Lane 6 needs W18. Lane 7 anytime. UI waves start when their engine wave merges. Platform lane last except P1.
 
+## Post-1.0 lane (booked, not in the 60)
+
+- A1 Android: swap the existing thin Capacitor wrapper's WebView content for the ROTUNDA bundle (SP local engine + MP navigation, both in the wrapper's own shell). ~1 wave platform adapters (Capacitor Filesystem for saves/dialogs), 2-4 waves mobile responsive UX pass, ~1 wave wiring + Firebase distribution (local builds; Android CI is billing-dead). Existing Android plumbing untouched.
+
 ## Count
 
 41 engine/content waves + 14 UI waves + 5 platform waves = 60 waves, minus 1 in flight. At observed cadence this is roughly two sustained days of continuous operation, bounded by merge serialization and the windows/macOS packaging decision, not by engine work.
