@@ -17,3 +17,4 @@ export * from "./actions/catalog.js";
 export * from "./actions/execute.js";
 export * from "./actions/fundGeneration.js";
 export type * from "./types.js";
+export * as electionEngine from "./electionEngine/index.js";
