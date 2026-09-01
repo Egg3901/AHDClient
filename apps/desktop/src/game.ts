@@ -6,7 +6,7 @@ import {
   type NewWorldOptions,
   type TurnReport,
   type WorldState,
-} from "@ahdsolo/engine";
+} from "./engineContract.js";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
