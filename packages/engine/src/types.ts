@@ -21,6 +21,26 @@ export interface WorldState {
   parties: Record<string, Party>;
   /** Legislatures seeded from mainline country configs. Keyed by country id. */
   legislatures: Record<string, Legislature>;
+  /** Politicians holding legislature seats. Populated at world creation. */
+  politicians: Politician[];
+}
+
+export interface Politician {
+  /** Deterministic id sequential per country, e.g. "US-1" */
+  id: string;
+  name: string;
+  gender: "male" | "female";
+  countryId: string;
+  partyId: string;
+  /** Chamber key this politician holds (e.g. "house", "volkskammer") */
+  chamberKey: string;
+  ideology: PoliticianIdeology;
+  age: number;
+}
+
+export interface PoliticianIdeology {
+  economic: number;
+  social: number;
 }
 
 export interface WorldMeta {

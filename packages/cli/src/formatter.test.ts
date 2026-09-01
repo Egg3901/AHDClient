@@ -13,6 +13,7 @@ function makeWorld(): WorldState {
     player: { name: "P", countryId: "US", cash: 10000 },
     parties: {},
     legislatures: {},
+    politicians: [],
     news: [],
   };
 }

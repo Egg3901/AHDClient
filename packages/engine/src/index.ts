@@ -9,4 +9,5 @@ export { dateForTurn, eraForDate, addDaysIso, START_DATE, DAYS_PER_TURN } from "
 export type { TurnPhase, TurnReport, PhaseTiming } from "./phases/types.js";
 export * from "./npp/nameGenerator.js";
 export * from "./npp/nameEra.js";
+export * from "./politician.js";
 export type * from "./types.js";

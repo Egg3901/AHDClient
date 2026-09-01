@@ -63,5 +63,13 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 3;
   }
+  // v3 -> v4: add politicians (empty for old saves)
+  if (save.schemaVersion < 4) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (!Array.isArray(w["politicians"])) {
+      w["politicians"] = [];
+    }
+    save.world.meta.schemaVersion = 4;
+  }
   return save.world;
 }

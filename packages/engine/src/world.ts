@@ -1,8 +1,9 @@
 import { rngFromSeed } from "./rng.js";
 import type { WorldState } from "./types.js";
 import { getPackByEra, PACKS_BY_DATE } from "@rotunda/content";
+import { createPoliticiansForWorld } from "./politician.js";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export interface EraInfo {
   id: string;
@@ -93,6 +94,18 @@ export function createWorld(options: NewWorldOptions): WorldState {
     };
   }
 
+  // Populate politicians for elected chambers of playable countries.
+  // Uses the same world rng, in deterministic order, so identical options
+  // give identical casts. Capture rng state AFTER generation so save/load
+  // resumes the sequence correctly.
+  const playableIds = new Set(pack.countries.filter((c) => c.playable).map((c) => c.id));
+  const politicians = createPoliticiansForWorld(rng, {
+    legislatures,
+    parties,
+    playableCountryIds: playableIds,
+    era: pack.era.id,
+  });
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -105,6 +118,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     countries,
     parties,
     legislatures,
+    politicians,
     player: {
       name: options.playerName,
       countryId: options.countryId,
