@@ -230,6 +230,30 @@ export interface WorldState {
    * holds v29 which will insert earlier in the chain; latest ->31 with resolver note).
    */
   bonds: Record<string, import("./bonds/types.js").Bond>;
+  /**
+   * Forex exchange rates, one per forex-active country (see forex/constants.ts
+   * INITIAL_RATES_1953). Ports src/lib/db/types/exchangeRate.ts (subset) +
+   * src/lib/constants/currencies.ts INITIAL_RATES_1953 + Bretton Woods peg
+   * regime (monetary/brettonWoods.ts). Keyed by countryId. Units explicit:
+   * rate is local currency per 1 anchor (USD, ₳) — e.g. GBP 0.357 means
+   * 0.357 pounds per dollar, JPY 360 means 360 yen per dollar. This unit
+   * naming prevents the NG FX 100x incident (ticket #3276) where mixing
+   * anchor-per-local vs local-per-anchor silently revalued naira holdings
+   * 100x. Schema v32 (main v31; parallel wave holds v29 inserting earlier;
+   * migration latest ->32 with resolver note).
+   */
+  exchangeRates: Record<string, import("./forex/types.js").ExchangeRate>;
+  /**
+   * Pre-forex balance checkpoint — captured each turn immediately before
+   * forexTurn reprices every currency. Ports
+   * src/lib/ledger/balanceSnapshot.ts writePreForexBalanceCheckpoint and the
+   * `balanceSnapshotCheckpoints` collection, collapsed to a single WorldState
+   * field overwritten each turn (no DB). Used by the stock-vs-flow reconciler
+   * to separate cash movement from FX valuation change (see
+   * ledger/reconcile.ts cashMovementDelta). Null before the first turn.
+   * Schema v32.
+   */
+  ledgerPreForexSnapshot: import("./forex/types.js").PreForexSnapshot | null;
 }
 
 /**

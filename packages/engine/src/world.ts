@@ -18,12 +18,15 @@ import type { CentralBank } from "./centralBank/types.js";
 import { seedCorporations } from "./corporation/founding.js";
 import { seedNpcBanks } from "./banking/npcBanks.js";
 import { seedUnions } from "./unions/founding.js";
+import { seedExchangeRates } from "./forex/founding.js";
 
-// Pre-allocated v31 for W13 bonds. Main is v30 as of this wave's branch point;
-// parallel wave holds v29 which will insert earlier in the chain. See save.ts
-// v30->v31 migration for resolver note on merge-order splitting (latest ->31
-// chain preserves both waves, renumbering the parallel v29 block earlier).
-export const SCHEMA_VERSION = 31;
+// Pre-allocated v32 for W4 forex. Main is v31 as of this wave's branch point;
+// parallel wave holds v29 which will insert earlier in the chain (between v28
+// and v30). See save.ts v31->v32 migration for resolver note on merge-order
+// splitting (latest ->32 chain preserves both waves, renumbering the parallel
+// v29 block earlier; no renumbering needed for v30->v31->v32 beyond verifying
+// ascending order).
+export const SCHEMA_VERSION = 32;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -352,6 +355,11 @@ export function createWorld(options: NewWorldOptions): WorldState {
     pack.era.id,
   );
 
+  const exchangeRates = seedExchangeRates(
+    Object.values(countries).map((c) => ({ id: c.id })),
+    pack.era.id,
+  );
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -448,6 +456,8 @@ export function createWorld(options: NewWorldOptions): WorldState {
     depositInsurance: {},
     unions,
     bonds: {},
+    exchangeRates,
+    ledgerPreForexSnapshot: null,
   };
   assignUsSeatGeography(world);
   // W12: charter the financial-sector NPC corp of every playable country as

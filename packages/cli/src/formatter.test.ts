@@ -65,6 +65,11 @@ function makeWorld(): WorldState {
     depositInsurance: {},
     unions: {},
     bonds: {},
+    exchangeRates: {
+      US: { countryId: "US", currencyCode: "USD", rate: 1, baseRate: 1, macroTarget: 1, rateHistory: [{ turn: 5, rate: 1 }], regime: "pegged", updatedTurn: 5 },
+      UK: { countryId: "UK", currencyCode: "GBP", rate: 0.357, baseRate: 0.357, macroTarget: 0.357, rateHistory: [{ turn: 5, rate: 0.357 }], regime: "pegged", updatedTurn: 5 },
+    },
+    ledgerPreForexSnapshot: null,
   };
 }
 

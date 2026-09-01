@@ -299,7 +299,7 @@ describe("save migration v25 -> v26", () => {
 
     const migrated = deserializeSave(raw);
     expect(migrated.meta.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(migrated.meta.schemaVersion).toBe(31);
+    expect(migrated.meta.schemaVersion).toBe(32);
 
     const corp = migrated.corporations["US-manufacturing"]!;
     expect(corp.totalShares).toBe(CEO_INITIAL_SHARES);
@@ -323,7 +323,7 @@ describe("save migration v25 -> v26", () => {
     const raw = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 25, savedAt: "2026-01-01T00:00:00Z", world: v25World });
 
     const migrated = deserializeSave(raw);
-    expect(migrated.meta.schemaVersion).toBe(31);
+    expect(migrated.meta.schemaVersion).toBe(32);
     const migratedCorp = migrated.corporations["US-manufacturing"]!;
     expect(migratedCorp.shareholders.find((sh) => sh.holder === "player")).toEqual({
       holder: "player",

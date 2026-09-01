@@ -1280,5 +1280,82 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 31;
   }
+  // v31 -> v32: W4 forex (exchangeRates + ledgerPreForexSnapshot). Pre-allocated
+  // v32 for this wave; main is v31; parallel wave holds v29 which will insert
+  // earlier in the chain (between v28 and v30). This is the latest migration,
+  // jumping from latest known (v31) to v32. RESOLVER NOTE: on merge, chain in
+  // strict ascending order (v28 -> v29 -> v30 -> v31 -> v32) and confirm v29
+  // does not also introduce `exchangeRates` or `ledgerPreForexSnapshot` (it
+  // should not; W4 is authoritative for those names). If the parallel v29 wave
+  // lands first with real fields, its block replaces the existing v28->v29 stub
+  // and this block remains v31->v32 — no renumbering needed beyond verifying
+  // ascending order. Splitting is mechanical: rename the version guard below if
+  // needed and preserve ordering, same pattern as the v28->v30 chain above.
+  //
+  // Seeds exchangeRates from INITIAL_RATES_1953 (era-aware) for the era the save
+  // was created in (meta.era, defaulting to "1953"). No RNG is consumed — rate
+  // seeding is deterministic given era, so migration must not disturb meta.rng.
+  // ledgerPreForexSnapshot is seeded null (no history needed; the next turn's
+  // forex phase will overwrite it via ledgerPreForexSnapshotPhase).
+  if (save.schemaVersion < 32) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (typeof w["exchangeRates"] !== "object" || w["exchangeRates"] === null || Array.isArray(w["exchangeRates"])) {
+      const countries = w["countries"] as Record<string, { id: string }> | undefined;
+      const era = typeof (w["meta"] as Record<string, unknown> | undefined)?.["era"] === "string"
+        ? ((w["meta"] as Record<string, unknown>)["era"] as string)
+        : "1953";
+      // Inline INITIAL_RATES_1953 copy to avoid importing at load-time (circular risk)
+      const INITIAL_RATES_1953: Record<string, number> = {
+        US: 1.0, UK: 0.357, JP: 360.0, DE: 4.2, IE: 0.357, BR: 18.8, CN: 2.46, NG: 0.357,
+        RU: 9.0, DD: 4.2, FR: 350.0, IT: 625.0, ES: 39.6, SE: 5.17, TR: 2.8, GR: 30.0,
+        AT: 26.0, FI: 230.0, PL: 24.0, CS: 27.0, RO: 13.5, HU: 20.0, BG: 15.3, YU: 16.667,
+      };
+      const CURRENCY_CODE_BY_COUNTRY: Record<string, string> = {
+        US: "USD", UK: "GBP", JP: "JPY", DE: "EUR", IE: "IEP", BR: "BRL", CN: "CNY", NG: "NGN",
+        RU: "SUR", DD: "DDM", FR: "FRF", IT: "ITL", ES: "ESP", SE: "SEK", TR: "TRL", GR: "GRD",
+        AT: "ATS", FI: "FIM", PL: "PLZ", CS: "CSK", RO: "ROL", HU: "HUF", BG: "BGL", YU: "YUD",
+      };
+      const regimeForEra = (e: string) => (e === "1953" || e === "1960" ? "pegged" : "floating");
+      const exchangeRates: Record<string, unknown> = {};
+      const ids = countries ? Object.keys(countries) : Object.keys(INITIAL_RATES_1953);
+      const meta = w["meta"] as Record<string, unknown> | undefined;
+      const turn = typeof meta?.["turn"] === "number" ? (meta["turn"] as number) : 0;
+      for (const cid of ids) {
+        const baseRate = INITIAL_RATES_1953[cid] ?? 1;
+        const currencyCode = CURRENCY_CODE_BY_COUNTRY[cid] ?? "USD";
+        exchangeRates[cid] = {
+          countryId: cid,
+          currencyCode,
+          rate: baseRate,
+          baseRate,
+          macroTarget: baseRate,
+          rateHistory: [{ turn, rate: baseRate }],
+          regime: regimeForEra(era),
+          updatedTurn: turn,
+        };
+      }
+      w["exchangeRates"] = exchangeRates;
+    } else {
+      // Backfill missing fields on existing exchangeRates docs
+      const exchangeRates = w["exchangeRates"] as Record<string, Record<string, unknown>>;
+      const meta = w["meta"] as Record<string, unknown> | undefined;
+      const era = typeof meta?.["era"] === "string" ? (meta["era"] as string) : "1953";
+      const regimeForEra2 = (e: string) => (e === "1953" || e === "1960" ? "pegged" : "floating");
+      for (const ex of Object.values(exchangeRates)) {
+        if (typeof ex["countryId"] !== "string") ex["countryId"] = String(ex["countryId"] ?? "US");
+        if (typeof ex["currencyCode"] !== "string") ex["currencyCode"] = "USD";
+        if (typeof ex["rate"] !== "number" || !Number.isFinite(ex["rate"])) ex["rate"] = typeof ex["baseRate"] === "number" ? (ex["baseRate"] as number) : 1;
+        if (typeof ex["baseRate"] !== "number" || !Number.isFinite(ex["baseRate"])) ex["baseRate"] = ex["rate"] as number;
+        if (typeof ex["macroTarget"] !== "number" || !Number.isFinite(ex["macroTarget"])) ex["macroTarget"] = ex["baseRate"] as number;
+        if (!Array.isArray(ex["rateHistory"])) ex["rateHistory"] = [{ turn: typeof meta?.["turn"] === "number" ? (meta["turn"] as number) : 0, rate: ex["rate"] as number }];
+        if (ex["regime"] !== "pegged" && ex["regime"] !== "floating") ex["regime"] = regimeForEra2(era);
+        if (typeof ex["updatedTurn"] !== "number") ex["updatedTurn"] = typeof meta?.["turn"] === "number" ? (meta["turn"] as number) : 0;
+      }
+    }
+    if (!("ledgerPreForexSnapshot" in w) || (w["ledgerPreForexSnapshot"] !== null && typeof w["ledgerPreForexSnapshot"] !== "object")) {
+      w["ledgerPreForexSnapshot"] = null;
+    }
+    save.world.meta.schemaVersion = 32;
+  }
   return save.world;
 }

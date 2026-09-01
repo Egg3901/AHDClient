@@ -97,6 +97,7 @@ import { bankingTurnPhase } from "../banking/bankingTurn.js";
 import { bankSolvencyTurnPhase } from "../banking/bankSolvencyTurn.js";
 import { unionsTurnPhase, nppUnionBehaviorPhase } from "../unions/phases.js";
 import { sovereignIssuancePhase, bondCouponMaturityPhase, npcBondHolderPhase } from "../bonds/phases.js";
+import { ledgerPreForexSnapshotPhase, forexTurnPhase } from "../forex/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -316,5 +317,22 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   sovereignIssuancePhase,
   bondCouponMaturityPhase,
   npcBondHolderPhase,
+  // W4 forex at END before newsMaintenance — ordering deviation:
+  // Mainline runs ledgerPreForexSnapshot immediately BEFORE forexTurn
+  // (stateEffectsPhase.ts: writePreForexBalanceCheckpoint then
+  // processForexTurn in Group 12, after inflationRecalc and before
+  // centralBankChairTurn). The snapshot must precede the repricing so the
+  // reconciler can value cash flow in two legs (see
+  // ledger/balanceSnapshot.ts and reconcile.ts cashMovementDelta).
+  // Solo defers both to the tail before newsMaintenance to avoid shifting
+  // shared RNG streams under existing integration goldens — same rule as
+  // every other tail cluster above (see recomputeSharePricesPhase comment).
+  // Relative order preserves the causal dependency: ledgerPreForexSnapshot
+  // before forexTurn, exactly as mainline. ledgerPreForexSnapshot is
+  // rng-free; forexTurn draws deterministic jitter from WorldRng (pegged
+  // regimes skip drift, see forex/regime.ts — 1953 managed pegs vs float
+  // port faithfully: the Bretton Woods world must NOT float like modern).
+  ledgerPreForexSnapshotPhase,
+  forexTurnPhase,
   newsMaintenancePhase,
 ];

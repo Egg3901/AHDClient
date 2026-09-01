@@ -303,7 +303,7 @@ describe("migration (v20 -> v22)", () => {
     delete (raw.world as unknown as Record<string, unknown>)["governments"];
 
     const migrated = deserializeSave(JSON.stringify(raw));
-    expect(migrated.meta.schemaVersion).toBe(31);
+    expect(migrated.meta.schemaVersion).toBe(32);
     expect(migrated.governments).toEqual({});
   });
 
@@ -313,6 +313,6 @@ describe("migration (v20 -> v22)", () => {
     const a = deserializeSave(raw);
     const b = deserializeSave(raw);
     expect(JSON.stringify(a.governments)).toBe(JSON.stringify(b.governments));
-    expect(a.meta.schemaVersion).toBe(31);
+    expect(a.meta.schemaVersion).toBe(32);
   });
 });

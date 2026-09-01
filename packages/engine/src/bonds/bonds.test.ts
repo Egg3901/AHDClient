@@ -507,13 +507,13 @@ describe("schema migration v30 -> v31 (chained, resolver note in save.ts)", () =
     const downgraded = JSON.stringify(raw);
     const migrated = deserializeSave(downgraded);
     expect(migrated.meta.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(migrated.meta.schemaVersion).toBe(31);
+    expect(migrated.meta.schemaVersion).toBe(32);
     expect((migrated as unknown as { bonds: unknown }).bonds).toBeDefined();
     expect(typeof (migrated as unknown as { bonds: Record<string, unknown> }).bonds).toBe("object");
     // Round-trip still v31
     const re = serializeSave(migrated, "2026-09-01T01:00:00.000Z");
     const reWorld = deserializeSave(re);
-    expect(reWorld.meta.schemaVersion).toBe(31);
+    expect(reWorld.meta.schemaVersion).toBe(32);
   });
 
   it("serialize/deserialize preserves bonds and holder cash", () => {

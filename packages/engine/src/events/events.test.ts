@@ -308,7 +308,7 @@ describe("migration", () => {
     const a = deserializeSave(raw);
     const b = deserializeSave(raw);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
-    expect(a.meta.schemaVersion).toBe(31);
+    expect(a.meta.schemaVersion).toBe(32);
   });
 });
 
