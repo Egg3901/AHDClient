@@ -7,7 +7,7 @@ import { dateForTurn, eraForDate } from "./calendar.js";
 import { PACKS } from "@ahdsolo/content";
 import { validatePack } from "@ahdsolo/content";
 
-const OPTS = { seed: "test-seed", playerName: "Tester", countryId: "us", era: "1953" } as const;
+const OPTS = { seed: "test-seed", playerName: "Tester", countryId: "US", era: "1953" } as const;
 
 describe("rng", () => {
   it("is deterministic for a given seed", () => {
@@ -123,8 +123,8 @@ describe("seed packs integration", () => {
     for (const era of listEras()) {
       const list = listPlayableCountries(era.id);
       expect(list.length).toBeGreaterThan(0);
-      expect(list.some((c) => c.id === "us")).toBe(true);
-      expect(list.some((c) => c.id === "uk")).toBe(true);
+      expect(list.some((c) => c.id === "US")).toBe(true);
+      expect(list.some((c) => c.id === "UK")).toBe(true);
     }
   });
 
@@ -146,12 +146,12 @@ describe("seed packs integration", () => {
   });
 
   it("createWorld throws on unknown era", () => {
-    expect(() => createWorld({ seed: "s", playerName: "P", countryId: "us", era: "2099" })).toThrow(/Unknown era/i);
+    expect(() => createWorld({ seed: "s", playerName: "P", countryId: "US", era: "2099" })).toThrow(/Unknown era/i);
   });
 
   it("createWorld throws on non-playable country", () => {
-    // su is non-playable in both packs
-    expect(() => createWorld({ seed: "s", playerName: "P", countryId: "su", era: "1953" })).toThrow(/not playable/i);
+    // FR is non-playable (economy-preview in 1953-default)
+    expect(() => createWorld({ seed: "s", playerName: "P", countryId: "FR", era: "1953" })).toThrow(/not playable/i);
   });
 
   it("createWorld throws on unknown country", () => {
@@ -163,12 +163,12 @@ describe("seed packs integration", () => {
   });
 
   it("1960 world is deterministic and distinct from 1953", () => {
-    const w1953 = createWorld({ seed: "same", playerName: "P", countryId: "us", era: "1953" });
-    const w1960 = createWorld({ seed: "same", playerName: "P", countryId: "us", era: "1960" });
+    const w1953 = createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1953" });
+    const w1960 = createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1960" });
     expect(w1953.meta.date).not.toBe(w1960.meta.date);
-    expect(w1953.countries["us"]!.economy.gdp).not.toBe(w1960.countries["us"]!.economy.gdp);
+    expect(w1953.countries["US"]!.economy.gdp).not.toBe(w1960.countries["US"]!.economy.gdp);
     // same era repeated is identical
-    const w1960b = createWorld({ seed: "same", playerName: "P", countryId: "us", era: "1960" });
+    const w1960b = createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1960" });
     expect(JSON.stringify(w1960)).toBe(JSON.stringify(w1960b));
   });
 });

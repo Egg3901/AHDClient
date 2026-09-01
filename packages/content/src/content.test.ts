@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PACKS } from "./packs/index.js";
+import { PACKS, pack1953 } from "./packs/index.js";
 import { validatePack } from "./validate.js";
 import type { SeedPack } from "./types.js";
 
@@ -44,5 +44,16 @@ describe("validatePack", () => {
     const bad = structuredClone(PACKS[0]!) as SeedPack;
     (bad as unknown as Record<string, unknown>)["packVersion"] = 0;
     expect(() => validatePack(bad)).toThrow(/packVersion/i);
+  });
+
+  it("1953 pack has 27 countries and expected ids exist", () => {
+    expect(pack1953.countries.length).toBe(27);
+    const ids = new Set(pack1953.countries.map((c) => c.id));
+    expect(ids.has("US")).toBe(true);
+    expect(ids.has("UK")).toBe(true);
+    expect(ids.has("RU")).toBe(true);
+    // eastern bloc satellites
+    expect(ids.has("PL")).toBe(true);
+    expect(ids.has("BAL")).toBe(true);
   });
 });
