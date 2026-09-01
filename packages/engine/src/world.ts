@@ -1,21 +1,70 @@
-import { START_DATE } from "./calendar.js";
 import { rngFromSeed } from "./rng.js";
 import type { WorldState } from "./types.js";
+import { getPackByEra, PACKS_BY_DATE } from "@ahdsolo/content";
 
 export const SCHEMA_VERSION = 1;
+
+export interface EraInfo {
+  id: string;
+  label: string;
+  startDate: string;
+}
+
+export interface PlayableCountryInfo {
+  id: string;
+  name: string;
+}
 
 export interface NewWorldOptions {
   seed: string;
   playerName: string;
   countryId: string;
+  /**
+   * Era id from listEras(). Required per contract; optional at the type
+   * level only for backward compat with the pre-pack desktop shell which
+   * calls newGame without an era. When omitted, defaults to the earliest
+   * shipped era ("1953").
+   */
+  era?: string;
 }
 
-/**
- * Minimal seed world: US + UK with rough 1953 macro anchors. The real world
- * build ports mainline's seed content (countries, states, parties, sectors)
- * incrementally; this exists so the loop is playable from day one.
- */
+export function listEras(): EraInfo[] {
+  return PACKS_BY_DATE.map((p) => ({
+    id: p.era.id,
+    label: p.era.label,
+    startDate: p.era.startDate,
+  }));
+}
+
+export function listPlayableCountries(era: string): PlayableCountryInfo[] {
+  const pack = getPackByEra(era);
+  if (!pack) throw new Error(`Unknown era: ${era}`);
+  return pack.countries.filter((c) => c.playable).map((c) => ({ id: c.id, name: c.name }));
+}
+
 export function createWorld(options: NewWorldOptions): WorldState {
+  const era = options.era ?? PACKS_BY_DATE[0]!.era.id;
+  const pack = getPackByEra(era);
+  if (!pack) throw new Error(`Unknown era: ${era}`);
+
+  const countries: WorldState["countries"] = {};
+  for (const c of pack.countries) {
+    countries[c.id] = {
+      id: c.id,
+      name: c.name,
+      playable: c.playable,
+      economy: { ...c.economy },
+    };
+  }
+
+  const country = countries[options.countryId];
+  if (!country) {
+    throw new Error(`Unknown country: ${options.countryId} for era ${era}`);
+  }
+  if (!country.playable) {
+    throw new Error(`Country ${options.countryId} is not playable in era ${era}`);
+  }
+
   const rng = rngFromSeed(options.seed);
   const world: WorldState = {
     meta: {
@@ -23,34 +72,16 @@ export function createWorld(options: NewWorldOptions): WorldState {
       seed: options.seed,
       rng: rng.state(),
       turn: 0,
-      date: START_DATE,
-      era: "1953",
+      date: pack.era.startDate,
+      era: pack.era.id,
     },
-    countries: {
-      us: {
-        id: "us",
-        name: "United States",
-        playable: true,
-        economy: { gdp: 389_000, growthRate: 0.046, inflationRate: 0.008, unemploymentRate: 0.029 },
-      },
-      uk: {
-        id: "uk",
-        name: "United Kingdom",
-        playable: true,
-        economy: { gdp: 47_000, growthRate: 0.035, inflationRate: 0.031, unemploymentRate: 0.017 },
-      },
-    },
+    countries,
     player: {
       name: options.playerName,
       countryId: options.countryId,
       cash: 10_000,
     },
-    news: [
-      { turn: 0, date: START_DATE, headline: "A new game begins." },
-    ],
+    news: [{ turn: 0, date: pack.era.startDate, headline: "A new game begins." }],
   };
-  if (!world.countries[options.countryId]) {
-    throw new Error(`Unknown country: ${options.countryId}`);
-  }
   return world;
 }

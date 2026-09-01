@@ -1,10 +1,10 @@
 export { advanceTurn } from "./engine.js";
-export { createWorld, SCHEMA_VERSION } from "./world.js";
-export type { NewWorldOptions } from "./world.js";
+export { createWorld, listEras, listPlayableCountries, SCHEMA_VERSION } from "./world.js";
+export type { NewWorldOptions, EraInfo, PlayableCountryInfo } from "./world.js";
 export { serializeSave, deserializeSave } from "./save.js";
 export type { SaveFile } from "./save.js";
 export { rngFromSeed, rngFromState } from "./rng.js";
 export type { WorldRng, RngState } from "./rng.js";
-export { dateForTurn, eraForDate, START_DATE, DAYS_PER_TURN } from "./calendar.js";
+export { dateForTurn, eraForDate, addDaysIso, START_DATE, DAYS_PER_TURN } from "./calendar.js";
 export type { TurnPhase, TurnReport, PhaseTiming } from "./phases/types.js";
 export type * from "./types.js";

@@ -31,7 +31,12 @@ export interface WorldMeta {
   era: EraId;
 }
 
-export type EraId = "1953" | "1960" | "1968" | "1976";
+/**
+ * Era id sourced from seed packs, not a hardcoded union.
+ * Historical values include "1953", "1960", "1968", "1976";
+ * new eras come from shipped packs.
+ */
+export type EraId = string;
 
 export interface Country {
   id: string;
