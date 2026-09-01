@@ -16,6 +16,8 @@ export interface GameApi {
   newGame(options: NewWorldOptions): Promise<WorldState>;
   advanceTurn(): Promise<{ report: TurnReport; world: WorldState }>;
   getState(): Promise<WorldState | null>;
+  getStateSync(): WorldState | null;
+  mutate(fn: (world: WorldState) => void): void;
   save(): Promise<{ saved: boolean; path?: string }>;
   load(): Promise<WorldState | null>;
 }
@@ -34,6 +36,15 @@ export const game: GameApi = {
 
   async getState(): Promise<WorldState | null> {
     return world;
+  },
+
+  getStateSync(): WorldState | null {
+    return world;
+  },
+
+  mutate(fn: (world: WorldState) => void): void {
+    if (!world) throw new Error("No game in progress");
+    fn(world);
   },
 
   async save(): Promise<{ saved: boolean; path?: string }> {
