@@ -106,5 +106,30 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 6;
   }
+  // v6 -> v7: commodity prices and extraction contracts (seed with era-neutral defaults)
+  if (save.schemaVersion < 7) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (typeof w["commodityPrices"] !== "object" || w["commodityPrices"] === null || Array.isArray(w["commodityPrices"])) {
+      const fallback: Record<string, unknown> = {};
+      // Use modern base prices as fallback basePrice where era unknown (scale 1).
+      // WorldState era is available for a better seed but content import would
+      // be circular here; keep the migration deterministic and era-agnostic.
+      const modernBase: Record<string, number> = {
+        steel: 800, electronics: 500, energy: 60, chemicals: 220, pharmaceuticals: 1200,
+        fertilizers: 180, food: 200, building_materials: 400, construction_services: 3500,
+        healthcare_services: 2500, real_estate_services: 2200, software: 1000,
+        financial_services: 2000, advertising: 150, vehicles: 25000, retail: 150,
+        freight: 3000, consulting_services: 5000, iron: 120, coal: 150, oil: 80,
+        rare_earth: 21000, timber: 400, natural_gas: 25, ordnance: 4500, plastics: 1000,
+        network_services: 1200, entertainment_services: 600,
+      };
+      for (const [k, v] of Object.entries(modernBase)) {
+        fallback[k] = { commodity: k, basePrice: v, globalPrice: v, globalSupply: 0, globalDemand: 0, turn: (w["meta"] as Record<string, unknown>)?.["turn"] ?? 0 };
+      }
+      w["commodityPrices"] = fallback;
+    }
+    if (!Array.isArray(w["extractionContracts"])) w["extractionContracts"] = [];
+    save.world.meta.schemaVersion = 7;
+  }
   return save.world;
 }

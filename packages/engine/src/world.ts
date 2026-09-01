@@ -2,8 +2,13 @@ import { rngFromSeed } from "./rng.js";
 import type { WorldState } from "./types.js";
 import { getPackByEra, PACKS_BY_DATE } from "@rotunda/content";
 import { createPoliticiansForWorld } from "./politician.js";
+import {
+  COMMODITY_BASE_PRICES,
+  COMMODITY_TYPES,
+  getEraCommodityBasePrice,
+} from "./commodity/constants.js";
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -236,6 +241,22 @@ export function createWorld(options: NewWorldOptions): WorldState {
     if (party) party.memberCount++;
   }
 
+  const commodityPrices: WorldState["commodityPrices"] = {};
+  for (const commodity of COMMODITY_TYPES) {
+    const basePrice = getEraCommodityBasePrice(
+      COMMODITY_BASE_PRICES[commodity as keyof typeof COMMODITY_BASE_PRICES],
+      pack.era.id,
+    );
+    commodityPrices[commodity] = {
+      commodity,
+      basePrice,
+      globalPrice: basePrice,
+      globalSupply: 0,
+      globalDemand: 0,
+      turn: 0,
+    };
+  }
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -252,6 +273,8 @@ export function createWorld(options: NewWorldOptions): WorldState {
     politicians,
     charters: [],
     caucuses: [],
+    commodityPrices,
+    extractionContracts: [],
     player: {
       name: options.playerName,
       countryId: options.countryId,

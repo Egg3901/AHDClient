@@ -90,6 +90,8 @@ describe("advanceTurn", () => {
       "expireCharters",
       "emptyPartyCleanup",
       "partyMemberCountReconcile",
+      "commodityPrices",
+      "contractSettlement",
       "newsMaintenance",
     ]);
   });

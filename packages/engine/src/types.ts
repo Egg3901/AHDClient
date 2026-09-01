@@ -27,6 +27,14 @@ export interface WorldState {
   charters: PartyCharter[];
   /** Caucuses (faction sub-groups). Ports src/lib/db/types/caucus.ts. */
   caucuses: Caucus[];
+  /**
+   * Commodity market state. One entry per CommodityType.
+   * Ports src/lib/db/types/commodityPrice.ts (global side only).
+   * Per-state and per-country price maps are PORT-STUB until state scope lands.
+   */
+  commodityPrices: Record<string, CommodityState>;
+  /** Extraction contracts. Ports src/lib/db/types/extractionContract.ts. */
+  extractionContracts: ExtractionContract[];
 }
 
 export interface Politician {
@@ -248,4 +256,63 @@ export interface ChamberComposition {
   /** Seats held per party, keyed by party id. Sum plus vacancies equals chamber seats. */
   seatsByParty: Record<string, number>;
   vacancies: number;
+}
+
+/**
+ * Commodity market state (global side).
+ * Ports src/lib/db/types/commodityPrice.ts CommodityPrice global fields.
+ * State/country breakdowns are PORT-STUB (empty) until state scope lands.
+ */
+export interface CommodityState {
+  /** Commodity type (key from COMMODITY_TYPES). */
+  commodity: string;
+  /** Base price (era-scaled, constant). Source: commodities.ts COMMODITY_BASE_PRICES + sectorSeedEra.ts. */
+  basePrice: number;
+  /** Current global market price (evolved per turn via drift toward market equilibrium). */
+  globalPrice: number;
+  /** Global supply in units/day (stub: seeded 0, evolved via RNG drift). */
+  globalSupply: number;
+  /** Global demand in units/day (stub: seeded 0, evolved via RNG drift). */
+  globalDemand: number;
+  /** Game turn when last updated. */
+  turn: number;
+}
+
+/**
+ * Extraction contract.
+ * Ports src/lib/db/types/extractionContract.ts ExtractionContract.
+ * Counterparty corporationId is PORT-STUB (null) where corporations not yet ported;
+ * settlement treats null as a stubbed counterparty that always pays (no treasury move).
+ */
+export interface ExtractionContract {
+  id: string;
+  stateId: string;
+  countryId: string;
+  /** Extractable resource (oil, coal, iron, natural_gas, timber, rare_earth). */
+  resource: string;
+  /** Fraction of state capacity reserved (0-1). */
+  share: number;
+  /** Per-turn royalty rate (fraction of contracted capacity market value). */
+  royaltyRatePerTurn: number;
+  /** Lifecycle status. */
+  status: "offered" | "active" | "expired" | "defaulted" | "revoked";
+  /** Granted turn. */
+  grantedTurn: number;
+  /** Grant level. */
+  grantedByLevel: "national" | "state";
+  /** Turn offer expires (offered only). */
+  offerExpiresTurn?: number;
+  /** Turn contract expires (term). */
+  expiresTurn?: number;
+  /** Consecutive missed payments. */
+  missedPayments: number;
+  /** Last turn a settlement outcome was recorded (idempotency). */
+  lastSettlementTurn: number | null;
+  /**
+   * Counterparty corporation id.
+   * PORT-STUB: corporations not yet ported, so null means a stubbed counterparty.
+   * Settlement skips treasury movement for stubbed counterparties but still
+   * computes royalties and advances lifecycle.
+   */
+  corporationId: string | null;
 }
