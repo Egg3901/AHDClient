@@ -53,6 +53,8 @@ export interface CountryEconomy {
   growthRate: number;
   inflationRate: number;
   unemploymentRate: number;
+  /** Output gap level (percent) — cyclical deviation of output from potential. */
+  outputGap: number;
 }
 
 export interface PlayerCharacter {

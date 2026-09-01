@@ -1,6 +1,6 @@
 import type { TurnPhase } from "./types.js";
 import { advanceCalendarPhase } from "./advanceCalendar.js";
-import { macroEconomyPhase } from "./macroEconomy.js";
+import { macroCountryTurnPhase } from "./macroCountryTurn.js";
 import { newsMaintenancePhase } from "./newsMaintenance.js";
 
 /**
@@ -10,6 +10,6 @@ import { newsMaintenancePhase } from "./newsMaintenance.js";
  */
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
-  macroEconomyPhase,
+  macroCountryTurnPhase,
   newsMaintenancePhase,
 ];

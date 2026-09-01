@@ -42,6 +42,15 @@ export function deserializeSave(raw: string): WorldState {
       `Save is from a newer version (schema ${save.schemaVersion} > ${SCHEMA_VERSION}); update the game to load it`,
     );
   }
-  // Migrations slot in here once schemaVersion moves past 1.
+  // v1 -> v2: add outputGap to each country economy
+  if (save.schemaVersion < 2) {
+    for (const country of Object.values((save.world as WorldState).countries)) {
+      const econ = country.economy as unknown as Record<string, unknown>;
+      if (!Number.isFinite(econ["outputGap"] as number)) {
+        econ["outputGap"] = 0;
+      }
+    }
+    save.world.meta.schemaVersion = 2;
+  }
   return save.world;
 }

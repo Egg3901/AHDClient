@@ -2,7 +2,7 @@ import { rngFromSeed } from "./rng.js";
 import type { WorldState } from "./types.js";
 import { getPackByEra, PACKS_BY_DATE } from "@ahdsolo/content";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export interface EraInfo {
   id: string;
@@ -53,7 +53,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
       id: c.id,
       name: c.name,
       playable: c.playable,
-      economy: { ...c.economy },
+      economy: { ...c.economy, outputGap: 0 },
     };
   }
 
