@@ -207,7 +207,13 @@ export const partyTierTurnPhase: TurnPhase = {
       const prevEarned = party.psCapEarnedRegions ?? [];
       const earned = updateEarnedRegions(prevEarned, orgByRegion);
 
-      const exempt = false; // PORT-STUB: no regimeStatus ruling exemption in solo
+      // PORT-STUB until W37 (NPC behavior): mainline majors keep regional org
+      // alive through player and NPP activity; solo has neither yet, so without
+      // this exemption every default major demotes by ~t250 in long sims
+      // (found in the 40-year integration run). Remove when W37 lands.
+      // Only guards existing majors; resolveTierTransition would force-promote
+      // exempt minors, which default minor parties must not get.
+      const exempt = party.isDefault === true && prevTier === "major";
       const transition = resolveTierTransition({
         currentTier: prevTier,
         orgByRegion,

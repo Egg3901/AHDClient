@@ -209,6 +209,7 @@ describe("partyTierTurn phase", () => {
     // instead advance many turns from turn 0
     const world2 = createWorld(OPTS);
     world2.parties[majorId]!.organization = 0;
+    world2.parties[majorId]!.isDefault = false; // default majors are PORT-STUB exempt until W37
     for (let i = 0; i < 241; i++) advanceTurn(world2);
     // After 240 turns of no org recovery, should have started warning and possibly demoted
     // Check that warning was started
@@ -589,5 +590,18 @@ describe("registry ordering", () => {
     expect(idx("emptyPartyCleanup")).toBeGreaterThan(idx("expireCharters"));
     expect(idx("partyMemberCountReconcile")).toBeGreaterThan(idx("emptyPartyCleanup"));
     expect(idx("newsMaintenance")).toBeGreaterThan(idx("partyMemberCountReconcile"));
+  });
+});
+
+// Regression: 40-year integration run demoted default majors (no NPC org
+// maintenance until W37). Default parties are PORT-STUB exempt from demotion.
+describe("default major demotion exemption (PORT-STUB until W37)", () => {
+  it("US default majors stay major over 600 turns", async () => {
+    const { createWorld, advanceTurn } = await import("../index.js");
+    const w = createWorld({ seed: "tier-regression", playerName: "T", countryId: "US", era: "1953" });
+    for (let i = 0; i < 600; i++) advanceTurn(w);
+    for (const p of Object.values(w.parties).filter((p) => p.countryId === "US" && p.isDefault)) {
+      expect(p.tier).toBe("major");
+    }
   });
 });
