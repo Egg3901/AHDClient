@@ -43,7 +43,7 @@ describe("campaign cluster — 100-turn integration (W26)", () => {
     // president into campaign eligibility (mirrors mainline's isDirectElection).
     for (const c of campaigns) {
       expect(c.countryId).toBe("US");
-      expect(["house", "senate", "president"]).toContain(c.electionType);
+      expect(["house", "senate", "president", "governor", "special_governor"]).toContain(c.electionType);
     }
 
     const nppCampaigns = campaigns.filter((c) => c.candidateIsNPP);

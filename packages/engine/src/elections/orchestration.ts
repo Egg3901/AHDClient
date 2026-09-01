@@ -61,6 +61,9 @@ export function electionSeriesForWorld(world: WorldState): SeriesSpec[] {
   const specs: SeriesSpec[] = [];
   const regions = world.regions ?? {};
   // US: house per state (apportioned seats), senate per state per class.
+  // Governor per state - Source: src/lib/elections/canonicalCycle.ts governor case
+  // uses anchors.governorStateSenate (shared with stateSenate). Duration 192
+  // (src/lib/constants/electionDurations.ts DEFAULT_DURATIONS.governor).
   for (const region of Object.values(regions)) {
     const r = region as unknown as {
       id: string; countryId: string; houseSeats?: number;
@@ -74,7 +77,14 @@ export function electionSeriesForWorld(world: WorldState): SeriesSpec[] {
       specs.push({ electionType: "senate", countryId: "US", chamberKey: "senate", state: r.id, senateClass: cls as 1 | 2 | 3, totalSeats: 1 });
     }
   }
-  // US president (W24): one nationwide record, no `state`. Scope is US only —
+  // US governor per state - must wire same way house/senate do, using canonical
+  // cycle anchors already ported in electionEngine/resolution (governorStateSenate).
+  for (const region of Object.values(regions)) {
+    const r = region as unknown as { id: string; countryId: string };
+    if (r.countryId !== "US") continue;
+    specs.push({ electionType: "governor", countryId: "US", chamberKey: "governor", state: r.id, totalSeats: 1 });
+  }
+  // US president (W24): one nationwide record, no `state`. Scope is US only -
   // see executive/types.ts file doc for why other presidential countries are
   // PORT-STUB this wave.
   if (world.legislatures["US"]) {
@@ -153,10 +163,57 @@ function makeChallenger(world: WorldState, rng: WorldRng, rec: ElectionRecord, p
 }
 
 /**
+ * Governor-specific candidate fill (W30): incumbent comes from
+ * world.governors[state], not seatHolders (governor is a per-state
+ * executive record, not a chamberKey seat - mirrors mainline's
+ * ElectedOfficial officeType "governor" per state). Sources:
+ * src/lib/governorOffice/queries.ts getCurrentOfficeHolder,
+ * src/lib/elections/canonicalCycle.ts governor case (governorStateSenate
+ * anchor), src/lib/constants/electionDurations.ts DEFAULT_DURATIONS.governor.
+ * Campaign eligibility per mainline isDirectElection (US presidential
+ * governmentType) + NON_PRESIDENTIAL_RACE_FAMILIES includes "governor" -
+ * see src/lib/campaigns/isCampaignEligible.ts; solo's
+ * campaigns/isCampaignEligible.ts already includes governor for US.
+ */
+function fillGovernorCandidates(world: WorldState, rng: WorldRng, rec: ElectionRecord): void {
+  const seen = new Set(rec.candidates.map((c) => c.id));
+  const gov = rec.state ? world.governors[rec.state] : undefined;
+  if (gov?.governorId && !seen.has(gov.governorId)) {
+    const id = gov.governorId;
+    const name = id === "player" ? world.player.name : (world.politicians.find((p) => p.id === id)?.name ?? gov.governorName ?? id);
+    rec.candidates.push({
+      id,
+      name,
+      partyId: gov.governorParty ?? "independent",
+      isNPP: id !== "player",
+      incumbent: true,
+    });
+    seen.add(id);
+  }
+  const incumbentPartyId = gov?.governorId ? gov.governorParty : null;
+  const majorParties = Object.values(world.parties).filter(
+    (p) => p.countryId === rec.countryId && (p.tier === "major" || p.id === incumbentPartyId),
+  );
+  for (const party of majorParties.sort((a, b) => a.id.localeCompare(b.id))) {
+    if (rec.candidates.some((c) => c.partyId === party.id)) continue;
+    const ch = makeChallenger(world, rng, rec, party.id, 0);
+    world.politicians.push(ch);
+    rec.candidates.push({
+      id: ch.id,
+      name: ch.name,
+      partyId: party.id,
+      isNPP: true,
+      incumbent: false,
+    });
+  }
+  ensureCampaignsForElection(world, rec);
+}
+
+/**
  * President-specific candidate fill (W24): the incumbent comes from
  * `world.executives`, not `seatHolders` (the presidency is not a
  * `Politician.chamberKey` seat), and each ticket carries a generated running
- * mate — reuses `makeChallenger`'s exact generation logic (name/ideology/age)
+ * mate - reuses `makeChallenger`'s exact generation logic (name/ideology/age)
  * with the id's "-CH:" marker swapped for "-VP:" so the running mate is
  * distinguishable in NPC-population cleanup (applyPresidentialResolution).
  */
@@ -205,6 +262,10 @@ function fillPresidentialCandidates(world: WorldState, rng: WorldRng, rec: Elect
 export function fillCandidates(world: WorldState, rng: WorldRng, rec: ElectionRecord): void {
   if (rec.electionType === "president") {
     fillPresidentialCandidates(world, rng, rec);
+    return;
+  }
+  if (rec.electionType === "governor" || rec.electionType === "special_governor") {
+    fillGovernorCandidates(world, rng, rec);
     return;
   }
   const holders = seatHolders(world, rec);
@@ -284,9 +345,94 @@ export function recomputeComposition(world: WorldState, countryId: string, chamb
   chamber.composition = { seatsByParty, vacancies: Math.max(0, chamber.seats - held) };
 }
 
+function applyGovernorResolution(world: WorldState, rec: ElectionRecord): void {
+  // Single-seat per-state executive - reuses generalResolutionPure with totalSeats 1.
+  // Winner seats as governor of rec.state; loser incumbents are displaced.
+  // Source: src/lib/elections/canonicalCycle.ts governor case,
+  //         src/lib/turn/byElections.ts special_governor -> officeType governor,
+  //         src/lib/governorOffice/queries.ts per-state holder.
+  const candidates: CandidateInput[] = rec.candidates.map((c) => ({
+    _id: c.id,
+    electionId: rec.id,
+    ...(c.id === "player" ? { characterId: "player" } : {}),
+    characterName: c.name,
+    party: c.partyId,
+    isNPP: c.isNPP,
+  }));
+  const input: GeneralResolutionInput = {
+    election: {
+      _id: rec.id,
+      electionType: rec.electionType,
+      countryId: rec.countryId,
+      state: rec.state,
+      cycle: rec.cycle,
+      status: rec.status,
+    } as GeneralResolutionInput["election"],
+    tally: { electionId: rec.id, totalVotes: rec.tally, finalized: true },
+    candidates,
+    totalSeats: 1,
+    currentYear: Number(world.meta.date.slice(0, 4)),
+  };
+  const result = resolveGeneralElectionPure(input);
+  if (!result) return;
+  // seatsEstimate may assign the single seat to a candidate id; winner is the one with >0 seats.
+  let winnerId: string | null = null;
+  let maxSeats = 0;
+  for (const [candId, seats] of Object.entries(result.seatsEstimate)) {
+    if (seats > maxSeats) {
+      maxSeats = seats;
+      winnerId = candId;
+    }
+  }
+  // Fallback to tally leader if resolution produces no estimate (should not happen)
+  if (!winnerId) {
+    let best = -1;
+    for (const c of rec.candidates) {
+      const v = rec.tally[c.id] ?? 0;
+      if (v > best) { best = v; winnerId = c.id; }
+    }
+  }
+  if (!winnerId) return;
+  const winner = rec.candidates.find((c) => c.id === winnerId);
+  if (!winner || !rec.state) return;
+  const gov = world.governors[rec.state];
+  if (!gov) return;
+  gov.governorId = winnerId;
+  gov.governorParty = winner.partyId;
+  gov.governorName = winner.name;
+  gov.termStartTurn = world.meta.turn;
+  // Reset office AP on new term (fresh mandate) - capped.
+  gov.gubernatorialActions = 3;
+  gov.lastActionGrantedTurn = world.meta.turn;
+  gov.lastAddressTurn = null;
+
+  // Retire generated challengers who lost (staleCandidateCleanup analogue)
+  const loserGenerated = new Set(
+    rec.candidates.filter((c) => c.id !== winnerId && c.id.includes("-CH")).map((c) => c.id),
+  );
+  if (loserGenerated.size > 0) {
+    world.politicians = world.politicians.filter((p) => !(loserGenerated.has(p.id) && p.chamberKey === ""));
+  }
+
+  rec.status = "resolved";
+  rec.winners = [winnerId];
+  rec.resolvedTurn = world.meta.turn;
+  archiveCampaignsForElection(world, rec.id);
+  const label = `${rec.state} governor`;
+  world.news.push({
+    turn: world.meta.turn,
+    date: world.meta.date,
+    headline: `${label} election resolved: ${winner.name} (${winner.partyId}) wins`,
+  });
+}
+
 export function applyResolution(world: WorldState, rec: ElectionRecord): void {
   if (rec.electionType === "president") {
     applyPresidentialResolution(world, rec);
+    return;
+  }
+  if (rec.electionType === "governor" || rec.electionType === "special_governor") {
+    applyGovernorResolution(world, rec);
     return;
   }
   const candidates: CandidateInput[] = rec.candidates.map((c) => ({
@@ -385,7 +531,7 @@ export function applyResolution(world: WorldState, rec: ElectionRecord): void {
   rec.resolvedTurn = world.meta.turn;
   recomputeComposition(world, rec.countryId, rec.chamberKey);
   // W26: archive campaigns tied to a resolved election (mirrors mainline
-  // deleting Campaign docs at resolution — solo archives instead of
+  // deleting Campaign docs at resolution - solo archives instead of
   // deleting so history stays inspectable).
   archiveCampaignsForElection(world, rec.id);
 

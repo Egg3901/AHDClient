@@ -244,7 +244,7 @@ export function deserializeSave(raw: string): WorldState {
         }
       }
     }
-    // Ensure priorityRegion field exists (optional) — no migration needed, leave undefined
+    // Ensure priorityRegion field exists (optional) - no migration needed, leave undefined
 
     w["regions"] = regions;
     w["electoratePools"] = electoratePools;
@@ -281,7 +281,7 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 9;
   }
-  // v9 -> v10: W38 US states — replace US opaque US-R1..R3 with 48 real states.
+  // v9 -> v10: W38 US states - replace US opaque US-R1..R3 with 48 real states.
   // UK/RU/DD retain opaque until W39 per docs/support/W19_BRIDGE.md.
   // Bridge decision: mainline has no explicit opaque-to-state mapping, so we use
   // a deterministic population-weighted split. Pooled org/reg from the 3 opaque US
@@ -307,7 +307,7 @@ export function deserializeSave(raw: string): WorldState {
     if (hasOpaqueUs && regions && partyRegions && electoratePools && regionTurnouts && partyPressures) {
       // Import state list for population weighting and region seeding
       // Inline minimal US states metadata (id, name, population) to avoid circular import
-      // Source: packages/content/src/packs/usStates1953.ts — sorted for determinism
+      // Source: packages/content/src/packs/usStates1953.ts - sorted for determinism
       const US_STATES_1953: Array<{ id: string; name: string; population: number; houseSeats: number; senateSeats: number; senateClasses: [1 | 2 | 3, 1 | 2 | 3]; region: string; gdp: number }> = [
         { id: "AL", name: "Alabama", population: 3061743, houseSeats: 9, senateSeats: 35, senateClasses: [2, 3], region: "Southeast", gdp: 4500 },
         { id: "AR", name: "Arkansas", population: 1909511, houseSeats: 6, senateSeats: 35, senateClasses: [2, 3], region: "Southeast", gdp: 2300 },
@@ -477,7 +477,7 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 11;
   }
-  // v11 -> v12: W27 legislation core — bills, committees, enactedLaws, stateBills, player seat/mode
+  // v11 -> v12: W27 legislation core - bills, committees, enactedLaws, stateBills, player seat/mode
   if (save.schemaVersion < 12) {
     const w = save.world as unknown as Record<string, unknown>;
     if (!Array.isArray(w["bills"])) w["bills"] = [];
@@ -569,7 +569,7 @@ export function deserializeSave(raw: string): WorldState {
     save.world.meta.schemaVersion = 14;
   }
   // v14 -> v15: W2 budgets (national budgets + regional budgets).
-  // If W37 races for v14/v15, merge resolver renumbers — note collision for resolver.
+  // If W37 races for v14/v15, merge resolver renumbers - note collision for resolver.
   // Seed minimal budgets/regionalBudgets so old saves have fiscal state.
   if (save.schemaVersion < 15) {
     const w = save.world as unknown as Record<string, unknown>;
@@ -640,7 +640,7 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 15;
   }
-  // v15 -> v16: W37 NPC behavior cluster — personality, relationships, sponsor cooldown, stance drift support
+  // v15 -> v16: W37 NPC behavior cluster - personality, relationships, sponsor cooldown, stance drift support
   if (save.schemaVersion < 16) {
     const w = save.world as unknown as Record<string, unknown>;
     const politicians = w["politicians"] as Array<Record<string, unknown>> | undefined;
@@ -687,12 +687,12 @@ export function deserializeSave(raw: string): WorldState {
   }
   // v16 -> v17: W3 central banks (this worktree branched at v15; v16 is another
   // wave's pre-allocated slot merging in parallel. Written as a direct jump to
-  // the target v17 per the wave brief — the merge resolver may need to split
+  // the target v17 per the wave brief - the merge resolver may need to split
   // this into a proper v15->v16 (whatever v16's wave adds) -> v16->v17 (this
   // block, renumbered) chain depending on merge order. Seeds one central bank
   // per playable country (mirrors world.ts seedCentralBanks): bootstrapped
   // directly in autonomous "npp" chair mode at that country's defaultPrimeRate
-  // anchor, term expiring at CHAIR_TERM_TURNS from now (not from turn 0 — an
+  // anchor, term expiring at CHAIR_TERM_TURNS from now (not from turn 0 - an
   // in-progress save should not immediately roll the chair on load).
   if (save.schemaVersion < 17) {
     const w = save.world as unknown as Record<string, unknown>;
@@ -724,7 +724,7 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 17;
   }
-  // v17 -> v18: W39 UK/RU/DD subdivisions — replace opaque UK-R1..R3, RU-R1..R3, DD-R1..R3 with real tables.
+  // v17 -> v18: W39 UK/RU/DD subdivisions - replace opaque UK-R1..R3, RU-R1..R3, DD-R1..R3 with real tables.
   // Pre-allocated v18 for this wave; parallel waves hold 16 and 17. Note for merge resolver: renumber to next free if collision.
   // Bridge decision: same deterministic averaged-split approach as W38's US bridge (docs/support/W19_BRIDGE.md): pooled org/reg totals across 3 opaque regions are averaged and assigned uniformly to new subdivisions. Sorted tables ensure determinism. UK 12 regions (1951 Census, 625 commons), RU 14 (1939/1950 Census, 526 Union seats), DD 6 Laender (18.4M, 500 Volkskammer). Demographics for new regions are seeded as uniform stubs here; new worlds use Layer1-derived tables via seedDemographics.
   if (save.schemaVersion < 18) {
@@ -904,16 +904,16 @@ export function deserializeSave(raw: string): WorldState {
   }
   // v18 -> v19: W9 corporations. This worktree branched at v17; v18 is another
   // wave's pre-allocated slot merging in parallel. Written as a direct jump to
-  // the target v19 per the wave brief — the merge resolver may need to split
+  // the target v19 per the wave brief - the merge resolver may need to split
   // this into a proper v17->v18 (whatever v18's wave adds) -> v18->v19 (this
   // block, renumbered) chain depending on merge order.
   //
   // Seeds corporations for every playable country with authored 1953 sector
-  // weights, exactly as world.ts createWorld does — but from a migration-only
+  // weights, exactly as world.ts createWorld does - but from a migration-only
   // rng derived from the save's own seed (never the save's live meta.rng
   // state: that stream must stay untouched so future turns continue exactly
   // where an in-progress campaign left off). A save loaded mid-campaign gets
-  // corporations "founded" at the save's current turn rather than turn 0 —
+  // corporations "founded" at the save's current turn rather than turn 0 -
   // there is no way to reconstruct what turn-0 founding would have produced
   // without replaying the whole campaign, and founding-at-load is the same
   // shape as a fresh createWorld seed step, just later.
@@ -945,13 +945,13 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 19;
   }
-  // v19 -> v20: W26 campaigns — add the new `campaigns` map (empty for
+  // v19 -> v20: W26 campaigns - add the new `campaigns` map (empty for
   // every pre-existing save; campaigns are created going forward by
   // elections/orchestration.ts + elections/candidacy.ts as candidates enter
   // campaign-eligible races). Pre-allocated v20 for this wave; v19 and v21
   // are held by parallel waves. RESOLVER NOTE: this block only touches the
   // `campaigns` field and is safe to run in either order relative to
-  // whatever v19 adds — on merge, chain the blocks in strict ascending
+  // whatever v19 adds - on merge, chain the blocks in strict ascending
   // schemaVersion order (v18 -> v19 -> v20) and confirm v19 does not also
   // introduce a field named `campaigns` (it should not; W26 is authoritative
   // for that name).
@@ -996,10 +996,10 @@ export function deserializeSave(raw: string): WorldState {
     // Ensure v19/v20 gaps are marked as passed through for chained migration tests
     save.world.meta.schemaVersion = 21;
   }
-  // v21 -> v22: W23 parliamentary government — add the new `governments`
+  // v21 -> v22: W23 parliamentary government - add the new `governments`
   // map (empty for every pre-existing save; entries are lazily created by
   // government/phases.ts governmentFormationPhase the next time it runs for
-  // each of UK/RU/DD, exactly as a fresh world leaves it empty at creation —
+  // each of UK/RU/DD, exactly as a fresh world leaves it empty at creation -
   // see world.ts's `governments: {}` comment). Pre-allocated v22 for this
   // wave; v21 is held by a parallel wave that had not merged as of W23, so
   // this block jumps straight from v20 to v22 rather than chaining through
@@ -1007,7 +1007,7 @@ export function deserializeSave(raw: string): WorldState {
   // `governments` field. On merging the v21 wave, re-chain in strict
   // ascending schemaVersion order (v20 -> v21 -> v22) and confirm v21 does
   // not also introduce a field named `governments` (it should not; W23 is
-  // authoritative for that name) — if it does, keep both blocks but resolve
+  // authoritative for that name) - if it does, keep both blocks but resolve
   // the name collision before merging rather than silently letting the
   // later block clobber the earlier one.
   if (save.schemaVersion < 22) {
@@ -1043,7 +1043,7 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 23;
   }
-  // v23 -> v24: pre-allocated for parallel wave (holds v24) — no fields added
+  // v23 -> v24: pre-allocated for parallel wave (holds v24) - no fields added
   // by this wave. This stub preserves chained migration ordering: latest is 25.
   // RESOLVER NOTE: if the v24 wave lands first with real fields, its block
   // replaces this stub and the v25 guard below is renumbered from 25 to
@@ -1078,12 +1078,12 @@ export function deserializeSave(raw: string): WorldState {
   // Corporation (they should not; W10 is authoritative for those names).
   //
   // Backfills every existing corp with the market fields founding.ts now
-  // seeds for brand-new worlds (same formula, same citations — see
+  // seeds for brand-new worlds (same formula, same citations - see
   // founding.ts "W10: founder/public-float share split" comment): 51% NPC /
   // 49% public float of CEO_INITIAL_SHARES, initial price from
   // liquidCapital/totalShares floored at DEFAULT_SHARE_PRICE, empty rolling
   // earnings history (the corp has not had a market-aware corporationTurn
-  // run yet, so there is nothing to seed it with — the next turn's
+  // run yet, so there is nothing to seed it with - the next turn's
   // corporationTurnPhase starts populating it). A save with NO corporations
   // yet (pre-v19, upgraded straight through) has nothing to backfill; the
   // v18->v19 block above already produces fully market-seeded corps via the
@@ -1116,7 +1116,7 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 26;
   }
-  // v25 -> v26: pre-allocated for parallel wave (holds v26) — no fields added
+  // v25 -> v26: pre-allocated for parallel wave (holds v26) - no fields added
   // by this wave. This stub preserves chained migration ordering: latest is 27.
   // RESOLVER NOTE: if the v26 wave lands first with real fields, its block
   // replaces this stub and the v27 guard below is renumbered from 27 to
@@ -1143,13 +1143,16 @@ export function deserializeSave(raw: string): WorldState {
     if (!Array.isArray(w["playerEventLog"])) w["playerEventLog"] = [];
     save.world.meta.schemaVersion = 27;
   }
-  // v27 -> v28: W12 private banking. Pre-allocated v28 (see world.ts
-  // SCHEMA_VERSION file doc for the resolver note — v27 belongs to a
-  // parallel wave not present in this worktree). Adds the fields
-  // bankingTurnPhase/bankSolvencyTurnPhase read: player.savings/
-  // savingsHolder, world.bankLoans, world.depositInsurance, and
-  // centralBank.externalBroadMoney. Deliberately does NOT retroactively
-  // charter any bank on an existing save — bankCharter is optional
+  // v27 -> v28: W12 private banking (merged in ahead of this wave - see
+  // world.ts SCHEMA_VERSION file doc: main landed v28 while this wave was
+  // pre-allocated v29, so the v27->v28 stub originally written here is
+  // replaced by the real banking migration below; W30's block chains on top
+  // as v28->v29, unaffected since it only touches governors/
+  // governorAddresses/governorOrders - no name collision with banking's
+  // player.savings/savingsHolder, world.bankLoans/depositInsurance, or
+  // centralBank.externalBroadMoney). Adds the fields bankingTurnPhase/
+  // bankSolvencyTurnPhase read. Deliberately does NOT retroactively charter
+  // any bank on an existing save - bankCharter is optional
   // (corporation/types.ts), both new phases no-op on a corp without one, and
   // seedNpcBanks moves real cash out of a corp's liquidCapital, which is not
   // something a load-time migration should spring on an existing world.
@@ -1176,24 +1179,57 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 28;
   }
-  // v28 -> v29: pre-allocated for parallel wave (holds v29) — no fields added
-  // by this wave. This stub preserves chained migration ordering: latest is 30.
-  // RESOLVER NOTE: if the v29 wave lands first with real fields, its block
-  // replaces this stub and the v30 guard below is renumbered from 30 to
-  // 29->30 accordingly; no name collision expected (W15 owns unions).
-  // Verify ascending schemaVersion order (v28 -> v29 -> v30) and that v29
-  // does not introduce a field named `unions` (it should not; W15 is
-  // authoritative for that name) — if it does, keep both blocks but resolve
-  // the name collision before merging rather than silently letting the
-  // later block clobber the earlier one.
+  // v28 -> v29: W30 governor cluster (governors, governorAddresses,
+  // governorOrders). Ports src/lib/db/types/electedOfficial.ts officeType
+  // "governor" per state, src/lib/db/types/governorOfficeState.ts,
+  // src/lib/constants/governorOffice.ts (GUBERNATORIAL_ACTION_*),
+  // src/lib/governorOffice/*.ts powers, and src/lib/turn/byElections.ts
+  // special_governor watcher. This wave was pre-allocated v29 when main was
+  // v27; W12 banking landed v28 first, and mainline deliberately left its own
+  // v28->v29 chain slot as a no-op stub reserved for this wave (see the
+  // resolver note that used to live here: "if the v29 wave lands first with
+  // real fields, its block replaces this stub"). Reconciliation fills that
+  // reserved slot in place - no renumbering. Chained migration: this block
+  // only touches governors, governorAddresses, governorOrders - confirmed no
+  // collision with unions (v30), bonds (v31), exchangeRates (v32), or the W6
+  // metric engine fields (v33), which chain unchanged below. Seeded from
+  // world.regions: one vacant office per US state (governorId null, AP capped)
+  // mirroring world.ts seedGovernors. Existing saves with US regions get the
+  // same vault; saves without US regions get empty maps/arrays.
   if (save.schemaVersion < 29) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const regions = w["regions"] as Record<string, { countryId: string }> | undefined;
+    if (typeof w["governors"] !== "object" || w["governors"] === null || Array.isArray(w["governors"])) {
+      const governors: Record<string, unknown> = {};
+      if (regions) {
+        for (const [rid, region] of Object.entries(regions)) {
+          if (region.countryId !== "US") continue;
+          governors[rid] = {
+            stateId: rid,
+            countryId: "US",
+            governorId: null,
+            governorParty: null,
+            governorName: null,
+            termStartTurn: null,
+            gubernatorialActions: 3,
+            lastActionGrantedTurn: typeof (w["meta"] as Record<string, unknown> | undefined)?.["turn"] === "number" ? ((w["meta"] as Record<string, unknown>)["turn"] as number) : 0,
+            lastAddressTurn: null,
+          };
+        }
+      }
+      w["governors"] = governors;
+    }
+    if (!Array.isArray(w["governorAddresses"])) w["governorAddresses"] = [];
+    if (!Array.isArray(w["governorOrders"])) w["governorOrders"] = [];
     save.world.meta.schemaVersion = 29;
   }
-  // v29 -> v30: W15 unions. Pre-allocated v30 for this wave; main is v28;
-  // parallel wave holds v29. This is the latest migration, jumping from
-  // latest known (v28) to v30 via the v29 stub above. On merge, chain in
-  // strict ascending order (v28 -> v29 -> v30) and confirm v29 does not also
-  // introduce `unions`.
+  // v29 -> v30: W15 unions. This is the real migration that now runs right
+  // after W30 governors' v28->v29 above (mainline's own v28->v29 slot, which
+  // used to be a stub reserved for this wave, is gone now that the governor
+  // block fills it - see that block's comment). Chain order preserved: v28 ->
+  // v29 (governors) -> v30 (unions) -> v31 (bonds) -> v32 (forex) -> v33
+  // (metric engine), matching mainline exactly. Confirmed no name collision
+  // with governors/governorAddresses/governorOrders.
   //
   // Seeds unions for every playable country's nonzero-weight 1953 sector,
   // exactly as world.ts createWorld does (same founding helper, same

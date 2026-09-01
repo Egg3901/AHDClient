@@ -95,6 +95,14 @@ import {
 } from "../events/phases.js";
 import { bankingTurnPhase } from "../banking/bankingTurn.js";
 import { bankSolvencyTurnPhase } from "../banking/bankSolvencyTurn.js";
+import {
+  governorAPRegenPhase,
+  governorOrdersPhase,
+  governorAddressExpiryPhase,
+  governorByElectionWatcherPhase,
+  governorLegislationQueuePhase,
+  governorEndorsementsPhase,
+} from "../governor/phases.js";
 import { unionsTurnPhase, nppUnionBehaviorPhase } from "../unions/phases.js";
 import { sovereignIssuancePhase, bondCouponMaturityPhase, npcBondHolderPhase } from "../bonds/phases.js";
 import { ledgerPreForexSnapshotPhase, forexTurnPhase } from "../forex/phases.js";
@@ -150,7 +158,7 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   electionTimersPhase,
   electionResolutionPhase,
   // Demographics at end of ported subset (before newsMaintenance) to avoid
-  // shifting existing RNG streams — mirrors elections block deviation note.
+  // shifting existing RNG streams - mirrors elections block deviation note.
   // Mainline order is demographics (census earlier, flows after metricEngine,
   // effects near legislation) but solo demotes them to tail until re-golden.
   demographicEffectsPhase,
@@ -173,7 +181,7 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   subsidyBudgetPhase,
   fiscalYearPhase,
   regionalBudgetProcessingPhase,
-  // W3 central bank cluster at end of ported subset, before newsMaintenance —
+  // W3 central bank cluster at end of ported subset, before newsMaintenance -
   // same rng-stream-stability rule as the elections/demographics/budget blocks
   // above (mainline runs this cluster mid-pipeline, at turnPhaseNames.ts
   // indices 116-121; inserting it there would shift every downstream rng draw
@@ -181,13 +189,13 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // mirrors mainline's relative order.
   centralBankChairTurnPhase,
   centralBankChairSelectionPhase,
-  // W9 corporations at the end of the ported subset, before newsMaintenance —
+  // W9 corporations at the end of the ported subset, before newsMaintenance -
   // same rng-stream-stability rule as every block above (mainline runs
   // corporationTurn mid-pipeline; inserting it there would shift every
   // downstream rng draw for existing goldens). See corporation/corporationTurn.ts
   // file doc for the resulting one-turn lag on the macroCountryTurn wire.
   corporationTurnPhase,
-  // W26 campaign cluster at end of ported subset, before newsMaintenance —
+  // W26 campaign cluster at end of ported subset, before newsMaintenance -
   // same rng-stream-stability rule as every other tail cluster above.
   // Deviation from mainline order (see campaigns/phases.ts file doc for the
   // full explanation): mainline runs campaignTurn BEFORE voteAccumulation
@@ -200,7 +208,7 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // accrual is what next turn's tally sees, not a double-counted carry-over.
   // campaignPartySubsidy (funds the NPC investment below) then
   // campaignNpcInvestment (spends it) both mutate spendThisTurn further
-  // this same turn — also visible next turn.
+  // this same turn - also visible next turn.
   campaignSpendResetPhase,
   campaignTurnPhase,
   campaignPartySubsidyPhase,
@@ -218,21 +226,21 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   coalitionDisbandPhase,
   leadershipElectionsPhase,
   // W23 parliamentary government cluster, at the end of the ported subset,
-  // before newsMaintenance — same rng-stream-stability rule as every other
+  // before newsMaintenance - same rng-stream-stability rule as every other
   // tail cluster above (this repo has no interactive vote/appointment
   // system yet, so these two phases are also rng-free in practice, but the
   // placement rule is about not shifting every later phase's rng draws for
   // existing goldens, not about this cluster's own rng use). Relative order
   // mirrors mainline turnPhaseRegistry.ts indices 85-87 (parliamentaryGovernmentFormation
-  // + parliamentaryGovernmentPhases, merged into governmentFormationPhase —
-  // see government/phases.ts file doc — before parliamentaryVacancyWatcher):
+  // + parliamentaryGovernmentPhases, merged into governmentFormationPhase -
+  // see government/phases.ts file doc - before parliamentaryVacancyWatcher):
   // governmentFormationPhase runs first so a government seated this turn has
   // its PM vacancy deadline cleared before governmentVacancyWatcherPhase
   // checks it, exactly as mainline's pmVacancyDeadline.ts requires.
   governmentFormationPhase,
   governmentVacancyWatcherPhase,
   // W24 presidential succession/impeachment cluster at END before
-  // newsMaintenance — same rng-stream-stability rule as every other tail
+  // newsMaintenance - same rng-stream-stability rule as every other tail
   // cluster above (mainline runs impeachmentLifecycle/presidentialSuccession
   // mid-pipeline, around Group 11; inserting them there would shift every
   // downstream rng draw for existing goldens). Relative order mirrors
@@ -243,7 +251,7 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // winner already fills a vacancy before succession would need to.
   impeachmentLifecyclePhase,
   presidentialSuccessionPhase,
-  // W29 cabinet + judiciary cluster at END before newsMaintenance — same
+  // W29 cabinet + judiciary cluster at END before newsMaintenance - same
   // rng-stream-stability rule as every other tail cluster above (ordering
   // deviation: mainline runs cabinetNominationLifecycle and scotusTurn mid-
   // pipeline alongside centralBank/legislation; UK JR surprise runs as a
@@ -259,24 +267,24 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   cabinetNominationLifecyclePhase,
   scotusTurnPhase,
   ukJrSurpriseTurnPhase,
-  // W10 markets (share price, stock exchange) at END before newsMaintenance —
+  // W10 markets (share price, stock exchange) at END before newsMaintenance -
   // same rng-stream-stability rule as every other tail cluster above
   // (mainline runs recomputeSharePrices mid-pipeline, right after bondTurn;
   // inserting it there would shift every downstream rng draw for existing
-  // goldens — see market/recomputeSharePrices.ts file doc). This phase draws
+  // goldens - see market/recomputeSharePrices.ts file doc). This phase draws
   // no rng itself either way (pure repricing). Placed as the LAST phase
   // before newsMaintenance, after every other tail cluster, so it always
   // runs strictly after corporationTurnPhase (whose earningsHistory/
-  // liquidCapital/currentGrowthRate writes it reads this same turn) — no
+  // liquidCapital/currentGrowthRate writes it reads this same turn) - no
   // other phase in this worktree mutates world.corporations, so nothing
   // between the two matters to the ordering.
   recomputeSharePricesPhase,
-  // W31 events cluster at END before newsMaintenance — ordering deviation:
+  // W31 events cluster at END before newsMaintenance - ordering deviation:
   // Mainline runs worldEventsMaintenance (53) and worldEventsScheduler (54)
   // alongside playerRandomEvents (52) and crisisTurn (Group 11, Effects) mid-
   // pipeline, before nppActionProcessing and well before history snapshots.
   // Solo defers the entire W31 cluster to the tail before newsMaintenance to
-  // avoid shifting shared RNG streams under existing integration goldens — same
+  // avoid shifting shared RNG streams under existing integration goldens - same
   // rule as every other tail cluster above. A dedicated re-golden will restore
   // mainline order. Relative order inside this cluster mirrors mainline:
   // worldEventsMaintenance before worldEventsScheduler (so expired modifiers
@@ -286,11 +294,11 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   worldEventsSchedulerPhase,
   playerRandomEventsPhase,
   crisisTurnPhase,
-  // W12 private banking, at END before newsMaintenance — same rng-stream-
+  // W12 private banking, at END before newsMaintenance - same rng-stream-
   // stability rule as every other tail cluster above (mainline runs
   // bankingTurn/bankSolvencyTurn mid-pipeline, immediately after
   // savingsInterestTurn / recomputeSharePrices respectively; inserting them
-  // there would shift every downstream rng draw for existing goldens — and
+  // there would shift every downstream rng draw for existing goldens - and
   // in solo's case both phases are RNG-free regardless, so the real reason
   // is the same append-only-tail rule recomputeSharePricesPhase's own
   // comment states, not an rng argument). bankingTurnPhase before
@@ -298,11 +306,38 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // deposit/loan/interest flows settle before that same turn's solvency
   // pass evaluates the resulting cash position) and mainline's own stated
   // intent that bankSolvencyTurn runs "immediately after recomputeShare
-  // Prices" (bankSolvencyTurn.ts file doc) — solo drops the prop-book mark-
+  // Prices" (bankSolvencyTurn.ts file doc) - solo drops the prop-book mark-
   // to-market this ordering exists for (see banking/types.ts file doc: no
   // investment-bank charter type ported), but keeps the same slot.
   bankingTurnPhase,
   bankSolvencyTurnPhase,
+  // W30 governor cluster at END before newsMaintenance, after the W12
+  // banking cluster (merged in ahead of this wave - see world.ts
+  // SCHEMA_VERSION file doc; the two clusters don't read/write any shared
+  // fields so relative order between them is a no-op either way; placed
+  // after banking simply to match landing order, and before unions/bonds/
+  // forex/metrics below since it fills schema slot v29, one below their
+  // v30-v33). Ordering deviation:
+  // Mainline runs governorAPRegen (Group 13), governorExecutiveOrders,
+  // governorAddressExpiry, governorEndorsements, governorLegislationQueue and
+  // byElectionWatcher (special_governor watcher) interleaved with election
+  // timers/resolution and cabinet/judiciary (turnPhaseRegistry.ts Group 11-13,
+  // turnPhaseNames.ts 74). Solo defers the entire W30 cluster to the tail
+  // before newsMaintenance to avoid shifting shared RNG streams under existing
+  // integration goldens - same rule as every other tail cluster above.
+  // A dedicated re-golden will restore mainline order. Relative order inside
+  // this cluster mirrors mainline: governorAPRegen first (AP is spent by
+  // later phases), governorOrders before governorAddressExpiry (both expiry
+  // sweeps), then governorByElectionWatcher after electionResolutionPhase so it
+  // reads settled governor seats (same placement rationale as mainline
+  // byElectionWatcher after perpetualElections), then PORT-STUB sweeps
+  // governorLegislationQueue and governorEndorsements.
+  governorAPRegenPhase,
+  governorOrdersPhase,
+  governorAddressExpiryPhase,
+  governorByElectionWatcherPhase,
+  governorLegislationQueuePhase,
+  governorEndorsementsPhase,
   // W15 unions at END before newsMaintenance — ordering deviation:
   // Mainline runs unionsTurn immediately after corporationTurn, reading that
   // phase's sector unionization/workers/wagePerWorker writes this same turn

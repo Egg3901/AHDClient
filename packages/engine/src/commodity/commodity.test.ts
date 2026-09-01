@@ -115,7 +115,12 @@ describe("commodity price evolution (golden values)", () => {
     // moved from 11.56 to 11.11, oil from 1.21 to 1.14; this is a pure
     // rng-stream shift, not a formula change (see phases/registry.ts
     // ordering-deviation note).
-    expect(w.commodityPrices["steel"]!.globalPrice).toBeCloseTo(11.11, 1);
+    // Re-baselined for W30: the governor cluster (6 phases) at the tail is
+    // rng-free but the governor elections themselves (48 per state) now draw
+    // rng during voteAccumulation/electionResolution for tally noise before
+    // the next turn's commodityPrices. This shifts the shared rng stream
+    // again (same one-turn-lag class). Steel 11.11 -> 11.45, oil unchanged.
+    expect(w.commodityPrices["steel"]!.globalPrice).toBeCloseTo(11.45, 1);
     expect(w.commodityPrices["oil"]!.globalPrice).toBeCloseTo(1.14, 1);
   });
 
@@ -129,7 +134,9 @@ describe("commodity price evolution (golden values)", () => {
     // Golden after 50 turns (seed golden-seed-42) — re-baselined for W31's
     // rng-stream shift (see steel/oil golden above), from 293.42 (W24) and
     // 314.46 (W9). New baseline 260.41 with W31 events tail RNG consumption.
-    expect(w.commodityPrices["rare_earth"]!.globalPrice).toBeCloseTo(260.41, 0);
+    // Re-baselined for W30: governor elections add 48 tally draws per turn,
+    // shifting rng stream. New baseline 303.15 (pure rng-stream shift).
+    expect(w.commodityPrices["rare_earth"]!.globalPrice).toBeCloseTo(303.15, 0);
   });
 
   it("prices stay within 0.1x–10x base bounds even after 200 turns (bounds)", () => {

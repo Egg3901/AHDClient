@@ -211,6 +211,30 @@ export interface WorldState {
    */
   depositInsurance: Record<string, DepositInsuranceFund>;
   /**
+   * W30 governor cluster: per-state executive offices + office powers.
+   * Ports electedOfficials with officeType "governor" per state
+   * (src/lib/db/types/electedOfficial.ts, src/lib/governorOffice/queries.ts),
+   * GovernorOfficeState AP pool per state (src/lib/db/types/governorOfficeState.ts,
+   * src/lib/constants/governorOffice.ts GUBERNATORIAL_ACTION_*),
+   * and governorOffice powers (src/lib/governorOffice/*.ts) to the depth
+   * solo systems support (state-level effects on regional budgets/support;
+   * PORT-STUB powers with blockers named - see governor/powers.ts
+   * GOVERNOR_PORT_STUBS). Governors are US-only this wave (RU subnational
+   * first secretaries deferred, see BY_ELECTION_COUNTRIES gating).
+   * Scope mirrors mainline BY_ELECTION_COUNTRIES = ["US","RU"] but RU is
+   * PORT-STUB in solo until republic soviet parity lands.
+   * Key: stateId (e.g. "CA"). Vacant when governorId null - triggers
+   * special_governor watcher (src/lib/turn/byElections.ts).
+   * Schema v29: this wave's original pre-allocation. Main's own v28->v29
+   * chain slot was left as a deliberate no-op stub reserved for this wave
+   * (see save.ts resolver note) - filled in place on reconciliation, no
+   * renumbering needed. v30-v33 (unions/bonds/forex/metric engine) chain
+   * unchanged on top.
+   */
+  governors: Record<string, import("./governor/types.js").GovernorState>;
+  governorAddresses: import("./governor/types.js").GovernorAddress[];
+  governorOrders: import("./governor/types.js").GovernorOrder[];
+  /**
    * Unions, one per (playable country, nonzero-weight 1953 sector) pair.
    * Ports mainline's Union collection (src/lib/db/types/union.ts) at the
    * seeded-roster granularity (corporation/founding.ts single-sector collapse).

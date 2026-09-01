@@ -24,11 +24,19 @@ import type { CommandEconomyState } from "./commandEconomy/types.js";
 import { seedCapitalStock } from "./economy/capitalStock.js";
 import type { UnownedSectorState } from "./economy/types.js";
 
-// Pre-allocated v33 for W6 metrics. Main is v32 as of this wave's branch point;
-// parallel wave holds v29 which will insert earlier in the chain (between v28
-// and v30). See save.ts v32->v33 migration for resolver note on merge-order
-// splitting (latest ->33 chain preserves both waves; no renumbering needed for
-// v30->v31->v32->v33 beyond verifying ascending order).
+// v29: W30 governors (governors/governorAddresses/governorOrders). This wave
+// was pre-allocated v29 back when main was v27; the W12 banking wave landed
+// v28 first, and mainline's own v28->v29 chain slot was left as a deliberate
+// no-op stub reserved for this wave (see save.ts comment history + resolver
+// note) while unions/bonds/forex/metric-engine chained on top as v30-v33.
+// Reconciliation filled that reserved v29 stub with the real governor
+// migration in place - no renumbering. v34 (W7+W8+W14 command economy/trade/
+// capital stock) landed on top after that, unaffected by the governor fill
+// (no field-name collision - confirmed in save.ts v33->v34 migration). This
+// second W30 reconciliation pass (bringing the branch from v33 up through
+// v34) introduces no new WorldState fields of its own - governor state was
+// already complete at the v29 slot - so the top of chain stays v34, no new
+// migration block appended.
 export const SCHEMA_VERSION = 34;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
@@ -441,7 +449,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     politicians,
     elections: [],
     // W24: no authored incumbent seed exists in packages/content (see
-    // types.ts WorldState.executives file doc) — every fresh world starts
+    // types.ts WorldState.executives file doc) - every fresh world starts
     // with a vacant presidency, exactly like an un-elected chamber seat.
     executives: {},
     impeachments: [],
@@ -475,7 +483,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     coalitions: [],
     // W23: parliamentary government state is lazily created by
     // government/phases.ts governmentFormationPhase on its first run per
-    // country, not seeded here — mirrors how elections/orchestration.ts
+    // country, not seeded here - mirrors how elections/orchestration.ts
     // lazily spawns the first ElectionRecord rather than world.ts hardcoding
     // one, so the formation logic has exactly one code path (no
     // seed-vs-runtime duplication) for both a fresh world and a country that
@@ -491,6 +499,13 @@ export function createWorld(options: NewWorldOptions): WorldState {
     activeWorldModifiers: [],
     crises: [],
     playerEventLog: [],
+    // W30 governors: one record per US state, vacant until first governor
+    // election resolves (mirrors executives vacuity - no authored incumbent seed
+    // in packages/content). Seeded here with office AP capped so powers are
+    // immediately usable once a holder seats.
+    governors: seedGovernors(regions),
+    governorAddresses: [],
+    governorOrders: [],
     player: {
       name: options.playerName,
       countryId: options.countryId,
@@ -904,7 +919,7 @@ function seedBudgets(
 
   // Build national budgets from pack.budgets (US/UK/RU/DD 1953). Each country's
   // taxBases are derived from the authored taxBaseRatios × gdp (see
-  // src/lib/seeds/reference/budgets.ts buildTaxBases — 75/25 corporate split).
+  // src/lib/seeds/reference/budgets.ts buildTaxBases - 75/25 corporate split).
   // Cited per line in packs/1953.ts.
   for (const b of pack.budgets ?? []) {
     const totalCorp = b.gdp * b.taxBaseRatios.corporateProfits;
@@ -967,13 +982,13 @@ function seedBudgets(
   // so every country's fiscal term has a balance (prevents undefined fiscal path).
   // These adopt neutral tax rates/bases that yield a near-balanced budget.
   const authored = new Set(Object.keys(budgets));
-  // Need full country list — derive from regions' countryIds plus pack.budgets countries
+  // Need full country list - derive from regions' countryIds plus pack.budgets countries
   const allCountryIds = new Set<string>([...Object.values(regions).map((r) => r.countryId), ...authored]);
   // Also include any country not represented via regions yet (fallback: use pack countries)
-  // We cannot import pack countries here without the full pack — regions covers playable set.
+  // We cannot import pack countries here without the full pack - regions covers playable set.
   for (const cid of allCountryIds) {
     if (authored.has(cid)) continue;
-    // Find a region for gdp hint — first region of this country
+    // Find a region for gdp hint - first region of this country
     const region = Object.values(regions).find((r) => r.countryId === cid);
     const gdpFallback = region?.gdp != null ? (region.gdp as number) * 1_000_000 * Object.values(regions).filter((r) => r.countryId === cid).length : 10_000_000_000;
     const gdp = Math.max(1_000_000_000, gdpFallback);
@@ -1058,19 +1073,43 @@ function seedBudgets(
  * Seed one central bank per playable country, bootstrapped directly in the
  * autonomous "npp" chair mode (see centralBank/types.ts file doc for why: no
  * president/player pool exists yet to seat a character or FOMC-nominated
- * chair). primeRate seeds from each country's authored defaultPrimeRate —
+ * chair). primeRate seeds from each country's authored defaultPrimeRate -
  * the same value mainline's real seeder writes (src/lib/centralBank/helpers.ts
  * getDefaultBank), not the era-graduated neutralPrimeRate (see conformance.test.ts
  * "uses seeder defaultPrimeRate, not era monetary baseline").
  * Term expiry seeds at turn 0 + CHAIR_TERM_TURNS, mirroring appointNppChair.ts's
  * `currentTurn + TERM_TURNS` at initial appointment (currentTurn = 0 here).
  */
+function seedGovernors(regions: WorldState["regions"]): WorldState["governors"] {
+  // Source: src/lib/db/types/electedOfficial.ts officeType "governor" per region
+  // and GovernorOfficeState seeding (src/lib/governorOffice/seedOfficeStates.ts).
+  // Solo creates one vacant governor office per US state so the office-AP system
+  // has a spendable balance once a holder seats. Vacant = governorId null.
+  // Citation constants: GUBERNATORIAL_ACTION_CAP = 3 (src/lib/constants/governorOffice.ts).
+  const governors: WorldState["governors"] = {};
+  for (const region of Object.values(regions)) {
+    if (region.countryId !== "US") continue;
+    governors[region.id] = {
+      stateId: region.id,
+      countryId: "US",
+      governorId: null,
+      governorParty: null,
+      governorName: null,
+      termStartTurn: null,
+      gubernatorialActions: 3,
+      lastActionGrantedTurn: 0,
+      lastAddressTurn: null,
+    };
+  }
+  return governors;
+}
+
 function seedCentralBanks(countries: WorldState["countries"]): WorldState["centralBanks"] {
   const banks: WorldState["centralBanks"] = {};
   for (const country of Object.values(countries)) {
     if (!country.playable) continue;
     const anchor = CENTRAL_BANK_COUNTRY_ANCHORS[country.id];
-    if (!anchor) continue; // Playable country without an authored central-bank anchor (future era pack) — no bank until one is authored.
+    if (!anchor) continue; // Playable country without an authored central-bank anchor (future era pack) - no bank until one is authored.
     const bank: CentralBank = {
       countryId: country.id,
       primeRate: anchor.defaultPrimeRate,
