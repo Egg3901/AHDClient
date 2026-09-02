@@ -37,7 +37,19 @@ import type { UnownedSectorState } from "./economy/types.js";
 // v34) introduces no new WorldState fields of its own - governor state was
 // already complete at the v29 slot - so the top of chain stays v34, no new
 // migration block appended.
-export const SCHEMA_VERSION = 34;
+import { emptyWorldHistory } from "./history/types.js";
+
+// Pre-allocated v38 for W41 WorldHistory. Main (this worktree) is v33 as of
+// this wave's branch point; parallel waves hold v29, v35, v36, and v37 (each
+// still stubs here — see save.ts). This migration jumps from latest known
+// (v33) straight to v38, inserting v34->v35->v36->v37 as reserved stubs
+// along the way so the chain stays strictly ascending with no gaps. RESOLVER
+// NOTE: on merge, replace each stub whose version number a landed wave
+// actually claims with that wave's real migration block, verify strict
+// ascending order (v33 -> v34 -> v35 -> v36 -> v37 -> v38), and confirm no
+// other wave introduces a field named `history` (W41 is authoritative for
+// that name — see types.ts WorldState.history file doc).
+export const SCHEMA_VERSION = 38;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -548,6 +560,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     capitalStock,
     capitalGrowth,
     unownedSectors,
+    history: emptyWorldHistory(),
   };
   assignUsSeatGeography(world);
   // W12: charter the financial-sector NPC corp of every playable country as

@@ -259,6 +259,151 @@
   gap: 8px;
 }
 
+/* U12: canvas history charts (HistoryChart.tsx) + range selector */
+
+.hist-range-select {
+  display: flex;
+  gap: 4px;
+}
+
+.hist-range-btn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.hist-range-btn:hover {
+  color: var(--text);
+}
+
+.hist-range-btn.active {
+  color: var(--text);
+  background: rgba(255,255,255,0.06);
+  border-color: #3a3a3a;
+}
+
+.hist-chart-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+@media (max-width: 980px) {
+  .hist-chart-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hist-chart-block {
+  background: #0f0f0f;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.hist-chart-title {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.hist-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hist-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hist-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.hist-chart-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.hist-chart-canvas-wrap {
+  position: relative;
+}
+
+.hist-chart-canvas {
+  display: block;
+  width: 100%;
+  cursor: crosshair;
+}
+
+.hist-chart-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+.hist-chart-tooltip {
+  position: absolute;
+  top: 4px;
+  transform: translateX(-50%);
+  background: #141414;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 6px 8px;
+  pointer-events: none;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 10px;
+  white-space: nowrap;
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.hist-chart-tooltip-turn {
+  color: var(--muted);
+  margin-bottom: 4px;
+  letter-spacing: 0.04em;
+}
+
+.hist-chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hist-chart-tooltip-label {
+  color: var(--muted);
+}
+
+.hist-chart-tooltip-value {
+  font-weight: 600;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
 .eco-stat {
   display: flex;
   flex-direction: column;

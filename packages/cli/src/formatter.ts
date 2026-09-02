@@ -1,4 +1,4 @@
-import type { WorldState } from "@rotunda/engine";
+import type { WorldState, InvariantReport } from "@rotunda/engine";
 
 export interface ProgressRow {
   turn: number;
@@ -70,6 +70,25 @@ export function formatSummaryTable(world: WorldState): string {
       padStart(formatNumber(e.outputGap, 2), widths[5]!),
     ];
     lines.push(cells.join(" | "));
+  }
+  return lines.join("\n") + "\n";
+}
+
+/** W41: formats an InvariantReport (history/invariants.ts checkInvariants) for the `invariants` CLI command. */
+export function formatInvariantReport(report: InvariantReport): string {
+  const lines: string[] = [];
+  lines.push(`Turn ${report.turn}: ${report.checksRun} checks run, status ${report.status.toUpperCase()}`);
+  if (report.findings.length === 0) {
+    lines.push("No violations found.");
+    return lines.join("\n") + "\n";
+  }
+  const headers = ["Severity", "Check", "Message"];
+  const widths = [9, 24, 80];
+  const headerLine = headers.map((h, i) => padEnd(h, widths[i]!)).join(" | ");
+  lines.push(headerLine);
+  lines.push("-".repeat(headerLine.length));
+  for (const f of report.findings) {
+    lines.push([padEnd(f.severity.toUpperCase(), widths[0]!), padEnd(f.check, widths[1]!), padEnd(f.message, widths[2]!)].join(" | "));
   }
   return lines.join("\n") + "\n";
 }

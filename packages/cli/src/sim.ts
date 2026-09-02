@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
-import { advanceTurn, createWorld, listEras } from "@rotunda/engine";
+import { advanceTurn, createWorld, listEras, checkInvariants } from "@rotunda/engine";
 import type { WorldState } from "@rotunda/engine";
-import { formatProgressTable, formatSummaryTable } from "./formatter.js";
+import { formatProgressTable, formatSummaryTable, formatInvariantReport } from "./formatter.js";
 import type { ProgressRow } from "./formatter.js";
 import { deepCompare, formatDiffs } from "./comparator.js";
 
@@ -10,18 +10,22 @@ function printUsage(): void {
   sim run --era <era> --country <id> --seed <seed> --turns <n> [--json]
   sim determinism --turns <n> [--seed <seed>]
   sim bench --turns <n> [--era <era> --country <id> --seed <seed>]
+  sim invariants --era <era> --country <id> --seed <seed> --turns <n> [--json]
 
 Commands:
   run           Create a world and advance N turns
   determinism   Two independent runs per era with same seed, deep-compare final JSON
   bench         Benchmark turns/sec and mean per-phase timings
+  invariants    Create a world, advance N turns, and run the W41 invariant checks
+                (history/invariants.ts checkInvariants — the solo port of
+                mainline's ledgerReconcile). Exits 1 if status is not green.
 
 Options:
-  --era <id>      Era id from listEras() (e.g. 1953). Required for run.
-  --country <id>  Country id uppercase (e.g. US). Required for run.
-  --seed <s>      RNG seed string. Required for run.
+  --era <id>      Era id from listEras() (e.g. 1953). Required for run/invariants.
+  --country <id>  Country id uppercase (e.g. US). Required for run/invariants.
+  --seed <s>      RNG seed string. Required for run/invariants.
   --turns <n>     Number of turns to advance (integer >= 0).
-  --json          For run: output full final WorldState JSON instead of tables.
+  --json          For run/invariants: output full JSON instead of tables.
 `);
 }
 
@@ -258,6 +262,42 @@ async function commandBench(opts: Record<string, string | boolean>): Promise<voi
   }
 }
 
+async function commandInvariants(opts: Record<string, string | boolean>): Promise<void> {
+  const era = requireOpt(opts, "era");
+  const countryId = requireOpt(opts, "country");
+  const seed = requireOpt(opts, "seed");
+  const turns = parseTurns(opts["turns"]);
+  const json = opts["json"] === true;
+
+  validateCountryId(countryId);
+  validateEra(era);
+
+  let world: WorldState;
+  try {
+    world = createWorld({ era, countryId, seed, playerName: "SimPlayer" });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(msg);
+    process.exit(1);
+  }
+
+  for (let i = 0; i < turns; i++) {
+    advanceTurn(world);
+  }
+
+  const report = checkInvariants(world);
+
+  if (json) {
+    console.log(JSON.stringify(report, null, 2));
+  } else {
+    console.log(formatInvariantReport(report));
+  }
+
+  if (report.status !== "green") {
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   const { cmd, opts } = parseArgs(process.argv);
   if (cmd === "help") {
@@ -273,6 +313,9 @@ async function main(): Promise<void> {
       break;
     case "bench":
       await commandBench(opts);
+      break;
+    case "invariants":
+      await commandInvariants(opts);
       break;
     default:
       console.error(`Unknown command: ${cmd}`);

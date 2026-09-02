@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { TurnReport, WorldState } from "@rotunda/engine";
 import { listEras, listPlayableCountries } from "@rotunda/engine";
 import { game } from "./game.js";
@@ -17,8 +17,6 @@ import { WorldMapScreen } from "./worldMap/WorldMap.js";
 import "./worldMap/worldMap.css";
 import { PartiesScreen } from "./parties/Parties.js";
 import "./parties/parties.css";
-import { createHistoryMap, pushHistory, pushHistoryWithTurn } from "./economy/history.js";
-import type { HistoryMap } from "./economy/history.js";
 import { SavesScreen } from "./saves/SavesScreen.js";
 import "./saves/saves.css";
 import { maybeAutosave } from "./saves.js";
@@ -1014,16 +1012,12 @@ function Dashboard({
   onExit,
   onOpenSaves,
   isDirty,
-  history,
-  onRecordHistory,
 }: {
   world: WorldState;
   onWorld: (world: WorldState) => void;
   onExit: () => void;
   onOpenSaves: () => void;
   isDirty: boolean;
-  history: HistoryMap;
-  onRecordHistory: (w: WorldState, count?: number) => void;
 }) {
   const [lastReport, setLastReport] = useState<TurnReport | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1050,7 +1044,6 @@ function Dashboard({
     try {
       const { report, world: next } = await game.advanceTurn();
       setLastReport(report);
-      onRecordHistory(next);
       onWorld(next);
       try {
         await maybeAutosave(prevTurn, next);
@@ -1130,7 +1123,7 @@ function Dashboard({
   }
 
   if (ecoOpen) {
-    return <EconomyScreen world={world} history={history} onBack={() => setEcoOpen(false)} />;
+    return <EconomyScreen world={world} onBack={() => setEcoOpen(false)} />;
   }
 
   if (marketsOpen) {
@@ -1241,12 +1234,14 @@ function Dashboard({
           onWorld(w);
         }}
         onCheatApplied={(entry, count) => {
-          handleCheatApplied(entry);
-          const current = game.getStateSync();
-          if (current) {
-            onRecordHistory(current, count);
-          }
+          handleCheatApplied(entry, count);
         }}
+        // Note: onCheatApplied previously also drove the session-local
+        // history hack here (game.getStateSync() + onRecordHistory(current,
+        // count)); WorldHistory is now recorded per-turn inside the engine's
+        // own advanceTurn (called by applyCheat's advanceTurns op), so no
+        // client-side backfill is needed. count is passed straight through
+        // to handleCheatApplied, which already branches on it for autosave.
         log={cheatLog}
       />
 
@@ -1298,30 +1293,8 @@ export function App() {
   const [isDirty, setIsDirty] = useState(false);
   const [launcherError, setLauncherError] = useState<string | null>(null);
   const [savesError, setSavesError] = useState<string | null>(null);
-  const historyRef = React.useRef<HistoryMap>(createHistoryMap());
-  const [historyVersion, setHistoryVersion] = useState(0);
-
-  const recordHistory = (w: WorldState, count?: number) => {
-    if (count !== undefined && Number.isFinite(count) && count > 1) {
-      const endTurn = typeof w.meta?.turn === "number" && Number.isFinite(w.meta.turn) ? w.meta.turn : 0;
-      const startTurn = endTurn - count + 1;
-      for (let t = startTurn; t <= endTurn; t++) {
-        pushHistoryWithTurn(historyRef.current, w, t);
-      }
-    } else {
-      pushHistory(historyRef.current, w);
-    }
-    setHistoryVersion((v) => v + 1);
-  };
-
-  const resetHistory = (w: WorldState) => {
-    historyRef.current.clear();
-    pushHistory(historyRef.current, w);
-    setHistoryVersion((v) => v + 1);
-  };
 
   const handleNewWorldCreated = (w: WorldState) => {
-    resetHistory(w);
     setWorld(w);
     setIsDirty(false);
     setScreen("game");
@@ -1344,7 +1317,6 @@ export function App() {
   };
 
   const handleSavesLoad = (loaded: WorldState) => {
-    resetHistory(loaded);
     setWorld(loaded);
     setIsDirty(false);
     setLauncherError(null);
@@ -1380,8 +1352,6 @@ export function App() {
   }
 
   if (screen === "game" && world) {
-    // historyVersion forces re-render when history mutates; map reference stays stable
-    void historyVersion;
     return (
       <Dashboard
         world={world}
@@ -1389,8 +1359,6 @@ export function App() {
         onExit={handleExitToLauncher}
         onOpenSaves={openSavesFromGame}
         isDirty={isDirty}
-        history={historyRef.current}
-        onRecordHistory={recordHistory}
       />
     );
   }

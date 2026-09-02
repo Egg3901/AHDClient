@@ -1,79 +1,56 @@
-import type { WorldState } from "@rotunda/engine";
+import type {
+  WorldState,
+  MacroHistoryPoint,
+  PrimeRateHistoryPoint,
+  PartyStrengthHistoryPoint,
+  PlayerWealthHistoryPoint,
+} from "@rotunda/engine";
 
-export interface EconomyPoint {
-  turn: number;
-  gdp: number;
-  growthRate: number;
-  inflationRate: number;
-  unemploymentRate: number;
-  outputGap: number;
+/**
+ * U12: thin selectors over the engine's WorldHistory (W41,
+ * packages/engine/src/history/types.ts). Replaces the session-local
+ * HistoryMap hack that used to live in this file (React-ref Map, populated
+ * turn-by-turn client-side, reset on new-world/load, wiped on app restart).
+ * world.history is part of WorldState now: it survives save/load, needs no
+ * client-side tracking, and needs no reset logic — App.tsx no longer owns
+ * any history state at all.
+ */
+
+export type HistoryRange = "1y" | "5y" | "all";
+
+/** 1 turn = 1 week (engine/calendar.ts DAYS_PER_TURN = 7) => 52 turns/year. */
+const TURNS_PER_YEAR = 52;
+
+export function rangeTurnWindow(range: HistoryRange): number {
+  if (range === "1y") return TURNS_PER_YEAR;
+  if (range === "5y") return TURNS_PER_YEAR * 5;
+  return Infinity;
 }
 
-export const HISTORY_CAP = 520;
+export const HISTORY_RANGES: HistoryRange[] = ["1y", "5y", "all"];
 
-export type HistoryMap = Map<string, EconomyPoint[]>;
-
-export function createHistoryMap(): HistoryMap {
-  return new Map<string, EconomyPoint[]>();
+function sliceRange<T>(points: T[], range: HistoryRange): T[] {
+  const window = rangeTurnWindow(range);
+  if (!Number.isFinite(window) || points.length <= window) return points;
+  return points.slice(points.length - window);
 }
 
-function safeNum(v: unknown, fallback: number): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+export function macroSeries(world: WorldState, countryId: string, range: HistoryRange = "all"): MacroHistoryPoint[] {
+  const arr = world.history?.macro?.[countryId];
+  return sliceRange(arr ?? [], range);
 }
 
-export function pushHistoryWithTurn(map: HistoryMap, world: WorldState, turn: number): void {
-  const countries = world.countries as Record<string, unknown> | undefined;
-  if (!countries || typeof countries !== "object") return;
-  for (const [id, raw] of Object.entries(countries)) {
-    const c = raw as Record<string, unknown>;
-    const econ = (c?.economy ?? {}) as Record<string, unknown>;
-    const point: EconomyPoint = {
-      turn,
-      gdp: safeNum(econ["gdp"], 0),
-      growthRate: safeNum(econ["growthRate"], 0),
-      inflationRate: safeNum(econ["inflationRate"], 0),
-      unemploymentRate: safeNum(econ["unemploymentRate"], 0),
-      outputGap: safeNum(econ["outputGap"], 0),
-    };
-    let arr = map.get(id);
-    if (!arr) {
-      arr = [];
-      map.set(id, arr);
-    }
-    arr.push(point);
-    if (arr.length > HISTORY_CAP) {
-      arr.splice(0, arr.length - HISTORY_CAP);
-    }
-  }
+export function primeRateSeries(world: WorldState, countryId: string, range: HistoryRange = "all"): PrimeRateHistoryPoint[] {
+  const arr = world.history?.primeRate?.[countryId];
+  return sliceRange(arr ?? [], range);
 }
 
-export function pushHistory(map: HistoryMap, world: WorldState): void {
-  const turn = safeNum(world.meta?.turn, 0);
-  const countries = world.countries as Record<string, unknown> | undefined;
-  if (!countries || typeof countries !== "object") return;
-  for (const [id, raw] of Object.entries(countries)) {
-    const c = raw as Record<string, unknown>;
-    const econ = (c?.economy ?? {}) as Record<string, unknown>;
-    const point: EconomyPoint = {
-      turn,
-      gdp: safeNum(econ["gdp"], 0),
-      growthRate: safeNum(econ["growthRate"], 0),
-      inflationRate: safeNum(econ["inflationRate"], 0),
-      unemploymentRate: safeNum(econ["unemploymentRate"], 0),
-      outputGap: safeNum(econ["outputGap"], 0),
-    };
-    let arr = map.get(id);
-    if (!arr) {
-      arr = [];
-      map.set(id, arr);
-    }
-    arr.push(point);
-    if (arr.length > HISTORY_CAP) {
-      arr.splice(0, arr.length - HISTORY_CAP);
-    }
-  }
+export function partyStrengthSeries(world: WorldState, partyId: string, range: HistoryRange = "all"): PartyStrengthHistoryPoint[] {
+  const arr = world.history?.partyStrength?.[partyId];
+  return sliceRange(arr ?? [], range);
 }
 
-export function getHistory(map: HistoryMap, countryId: string): EconomyPoint[] {
-  return map.get(countryId) ?? [];
+export function playerWealthSeries(world: WorldState, range: HistoryRange = "all"): PlayerWealthHistoryPoint[] {
+  const arr = world.history?.playerWealth;
+  return sliceRange(arr ?? [], range);
 }

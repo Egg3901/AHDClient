@@ -171,6 +171,7 @@ describe("advanceTurn", () => {
       "economicModel",
       "inflationRecalc",
       "economicVitalSigns",
+      "recordWorldHistory",
       "newsMaintenance",
     ]);
   });

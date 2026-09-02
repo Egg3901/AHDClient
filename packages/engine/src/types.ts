@@ -7,6 +7,7 @@ import type { GovernmentState } from "./government/types.js";
 import type { ExecutiveState } from "./executive/types.js";
 import type { ImpeachmentCase } from "./impeachment/types.js";
 import type { BankLoan, DepositInsuranceFund } from "./banking/types.js";
+import type { WorldHistory } from "./history/types.js";
 
 /**
  * The entire game world is one serializable document. No database: the world
@@ -323,6 +324,13 @@ export interface WorldState {
    * economy/unownedSectorGrowth.ts file doc. Schema v34.
    */
   unownedSectors: Record<string, import("./economy/types.js").UnownedSectorState>;
+  /**
+   * W41: bounded per-turn history series (macro economy, prime rates, party
+   * strength, player wealth, money aggregates) — see history/types.ts file
+   * doc for the mainline snapshot-family mapping. Replaces the session-local
+   * UI history hack (apps/desktop/src/economy/history.ts). Schema v38.
+   */
+  history: WorldHistory;
 }
 
 /**

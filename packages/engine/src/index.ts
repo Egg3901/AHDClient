@@ -32,3 +32,7 @@ export * from "./judiciary/types.js";
 export * from "./judiciary/divergence.js";
 export * from "./judiciary/scotusTurn.js";
 export * from "./judiciary/ukJrSurpriseTurn.js";
+export * from "./history/types.js";
+export { recordWorldHistory, computePlayerBondsValue, computePlayerSharesValue } from "./history/phases.js";
+export { checkInvariants } from "./history/invariants.js";
+export type { InvariantReport, InvariantFinding, InvariantSeverity } from "./history/invariants.js";

@@ -82,6 +82,7 @@ function makeWorld(): WorldState {
     capitalStock: {},
     capitalGrowth: {},
     unownedSectors: {},
+    history: { macro: {}, primeRate: {}, partyStrength: {}, playerWealth: [], moneySupply: {} },
   };
 }
 

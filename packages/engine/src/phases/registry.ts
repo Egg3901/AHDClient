@@ -119,6 +119,7 @@ import {
   unownedSectorGrowthPhase,
   stateOwnershipConcentrationPhase,
 } from "../economy/phases.js";
+import { recordWorldHistoryPhase } from "../history/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -444,5 +445,21 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   economicModelPhase,
   inflationRecalcPhase,
   economicVitalSignsPhase,
+  // W41 WorldHistory recording at the absolute END before newsMaintenance —
+  // NOT an ordering deviation from mainline (unlike almost every other tail
+  // cluster's comment above): mainline's own history/snapshot family
+  // (metricHistory..ledgerReconcile, turnPhaseNames.ts) runs immediately
+  // before economicVitalSigns too, i.e. also last. This phase must run after
+  // every phase that can still move a recorded metric this turn — macro
+  // economy (macroCountryTurnPhase), prime rate (centralBankChairTurnPhase),
+  // party PS/treasury (the party cluster), player cash/savings/funds (any
+  // action, campaign, or banking phase), bond/share holdings (buyShares/
+  // sellShares/buyBond/sellBond are player actions executed before
+  // advanceTurn, not phases, but bond marketPrice and corp sharePrice do
+  // move inside this turn via bondCouponMaturityPhase/npcBondHolderPhase and
+  // recomputeSharePricesPhase) — so tail placement, immediately after
+  // economicVitalSignsPhase, is correct rather than a deviation to fix in a
+  // future re-golden.
+  recordWorldHistoryPhase,
   newsMaintenancePhase,
 ];
