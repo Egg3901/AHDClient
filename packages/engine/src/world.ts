@@ -87,6 +87,16 @@ import { seedStateResourceCapacities } from "./extraction/founding.js";
 // migration below for the full resolver note on merge-order splitting
 // (latest ->36 chain preserves every wave; no renumbering needed beyond
 // verifying ascending order v33->v34->v35->v36).
+//
+// v34->v35 stub filled: W25 referendums / W40 subnational chamber
+// compositions / W22 candidate-lifecycle leftovers / W33 era crossing (this
+// batch). Introduces `referendums`, `regions[SCO|WAL|NIR].independenceDesire`,
+// `player.autoRunForReelection`, `meta.lastEra` — see the v34->v35 migration
+// block in save.ts for the full field list and backfill rules. No new
+// WorldState field is added beyond that slot, so SCHEMA_VERSION stays at
+// main's current top (39); W40's subnational elections and W33's eraCrossing
+// generic pack-driven fix are pure behavior changes over already-existing
+// `world.elections`/`world.politicians`/`world.meta.era`.
 // v40: era-truth batch — removed the fabricated "1960" content pack, added
 // real 1979/1991/2019 packs, added meta.legacyEra. Pre-allocated ahead of
 // v34 (this branch's base) to leave room for parallel waves at v35-v39; see
@@ -612,6 +622,9 @@ export function createWorld(options: NewWorldOptions): WorldState {
       turn: 0,
       date: pack.era.startDate,
       era: pack.era.id,
+      // W33: eraCrossing guard field, seeded to the starting era so a fresh
+      // world never fires a spurious crossing on turn 1. See phases/eraCrossing.ts.
+      lastEra: pack.era.id,
       cheatsUsed: false,
     },
     countries,
@@ -619,6 +632,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     legislatures,
     politicians,
     elections: [],
+    referendums: [],
     // W24: no authored incumbent seed exists in packages/content (see
     // types.ts WorldState.executives file doc) - every fresh world starts
     // with a vacant presidency, exactly like an un-elected chamber seat.

@@ -353,10 +353,13 @@ export const pack1953: SeedPack = {
           key: "regionalCouncil",
           name: "Regional Council",
           shortName: "Regional Council",
-          seats: 364,
+          // W40 fix: was 364, which never matched the sum of ukRegions1953.ts
+          // per-region senateSeats (578, = mainline UK_REGIONAL_COUNCIL_SEATS)
+          // — see that file's header comment.
+          seats: 578,
           elected: true,
           description: "Elected regional councillors representing UK nations and regions on staggered five-year terms.",
-          composition: { seatsByParty: {}, vacancies: 364 },
+          composition: { seatsByParty: {}, vacancies: 578 },
         },
       ],
     },

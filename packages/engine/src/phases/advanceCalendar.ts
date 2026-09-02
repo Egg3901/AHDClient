@@ -6,14 +6,11 @@ export const advanceCalendarPhase: TurnPhase = {
   run(world) {
     world.meta.turn += 1;
     world.meta.date = addDaysIso(world.meta.date, DAYS_PER_TURN);
-    const era = nextEraForDate(world.meta.date, world.meta.era);
-    if (era !== world.meta.era) {
-      world.meta.era = era;
-      world.news.push({
-        turn: world.meta.turn,
-        date: world.meta.date,
-        headline: `A new era begins: the ${era}s`,
-      });
-    }
+    // Label update only, via the legacy-safe nextEraForDate (era-truth v40):
+    // never regresses a legacy-era save, promotes forward at real era
+    // boundaries. The era-crossing announcement itself (W33) lives in its
+    // own tail phase, eraCrossingPhase, mirroring mainline's separation of
+    // the calendar advance from the dedicated `eraCrossing` turn phase.
+    world.meta.era = nextEraForDate(world.meta.date, world.meta.era);
   },
 };

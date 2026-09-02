@@ -39,11 +39,15 @@ describe("campaign cluster — 100-turn integration (W26)", () => {
 
     const campaigns = Object.values(w.campaigns);
     expect(campaigns.length).toBeGreaterThan(0);
-    // Every campaign is for a US house/senate/president race — W24 wires the
-    // president into campaign eligibility (mirrors mainline's isDirectElection).
+    // Every campaign is for a US house/senate/stateSenate/president race —
+    // W24 wires the president into campaign eligibility (mirrors mainline's
+    // isDirectElection); W40 wires stateSenate elections themselves, which
+    // isCampaignEligible.ts's NON_PRESIDENTIAL_RACE_FAMILIES already listed
+    // in anticipation (see that file's comment) — no change to eligibility,
+    // just the first wave where a stateSenate race actually exists to test it.
     for (const c of campaigns) {
       expect(c.countryId).toBe("US");
-      expect(["house", "senate", "president", "governor", "special_governor"]).toContain(c.electionType);
+      expect(["house", "senate", "stateSenate", "president", "governor", "special_governor"]).toContain(c.electionType);
     }
 
     const nppCampaigns = campaigns.filter((c) => c.candidateIsNPP);

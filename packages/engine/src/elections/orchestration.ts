@@ -17,6 +17,7 @@ import { generateNpcNameAndGender } from "../npp/nameGenerator.js";
 import { realAccumulate } from "./tallyAdapter.js";
 import { ensureCampaignsForElection, archiveCampaignsForElection } from "../campaigns/lifecycle.js";
 import { applyPresidentialResolution } from "./presidentialResolution.js";
+import { declareCandidacy } from "./candidacy.js";
 
 /**
  * W21c orchestration: turns the pure election library into live world behavior.
@@ -78,7 +79,7 @@ export function electionSeriesForWorld(world: WorldState): SeriesSpec[] {
   for (const region of Object.values(regions)) {
     const r = region as unknown as {
       id: string; countryId: string; houseSeats?: number;
-      senateClasses?: [number, number];
+      senateClasses?: [number, number]; senateSeats?: number;
     };
     if (r.countryId !== "US") continue;
     if (typeof r.houseSeats === "number" && r.houseSeats > 0) {
@@ -117,6 +118,45 @@ export function electionSeriesForWorld(world: WorldState): SeriesSpec[] {
     const vk = world.legislatures["DD"].chambers.find((c) => c.key === "volkskammer");
     if (vk && vk.elected) specs.push({ electionType: "volkskammerDeputy", countryId: "DD", chamberKey: "volkskammer", totalSeats: vk.seats });
   }
+  // W40: subnational/regional chambers, per-region records mirroring the US
+  // house loop above — mainline confirms all four run real per-region races
+  // (perpetualElections.ts: ensurePerpetualElections for US stateSenate,
+  // ensureUKRegionalCouncilElections for UK regionalCouncil,
+  // ensureRegionalDelegateElections for RU republicSupremeSoviet / DD
+  // landAssembly), each seeded from the same per-region seat count
+  // (`stateSenateSeats` in mainline's state docs) that Rotunda already carries
+  // as `region.senateSeats` (see usStates1953.ts / ukRegions1953.ts /
+  // ruRegions1953.ts / ddRegions1953.ts header comments). electionType and
+  // chamberKey both already match the content-pack chamber `key` (stateSenate
+  // / regionalCouncil / republicSupremeSoviet / landAssembly), and
+  // `resolution/constants.ts` DEFAULT_DURATIONS + MULTI_SEAT_TYPES already
+  // carry entries for exactly these four keys (pre-provisioned by an earlier
+  // wave for this hookup) — regionalCouncil's per-region seat table is
+  // resolved by `seatAllocation.ts` from the hardcoded UK_REGIONAL_COUNCIL_SEATS
+  // constant (ignoring `apportionment.houseSeats`), matching mainline's own
+  // separate `UK_REGIONAL_COUNCIL_SEATS` table — no change needed there.
+  const SUBNATIONAL_CHAMBERS: Record<string, { electionType: string; chamberKey: string }> = {
+    US: { electionType: "stateSenate", chamberKey: "stateSenate" },
+    UK: { electionType: "regionalCouncil", chamberKey: "regionalCouncil" },
+    RU: { electionType: "republicSupremeSoviet", chamberKey: "republicSupremeSoviet" },
+    DD: { electionType: "landAssembly", chamberKey: "landAssembly" },
+  };
+  for (const region of Object.values(regions)) {
+    const r = region as unknown as { id: string; countryId: string; senateSeats?: number };
+    const spec = SUBNATIONAL_CHAMBERS[r.countryId];
+    if (!spec) continue;
+    if (typeof r.senateSeats !== "number" || r.senateSeats <= 0) continue;
+    const leg = world.legislatures[r.countryId];
+    const chamber = leg?.chambers.find((c) => c.key === spec.chamberKey);
+    if (!chamber || !chamber.elected) continue;
+    specs.push({
+      electionType: spec.electionType,
+      countryId: r.countryId,
+      chamberKey: spec.chamberKey,
+      state: r.id,
+      totalSeats: r.senateSeats,
+    });
+  }
   return specs;
 }
 
@@ -136,6 +176,41 @@ export function seatHolders(world: WorldState, rec: ElectionRecord): Politician[
       p.chamberKey === rec.chamberKey &&
       (rec.state === undefined || p.electedState === rec.state) &&
       (rec.senateClass === undefined || p.senateClass === rec.senateClass),
+  );
+}
+
+/**
+ * W22 staleCandidateCleanup analogue. Source: src/lib/turn/perpetualElections.ts
+ * cleanupStaleElectionCandidates (registered in
+ * src/simulation/phases/turnPhaseRegistry.ts), which drops generated NPC
+ * candidates who neither won nor hold anything. Rotunda's equivalent runs at every election resolution:
+ * a generated ("-CH") politician is culled when they hold no chamber seat,
+ * no governorship, no executive/cabinet/court office, and are not a
+ * candidate in any unresolved election. This covers BOTH losers of the race
+ * just resolved AND ex-holders displaced by a later race they were not a
+ * candidate in (the W40 subnational chambers made that second class explode:
+ * 3.8k orphans at t700 before this cull existed). Seeded politicians (no
+ * "-CH" in the id) are never touched.
+ */
+export function cullOrphanedGenerated(world: WorldState): void {
+  const protectedIds = new Set<string>();
+  for (const g of Object.values(world.governors)) if (g.governorId) protectedIds.add(g.governorId);
+  const collect = (v: unknown): void => {
+    if (typeof v === "string") protectedIds.add(v);
+    else if (Array.isArray(v)) v.forEach(collect);
+    else if (v && typeof v === "object") Object.values(v as Record<string, unknown>).forEach(collect);
+  };
+  collect(world.executives);
+  collect(world.cabinetMembers);
+  collect(world.cabinetNominations);
+  collect(world.supremeCourtSeats);
+  collect(world.scotusNominations);
+  for (const e of world.elections) {
+    if (e.status === "resolved") continue;
+    for (const c of e.candidates) protectedIds.add(c.id);
+  }
+  world.politicians = world.politicians.filter(
+    (p) => !(p.id.includes("-CH") && p.chamberKey === "" && !protectedIds.has(p.id)),
   );
 }
 
@@ -417,15 +492,9 @@ function applyGovernorResolution(world: WorldState, rec: ElectionRecord): void {
   gov.lastActionGrantedTurn = world.meta.turn;
   gov.lastAddressTurn = null;
 
-  // Retire generated challengers who lost (staleCandidateCleanup analogue)
-  const loserGenerated = new Set(
-    rec.candidates.filter((c) => c.id !== winnerId && c.id.includes("-CH")).map((c) => c.id),
-  );
-  if (loserGenerated.size > 0) {
-    world.politicians = world.politicians.filter((p) => !(loserGenerated.has(p.id) && p.chamberKey === ""));
-  }
 
   rec.status = "resolved";
+  cullOrphanedGenerated(world);
   rec.winners = [winnerId];
   rec.resolvedTurn = world.meta.turn;
   archiveCampaignsForElection(world, rec.id);
@@ -515,16 +584,6 @@ export function applyResolution(world: WorldState, rec: ElectionRecord): void {
       pol.senateClass = rec.senateClass;
     }
   }
-  // Retire generated challengers who lost and hold nothing (mainline
-  // staleCandidateCleanup analogue; prevents unbounded NPC growth).
-  const loserGenerated = new Set(
-    rec.candidates
-      .filter((c) => !winnerIds.has(c.id) && c.id.includes("-CH"))
-      .map((c) => c.id),
-  );
-  if (loserGenerated.size > 0) {
-    world.politicians = world.politicians.filter((p) => !(loserGenerated.has(p.id) && p.chamberKey === ""));
-  }
   const seat = world.player.legislativeSeat;
   const playerContested =
     seat != null &&
@@ -538,6 +597,7 @@ export function applyResolution(world: WorldState, rec: ElectionRecord): void {
   }
 
   rec.status = "resolved";
+  cullOrphanedGenerated(world);
   rec.winners = [...winnerIds];
   rec.resolvedTurn = world.meta.turn;
   recomputeComposition(world, rec.countryId, rec.chamberKey);
@@ -619,6 +679,57 @@ export function runElectionTimers(world: WorldState, rng: WorldRng): void {
     if (rec.status === "active" && rec.candidates.length === 0) {
       fillCandidates(world, rng, rec);
     }
+  }
+  runAutoReelectionEntry(world);
+}
+
+/**
+ * W22 leftover: opt-in automatic reelection filing. Ports mainline's
+ * `runAutoReelectionEntry` (src/lib/turn/autoReelectionEntry.ts:51-235), live
+ * every turn (turnPhaseRegistry.ts:1231-1233, after settlement). Mainline
+ * scope kept here: only fires when the player has opted in
+ * (`autoRunForReelection: true`, mainline line 58 — default false, so this
+ * is a no-op for every world unless the player explicitly sets the flag),
+ * player-characters only (never NPPs — matches solo's NPC incumbents, which
+ * `fillCandidates` already re-enters unconditionally on every cycle
+ * regardless of this flag), excludes president/VP (mainline `EXCLUDED_TYPES`),
+ * and only files while the primary filing window is still open
+ * (`primaryEndTurn`, mainline lines 179-183).
+ *
+ * PORT-STUB: mainline also has a non-incumbent fallback — for a character who
+ * currently holds no seat, it looks up the most recent *resolved* race they
+ * contested in their home country/state and re-enters that seat's next cycle
+ * (mainline lines 76-143). Solo only auto-enters a seat the player currently
+ * HOLDS; a player who lost their last race and wants to run again must still
+ * declare by hand. Re-entering the held seat is the behavior every mainline
+ * incumbent actually exercises this flag for; the lost-race fallback is a
+ * secondary convenience left for a future pass if solo ever tracks "races
+ * previously contested" the way mainline's electionCandidates history does.
+ *
+ * KNOWN IMPRECISION: `player.legislativeSeat` carries only `{chamberKey,
+ * countryId}`, no per-state identity (see types.ts) — this is a pre-existing
+ * gap, not introduced here: `declareCandidacy` itself has no state-of-
+ * residence check either, so a player can already manually file in any
+ * same-country/same-chamber race regardless of which state they actually
+ * won. This function inherits that same looseness: for a state-scoped
+ * chamber (house/senate/stateSenate/etc) it files the player into the
+ * FIRST matching unresolved race in id-sorted order within the primary
+ * window, which is not guaranteed to be the same state the player's held
+ * seat is in. Tightening this would mean adding state identity to
+ * `legislativeSeat` and to `declareCandidacy`'s own eligibility check — a
+ * data-model change beyond this wave's scope.
+ */
+export function runAutoReelectionEntry(world: WorldState): void {
+  if (!world.player.autoRunForReelection) return;
+  const seat = world.player.legislativeSeat;
+  if (!seat) return;
+  for (const rec of [...world.elections].sort((a, b) => a.id.localeCompare(b.id))) {
+    if (rec.status === "resolved") continue;
+    if (rec.electionType === "president") continue;
+    if (rec.countryId !== seat.countryId || rec.chamberKey !== seat.chamberKey) continue;
+    if (world.meta.turn > rec.primaryEndTurn) continue;
+    if (rec.candidates.some((c) => c.id === "player")) continue;
+    declareCandidacy(world, rec.id);
   }
 }
 

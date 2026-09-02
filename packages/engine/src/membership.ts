@@ -11,6 +11,7 @@
  */
 
 import type { WorldState, Party, PartyCharter, PurgeRejoinBlock } from "./types.js";
+import { sweepCandidaciesOnPartyChange } from "./elections/candidacy.js";
 
 export const PARTY_SWITCH_COOLDOWN_TURNS = 24; // cites PARTY_SWITCH_COOLDOWN_MS 24*60*60*1000
 export const PURGE_REJOIN_COOLDOWN_TURNS = 24; // cites src/lib/constants/partyActions.ts
@@ -92,6 +93,9 @@ export function joinParty(world: WorldState, partyId: string): JoinResult {
   party.memberCount = (party.memberCount ?? 0) + 1;
   // Sweep endorsements that become misaligned (primary-phase rule simplified: any cross-party endorsement while active)
   sweepEndorsementsOnPartyChange(world, player.partyId, oldPartyId);
+  // W22: withdraw any active candidacy whose snapshotted partyId no longer
+  // matches the player's live party (candidatePartySweep analogue).
+  sweepCandidaciesOnPartyChange(world, player.partyId);
   return { ok: true };
 }
 
@@ -118,6 +122,8 @@ export function leaveParty(world: WorldState): JoinResult {
   // lastPartySwitchTurn intentionally NOT cleared (hop escape prevention, see leave route comment)
   player.politicalInfluence = 0;
   sweepEndorsementsOnPartyChange(world, null, oldPartyId);
+  // W22: an independent player can no longer stand on any party ballot line.
+  sweepCandidaciesOnPartyChange(world, null);
   return { ok: true };
 }
 
@@ -215,6 +221,8 @@ export function foundParty(world: WorldState, input: FoundPartyInput): { ok: tru
   // Purge blocks pruned
   player.purgeRejoinBlocks = prunePurgeRejoinBlocks(player.purgeRejoinBlocks, world.meta.turn);
   sweepEndorsementsOnPartyChange(world, partyId, oldPartyId);
+  // W22: founding a new party is a party change too.
+  sweepCandidaciesOnPartyChange(world, partyId);
   return { ok: true, partyId };
 }
 

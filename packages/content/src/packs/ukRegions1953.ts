@@ -8,7 +8,12 @@ import type { StateSeed } from "../types.js";
  *   UK_SLUG_TO_ABBR maps uk_labour->LAB, uk_conservative->CON, uk_liberal->LIB, uk_snp->SNP (SCO only), uk_plaid->PC (WAL only), uk_sf->SF (NIR only); NIR also carries nationalist SF 30 as deliberate stand-in (see UK_REGION_POLLING_1951 header)
  * Granularity: 12 electoral regions (mainline's State granularity for UK — see src/lib/seeds/uk/ukRegions.ts header "Phase 1 uses the 12 UK electoral regions as the top-level playable units. A future phase will expand to all 650 individual constituencies."). Not per-constituency.
  * SenateClasses: no mainline Senate-class table for UK (FPTP Commons has no staggered classes); using neutral [1,2] placeholder. Documented as PORT-STUB.
- * Total: 12 regions, 50,600,000 population (sum matches 1951-census 1953 bundle), 625 House seats (commons), 364 regionalCouncil seats.
+ * Total: 12 regions, 50,600,000 population (sum matches 1951-census 1953 bundle), 625 House seats (commons), 578
+ * regionalCouncil seats (sum of per-region `senateSeats` below matches mainline's UK_REGIONAL_COUNCIL_SEATS table
+ * verbatim — SCO 129/WAL 60/NIR 90 are the real modern devolved-legislature sizes, used as-is even in the 1953
+ * era per mainline's own `stateSenateSeats` seeding, not scaled down; this stale comment previously said 364,
+ * which never matched the per-region data below — W40 fix, corrected to match the data and the legislature
+ * chamber's `seats`/`vacancies` in 1953.ts/1960.ts, which carried the same stale 364 before W40).
  */
 export const ukRegions1953: StateSeed[] = [
   {

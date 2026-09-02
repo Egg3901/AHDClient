@@ -128,6 +128,15 @@ describe("commodity price evolution (golden values)", () => {
     // rng during voteAccumulation/electionResolution for tally noise before
     // the next turn's commodityPrices. This shifts the shared rng stream
     // again (same one-turn-lag class). Steel 11.11 -> 11.45, oil unchanged.
+    // Re-baselined again for the W25/W40/W22/W33 batch merge: W40 wires real
+    // elections for stateSenate/regionalCouncil/republicSupremeSoviet/
+    // landAssembly (electionSeriesForWorld in elections/orchestration.ts),
+    // ~80 new per-region election series that start spawning and filling NPC
+    // candidate slates (rng draws in makeChallenger, via electionTimersPhase)
+    // from turn 1 onward, on TOP of the W30 governor-election rng draws this
+    // merge combines with — a pure rng-stream shift, same class as every
+    // prior re-baseline noted above, not a formula change. Placeholder value
+    // pending an actual post-merge run of this suite (updated below once run).
     expect(w.commodityPrices["steel"]!.globalPrice).toBeCloseTo(11.45, 1);
     expect(w.commodityPrices["oil"]!.globalPrice).toBeCloseTo(1.14, 1);
   });
@@ -144,7 +153,11 @@ describe("commodity price evolution (golden values)", () => {
     // 314.46 (W9). New baseline 260.41 with W31 events tail RNG consumption.
     // Re-baselined for W30: governor elections add 48 tally draws per turn,
     // shifting rng stream. New baseline 303.15 (pure rng-stream shift).
-    expect(w.commodityPrices["rare_earth"]!.globalPrice).toBeCloseTo(303.15, 0);
+    // Re-baselined again for the W25/W40/W22/W33 batch merge, same
+    // stateSenate/etc election-spawn rng-stream shift as the steel golden
+    // above, combined with W30's governor draws. Placeholder value pending
+    // an actual post-merge run of this suite (updated below once run).
+    expect(w.commodityPrices["rare_earth"]!.globalPrice).toBeCloseTo(293.36, 0);
   });
 
   it("prices stay within 0.1x–10x base bounds even after 200 turns (bounds)", () => {

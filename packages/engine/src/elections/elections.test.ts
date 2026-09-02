@@ -47,7 +47,21 @@ describe("election orchestration (W21c)", () => {
   it("losing generated challengers retire; NPC population stays bounded", () => {
     const w = createWorld(OPTS);
     for (let i = 0; i < 700; i++) advanceTurn(w);
-    expect(w.politicians.length).toBeLessThan(6000);
+    // W40 made the real seat count large (RU republic soviets alone hold
+    // 5000), so the bound is structural, not a magic number: every generated
+    // politician must either hold a seat or be an active candidate; the
+    // unseated-orphan class (ex-holders displaced by a race they were not in)
+    // must stay near zero, and the total must fit inside chamber capacity plus
+    // seeded roster plus in-flight candidates.
+    const capacity = Object.values(w.legislatures).reduce(
+      (sum, leg) => sum + leg.chambers.reduce((x, c) => x + c.seats, 0),
+      0,
+    );
+    const seeded = w.politicians.filter((p) => !p.id.includes("-CH")).length;
+    const inFlight = w.elections.filter((e) => e.status !== "resolved").reduce((x, e) => x + e.candidates.length, 0);
+    const orphans = w.politicians.filter((p) => p.id.includes("-CH") && p.chamberKey === "").length;
+    expect(orphans).toBeLessThanOrEqual(inFlight + Object.keys(w.governors).length + 50);
+    expect(w.politicians.length).toBeLessThanOrEqual(capacity + seeded + inFlight + 100);
   });
 
   it("player can join a party, declare, and the race resolves with news", () => {
@@ -76,6 +90,88 @@ describe("election orchestration (W21c)", () => {
     }
     while (w.elections.find((e) => e.id === target)!.status !== "resolved") advanceTurn(w);
     expect(w.news.some((n) => n.headline.startsWith("Election won") || n.headline.startsWith("Election lost"))).toBe(true);
+  });
+
+  // W22 leftover: candidatePartySweep. Ports mainline sweepPartyMismatchedCandidates
+  // (src/lib/utils/electionCandidacy.ts:450-556, live via turnPhaseRegistry.ts:1041-1047).
+  it("W22: leaving a party withdraws an active candidacy on that party's line", () => {
+    const w = createWorld(OPTS);
+    executeAction(w, "player", "joinParty", { partyId: "US_DEM" });
+    let target: string | null = null;
+    for (let i = 0; i < 200 && !target; i++) {
+      advanceTurn(w);
+      const rec = w.elections.find(
+        (e) => e.electionType === "house" && e.status === "active" && w.meta.turn <= e.primaryEndTurn,
+      );
+      if (rec) target = rec.id;
+    }
+    expect(target).not.toBeNull();
+    expect(executeAction(w, "player", "declareCandidacy", { electionId: target! }).ok).toBe(true);
+    expect(w.elections.find((e) => e.id === target)!.candidates.some((c) => c.id === "player")).toBe(true);
+    expect(executeAction(w, "player", "leaveParty", {}).ok).toBe(true);
+    // Candidacy is swept: withdrawn the instant the player's party diverges
+    // from the candidacy's snapshotted party, not merely at next resolution.
+    expect(w.elections.find((e) => e.id === target)!.candidates.some((c) => c.id === "player")).toBe(false);
+  });
+
+  it("W22: joining a different party withdraws a candidacy filed under the old party", () => {
+    const w = createWorld(OPTS);
+    executeAction(w, "player", "joinParty", { partyId: "US_DEM" });
+    let target: string | null = null;
+    for (let i = 0; i < 200 && !target; i++) {
+      advanceTurn(w);
+      const rec = w.elections.find(
+        (e) => e.electionType === "house" && e.status === "active" && w.meta.turn <= e.primaryEndTurn,
+      );
+      if (rec) target = rec.id;
+    }
+    expect(target).not.toBeNull();
+    executeAction(w, "player", "declareCandidacy", { electionId: target! });
+    // Cooldown blocks an immediate switch in practice, but the sweep itself
+    // is what's under test here — force the switch through directly.
+    w.player.lastPartySwitchTurn = null;
+    const join2 = executeAction(w, "player", "joinParty", { partyId: "US_REP" });
+    expect(join2.ok).toBe(true);
+    expect(w.elections.find((e) => e.id === target)!.candidates.some((c) => c.id === "player")).toBe(false);
+  });
+
+  // W22 leftover: autoReelectionEntry. Ports mainline runAutoReelectionEntry
+  // (src/lib/turn/autoReelectionEntry.ts:51-235, live via turnPhaseRegistry.ts:1231-1233).
+  it("W22: autoRunForReelection re-files the incumbent player without a manual declare", () => {
+    const w = createWorld(OPTS);
+    executeAction(w, "player", "joinParty", { partyId: "US_DEM" });
+    let target: string | null = null;
+    for (let i = 0; i < 200 && !target; i++) {
+      advanceTurn(w);
+      const rec = w.elections.find(
+        (e) => e.electionType === "house" && e.status === "active" && w.meta.turn <= e.primaryEndTurn,
+      );
+      if (rec) target = rec.id;
+    }
+    expect(target).not.toBeNull();
+    executeAction(w, "player", "declareCandidacy", { electionId: target! });
+    w.player.autoRunForReelection = true;
+    while (w.elections.find((e) => e.id === target)!.status !== "resolved") advanceTurn(w);
+    if (w.player.legislativeSeat == null) {
+      // Rare seed outcome: the player lost. Nothing more to assert here —
+      // auto-reentry only fires for a held seat.
+      return;
+    }
+    // Advance until the NEXT house race for the player's state opens its
+    // filing window, without ever calling declareCandidacy manually.
+    let nextTarget: string | null = null;
+    for (let i = 0; i < 400 && !nextTarget; i++) {
+      advanceTurn(w);
+      const rec = w.elections.find(
+        (e) =>
+          e.id !== target &&
+          e.electionType === "house" &&
+          e.status === "active" &&
+          e.candidates.some((c) => c.id === "player"),
+      );
+      if (rec) nextTarget = rec.id;
+    }
+    expect(nextTarget).not.toBeNull();
   });
 
   it("declare requires party membership and an open filing window", () => {
@@ -108,6 +204,46 @@ describe("election orchestration (W21c)", () => {
     const w = createWorld(OPTS);
     for (let i = 0; i < 900; i++) advanceTurn(w);
     expect(w.elections.filter((e) => e.status === "resolved").length).toBeLessThanOrEqual(400);
+  });
+
+  // W40: subnational/regional chambers (US stateSenate, UK regionalCouncil,
+  // RU republicSupremeSoviet, DD landAssembly) — previously always vacant
+  // (`elected: true` in content packs but never wired into
+  // electionSeriesForWorld). Mainline runs real per-region elections for all
+  // four (perpetualElections.ts ensurePerpetualElections /
+  // ensureUKRegionalCouncilElections / ensureRegionalDelegateElections, all
+  // live in turnPhaseRegistry.ts) — see orchestration.ts electionSeriesForWorld
+  // SUBNATIONAL_CHAMBERS comment for exact citations.
+  it("W40: subnational chambers spawn, fill, and resolve seats", () => {
+    const w = createWorld(OPTS);
+    for (let i = 0; i < 900; i++) advanceTurn(w);
+
+    const cases: Array<{ countryId: string; chamberKey: string }> = [
+      { countryId: "US", chamberKey: "stateSenate" },
+      { countryId: "UK", chamberKey: "regionalCouncil" },
+      { countryId: "RU", chamberKey: "republicSupremeSoviet" },
+      { countryId: "DD", chamberKey: "landAssembly" },
+    ];
+    for (const { countryId, chamberKey } of cases) {
+      // Elections were actually spawned and at least one has resolved.
+      expect(
+        w.elections.some((e) => e.countryId === countryId && e.chamberKey === chamberKey),
+      ).toBe(true);
+      expect(
+        w.elections.some((e) => e.countryId === countryId && e.chamberKey === chamberKey && e.status === "resolved"),
+      ).toBe(true);
+      // Some seats are actually held (composition no longer fully vacant).
+      const chamber = w.legislatures[countryId]!.chambers.find((c) => c.key === chamberKey)!;
+      const held = Object.values(chamber.composition.seatsByParty).reduce((x, y) => x + y, 0);
+      expect(held).toBeGreaterThan(0);
+      expect(held + chamber.composition.vacancies).toBe(chamber.seats);
+      // Politicians seated in this chamber all carry a state matching a real region.
+      const seated = w.politicians.filter((p) => p.countryId === countryId && p.chamberKey === chamberKey);
+      expect(seated.length).toBe(held);
+      for (const p of seated) {
+        expect(w.regions[p.electedState ?? ""]?.countryId).toBe(countryId);
+      }
+    }
   });
 
   it("cycleContextForWorld flows the world's own era, not a hardcoded 1953-default (fixes a real bug)", () => {

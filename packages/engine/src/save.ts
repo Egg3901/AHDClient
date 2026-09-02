@@ -1592,9 +1592,66 @@ export function deserializeSave(raw: string): WorldState {
   if (save.schemaVersion < 34) {
     save.world.meta.schemaVersion = 34;
   }
-  // v34 -> v35: pre-allocated for parallel wave (holds v35) — no fields
-  // added by this wave. Same stub pattern as v33->v34 above.
+  // v34 -> v35: batch of four waves (W25 referendums, W40 subnational
+  // compositions, W22 candidate-lifecycle leftovers, W33 era crossing). Fills
+  // the v34->v35 stub reserved above (this branch's checkpoint held it as
+  // v32->v35 directly, back when main was v32; the merge resolver split that
+  // single jump into this v34->v35 block, chaining after the real v33->v34
+  // W7/W8/W14 migration and the v33->v34 stub, same splitting pattern as
+  // every earlier multi-wave schema bump in this file (e.g. the v28->v32
+  // chain above).
+  //
+  // Backfills, none of which touch meta.rng (no RNG consumed by a migration,
+  // ever, per this file's determinism contract):
+  //  - `referendums`: new top-level array (W25), empty for every existing
+  //    save — there was never a producer for a referendum record before this
+  //    wave. See referendum/types.ts.
+  //  - `regions[SCO|WAL|NIR].independenceDesire`: new optional per-region
+  //    field (W25), only for UK's three devolved regions (see
+  //    devolution/independenceDesireDrift.ts UK_DEVOLUTION_REGIONS). Backfilled
+  //    to MEAN_REVERSION_TARGET (25) — the same neutral seed a freshly
+  //    created world starts from (see devolution/independenceDesireDrift.ts
+  //    runIndependenceDesireDrift `previous ?? MEAN_REVERSION_TARGET`), so an
+  //    old save's first post-migration turn drifts identically to a new
+  //    world's first turn rather than starting from an arbitrary 0.
+  //  - `player.autoRunForReelection` (W22): defaults false — an old save's
+  //    player never had this flag, and false matches mainline's own default
+  //    (src/lib/turn/autoReelectionEntry.ts:58), so behavior is unchanged
+  //    until the player explicitly opts in.
+  //  - `meta.lastEra` (W33): the eraCrossing guard field. Backfilled to the
+  //    save's CURRENT `meta.era` (not the world's starting era, which this
+  //    migration cannot recover) — this is deliberate: it means an old save
+  //    that is already past a threshold never fires a spurious "new era
+  //    begins" news post for an era it has been in for a while, exactly as
+  //    mainline's own `lastEraCrossedYear` guard prevents re-announcing an
+  //    era the world already occupies. Only a genuinely NEW crossing after
+  //    the migration fires the announcement.
+  //  - W40 (subnational chamber elections) and the rest of W22 (candidate
+  //    party-sweep, staleCandidateCleanup) need no schema field: they are
+  //    pure behavior changes over `world.elections`/`world.politicians`,
+  //    which already exist on every save from v13 onward.
   if (save.schemaVersion < 35) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (!Array.isArray(w["referendums"])) {
+      w["referendums"] = [];
+    }
+    const regions = w["regions"] as Record<string, Record<string, unknown>> | undefined;
+    if (regions) {
+      for (const regionId of ["SCO", "WAL", "NIR"]) {
+        const region = regions[regionId];
+        if (region && typeof region["independenceDesire"] !== "number") {
+          region["independenceDesire"] = 25; // MEAN_REVERSION_TARGET
+        }
+      }
+    }
+    const player = w["player"] as Record<string, unknown> | undefined;
+    if (player && typeof player["autoRunForReelection"] !== "boolean") {
+      player["autoRunForReelection"] = false;
+    }
+    const meta = w["meta"] as Record<string, unknown> | undefined;
+    if (meta && typeof meta["lastEra"] !== "string") {
+      meta["lastEra"] = meta["era"];
+    }
     save.world.meta.schemaVersion = 35;
   }
   // v35 -> v36: W11 (extraction/prospecting) + W35 (player wealth, international

@@ -41,6 +41,13 @@ export interface WorldState {
   /** Live election records (W21c). Maintained by the election phases. */
   elections: import("./elections/types.js").ElectionRecord[];
   /**
+   * W25: UK independence/reunification referendum records. See
+   * referendum/lifecycle.ts file doc for exactly which lifecycle stages are
+   * live this wave. Empty in every world today (no request action ported
+   * yet) except test fixtures.
+   */
+  referendums: import("./referendum/types.js").ReferendumRecord[];
+  /**
    * Presidential (and other head-of-state) executive offices, keyed by
    * country id. W24 port. Vacant (absent key, or presidentId null) until a
    * "president"-type election first resolves — Rotunda's content packs carry
@@ -541,6 +548,13 @@ export interface WorldMeta {
   /** In-game date as ISO day, e.g. "1953-01-06". One turn = one week. */
   date: string;
   era: EraId;
+  /**
+   * W33: eraCrossing guard field. Ports mainline's `lastEraCrossedYear`
+   * (src/lib/turn/eraCrossing.ts) adapted from a year-modulo-10 comparison
+   * to an era-id comparison (Rotunda has no decade-bucket era model). See
+   * phases/eraCrossing.ts for the full port rationale.
+   */
+  lastEra: EraId;
   cheatsUsed: boolean;
   /**
    * True when `era` is not backed by any shipped content pack (currently
@@ -693,6 +707,13 @@ export interface PlayerCharacter {
    * reachable via a save edit or cheat today. Ports SavingsHolder.
    */
   savingsHolder: "centralBank" | string;
+  /**
+   * W22: opt-in automatic reelection filing. Ports mainline
+   * Character.autoRunForReelection (src/lib/turn/autoReelectionEntry.ts:58),
+   * default false/unset — see elections/orchestration.ts runAutoReelectionEntry
+   * for the exact mainline-scoped behavior this gates.
+   */
+  autoRunForReelection?: boolean;
   /**
    * W35: per-action successful-execution counts, keyed by ActionId. Ports the
    * denominator side of mainline's `actionLogs` collection (achievements/
@@ -1000,6 +1021,13 @@ export interface Region {
   workingAgePopulation?: number;
   /** Military service population (conscription withdrawal). */
   militaryServicePopulation?: number;
+  /**
+   * W25: independence/reunification desire, 0-100. Ports
+   * `StateMetrics.governance.independenceDesire` (mainline), but only ever
+   * set for UK's three devolved regions (SCO/WAL/NIR) — see
+   * devolution/independenceDesireDrift.ts UK_DEVOLUTION_REGIONS and file doc.
+   */
+  independenceDesire?: number;
 }
 
 /**

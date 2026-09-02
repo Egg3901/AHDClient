@@ -43,11 +43,11 @@ Engine core (turn pipeline, RNG, saves) - real seed packs, 27 countries, both er
 ## Lane 5: elections (operator-led, muse on edges)
 
 - W21 election engine core: candidacies, voteAccumulation, primaryResolution, electionResolution, electionTimers, perpetualElections, byElectionWatcher, clearResolvedSupport
-- W22 candidates: generateChallengers, candidatePartySweep, staleCandidateCleanup, withdrawInactiveCandidates, autoReelectionEntry
+- W22 candidates: DONE — generateChallengers (makeChallenger/fillCandidates, W21c), candidatePartySweep (`sweepCandidaciesOnPartyChange`, wired into join/leave/foundParty), autoReelectionEntry (`runAutoReelectionEntry`, opt-in via `player.autoRunForReelection`). staleCandidateCleanup ported as `cullOrphanedGenerated` (elections/orchestration.ts, runs at every election resolution: generated NPCs holding no seat/office and standing in no unresolved race are dropped; it was the missing cull for ex-holders displaced by a race they were not in, which W40's subnational chambers turned into a 3.8k-orphan leak at t700). withdrawInactiveCandidates is N/A for solo (needs other human players' activity data solo has none of; documented in elections/candidacy.ts)
 - W23 parliamentary: governmentFormation, parliamentaryGovernmentPhases, vacancy watcher, leadershipVacate
 - W24 presidential: DONE as nationwide-majority + 12th Amendment contingent (documented simplification; the brief's "uniform national vote" premise was wrong — mainline still runs per-state EV)
 - W24b Electoral College: DONE — real per-state Electoral College (`presidentialElectoralCollege.ts` + `tallyAdapter.ts`'s `realAccumulatePresident`): per-state winner-take-all, EV = house seats + 2 senators (531-EV 1953 college, 266 majority, never hardcoded 270), 12th Amendment contingent fallback on real EVs. Nationwide-vote path kept only as the defensive fallback for a world whose states lack demographics. Not ported (documented, out of scope): mainline's VP home-state bonus, governor endorsements, granular per-unit electorate substrate — structure over per-unit flavor
-- W25 referendums: referendumLifecycle, independenceDesireDrift
+- W25 referendums: DONE — referendumLifecycle (polling->actuating|settled edge; granted->campaigning, campaigning->polling, actuating->completed|cancelled are PORT-STUB, documented in referendum/lifecycle.ts), independenceDesireDrift (real UK inflation input, PORT-STUB devolved-FM policy/approval inputs, documented in devolution/independenceDesireDrift.ts)
 - W26 campaigns: campaignTurn, canvassing, campaign ops trees, debates, campaignSpendReset, primarySnapshots
 
 ## Lane 6: legislation and governance (engine)
@@ -61,7 +61,7 @@ Engine core (turn pipeline, RNG, saves) - real seed packs, 27 countries, both er
 
 - W31 events: worldEventsScheduler/maintenance, playerRandomEvents, crisisTurn and crisis action hooks
 - W32 cold war tension and nuclear, wars, alignment, settlement, international organizations
-- W33 eraCrossing in-sim (1953 world crosses into 1960 rules), metricActivation
+- W33 eraCrossing in-sim (a world crosses from its start era into the next real pack: 1953 -> 1979 -> 1991 -> 2019), metricActivation: DONE — `eraCrossingPhase` (phases/eraCrossing.ts) reproduces mainline's entire substantive effect (a news post on the era-id edge; `currentEraId` is otherwise a UI label, grep-confirmed). `metricActivation`'s gameplay mechanism (`isMetricActive`) is a stateless per-call re-evaluation, not a turn-phase mutation — no phase to port; the underlying metric catalog is PORT-STUB (needs the approval-scoring/policy-cost systems it feeds, not built yet)
 
 ## Lane 8: player systems (engine)
 
@@ -77,7 +77,7 @@ Engine core (turn pipeline, RNG, saves) - real seed packs, 27 countries, both er
 
 - W38 US states: metrics, House districts and apportionment, state legislature seeding
 - W39 UK constituencies; RU and DD subdivisions; regional chambers
-- W40 subnational chamber compositions (currently vacant by design)
+- W40 subnational chamber compositions: DONE — real per-region elections for all four playable countries (US stateSenate, UK regionalCouncil, RU republicSupremeSoviet, DD landAssembly), wired into `electionSeriesForWorld` (elections/orchestration.ts SUBNATIONAL_CHAMBERS); mainline confirms all four are real per-region races (perpetualElections.ts), no country is N/A
 
 ## Lane 11: history (engine)
 

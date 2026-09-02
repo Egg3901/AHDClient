@@ -106,6 +106,9 @@ import {
 import { unionsTurnPhase, nppUnionBehaviorPhase } from "../unions/phases.js";
 import { sovereignIssuancePhase, bondCouponMaturityPhase, npcBondHolderPhase } from "../bonds/phases.js";
 import { ledgerPreForexSnapshotPhase, forexTurnPhase } from "../forex/phases.js";
+import { eraCrossingPhase } from "./eraCrossing.js";
+import { independenceDesireDriftPhase } from "../devolution/phases.js";
+import { referendumLifecyclePhase } from "../referendum/phases.js";
 import { metricDecayPhase } from "../metrics/metricDecay.js";
 import { investorConfidenceDecayPhase } from "../metrics/investorConfidenceDecay.js";
 import { nationalMetricsPhase } from "../metrics/nationalMetrics.js";
@@ -424,6 +427,33 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   tradeGrowthMirrorPhase,
   ledgerPreForexSnapshotPhase,
   forexTurnPhase,
+  // W33 era crossing at END before newsMaintenance — ordering deviation:
+  // mainline runs eraCrossing mid-pipeline (stateEffectsPhase.ts:311, Group
+  // "state effects", well before this repo's tail clusters). Solo defers it
+  // to the tail before newsMaintenance for the same rng-stream-stability
+  // rule as every other tail cluster above (this phase is rng-free anyway —
+  // pure comparison + a news push — so the placement is purely for
+  // consistency with the rest of this registry's append-only convention).
+  // Must run after advanceCalendarPhase (first in this array), which is the
+  // only phase that ever changes world.meta.era — see phases/eraCrossing.ts
+  // file doc for the full port rationale (why this is the entire substantive
+  // effect of mainline's eraCrossing + metricActivation).
+  eraCrossingPhase,
+  // W25 independence desire / referendum cluster at END before newsMaintenance
+  // — ordering deviation: mainline runs independenceDesireDrift and
+  // referendumLifecycle mid-pipeline, back to back (stateEffectsPhase.ts:
+  // 509-526). Solo defers the pair to the tail before newsMaintenance for
+  // the same rng-stream-stability rule as every other tail cluster above
+  // (independenceDesireDriftPhase is rng-free; referendumLifecyclePhase
+  // draws rng only when a referendum is actually in "polling" status, which
+  // never happens in any world produced by createWorld today — see
+  // referendum/lifecycle.ts file doc — so placement here has no live rng
+  // effect either way; kept at the tail for consistency with the registry's
+  // append-only convention). Relative order mirrors mainline exactly:
+  // independenceDesireDrift BEFORE referendumLifecycle, "so a settled
+  // No-vote dampens the just-updated desire value" (mainline's own comment).
+  independenceDesireDriftPhase,
+  referendumLifecyclePhase,
   // W6 metric engine cluster at END before newsMaintenance — ordering deviation:
   // Mainline runs these mid-pipeline in stateEffectsAndNationalAggregationPhase:
   // metricDecay (no-op, inside policyEffects), investorConfidenceDecay, metricEngine,
