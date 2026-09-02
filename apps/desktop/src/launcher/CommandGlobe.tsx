@@ -51,7 +51,7 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
     if (!ctx) return;
 
     const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const reduceMotion = mql.matches;
+    let reduceMotion = mql.matches;
 
     let S = 0;
     let R = 0;
@@ -171,7 +171,11 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
     }
 
     function frame(now: number): void {
-      const dt = (now - last) / 1000;
+      if (!reduceMotion && now - last < 1000 / 30) {
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+      const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
       if (!reduceMotion) rot += dt * 0.16;
       drawFrame();
@@ -192,9 +196,11 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
     window.addEventListener("resize", handleResize);
 
     const onMotionChange = (e: MediaQueryListEvent) => {
+      reduceMotion = e.matches;
       if (e.matches) {
         cancelAnimationFrame(raf);
       } else {
+        cancelAnimationFrame(raf);
         last = performance.now();
         raf = requestAnimationFrame(frame);
       }

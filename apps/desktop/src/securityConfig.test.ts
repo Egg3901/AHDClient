@@ -98,9 +98,13 @@ describe("desktop platform configuration", () => {
     const sourceDirectory = dirname(fileURLToPath(import.meta.url));
     const launcher = readFileSync(join(sourceDirectory, "launcher/Launcher.tsx"), "utf8");
     const globe = readFileSync(join(sourceDirectory, "launcher/CommandGlobe.tsx"), "utf8");
+    const streaks = readFileSync(join(sourceDirectory, "launcher/StreakField.tsx"), "utf8");
     expect(launcher).not.toContain("fetch(");
-    expect(launcher).not.toContain("StreakField");
+    expect(launcher).toContain('import { StreakField } from "./StreakField.js";');
+    expect(launcher).toContain("<StreakField />");
     expect(globe).toContain('window.addEventListener("resize", handleResize);');
     expect(globe).toContain('window.removeEventListener("resize", handleResize);');
+    expect(streaks).toContain('window.matchMedia("(prefers-reduced-motion: reduce)")');
+    expect(streaks).toContain('window.removeEventListener("resize", resize);');
   });
 });

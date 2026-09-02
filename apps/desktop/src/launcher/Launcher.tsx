@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { listEras, listPlayableCountries } from "@rotunda/engine";
 import { CommandGlobe, themeForEra } from "./CommandGlobe.js";
+import { StreakField } from "./StreakField.js";
 import "./launcher.css";
 
 type Mode = "sp" | "mp";
@@ -16,7 +17,7 @@ interface Props {
 const ERA_SUBTITLES: Readonly<Record<string, string>> = {
   "1953": "Cold War dawn",
   "1979": "Late Cold War",
-  "1991": "Post-Cold War order",
+  "1991": "New world order",
   "2019": "Contemporary politics",
 };
 
@@ -52,55 +53,55 @@ export function Launcher({
 
   return (
     <main className="launcher-scope" data-mode={mode}>
-      <header className="launcher-topbar">
-        <div className="launcher-identity">
-          <span className="launcher-mark" aria-hidden="true">AHD</span>
-          <span className="launcher-wordmark">
-            <strong>A House Divided</strong>
-            <small>Rotunda client</small>
-          </span>
-        </div>
-        <div className="launcher-build">
-          <span className="launcher-build-dot" aria-hidden="true" />
-          Local client <b>0.9.0</b>
-        </div>
-      </header>
+      <StreakField />
+      <div className="launcher-pattern" aria-hidden="true" />
 
-      <div className="launcher-grid">
-        <section className="launcher-control" aria-labelledby="launcher-title">
-          <div className="launcher-heading">
-            <p className="launcher-kicker">Political strategy simulation</p>
-            <h1 id="launcher-title">History is a system. Enter it.</h1>
-            <p className="launcher-lede">
-              Build a career, command a government, and watch institutions
-              answer back. One week at a time.
-            </p>
-          </div>
+      <div className="launcher-corner launcher-corner-left" aria-hidden="true">
+        RTD / CLIENT 0.9.0
+      </div>
+      <div className="launcher-corner launcher-corner-right" aria-hidden="true">
+        LOCAL-FIRST SIMULATION
+      </div>
 
-          <div className="launcher-mode-picker" aria-label="Play mode">
+      <section className="launcher-stage" aria-labelledby="launcher-title">
+        <header className="launcher-mast">
+          <svg viewBox="0 0 184 146" aria-hidden="true">
+            <g stroke="currentColor" strokeWidth="3" fill="none">
+              <path d="M 14 100 A 78 78 0 0 1 170 100" />
+              <path d="M 36 100 A 56 56 0 0 1 148 100" className="launcher-mast-muted" />
+              <line x1="92" y1="0" x2="92" y2="22" />
+              <line x1="0" y1="100" x2="184" y2="100" />
+              {[32, 62, 92, 122, 152].map((x) => (
+                <line key={x} x1={x} y1="100" x2={x} y2="130" className="launcher-mast-muted" />
+              ))}
+              <line x1="14" y1="130" x2="170" y2="130" />
+              <line x1="14" y1="143" x2="86" y2="143" className="launcher-mast-red" />
+              <line x1="98" y1="143" x2="170" y2="143" className="launcher-mast-blue" />
+            </g>
+          </svg>
+          <p className="launcher-kicker">Political strategy simulation</p>
+          <h1 id="launcher-title">A HOUSE DIVIDED</h1>
+          <p className="launcher-subtitle">ROTUNDA CLIENT</p>
+        </header>
+
+        <div className="launcher-console">
+          <div className="launcher-toggle" data-mode={mode} aria-label="Play mode">
+            <div className="launcher-toggle-thumb" aria-hidden="true" />
             <button
-              className={`launcher-mode${mode === "sp" ? " active" : ""}`}
+              className={mode === "sp" ? "active" : ""}
               onClick={() => setMode("sp")}
               aria-pressed={mode === "sp"}
             >
-              <span className="launcher-mode-index">01</span>
-              <span className="launcher-mode-copy">
-                <strong>Solo world</strong>
-                <small>Local simulation and saves</small>
-              </span>
-              <span className="launcher-mode-arrow" aria-hidden="true">&#8594;</span>
+              <span className="launcher-toggle-mark" aria-hidden="true">01</span>
+              Singleplayer
             </button>
             <button
-              className={`launcher-mode${mode === "mp" ? " active" : ""}`}
+              className={mode === "mp" ? "active" : ""}
               onClick={() => setMode("mp")}
               aria-pressed={mode === "mp"}
             >
-              <span className="launcher-mode-index">02</span>
-              <span className="launcher-mode-copy">
-                <strong>Multiplayer</strong>
-                <small>Enter the persistent online world</small>
-              </span>
-              <span className="launcher-mode-arrow" aria-hidden="true">&#8594;</span>
+              <span className="launcher-toggle-mark" aria-hidden="true">02</span>
+              Multiplayer
             </button>
           </div>
 
@@ -112,102 +113,80 @@ export function Launcher({
           )}
 
           {multiplayer ? (
-            <div className="launcher-online-panel">
-              <div>
-                <span className="launcher-section-label">Online service</span>
-                <h2>The persistent world</h2>
-              </div>
-              <p>
-                Continue in the live A House Divided service. Your local saves
-                and device permissions remain separate from the online session.
-              </p>
+            <div className="launcher-online-summary" aria-live="polite">
+              <span className="launcher-live-dot" aria-hidden="true" />
+              <span>
+                <strong>Persistent online world</strong>
+                <small>Account session continues in-app on Android</small>
+              </span>
             </div>
           ) : (
             <div className="launcher-era-panel">
-              <div className="launcher-section-head">
-                <div>
-                  <span className="launcher-section-label">Starting point</span>
-                  <h2>Choose an era</h2>
-                </div>
-                <span className="launcher-era-count">{eras.length} worlds</span>
+              <div className="launcher-panel-label">
+                <span>Select a starting era</span>
+                <span>{eras.length} available</span>
               </div>
-              <div className="launcher-era-list">
+              <div className="launcher-era-row">
                 {eras.map((era) => {
                   const active = era.id === eraId;
                   const theme = themeForEra(era.id);
                   return (
                     <button
                       key={era.id}
-                      className={`launcher-era${active ? " active" : ""}`}
+                      className={`launcher-era-chip${active ? " active" : ""}`}
                       onClick={() => setEraId(era.id)}
                       aria-pressed={active}
+                      title={eraSubtitle(era.id, era.label)}
                     >
                       <span
-                        className="launcher-era-signal"
-                        style={{ backgroundColor: theme.phosphor }}
+                        className="launcher-era-swatch"
+                        style={{ backgroundColor: active ? theme.phosphor : undefined }}
                         aria-hidden="true"
                       />
-                      <strong>{era.id}</strong>
-                      <small>{eraSubtitle(era.id, era.label)}</small>
+                      <span>{era.id}</span>
                     </button>
                   );
                 })}
               </div>
+              <dl className="launcher-era-facts" aria-live="polite">
+                <div><dt>Period</dt><dd>{selectedEra ? eraSubtitle(selectedEra.id, selectedEra.label) : "Unknown"}</dd></div>
+                <div><dt>Start</dt><dd>{selectedEra?.startDate ?? "Unknown"}</dd></div>
+                <div><dt>Nations</dt><dd>{playableCountries} playable</dd></div>
+              </dl>
             </div>
           )}
+
+          <CommandGlobe eraId={eraId} live={multiplayer} />
 
           <div className="launcher-actions">
             {multiplayer ? (
               <>
-                <button className="launcher-primary" onClick={onPlayOnline}>
-                  Open multiplayer <span aria-hidden="true">&#8599;</span>
+                <button className="launcher-btn launcher-btn-primary" onClick={onPlayOnline}>
+                  Enter multiplayer <span aria-hidden="true">&#8599;</span>
                 </button>
-                <span className="launcher-action-note">
-                  Isolated window on desktop. In-app session on Android.
-                </span>
+                <p className="launcher-caption">
+                  Isolated desktop window <span aria-hidden="true">/</span> in-app on Android
+                </p>
               </>
             ) : (
               <>
                 <button
-                  className="launcher-primary"
+                  className="launcher-btn launcher-btn-primary"
                   onClick={() => onNewWorld(eraId)}
                 >
-                  Configure new world <span aria-hidden="true">&#8594;</span>
+                  New world <span aria-hidden="true">&#8594;</span>
                 </button>
-                <button className="launcher-secondary" onClick={onLoad}>
+                <button className="launcher-btn launcher-btn-secondary" onClick={onLoad}>
                   Load save
                 </button>
               </>
             )}
           </div>
-        </section>
-
-        <aside className="launcher-visual" aria-label="Selected world summary">
-          <div className="launcher-visual-head">
-            <span>{multiplayer ? "Network view" : "World preview"}</span>
-            <span>{multiplayer ? "External session" : `Era ${eraId}`}</span>
-          </div>
-          <CommandGlobe eraId={eraId} live={multiplayer} />
-          <dl className="launcher-telemetry">
-            {multiplayer ? (
-              <>
-                <div><dt>World</dt><dd>Persistent</dd></div>
-                <div><dt>Access</dt><dd>Web service</dd></div>
-                <div><dt>Local permissions</dt><dd>None</dd></div>
-              </>
-            ) : (
-              <>
-                <div><dt>Start</dt><dd>{selectedEra?.startDate ?? "Unknown"}</dd></div>
-                <div><dt>Playable nations</dt><dd>{playableCountries}</dd></div>
-                <div><dt>Turn cadence</dt><dd>Weekly</dd></div>
-              </>
-            )}
-          </dl>
-        </aside>
-      </div>
+        </div>
+      </section>
 
       <footer className="launcher-footer">
-        <span>PolyForm NC 1.0.0</span>
+        <span>POLYFORM NC 1.0.0</span>
         <span>Singleplayer data remains on this device</span>
       </footer>
     </main>

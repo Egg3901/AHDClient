@@ -1,445 +1,354 @@
 .launcher-scope {
-  --launcher-ink: #11161b;
-  --launcher-paper: #e9e6de;
-  --launcher-paper-soft: #d4d0c6;
-  --launcher-line: rgba(233, 230, 222, 0.18);
-  --launcher-line-strong: rgba(233, 230, 222, 0.42);
-  --launcher-muted: #92999f;
-  --launcher-accent: #d75b47;
+  --paper: #f7f4ec;
+  --paper-raised: rgba(255, 255, 255, 0.88);
+  --ink: #171717;
+  --muted: #72716c;
+  --line: rgba(23, 23, 23, 0.15);
+  --line-strong: rgba(23, 23, 23, 0.52);
+  --red: #ad2831;
+  --blue: #244a9b;
+  position: relative;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
-  background: var(--launcher-ink);
-  color: var(--launcher-paper);
-  font: 14px/1.5 Inter, ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.5 ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 }
 
 .launcher-scope button {
   font: inherit;
 }
 
-.launcher-topbar {
-  min-height: 76px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 0 clamp(24px, 4vw, 64px);
-  border-bottom: 1px solid var(--launcher-line);
+.launcher-streaks,
+.launcher-pattern {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
 }
 
-.launcher-identity {
+.launcher-streaks {
+  z-index: 0;
+  opacity: 0.42;
+}
+
+.launcher-pattern {
+  z-index: 1;
+  background-image: radial-gradient(circle, rgba(23, 23, 23, 0.085) 0.8px, transparent 0.9px);
+  background-size: 24px 24px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.3));
+}
+
+.launcher-corner {
+  position: fixed;
+  top: 22px;
+  z-index: 3;
+  color: var(--muted);
+  font: 600 9px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.16em;
+}
+
+.launcher-corner-left {
+  left: 26px;
+}
+
+.launcher-corner-right {
+  right: 26px;
+}
+
+.launcher-stage {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 760px);
+  min-height: calc(100vh - 42px);
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 2.2vh, 20px);
+  margin: 0 auto;
+  padding: 28px 24px 38px;
+}
+
+.launcher-mast {
+  text-align: center;
+}
+
+.launcher-mast svg {
+  width: 66px;
+  height: 52px;
+  display: block;
+  margin: 0 auto 8px;
+  color: var(--ink);
+}
+
+.launcher-mast-muted {
+  stroke: #8e8c85;
+  stroke-width: 2px;
+}
+
+.launcher-mast-red {
+  stroke: var(--red);
+  stroke-width: 3px;
+}
+
+.launcher-mast-blue {
+  stroke: var(--blue);
+  stroke-width: 3px;
+}
+
+.launcher-kicker,
+.launcher-subtitle,
+.launcher-panel-label,
+.launcher-corner,
+.launcher-footer,
+.launcher-caption {
+  text-transform: uppercase;
+}
+
+.launcher-kicker {
+  margin: 0 0 5px;
+  color: var(--muted);
+  font: 600 9px/1.2 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.24em;
+}
+
+.launcher-mast h1 {
+  margin: 0;
+  color: var(--ink);
+  font: 650 clamp(24px, 3.2vw, 34px)/1.05 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+}
+
+.launcher-subtitle {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font: 600 10px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.46em;
+  text-indent: 0.46em;
+}
+
+.launcher-console {
+  width: min(100%, 610px);
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 14px;
 }
 
-.launcher-mark {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--launcher-line-strong);
-  color: var(--launcher-paper);
-  font: 700 10px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  letter-spacing: 0.08em;
-}
-
-.launcher-wordmark {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-
-.launcher-wordmark strong {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.launcher-wordmark small,
-.launcher-build,
-.launcher-section-label,
-.launcher-era-count,
-.launcher-visual-head,
-.launcher-footer {
-  font: 600 9px/1.35 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.launcher-wordmark small {
-  margin-top: 3px;
-  color: var(--launcher-muted);
-}
-
-.launcher-build {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--launcher-muted);
-}
-
-.launcher-build b {
-  color: var(--launcher-paper);
-  font-weight: 600;
-}
-
-.launcher-build-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #79c69a;
-  box-shadow: 0 0 0 4px rgba(121, 198, 154, 0.1);
-}
-
-.launcher-grid {
-  width: min(100%, 1320px);
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(520px, 1.12fr) minmax(380px, 0.88fr);
-  align-items: stretch;
-  margin: 0 auto;
-}
-
-.launcher-control {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: clamp(20px, 3vh, 30px);
-  padding: clamp(36px, 6vh, 72px) clamp(40px, 6vw, 84px);
-  border-right: 1px solid var(--launcher-line);
-}
-
-.launcher-heading {
-  max-width: 620px;
-}
-
-.launcher-kicker {
-  margin: 0 0 12px;
-  color: var(--launcher-accent);
-  font: 700 10px/1.3 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.launcher-heading h1 {
-  max-width: 580px;
-  margin: 0;
-  color: var(--launcher-paper);
-  font: 500 clamp(42px, 5vw, 68px)/0.98 Georgia, "Times New Roman", serif;
-  letter-spacing: -0.045em;
-}
-
-.launcher-lede {
-  max-width: 510px;
-  margin: 18px 0 0;
-  color: #b7b7b2;
-  font-size: 15px;
-  line-height: 1.65;
-}
-
-.launcher-mode-picker {
+.launcher-toggle {
+  position: relative;
+  width: min(100%, 410px);
   display: grid;
   grid-template-columns: 1fr 1fr;
-  border-top: 1px solid var(--launcher-line);
-  border-bottom: 1px solid var(--launcher-line);
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: rgba(247, 244, 236, 0.9);
+  box-shadow: 0 6px 24px rgba(23, 23, 23, 0.06);
+  user-select: none;
 }
 
-.launcher-mode {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 12px;
-  padding: 15px 14px;
+.launcher-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 999px;
+  background: var(--ink);
+  transition: transform 180ms cubic-bezier(0.7, 0, 0.2, 1);
+}
+
+.launcher-toggle[data-mode="mp"] .launcher-toggle-thumb {
+  transform: translateX(100%);
+}
+
+.launcher-toggle button {
+  position: relative;
+  z-index: 1;
+  min-height: 42px;
+  padding: 0 18px;
   border: 0;
-  border-radius: 0;
+  border-radius: 999px;
   background: transparent;
-  color: var(--launcher-muted);
-  text-align: left;
+  color: var(--ink);
   cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease;
+  font: 650 10px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: color 180ms ease;
 }
 
-.launcher-mode + .launcher-mode {
-  border-left: 1px solid var(--launcher-line);
+.launcher-toggle button.active {
+  color: var(--paper);
 }
 
-.launcher-mode:hover {
-  background: rgba(255, 255, 255, 0.035);
-  color: var(--launcher-paper);
-}
-
-.launcher-mode.active {
-  background: var(--launcher-paper);
-  color: var(--launcher-ink);
-}
-
-.launcher-mode-index {
-  align-self: start;
-  padding-top: 3px;
-  color: currentColor;
-  font: 600 9px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  opacity: 0.66;
-}
-
-.launcher-mode-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.launcher-mode-copy strong {
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.launcher-mode-copy small {
-  margin-top: 3px;
-  font-size: 10px;
-  line-height: 1.3;
-  opacity: 0.68;
-}
-
-.launcher-mode-arrow {
-  font-size: 18px;
-  line-height: 1;
+.launcher-toggle-mark {
+  margin-right: 8px;
+  opacity: 0.52;
+  font-size: 8px;
 }
 
 .launcher-era-panel,
-.launcher-online-panel {
-  min-height: 157px;
+.launcher-online-summary {
+  width: 100%;
+  min-height: 93px;
+  padding: 11px 14px 10px;
+  border: 1px solid var(--line);
+  background: var(--paper-raised);
+  box-shadow: 0 12px 36px rgba(23, 23, 23, 0.05);
+  backdrop-filter: blur(8px);
 }
 
-.launcher-section-head,
-.launcher-online-panel {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-.launcher-section-label {
-  color: var(--launcher-muted);
-}
-
-.launcher-section-head h2,
-.launcher-online-panel h2 {
-  margin: 4px 0 0;
-  color: var(--launcher-paper);
-  font: 500 20px/1.2 Georgia, "Times New Roman", serif;
-}
-
-.launcher-era-count {
-  padding-top: 5px;
-  color: var(--launcher-muted);
-}
-
-.launcher-era-list {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.launcher-era {
-  position: relative;
-  min-width: 0;
-  min-height: 82px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 13px 11px 11px;
-  overflow: hidden;
-  border: 1px solid var(--launcher-line);
-  border-radius: 0;
-  background: transparent;
-  color: var(--launcher-muted);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
-}
-
-.launcher-era:hover {
-  border-color: var(--launcher-line-strong);
-  color: var(--launcher-paper);
-}
-
-.launcher-era.active {
-  border-color: var(--launcher-paper);
-  background: rgba(255, 255, 255, 0.055);
-  color: var(--launcher-paper);
-}
-
-.launcher-era-signal {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  opacity: 0;
-}
-
-.launcher-era.active .launcher-era-signal {
-  opacity: 1;
-}
-
-.launcher-era strong {
-  font: 600 15px/1.2 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}
-
-.launcher-era small {
-  margin-top: 8px;
-  overflow: hidden;
-  font-size: 9px;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-}
-
-.launcher-online-panel {
-  align-items: center;
-  padding: 24px 0;
-  border-top: 1px solid var(--launcher-line);
-  border-bottom: 1px solid var(--launcher-line);
-}
-
-.launcher-online-panel > div {
-  flex: 0 0 auto;
-}
-
-.launcher-online-panel p {
-  max-width: 340px;
-  margin: 0;
-  color: #b7b7b2;
-  font-size: 12px;
-  line-height: 1.65;
-}
-
-.launcher-actions {
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.launcher-primary,
-.launcher-secondary {
-  min-height: 46px;
-  padding: 0 19px;
-  border: 1px solid var(--launcher-paper);
-  border-radius: 0;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease;
-}
-
-.launcher-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  background: var(--launcher-paper);
-  color: var(--launcher-ink);
-}
-
-.launcher-primary:hover {
-  background: #fff;
-}
-
-.launcher-secondary {
-  background: transparent;
-  color: var(--launcher-paper);
-}
-
-.launcher-secondary:hover {
-  background: rgba(255, 255, 255, 0.055);
-}
-
-.launcher-action-note {
-  max-width: 230px;
-  color: var(--launcher-muted);
-  font-size: 10px;
-  line-height: 1.45;
-}
-
-.launcher-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: -8px 0;
-  padding: 10px 12px;
-  border: 1px solid rgba(215, 91, 71, 0.65);
-  background: rgba(215, 91, 71, 0.08);
-  color: #f3b1a7;
-  font-size: 11px;
-}
-
-.launcher-error button {
-  padding: 4px 8px;
-  border: 1px solid rgba(243, 177, 167, 0.45);
-  border-radius: 0;
-  background: transparent;
-  color: inherit;
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.launcher-visual {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: clamp(30px, 5vh, 56px) clamp(30px, 4vw, 60px);
-  background-color: #0c1116;
-  background-image:
-    linear-gradient(rgba(233, 230, 222, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(233, 230, 222, 0.025) 1px, transparent 1px);
-  background-size: 32px 32px;
-}
-
-.launcher-visual-head {
+.launcher-panel-label {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 13px;
-  border-bottom: 1px solid var(--launcher-line);
-  color: var(--launcher-muted);
+  margin-bottom: 8px;
+  color: var(--muted);
+  font: 600 8px/1.2 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.13em;
+}
+
+.launcher-era-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+}
+
+.launcher-era-chip {
+  min-width: 0;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.48);
+  color: var(--muted);
+  cursor: pointer;
+  font: 650 10px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.16em;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.launcher-era-chip:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.launcher-era-chip.active {
+  border-color: var(--ink);
+  background: #fff;
+  color: var(--ink);
+}
+
+.launcher-era-swatch {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 1px;
+  background: #cfccc4;
+  box-shadow: inset 0 0 0 1px rgba(23, 23, 23, 0.08);
+}
+
+.launcher-era-facts {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  margin: 9px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.launcher-era-facts div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0 9px;
+  border-left: 1px solid var(--line);
+}
+
+.launcher-era-facts div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.launcher-era-facts dt {
+  color: var(--muted);
+  font: 600 7px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.launcher-era-facts dd {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.launcher-online-summary {
+  min-height: 93px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+}
+
+.launcher-online-summary > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.launcher-online-summary strong {
+  color: var(--ink);
+  font: 650 12px/1.25 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.launcher-online-summary small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.launcher-live-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 5px rgba(173, 40, 49, 0.11);
 }
 
 .launcher-globe-wrap {
   position: relative;
-  width: min(100%, 440px);
+  width: min(36vh, 340px);
   aspect-ratio: 1;
-  align-self: center;
   overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(23, 23, 23, 0.05), 0 20px 60px rgba(23, 23, 23, 0.1);
 }
 
-.launcher-globe-wrap::before,
 .launcher-globe-wrap::after {
   content: "";
   position: absolute;
+  inset: 5%;
   z-index: 2;
-  pointer-events: none;
-}
-
-.launcher-globe-wrap::before {
-  inset: 4%;
-  border: 1px solid rgba(233, 230, 222, 0.09);
+  border: 1px solid rgba(247, 244, 236, 0.12);
   border-radius: 50%;
-}
-
-.launcher-globe-wrap::after {
-  top: 50%;
-  left: 0;
-  right: 0;
-  border-top: 1px solid rgba(233, 230, 222, 0.08);
+  pointer-events: none;
 }
 
 .launcher-globe-wrap canvas {
@@ -451,19 +360,20 @@
 
 .launcher-globe-chip {
   position: absolute;
+  bottom: 9%;
   left: 50%;
-  bottom: 5%;
   z-index: 3;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 11px;
+  gap: 7px;
+  padding: 6px 11px;
   transform: translateX(-50%);
-  border: 1px solid var(--launcher-line-strong);
-  background: rgba(12, 17, 22, 0.9);
-  color: var(--launcher-paper-soft);
-  font: 600 9px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  letter-spacing: 0.13em;
+  border: 1px solid rgba(247, 244, 236, 0.26);
+  border-radius: 999px;
+  background: rgba(8, 12, 16, 0.88);
+  color: #deddd8;
+  font: 600 8px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.14em;
   white-space: nowrap;
 }
 
@@ -475,179 +385,297 @@
 }
 
 .launcher-globe-dot.live {
-  background: var(--launcher-accent);
+  background: var(--red);
 }
 
-.launcher-telemetry {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin: 0;
-  border-top: 1px solid var(--launcher-line);
-}
-
-.launcher-telemetry div {
-  min-width: 0;
-  padding: 14px 10px 0;
-}
-
-.launcher-telemetry div:first-child {
-  padding-left: 0;
-}
-
-.launcher-telemetry div + div {
-  border-left: 1px solid var(--launcher-line);
-}
-
-.launcher-telemetry dt {
-  color: var(--launcher-muted);
-  font: 600 8px/1.3 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.launcher-telemetry dd {
-  margin: 5px 0 0;
-  overflow: hidden;
-  color: var(--launcher-paper);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.launcher-footer {
-  min-height: 42px;
+.launcher-actions {
+  min-height: 44px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  gap: 9px;
+}
+
+.launcher-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 0 clamp(24px, 4vw, 64px);
-  border-top: 1px solid var(--launcher-line);
-  color: #676f76;
+  gap: 24px;
+  padding: 0 20px;
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  cursor: pointer;
+  font: 650 10px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: transform 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.launcher-btn:hover {
+  transform: translateY(-1px);
+}
+
+.launcher-btn-primary {
+  min-width: 180px;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.launcher-btn-primary:hover {
+  background: #30302e;
+}
+
+.launcher-btn-secondary {
+  background: rgba(247, 244, 236, 0.8);
+  color: var(--ink);
+}
+
+.launcher-btn-secondary:hover {
+  background: #fff;
+}
+
+.launcher-caption {
+  max-width: 215px;
+  margin: 0 0 0 4px;
+  color: var(--muted);
+  font: 600 8px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   letter-spacing: 0.08em;
 }
 
+.launcher-error {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  border: 1px solid rgba(173, 40, 49, 0.48);
+  background: rgba(255, 255, 255, 0.9);
+  color: #781c23;
+  font-size: 10px;
+}
+
+.launcher-error button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid rgba(173, 40, 49, 0.38);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.launcher-footer {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 26px;
+  border-top: 1px solid var(--line);
+  background: rgba(247, 244, 236, 0.76);
+  color: var(--muted);
+  font: 600 8px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.12em;
+  backdrop-filter: blur(8px);
+}
+
 .launcher-scope button:focus-visible {
-  outline: 2px solid var(--launcher-accent);
+  outline: 2px solid var(--blue);
   outline-offset: 3px;
 }
 
-@media (max-width: 980px) {
-  .launcher-grid {
-    grid-template-columns: minmax(480px, 1fr) minmax(310px, 0.7fr);
+@media (max-height: 820px) and (min-width: 701px) {
+  .launcher-stage {
+    gap: 12px;
+    padding-top: 22px;
   }
 
-  .launcher-control {
-    padding-right: 40px;
-    padding-left: 40px;
+  .launcher-mast svg {
+    width: 54px;
+    height: 42px;
+    margin-bottom: 5px;
   }
 
-  .launcher-era-list {
-    grid-template-columns: 1fr 1fr;
+  .launcher-mast h1 {
+    font-size: 26px;
+  }
+
+  .launcher-console {
+    gap: 10px;
   }
 
   .launcher-era-panel,
-  .launcher-online-panel {
-    min-height: 215px;
+  .launcher-online-summary {
+    min-height: 86px;
+  }
+
+  .launcher-globe-wrap {
+    width: min(31vh, 270px);
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 700px) {
   .launcher-scope {
     min-height: 100dvh;
     overflow: auto;
   }
 
-  .launcher-topbar {
-    min-height: 64px;
-    padding: 0 18px;
+  .launcher-streaks,
+  .launcher-pattern {
+    position: absolute;
+    min-height: 100%;
   }
 
-  .launcher-build {
-    letter-spacing: 0.08em;
-    font-size: 0;
+  .launcher-streaks {
+    opacity: 0.24;
   }
 
-  .launcher-build b {
+  .launcher-corner {
+    display: none;
+  }
+
+  .launcher-stage {
+    width: 100%;
+    min-height: calc(100dvh - 34px);
+    justify-content: center;
+    gap: 14px;
+    padding: max(16px, env(safe-area-inset-top)) 14px max(48px, calc(env(safe-area-inset-bottom) + 40px));
+  }
+
+  .launcher-mast svg {
+    width: 48px;
+    height: 38px;
+    margin-bottom: 5px;
+  }
+
+  .launcher-kicker {
+    display: none;
+  }
+
+  .launcher-mast h1 {
+    font-size: clamp(20px, 6.5vw, 26px);
+    letter-spacing: 0.22em;
+    text-indent: 0.22em;
+  }
+
+  .launcher-subtitle {
+    margin-top: 5px;
+    font-size: 8px;
+    letter-spacing: 0.32em;
+    text-indent: 0.32em;
+  }
+
+  .launcher-console {
+    gap: 12px;
+  }
+
+  .launcher-toggle {
+    width: 100%;
+  }
+
+  .launcher-toggle button {
+    min-height: 48px;
+    padding: 0 8px;
     font-size: 9px;
+    letter-spacing: 0.07em;
   }
 
-  .launcher-grid {
-    display: block;
-  }
-
-  .launcher-control {
-    min-height: calc(100dvh - 106px);
-    justify-content: flex-start;
-    gap: 22px;
-    padding: 34px 18px 28px;
-    border-right: 0;
-  }
-
-  .launcher-heading h1 {
-    max-width: 350px;
-    font-size: clamp(38px, 12vw, 52px);
-  }
-
-  .launcher-lede {
-    margin-top: 14px;
-    font-size: 13px;
-  }
-
-  .launcher-mode-picker {
-    grid-template-columns: 1fr;
-  }
-
-  .launcher-mode + .launcher-mode {
-    border-top: 1px solid var(--launcher-line);
-    border-left: 0;
+  .launcher-toggle-mark {
+    margin-right: 5px;
+    font-size: 7px;
   }
 
   .launcher-era-panel,
-  .launcher-online-panel {
+  .launcher-online-summary {
     min-height: 0;
+    padding: 10px;
   }
 
-  .launcher-era-list {
-    grid-template-columns: 1fr 1fr;
+  .launcher-era-row {
+    grid-template-columns: repeat(4, minmax(70px, 1fr));
+    gap: 6px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
   }
 
-  .launcher-era {
-    min-height: 72px;
+  .launcher-era-row::-webkit-scrollbar {
+    display: none;
   }
 
-  .launcher-online-panel {
+  .launcher-era-chip {
+    min-height: 48px;
+    padding: 0 8px;
+  }
+
+  .launcher-era-facts {
+    grid-template-columns: 1.35fr 1fr 0.9fr;
+  }
+
+  .launcher-era-facts div {
     display: block;
+    padding: 0 7px;
   }
 
-  .launcher-online-panel p {
-    margin-top: 14px;
+  .launcher-era-facts dt {
+    margin-bottom: 4px;
+  }
+
+  .launcher-era-facts dd {
+    font-size: 8px;
+  }
+
+  .launcher-online-summary {
+    min-height: 79px;
+  }
+
+  .launcher-online-summary strong {
+    font-size: 10px;
+  }
+
+  .launcher-globe-wrap {
+    width: min(59vw, 248px);
   }
 
   .launcher-actions {
+    width: 100%;
     align-items: stretch;
     flex-wrap: wrap;
   }
 
-  .launcher-primary {
-    flex: 1 1 210px;
+  .launcher-btn {
+    min-height: 48px;
   }
 
-  .launcher-secondary {
+  .launcher-btn-primary {
+    flex: 1 1 190px;
+  }
+
+  .launcher-btn-secondary {
     flex: 0 1 auto;
   }
 
-  .launcher-action-note {
+  .launcher-caption {
     flex-basis: 100%;
     max-width: none;
+    margin: 0;
+    text-align: center;
   }
 
-  .launcher-visual {
-    display: none;
+  .launcher-error button {
+    min-height: 40px;
   }
 
   .launcher-footer {
-    min-height: 42px;
-    padding: 0 18px;
+    min-height: 34px;
+    padding: 0 14px max(0px, env(safe-area-inset-bottom));
   }
 
   .launcher-footer span:last-child {
@@ -656,29 +684,36 @@
 }
 
 @media (max-width: 390px) {
-  .launcher-control {
-    padding-top: 26px;
+  .launcher-stage {
+    gap: 11px;
+    padding-top: max(12px, env(safe-area-inset-top));
   }
 
-  .launcher-heading h1 {
-    font-size: 38px;
-  }
-
-  .launcher-wordmark strong {
-    font-size: 14px;
+  .launcher-globe-wrap {
+    width: min(55vw, 215px);
   }
 
   .launcher-actions {
     display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  }
+
+  .launcher-scope[data-mode="mp"] .launcher-actions {
     grid-template-columns: 1fr;
   }
 
-  .launcher-secondary {
+  .launcher-btn {
     width: 100%;
+    min-width: 0;
+    padding: 0 14px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .launcher-streaks {
+    display: none;
+  }
+
   .launcher-scope *,
   .launcher-scope *::before,
   .launcher-scope *::after {
