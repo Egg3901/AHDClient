@@ -53,6 +53,14 @@ describe("desktop platform configuration", () => {
     expect(workflow).toContain("--bundles dmg");
   });
 
+  it("tests the desktop Rust target before merge", () => {
+    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
+    const workflow = readFileSync(join(sourceDirectory, "../../../.github/workflows/verify.yml"), "utf8");
+    expect(workflow).toContain("libwebkit2gtk-4.1-dev");
+    expect(workflow).toContain("dtolnay/rust-toolchain@stable");
+    expect(workflow).toContain("cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml");
+  });
+
   it("keeps a reproducible Android project and build commands", () => {
     const sourceDirectory = dirname(fileURLToPath(import.meta.url));
     const workflow = readFileSync(
@@ -68,5 +76,18 @@ describe("desktop platform configuration", () => {
     expect(workflow).toContain('"platforms;android-36"');
     expect(workflow).toContain('"build-tools;36.0.0"');
     expect(workflow).toContain('"ndk;27.0.12077973"');
+    expect(workflow).not.toContain("npm exec vitest");
+    expect(workflow).toContain("npm test --workspace apps/desktop");
+    expect(workflow).toContain("npm test --workspace packages/content");
+    expect(workflow).toContain("npm test --workspace packages/engine -- --run src/engine.test.ts");
+  });
+
+  it("keeps launcher effects inside the local security boundary", () => {
+    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
+    const launcher = readFileSync(join(sourceDirectory, "launcher/Launcher.tsx"), "utf8");
+    const globe = readFileSync(join(sourceDirectory, "launcher/CommandGlobe.tsx"), "utf8");
+    expect(launcher).not.toContain("fetch(");
+    expect(globe).toContain('window.addEventListener("resize", handleResize);');
+    expect(globe).toContain('window.removeEventListener("resize", handleResize);');
   });
 });

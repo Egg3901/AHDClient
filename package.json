@@ -2,7 +2,7 @@
   "name": "rotunda",
   "private": true,
   "version": "0.1.0",
-  "description": "A House Divided: Solo - singleplayer desktop edition",
+  "description": "A House Divided client with local singleplayer and multiplayer entry points",
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
   "workspaces": [
@@ -17,6 +17,6 @@
     "verify:qa": "npm run verify:qa --workspace packages/cli"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   }
 }

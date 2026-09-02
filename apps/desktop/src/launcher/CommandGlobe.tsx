@@ -185,10 +185,11 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
     if (!reduceMotion) {
       raf = requestAnimationFrame(frame);
     }
-    window.addEventListener("resize", () => {
+    const handleResize = () => {
       resize();
       drawFrame();
-    });
+    };
+    window.addEventListener("resize", handleResize);
 
     const onMotionChange = (e: MediaQueryListEvent) => {
       if (e.matches) {
@@ -204,7 +205,7 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
 
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize as never);
+      window.removeEventListener("resize", handleResize);
       if (typeof mql.removeEventListener === "function") {
         mql.removeEventListener("change", onMotionChange);
       }

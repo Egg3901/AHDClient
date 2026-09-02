@@ -54,7 +54,7 @@ jobs:
 
       - run: npm ci
       - run: npm run typecheck
-      - run: npm exec vitest -- run apps/desktop/src
+      - run: npm test --workspace apps/desktop
 
       - uses: tauri-apps/tauri-action@v0.6.2
         env:

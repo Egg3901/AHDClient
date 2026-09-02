@@ -2,39 +2,9 @@ import { useEffect, useState } from "react";
 import { listEras } from "@rotunda/engine";
 import { CommandGlobe, themeForEra } from "./CommandGlobe.js";
 import { StreakField } from "./StreakField.js";
-import { ONLINE_URL } from "../onlineTarget.js";
 import "./launcher.css";
 
 type Mode = "sp" | "mp";
-type ConnStatus = "unknown" | "checking" | "online" | "offline";
-
-/**
- * Attempt-and-report reachability check against the live site, using the
- * normal browser `fetch` API from the "main" renderer — not the Tauri HTTP
- * plugin, so no capability grant is needed for this (per FRAMEWORK.md
- * security doctrine, capabilities stay minimal and per-window; this call
- * needs none). `no-cors`/`HEAD` means we can't read a status code, but a
- * resolved fetch confirms the network path exists; a thrown error (DNS
- * failure, connection refused, timeout) confirms it doesn't.
- */
-async function pingOnline(url: string, timeoutMs = 4000): Promise<boolean> {
-  if (typeof fetch !== "function") return true;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    await fetch(url, {
-      method: "HEAD",
-      mode: "no-cors",
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    return true;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 interface Props {
   onNewWorld: (eraId: string) => void;
@@ -54,8 +24,6 @@ export function Launcher({
   const eras = listEras();
   const [mode, setMode] = useState<Mode>("sp");
   const [eraId, setEraId] = useState<string>(() => eras[0]?.id ?? "1953");
-  const [connStatus, setConnStatus] = useState<ConnStatus>("unknown");
-  const [connError, setConnError] = useState<string | null>(null);
 
   useEffect(() => {
     if (eras.length > 0 && !eras.some((e) => e.id === eraId)) {
@@ -64,40 +32,6 @@ export function Launcher({
   }, [eras, eraId]);
 
   const mp = mode === "mp";
-
-  // Ping as soon as multiplayer is selected so the status badge reflects
-  // reality before the player ever clicks ENTER WORLD.
-  useEffect(() => {
-    if (!mp) return;
-    let cancelled = false;
-    setConnStatus("checking");
-    void pingOnline(ONLINE_URL).then((ok) => {
-      if (!cancelled) setConnStatus(ok ? "online" : "offline");
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [mp]);
-
-  const handleEnterWorld = async () => {
-    setConnError(null);
-    // Trust a fresh "online" read; otherwise re-check right now so a stale
-    // "offline" badge (or a flaky first ping) doesn't block a working
-    // connection, and a truly dead connection gets reported instead of
-    // opening a window onto nothing.
-    let status = connStatus;
-    if (status !== "online") {
-      setConnStatus("checking");
-      const ok = await pingOnline(ONLINE_URL);
-      status = ok ? "online" : "offline";
-      setConnStatus(status);
-    }
-    if (status !== "online") {
-      setConnError("Can't reach ahousedividedgame.com right now. Check your connection and try again.");
-      return;
-    }
-    onPlayOnline();
-  };
 
   return (
     <div className="launcher-scope">
@@ -241,17 +175,12 @@ export function Launcher({
           <div className="launcher-actions">
             <button
               className="launcher-btn"
-              onClick={() => void handleEnterWorld()}
-              disabled={connStatus === "checking"}
+              onClick={onPlayOnline}
             >
-              {connStatus === "checking" ? "CONNECTING…" : "ENTER WORLD"}
+              ENTER WORLD
             </button>
-            <span className="launcher-caption launcher-conn-status" data-status={connStatus}>
-              <span className={`launcher-conn-dot launcher-conn-dot-${connStatus}`} aria-hidden="true" />
-              {connStatus === "checking" && "checking connection…"}
-              {connStatus === "online" && "reachable · ahousedividedgame.com"}
-              {connStatus === "offline" && "unreachable · ahousedividedgame.com"}
-              {connStatus === "unknown" && "ahousedividedgame.com"}
+            <span className="launcher-caption">
+              secure desktop window · system browser on Android
             </span>
           </div>
         ) : (
@@ -268,16 +197,10 @@ export function Launcher({
           </div>
         )}
 
-        {mp && connError && (
-          <div className="launcher-error" role="alert">
-            <span>{connError}</span>
-            <button onClick={() => setConnError(null)}>Dismiss</button>
-          </div>
-        )}
       </div>
 
       <footer className="launcher-footer">
-        ROTUNDA 0.1 &middot; POLYFORM NC 1.0.0
+        ROTUNDA 0.9.0 &middot; POLYFORM NC 1.0.0
       </footer>
     </div>
   );
