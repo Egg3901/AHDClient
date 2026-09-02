@@ -92,7 +92,11 @@ export type BillProvisionType =
   | "tariff"
   | "subsidy"
   | "nationalize"
-  | "privatize";
+  | "privatize"
+  // W28: currency union accession. Source: src/lib/billEnactment.ts
+  // applyEuroAdoptionProvision "euro_adoption" provision type, generalized —
+  // see finance/currencyUnion.ts file doc.
+  | "currency_union";
 
 export interface BillProvision {
   type: BillProvisionType;
@@ -102,6 +106,8 @@ export interface BillProvision {
   economic?: number;
   social?: number;
   proposedRate?: number;
+  /** Target union id for type "currency_union". Source: finance/currencyUnion.ts. */
+  currencyUnionId?: string;
   // For economy/partySupport provisions, carry delta payload via catalog
 }
 

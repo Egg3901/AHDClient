@@ -120,6 +120,10 @@ import {
   stateOwnershipConcentrationPhase,
 } from "../economy/phases.js";
 import { recordWorldHistoryPhase } from "../history/phases.js";
+import { nuclearProductionPhase, coldWarTensionPhase } from "../coldWar/phases.js";
+import { warsTurnPhase } from "../wars/phases.js";
+import { ministerialOrdersPhase } from "../ministerialOrders/phases.js";
+import { policyEffectsPhase } from "../policyEffects/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -461,5 +465,31 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // economicVitalSignsPhase, is correct rather than a deviation to fix in a
   // future re-golden.
   recordWorldHistoryPhase,
+  // W32 cold war / world politics cluster, at END before newsMaintenance —
+  // same rng-stream-stability rule as every other tail cluster above (none
+  // of these four phases draw rng either way, so the rule here is purely
+  // about not reordering every later tail phase's position). Relative order:
+  // nuclearProductionPhase first (a warhead built this turn is already
+  // counted in this SAME turn's arsenal-pressure term), then warsTurnPhase
+  // (a conflict resolved this turn stops contributing war pressure this same
+  // turn), then coldWarTensionPhase (reads both). wars/alignment/settlement/
+  // internationalOrgs are ported "to the depth mainline models 1953
+  // playables" per the wave brief — see wars/types.ts, alignment/*.ts,
+  // internationalOrgs/types.ts file docs for the named PORT-STUB blockers
+  // (B13-B16) on everything beyond that (multipolar poles, org resolutions/
+  // dues/leadership, full unit-level combat). alignment/internationalOrgs
+  // have no per-turn mechanic left un-blocked this wave, so neither gets a
+  // registered phase — see their file docs.
+  nuclearProductionPhase,
+  warsTurnPhase,
+  coldWarTensionPhase,
+  // W28 enactment depth cluster, at END before newsMaintenance — same rule.
+  // ministerialOrdersPhase before policyEffectsPhase mirrors mainline's
+  // documented serialization (crisisTurn -> navairOperations ->
+  // ministerialOrders -> policyEffects, stateEffectsPhase.ts:107-126) so
+  // policyEffects' target recompute reads the order-shocked nationalMetrics
+  // value the same turn, same as mainline.
+  ministerialOrdersPhase,
+  policyEffectsPhase,
   newsMaintenancePhase,
 ];

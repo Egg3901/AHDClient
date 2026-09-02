@@ -83,6 +83,19 @@ function makeWorld(): WorldState {
     capitalGrowth: {},
     unownedSectors: {},
     history: { macro: {}, primeRate: {}, partyStrength: {}, playerWealth: [], moneySupply: {} },
+    policyLedger: {},
+    ministerialOrders: [],
+    enactmentGates: { debtCeilingCrisis: {} },
+    currencyUnions: {},
+    coldWarTension: { value: 50, pressureFloor: 50, updatedTurn: 5, events: [] },
+    nuclearPrograms: {},
+    conflicts: [],
+    alignments: {
+      US: { countryId: "US", shares: { WEST: 100 }, nonAligned: 0, updatedTurn: 5 },
+      UK: { countryId: "UK", shares: { WEST: 100 }, nonAligned: 0, updatedTurn: 5 },
+    },
+    settlements: [],
+    internationalOrgs: {},
   };
 }
 

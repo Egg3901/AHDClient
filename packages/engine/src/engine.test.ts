@@ -172,6 +172,11 @@ describe("advanceTurn", () => {
       "inflationRecalc",
       "economicVitalSigns",
       "recordWorldHistory",
+      "nuclearProduction",
+      "warsTurn",
+      "coldWarTension",
+      "ministerialOrders",
+      "policyEffects",
       "newsMaintenance",
     ]);
   });

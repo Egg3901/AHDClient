@@ -8,6 +8,12 @@ import type { ExecutiveState } from "./executive/types.js";
 import type { ImpeachmentCase } from "./impeachment/types.js";
 import type { BankLoan, DepositInsuranceFund } from "./banking/types.js";
 import type { WorldHistory } from "./history/types.js";
+import type { PolicyLedgerEntry } from "./policyEffects/types.js";
+import type { MinisterialOrder } from "./ministerialOrders/types.js";
+import type { ColdWarTensionState, NuclearProgramState } from "./coldWar/types.js";
+import type { Conflict, Settlement } from "./wars/types.js";
+import type { AlignmentRecord } from "./alignment/types.js";
+import type { InternationalOrgState } from "./internationalOrgs/types.js";
 
 /**
  * The entire game world is one serializable document. No database: the world
@@ -331,6 +337,46 @@ export interface WorldState {
    * UI history hack (apps/desktop/src/economy/history.ts). Schema v38.
    */
   history: WorldHistory;
+
+  // ── W28: enactment depth ──────────────────────────────────────────────
+  /** DECAY-path policy ledger, keyed by bill id. See policyEffects/types.js file doc. Schema v37. */
+  policyLedger: Record<string, PolicyLedgerEntry>;
+  /** Cabinet-minister standing directives. Issuance is PORT-STUB (B07); apply path is live. Schema v37. */
+  ministerialOrders: MinisterialOrder[];
+  /** Enactment-time gates (currently: debt-ceiling crisis per country). See budget/debtCeiling.js. Schema v37. */
+  enactmentGates: { debtCeilingCrisis: Record<string, DebtCeilingCrisisState> };
+  /** Currency union accession state, keyed by union id. See finance/currencyUnion.js (B08: no seeded 1953 union). Schema v37. */
+  currencyUnions: Record<string, CurrencyUnionState>;
+
+  // ── W32: cold war / world politics ─────────────────────────────────────
+  /** Global cold-war tension, one shared value. See coldWar/tension.js. Schema v37. */
+  coldWarTension: ColdWarTensionState;
+  /** Nuclear weapons programs, one per NUCLEAR_CAPABLE playable country. See coldWar/nuclear.js. Schema v37. */
+  nuclearPrograms: Record<string, NuclearProgramState>;
+  /** Active/resolved conflicts. Rotunda-native settlement model — see wars/types.js file doc (B15). Schema v37. */
+  conflicts: Conflict[];
+  /** Cold War bloc alignment shares per country. See alignment/types.js (B13: bipolar only). Schema v37. */
+  alignments: Record<string, AlignmentRecord>;
+  /** Resolved-conflict settlement records. See wars/types.js. Schema v37. */
+  settlements: Settlement[];
+  /** International organizations, static membership tracker. See internationalOrgs/types.js (B16). Schema v37. */
+  internationalOrgs: Record<string, InternationalOrgState>;
+}
+
+/** Source: src/lib/budget/debt.ts triggerDebtCeilingCrisis state shape (per-country here — see budget/debtCeiling.ts file doc). */
+export interface DebtCeilingCrisisState {
+  active: boolean;
+  triggeredAtTurn: number;
+  turnsElapsed: number;
+  resolved: boolean;
+}
+
+/** Source: src/lib/billEnactment.ts applyEuroAdoptionProvision, generalized — see finance/currencyUnion.ts file doc. */
+export interface CurrencyUnionState {
+  id: string;
+  members: string[];
+  joined: string[];
+  active: boolean;
 }
 
 /**

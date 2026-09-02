@@ -49,6 +49,22 @@ import { emptyWorldHistory } from "./history/types.js";
 // ascending order (v33 -> v34 -> v35 -> v36 -> v37 -> v38), and confirm no
 // other wave introduces a field named `history` (W41 is authoritative for
 // that name — see types.ts WorldState.history file doc).
+import { NUCLEAR_CAPABLE } from "./coldWar/nuclear.js";
+import { TENSION_BASELINE } from "./coldWar/constants.js";
+import type { ColdWarTensionState, NuclearProgramState } from "./coldWar/types.js";
+import type { AlignmentRecord, AlignmentPoleId } from "./alignment/types.js";
+import { normalizeShares } from "./alignment/alignment.js";
+import { seedInternationalOrgs } from "./internationalOrgs/seed.js";
+
+// Pre-allocated v37 for the W28 (enactment depth) + W32 (cold war / world
+// politics) batch. Main is v33 as of this wave's branch point; parallel
+// waves hold v29 (already merged, earlier in the chain), v35 and v36
+// (in-flight elsewhere, not yet on this branch). This wave writes a single
+// migration block jumping latest (33) -> 37 directly (save.ts), since v34-36
+// do not exist on THIS branch's history — a merge resolver reconciling with
+// the v35/v36 waves will need to split that block into a proper
+// v33->v34->35->36->37 chain depending on merge order, same pattern as every
+// prior multi-wave resolver note in save.ts (see v16->v17, v27->v28, etc.).
 export const SCHEMA_VERSION = 38;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
@@ -445,6 +461,36 @@ export function createWorld(options: NewWorldOptions): WorldState {
     unownedSectors[key] = state;
   }
 
+  // ── W32: nuclear programs, one per NUCLEAR_CAPABLE playable country ────
+  // No production order is placed at seed (no defence-seat action/AI issues
+  // one yet — see coldWar/nuclear.ts B11); nuclearProductionPhase is a no-op
+  // until something sets productionRate > 0.
+  const nuclearPrograms: Record<string, NuclearProgramState> = {};
+  for (const countryId of NUCLEAR_CAPABLE) {
+    if (!countries[countryId]?.playable) continue;
+    nuclearPrograms[countryId] = { countryId, adopted: {}, warheads: 0, productionRate: 0 };
+  }
+
+  const coldWarTension: ColdWarTensionState = { value: TENSION_BASELINE, pressureFloor: TENSION_BASELINE, updatedTurn: 0, events: [] };
+
+  // ── W32: alignment shares, playable countries only (B13: bipolar 1953
+  // pack; non-playable countries carry no alignment record this wave). US/UK
+  // seed 100% WEST, RU/DD 100% EAST — the historical bloc split at game
+  // start, before any play/channel drift mechanic exists to move it (see
+  // alignment/alignment.ts file doc, B14).
+  const WEST_ALIGNED = new Set(["US", "UK"]);
+  const EAST_ALIGNED = new Set(["RU", "DD"]);
+  const alignments: Record<string, AlignmentRecord> = {};
+  for (const countryId of Object.keys(countries)) {
+    if (!countries[countryId]?.playable) continue;
+    const pole: AlignmentPoleId | null = WEST_ALIGNED.has(countryId) ? "WEST" : EAST_ALIGNED.has(countryId) ? "EAST" : null;
+    const raw: Partial<Record<AlignmentPoleId, number>> = pole ? { [pole]: 100 } : {};
+    const shares = normalizeShares(raw, ["WEST", "EAST"]);
+    alignments[countryId] = { countryId, shares: shares.shares, nonAligned: shares.nonAligned, updatedTurn: 0 };
+  }
+
+  const internationalOrgs = seedInternationalOrgs(Object.keys(countries));
+
   const world: WorldState = {
     meta: {
       schemaVersion: SCHEMA_VERSION,
@@ -561,6 +607,18 @@ export function createWorld(options: NewWorldOptions): WorldState {
     capitalGrowth,
     unownedSectors,
     history: emptyWorldHistory(),
+    // W28
+    policyLedger: {},
+    ministerialOrders: [],
+    enactmentGates: { debtCeilingCrisis: {} },
+    currencyUnions: {},
+    // W32
+    coldWarTension,
+    nuclearPrograms,
+    conflicts: [],
+    alignments,
+    settlements: [],
+    internationalOrgs,
   };
   assignUsSeatGeography(world);
   // W12: charter the financial-sector NPC corp of every playable country as

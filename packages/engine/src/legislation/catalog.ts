@@ -36,7 +36,15 @@ export interface CatalogEntry {
     step: number;
     baselineRate: number;
   };
-  targets: Array<{ metricId: string; weight: number }>;
+  /**
+   * Metric targets this law's DECAY-path effect pulls on. `higherBetter`
+   * defaults true when absent — mainline's LegislationType carries an
+   * authored isHigherBetter per metric (src/lib/db/types/legislation.ts);
+   * Rotunda's catalog does not carry that flag yet for every entry (PORT-STUB
+   * B03: per-metric direction authoring), so entries needing the opposite
+   * sign must set it explicitly. Consumed by policyEffects/phases.ts.
+   */
+  targets: Array<{ metricId: string; weight: number; higherBetter?: boolean }>;
   status: CatalogStatus;
   blockingSystem?: string;
   /** Solo effect descriptor for available entries */
@@ -49,6 +57,35 @@ export interface CatalogEntry {
       supportDelta?: number;
     };
   };
+  /**
+   * W28: LegislationType.demographicEffects[] channel (src/lib/db/types/legislation.ts
+   * DemographicEffect). Per-group/per-axis shifts applied every turn by
+   * demographics/demographicEffects.ts runLegislationDemographicEffects, using
+   * the enacting PolicyLedgerEntry's `economic` strength (effectDirection
+   * stands in for it here — see policyEffects/phases.ts file doc, B01: no
+   * per-option -3..3 "economic" ladder is authored in content yet, so
+   * strength = effectDirection, not a graduated intensity).
+   * No entries in AVAILABLE currently author this array — the mechanism is
+   * wired end-to-end and tested with a synthetic entry; content seeding a
+   * real demographicEffects[] array on a catalog entry is a separate task.
+   */
+  demographicEffects?: Array<{
+    /** Voter group id, keyed against StateDemographics.groups. */
+    groupId: string;
+    target: "population" | "economicLean" | "socialLean" | "turnout";
+    /** +1 pushes the target up, -1 pushes it down. Source: DemographicEffect.direction. */
+    direction: 1 | -1;
+    /** Magnitude scale, clamped [0.25, 3] by the applicator; default 1. Source: DemographicEffect.magnitude. */
+    magnitude?: number;
+    /**
+     * When true, shifts the group's BASELINE permanently instead of a
+     * capped/decaying overlay (mainline's durable-realignment channel,
+     * src/lib/demographics/durableRealignment.ts). PORT-STUB this wave —
+     * B04: no durable-baseline-rewrite path ported; permanent effects are
+     * skipped with a note rather than silently treated as temporary.
+     */
+    permanent?: boolean;
+  }>;
 }
 
 // Minimal ported catalog: select entries whose effect can be mapped to solo

@@ -1,4 +1,8 @@
 import { EXTERNAL_BROAD_MONEY_GDP_SHARE, SCHEMA_VERSION } from "./world.js";
+import { TENSION_BASELINE } from "./coldWar/constants.js";
+import { NUCLEAR_CAPABLE } from "./coldWar/nuclear.js";
+import { normalizeShares } from "./alignment/alignment.js";
+import { seedInternationalOrgs } from "./internationalOrgs/seed.js";
 import { assignUsSeatGeography } from "./elections/seatGeography.js";
 import { CENTRAL_BANK_COUNTRY_ANCHORS, CHAIR_TERM_TURNS } from "./centralBank/constants.js";
 import { seedCorporations, tickerForSector } from "./corporation/founding.js";
@@ -1631,6 +1635,89 @@ export function deserializeSave(raw: string): WorldState {
       if (typeof history["moneySupply"] !== "object" || history["moneySupply"] === null || Array.isArray(history["moneySupply"])) history["moneySupply"] = {};
     }
     save.world.meta.schemaVersion = 38;
+  }
+  // v33 -> v37: W28 (enactment depth) + W32 (cold war / world politics)
+  // batch. Pre-allocated v37 for this batch; parallel waves hold v35 and
+  // v36 (in-flight elsewhere, not yet on this branch's history) — this is a
+  // single migration block jumping latest (33) -> 37 directly, since v34-36
+  // do not exist as intermediate states on THIS branch.
+  //
+  // RESOLVER NOTE: on merge, chain in strict ascending order
+  // (v33 -> v34 -> v35 -> v36 -> v37) verifying that whichever wave lands
+  // v34/v35/v36 does NOT also introduce `policyLedger`, `ministerialOrders`,
+  // `enactmentGates`, `currencyUnions`, `coldWarTension`, `nuclearPrograms`,
+  // `conflicts`, `alignments`, `settlements`, or `internationalOrgs` (this
+  // batch is authoritative for those names). If a parallel wave's block
+  // lands first with real fields under different names, this block still
+  // only needs the version guard below renumbered — the backfill logic
+  // itself is additive and order-independent (every check is `if missing/
+  // malformed, seed`), same pattern as every prior multi-wave resolver note
+  // in this file (see v16->v17, v27->v28, v32->v33 above).
+  //
+  // All seeding below is deterministic — no RNG consumed, matching every
+  // other migration block in this file.
+  if (save.schemaVersion < 37) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const meta = w["meta"] as Record<string, unknown> | undefined;
+    const turn = typeof meta?.["turn"] === "number" ? (meta["turn"] as number) : 0;
+    const countries = w["countries"] as Record<string, { playable?: boolean }> | undefined;
+
+    // ── W28 ────────────────────────────────────────────────────────────
+    if (typeof w["policyLedger"] !== "object" || w["policyLedger"] === null || Array.isArray(w["policyLedger"])) {
+      w["policyLedger"] = {};
+    }
+    if (!Array.isArray(w["ministerialOrders"])) w["ministerialOrders"] = [];
+    if (typeof w["enactmentGates"] !== "object" || w["enactmentGates"] === null || Array.isArray(w["enactmentGates"])) {
+      w["enactmentGates"] = { debtCeilingCrisis: {} };
+    } else {
+      const gates = w["enactmentGates"] as Record<string, unknown>;
+      if (typeof gates["debtCeilingCrisis"] !== "object" || gates["debtCeilingCrisis"] === null || Array.isArray(gates["debtCeilingCrisis"])) {
+        gates["debtCeilingCrisis"] = {};
+      }
+    }
+    if (typeof w["currencyUnions"] !== "object" || w["currencyUnions"] === null || Array.isArray(w["currencyUnions"])) {
+      w["currencyUnions"] = {};
+    }
+
+    // ── W32 ────────────────────────────────────────────────────────────
+    if (typeof w["coldWarTension"] !== "object" || w["coldWarTension"] === null || Array.isArray(w["coldWarTension"])) {
+      w["coldWarTension"] = { value: TENSION_BASELINE, pressureFloor: TENSION_BASELINE, updatedTurn: turn, events: [] };
+    }
+    if (typeof w["nuclearPrograms"] !== "object" || w["nuclearPrograms"] === null || Array.isArray(w["nuclearPrograms"])) {
+      w["nuclearPrograms"] = {};
+    }
+    const nuclearPrograms = w["nuclearPrograms"] as Record<string, unknown>;
+    if (countries) {
+      for (const countryId of NUCLEAR_CAPABLE) {
+        if (!countries[countryId]?.playable) continue;
+        if (!nuclearPrograms[countryId]) {
+          nuclearPrograms[countryId] = { countryId, adopted: {}, warheads: 0, productionRate: 0 };
+        }
+      }
+    }
+    if (!Array.isArray(w["conflicts"])) w["conflicts"] = [];
+    if (typeof w["alignments"] !== "object" || w["alignments"] === null || Array.isArray(w["alignments"])) {
+      w["alignments"] = {};
+    }
+    const alignments = w["alignments"] as Record<string, unknown>;
+    if (countries) {
+      const WEST_ALIGNED = new Set(["US", "UK"]);
+      const EAST_ALIGNED = new Set(["RU", "DD"]);
+      for (const [countryId, country] of Object.entries(countries)) {
+        if (!country.playable) continue;
+        if (alignments[countryId]) continue;
+        const pole = WEST_ALIGNED.has(countryId) ? "WEST" : EAST_ALIGNED.has(countryId) ? "EAST" : null;
+        const raw: Partial<Record<"WEST" | "EAST", number>> = pole ? { [pole]: 100 } : {};
+        const shares = normalizeShares(raw, ["WEST", "EAST"]);
+        alignments[countryId] = { countryId, shares: shares.shares, nonAligned: shares.nonAligned, updatedTurn: turn };
+      }
+    }
+    if (!Array.isArray(w["settlements"])) w["settlements"] = [];
+    if (typeof w["internationalOrgs"] !== "object" || w["internationalOrgs"] === null || Array.isArray(w["internationalOrgs"])) {
+      w["internationalOrgs"] = seedInternationalOrgs(countries ? Object.keys(countries) : []);
+    }
+
+    save.world.meta.schemaVersion = 37;
   }
   return save.world;
 }
