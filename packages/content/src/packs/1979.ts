@@ -1,4 +1,5 @@
 import type { SeedPack } from "../types.js";
+import { BUDGETS_1979 } from "./budgets1979.js";
 import { usStates1979 } from "./usStates1979.js";
 import { ukRegions1979 } from "./ukRegions1979.js";
 import { ruRegions1979 } from "./ruRegions1979.js";
@@ -179,6 +180,8 @@ export const pack1979: SeedPack = {
   // State layer (regions, apportionment, registration) generated from mainline's
   // per-era bundles by scripts/generateStateLayer.ts; see each file's header.
   states: [...usStates1979, ...ukRegions1979, ...ruRegions1979, ...ddRegions1979],
+  // Authored national budgets for every playable country (generateBudgets.ts).
+  budgets: BUDGETS_1979,
   parties: [
     { id: "US_DEM", name: "Democratic Party", countryId: "US", abbreviation: "DEM", color: "#3B82F6", economicPosition: -2, socialPosition: -2 },
     { id: "US_REP", name: "Republican Party", countryId: "US", abbreviation: "REP", color: "#EF4444", economicPosition: 2, socialPosition: 2 },

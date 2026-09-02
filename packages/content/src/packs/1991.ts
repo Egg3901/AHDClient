@@ -1,4 +1,5 @@
 import type { SeedPack } from "../types.js";
+import { BUDGETS_1991 } from "./budgets1991.js";
 import { ROSTER_1991_PARTIES, ROSTER_1991_LEGISLATURES, ROSTER_1991_STATES } from "./roster1991.js";
 import { usStates1991 } from "./usStates1991.js";
 import { ukRegions1991 } from "./ukRegions1991.js";
@@ -130,6 +131,8 @@ export const pack1991: SeedPack = {
   // State layer (regions, apportionment, registration) generated from mainline's
   // per-era bundles by scripts/generateStateLayer.ts; see each file's header.
   states: [...ROSTER_1991_STATES, ...usStates1991, ...ukRegions1991],
+  // Authored national budgets for every playable country (generateBudgets.ts).
+  budgets: BUDGETS_1991,
   parties: [
     ...ROSTER_1991_PARTIES,
     { id: "US_DEM", name: "Democratic Party", countryId: "US", abbreviation: "DEM", color: "#3B82F6", economicPosition: -2, socialPosition: -2 },

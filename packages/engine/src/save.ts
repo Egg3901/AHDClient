@@ -1860,5 +1860,18 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 40;
   }
+  // v40 -> v41: tax-rate ladder (ticket #1102 phase-in). Adds
+  // CountryBudget.taxRatePhaseIn (backfilled {}) and Bill.selectedRate
+  // (optional, no backfill: pre-v41 tax bills enact at the catalog baseline).
+  if (save.schemaVersion < 41) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const budgets = w["budgets"] as Record<string, Record<string, unknown>> | undefined;
+    if (budgets) {
+      for (const b of Object.values(budgets)) {
+        if (typeof b["taxRatePhaseIn"] !== "object" || b["taxRatePhaseIn"] === null) b["taxRatePhaseIn"] = {};
+      }
+    }
+    save.world.meta.schemaVersion = 41;
+  }
   return save.world;
 }

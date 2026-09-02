@@ -22,6 +22,8 @@ import { UNEMPLOYMENT_MIN, UNEMPLOYMENT_MAX } from "../economy/macroConstants.js
 import { triggerDebtCeilingCrisis } from "../budget/debtCeiling.js";
 import { applyCurrencyUnionProvision } from "../finance/currencyUnion.js";
 import type { PolicyLedgerEntry } from "../policyEffects/types.js";
+import { stepTaxRate, needsPhaseIn } from "../budget/taxRatePhaseIn.js";
+import { calculateBudgetRevenue } from "../budget/revenue.js";
 
 const VOTING_TURNS = 2;
 const EXEC_WINDOW_TURNS = 2;
@@ -223,12 +225,27 @@ export function applyBillEffects(world: WorldState, bill: Bill): void {
       triggerDebtCeilingCrisis(world, bill.countryId, world.meta.turn);
     }
   }
-  // Tax-rate enactment: where mainline writes billEnactment.ts applyTaxRateChange,
-  // solo's per-option rate ladder is not yet ported (catalog levels store gdpCostFraction, not rate steps).
-  // Blocking system: budget/taxRateLadder — connect the real budget read, PORT-STUB the detailed rate decode.
-  if (catalog?.kind === "tax" && catalog.taxPolicy && budget) {
-    // PORT-STUB: detailed rate from option ladder deferred; no rate write yet.
-    void budget;
+  // Tax-rate enactment. Source: src/lib/billEnactment.ts applyTaxRateChange —
+  // the selected option's rate becomes the target; the budget rate moves by
+  // stepTaxRate (max 1 pp per turn, ticket #1102) and the remainder is queued
+  // on budget.taxRatePhaseIn for fiscalBaseGrowthPhase to walk each turn. A
+  // fresh enactment on the same tax replaces any running ramp. Revenue and
+  // surplus are recomputed immediately, as mainline does.
+  // State-scope tax laws (regional budgets) remain PORT-STUB: budget/stateTaxRates.
+  if (catalog?.kind === "tax" && catalog.taxPolicy && budget && catalog.taxPolicy.scope === "federal") {
+    const taxType = catalog.taxPolicy.taxType as keyof typeof budget.taxRates;
+    if (taxType in budget.taxRates) {
+      const target = typeof bill.selectedRate === "number" ? bill.selectedRate : catalog.taxPolicy.baselineRate;
+      const current = budget.taxRates[taxType];
+      const stepped = stepTaxRate(current, target);
+      budget.taxRates = { ...budget.taxRates, [taxType]: stepped };
+      const pending = { ...(budget.taxRatePhaseIn ?? {}) };
+      if (needsPhaseIn(current, target)) pending[taxType] = target;
+      else delete pending[taxType];
+      budget.taxRatePhaseIn = pending;
+      budget.revenue = calculateBudgetRevenue(budget.taxRates, budget.taxBases, budget.revenue.other);
+      budget.surplus = budget.revenue.total - budget.spending.total;
+    }
   }
 
   // W28: currency union accession provisions (finance/currencyUnion.ts).

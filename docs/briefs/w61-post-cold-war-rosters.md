@@ -80,13 +80,18 @@ M2 (in dependency order):
    partySupport), which cannot be derived without inventing numbers. 8 entries
    have every target mapped through ADAPTER_TIER1 to a political family and
    are blocked only on `legislation/effectDescriptor`; the rest on
-   `politicalMetrics/<legacy ids>` (the same board gap that limits US/UK). Tax entries carry their authored rate ladders;
-   the rate write is PORT-STUB in billLifecycle.ts (budget/taxRateLadder).
-2. **Authored national budgets for 1979/1991/2019** (all playable countries,
-   US/UK included): mainline `getNationalBudgetSeedConfigsForPreset(preset)`
-   carries every BudgetSeed field except taxRates, which resolve from the
-   tax-policy law types in (1). Until then those eras run on the engine's
-   synthesized-budget fallback exactly as US/UK already do there.
+   `politicalMetrics/<legacy ids>` (the same board gap that limits US/UK). Tax entries carry their authored rate ladders and the
+   rate write is now real (billEnactment.ts applyTaxRateChange port with the
+   ticket #1102 one-point-per-turn phase-in; schema v41).
+2. **Authored national budgets for 1979/1991/2019**: SHIPPED via
+   `packages/content/scripts/generateBudgets.ts` (every playable country of
+   each era, all BudgetSeed fields from mainline's per-preset configs; tax
+   rates derived exactly as mainline deriveTaxRates does from taxPolicyIds ->
+   the law's default option). Country-specific dials beyond Rotunda's six
+   revenue lines (DE solidarity surcharge, CN LVAT/urban/stamp, IE
+   property/USC/CGT/excise) are PORT-STUB budget/extraTaxLines. The tax-rate
+   ladder those budgets feed is live (schema v41: bill.selectedRate,
+   budget.taxRatePhaseIn, one-point-per-turn phase-in).
 3. BR president: mainline's nationwideExecutive.ts leaves the BR race
    unactivated, so Rotunda keeps the office vacant (PORT-STUB, named).
 4. JP Sangiin / BR Senado class staggering (mainline simplifies too), DE AMS

@@ -38,6 +38,8 @@ export interface Bill {
   category: string;
   legislationTypeId?: string;
   effectDirection?: number;
+  /** Tax bills: the target rate (%) the sponsor selected from the catalog's taxPolicy ladder. Schema v41. */
+  selectedRate?: number;
   provisions: BillProvision[];
   originChamber: BillChamber;
   currentChamber: BillChamber;

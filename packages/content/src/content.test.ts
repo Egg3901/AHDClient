@@ -360,3 +360,21 @@ describe("W61 post-Cold-War rosters", () => {
     }
   });
 });
+
+describe("authored national budgets", () => {
+  it("every playable country in every pack has an authored budget that levies real core taxes", () => {
+    // Mainline getInitialNationalBudgetsForPreset fails loud on an all-zero core
+    // rate vector ("BR's class of bug"); the same rule holds for every pack here.
+    for (const pack of PACKS) {
+      for (const c of pack.countries.filter((x) => x.playable)) {
+        const b = (pack.budgets ?? []).find((x) => x.countryId === c.id);
+        expect(b, `${pack.era.id} ${c.id} budget`).toBeDefined();
+        expect(b!.gdp, `${pack.era.id} ${c.id} gdp`).toBeGreaterThan(0);
+        expect(b!.taxRates.incomeTax + b!.taxRates.domesticCorporateTax + b!.taxRates.payrollTax + b!.taxRates.salesTax, `${pack.era.id} ${c.id} core rates`).toBeGreaterThan(0);
+        // Mainline's per-preset budget configs are dated at or after the era start
+        // (2019-default: US/UK/JP/DE/CN are 2020 snapshots, IE 2023) - authored data, kept verbatim.
+        expect(b!.fiscalYear, `${pack.era.id} ${c.id} fiscalYear`).toBeGreaterThanOrEqual(Number(pack.era.id));
+      }
+    }
+  });
+});

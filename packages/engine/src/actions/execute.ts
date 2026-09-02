@@ -519,6 +519,19 @@ function executeActionInner(
         category,
         legislationTypeId: catalogId,
         effectDirection: 1,
+        // Tax bills: selected rate from the catalog ladder (params.taxRate, snapped
+        // to step and clamped to [minRate, maxRate]; defaults to baselineRate).
+        // Source: mainline billEnactment.ts applyTaxRateChange(policyOption.rate).
+        ...(leg.kind === "tax" && leg.taxPolicy
+          ? {
+              selectedRate: (() => {
+                const tp = leg.taxPolicy;
+                const raw = typeof params.taxRate === "number" && Number.isFinite(params.taxRate) ? params.taxRate : tp.baselineRate;
+                const snapped = tp.step > 0 ? Math.round((raw - tp.minRate) / tp.step) * tp.step + tp.minRate : raw;
+                return Math.round(Math.min(tp.maxRate, Math.max(tp.minRate, snapped)) * 1000) / 1000;
+              })(),
+            }
+          : {}),
         provisions,
         originChamber,
         currentChamber: originChamber,

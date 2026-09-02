@@ -256,10 +256,13 @@ export function CongressScreen({ world, onWorld, onToast, onBack }: Props) {
     }
   }
 
+  const [taxRateInputs, setTaxRateInputs] = useState<Record<string, string>>({});
   function handleSponsor(catalogId: string) {
     setSponsorError(null);
     setSponsorBusy(catalogId);
-    const result = game.executeAction("sponsorBill", { catalogId } as unknown as Record<string, unknown>);
+    const rateStr = taxRateInputs[catalogId];
+    const taxRate = rateStr !== undefined && rateStr !== "" && Number.isFinite(Number(rateStr)) ? Number(rateStr) : undefined;
+    const result = game.executeAction("sponsorBill", { catalogId, ...(taxRate !== undefined ? { taxRate } : {}) } as unknown as Record<string, unknown>);
     setSponsorBusy(null);
     if (result.ok) {
       onToast(result.message);
@@ -637,7 +640,25 @@ export function CongressScreen({ world, onWorld, onToast, onBack }: Props) {
                       <div className="muted small" style={{ lineHeight: 1.4 }}>{catalog.description}</div>
                       <div className="muted small" style={{ fontFamily: "ui-monospace, monospace" }}>{catalog.id} · {catalog.category} · {catalog.kind} · {catalog.allowedScope}</div>
                       {catalog.targets.length > 0 && <div className="muted small">Targets: {catalog.targets.map((t) => `${t.metricId} (${t.weight})`).join(", ")}</div>}
-                      {catalog.taxPolicy && <div className="muted small" style={{ fontFamily: "ui-monospace, monospace" }}>Tax: {catalog.taxPolicy.taxType} {catalog.taxPolicy.minRate} to {catalog.taxPolicy.maxRate} step {catalog.taxPolicy.step} baseline {catalog.taxPolicy.baselineRate}</div>}
+                      {catalog.taxPolicy && (
+                        <div className="muted small" style={{ fontFamily: "ui-monospace, monospace", display: "flex", gap: 8, alignItems: "center" }}>
+                          <span>Tax: {catalog.taxPolicy.taxType} {catalog.taxPolicy.minRate} to {catalog.taxPolicy.maxRate} step {catalog.taxPolicy.step} baseline {catalog.taxPolicy.baselineRate}</span>
+                          {!isUnavailable && (
+                            <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                              target %
+                              <input
+                                type="number"
+                                min={catalog.taxPolicy.minRate}
+                                max={catalog.taxPolicy.maxRate}
+                                step={catalog.taxPolicy.step}
+                                value={taxRateInputs[catalog.id] ?? String(catalog.taxPolicy.baselineRate)}
+                                onChange={(e) => setTaxRateInputs((m) => ({ ...m, [catalog.id]: e.target.value }))}
+                                style={{ width: 72 }}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      )}
                       {catalog.blockingSystem && <div className="muted small" style={{ color: isUnavailable ? "#ff8a8a" : "inherit" }}>Blocking system: {catalog.blockingSystem}{isUnavailable ? " - PORT-STUB" : ""}</div>}
                       {catalog.effect?.economy && (
                         <div className="congress-effect-grid">

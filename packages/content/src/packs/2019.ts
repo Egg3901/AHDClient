@@ -1,4 +1,5 @@
 import type { SeedPack } from "../types.js";
+import { BUDGETS_2019 } from "./budgets2019.js";
 import { ROSTER_2019_PARTIES, ROSTER_2019_LEGISLATURES, ROSTER_2019_STATES } from "./roster2019.js";
 import { usStates2019 } from "./usStates2019.js";
 import { ukRegions2019 } from "./ukRegions2019.js";
@@ -112,6 +113,8 @@ export const pack2019: SeedPack = {
   // State layer (regions, apportionment, registration) generated from mainline's
   // per-era bundles by scripts/generateStateLayer.ts; see each file's header.
   states: [...ROSTER_2019_STATES, ...usStates2019, ...ukRegions2019],
+  // Authored national budgets for every playable country (generateBudgets.ts).
+  budgets: BUDGETS_2019,
   parties: [
     ...ROSTER_2019_PARTIES,
     { id: "US_DEM", name: "Democratic Party", countryId: "US", abbreviation: "DEM", color: "#3B82F6", economicPosition: -2, socialPosition: -2 },

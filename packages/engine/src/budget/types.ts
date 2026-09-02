@@ -77,6 +77,8 @@ export interface CountryBudget {
   currencyCode: string;
   taxRates: BudgetTaxRates;
   taxBases: BudgetTaxBases;
+  /** Pending tax-rate ramps: taxType -> target rate (%). Ticket #1102 phase-in, see taxRatePhaseIn.ts. Schema v41. */
+  taxRatePhaseIn?: Partial<Record<keyof BudgetTaxRates, number>>;
   revenue: BudgetRevenue;
   spending: BudgetSpending;
   debt: BudgetDebt;

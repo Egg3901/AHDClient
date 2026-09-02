@@ -18,6 +18,7 @@ import { applyPerTurnGrowthToFederalBases } from "./fiscalBaseGrowth.js";
 import { calculateGenericRegionalRevenue } from "./regionalBudget.js";
 import { SECTOR_SUBSIDIES_SPENDING_KEY } from "./subsidyBudget.js";
 import { getTurnInYear, FISCAL_YEAR_START_TURN_IN_YEAR, TURNS_PER_YEAR } from "./fiscalYear.js";
+import { advanceTaxRatePhaseIn } from "./taxRatePhaseIn.js";
 
 // ── Fiscal base growth ──────────────────────────────────────────────
 // Source: src/lib/turn/fiscalBaseGrowth.ts — per-turn slice of wage/trade/gdp growth
@@ -35,6 +36,15 @@ export const fiscalBaseGrowthPhase: TurnPhase = {
         after[k] = Math.round(after[k]);
       }
       budget.taxBases = after;
+      // Ticket #1102: walk any enacted tax-rate change one step toward its
+      // target (mainline treasuryTurn.ts). Reached targets drop out on their own.
+      if (budget.taxRatePhaseIn && Object.keys(budget.taxRatePhaseIn).length > 0) {
+        const ramp = advanceTaxRatePhaseIn(budget.taxRates as unknown as Record<string, number>, budget.taxRatePhaseIn as Record<string, number>);
+        if (ramp.changed) {
+          budget.taxRates = { ...budget.taxRates, ...(ramp.rates as Partial<typeof budget.taxRates>) };
+          budget.taxRatePhaseIn = ramp.pending as typeof budget.taxRatePhaseIn;
+        }
+      }
       // Recompute revenue off grown bases so per-turn treasury accrual tracks live bases
       const rev = calculateBudgetRevenue(budget.taxRates, budget.taxBases, budget.revenue.other);
       budget.revenue = rev;

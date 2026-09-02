@@ -119,7 +119,8 @@ import { seedStateResourceCapacities } from "./extraction/founding.js";
 // v34 (this branch's base) to leave room for parallel waves at v35-v39; see
 // save.ts's v34->v40 migration chain (stubs for v35-v39, real logic at v40)
 // for the resolver note.
-export const SCHEMA_VERSION = 40;
+// v41: tax-rate ladder (budget.taxRatePhaseIn, bill.selectedRate); see save.ts.
+export const SCHEMA_VERSION = 41;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
