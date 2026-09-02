@@ -1,9 +1,11 @@
 #!/usr/bin/env tsx
 import { advanceTurn, createWorld, listEras, checkInvariants } from "@rotunda/engine";
 import type { WorldState } from "@rotunda/engine";
-import { formatProgressTable, formatSummaryTable, formatInvariantReport } from "./formatter.js";
+import { formatProgressTable, formatSummaryTable, formatInvariantReport, formatQaReport } from "./formatter.js";
 import type { ProgressRow } from "./formatter.js";
 import { deepCompare, formatDiffs } from "./comparator.js";
+import { runQa, FULL_QA_OPTIONS, QUICK_QA_OPTIONS } from "./qa.js";
+import type { QaFilter } from "./qa.js";
 
 function printUsage(): void {
   console.log(`Usage:
@@ -11,6 +13,7 @@ function printUsage(): void {
   sim determinism --turns <n> [--seed <seed>]
   sim bench --turns <n> [--era <era> --country <id> --seed <seed>]
   sim invariants --era <era> --country <id> --seed <seed> --turns <n> [--json]
+  sim qa [--quick] [--json] [--era <era> --country <id>]
 
 Commands:
   run           Create a world and advance N turns
@@ -19,13 +22,24 @@ Commands:
   invariants    Create a world, advance N turns, and run the W41 invariant checks
                 (history/invariants.ts checkInvariants — the solo port of
                 mainline's ledgerReconcile). Exits 1 if status is not green.
+  qa            W42 QA gate. For every shipped era (listEras()) and every
+                playable country in it: a 2080-turn sim (40 in-game years,
+                --quick: 400 turns) with invariant checks every 260 turns
+                (--quick: 100), a full-length determinism twin, and a final
+                report (economy bands, election activity, government
+                formation, seat sums, politician population bounds, treasury
+                bounds). Exits 1 if any era/country combination fails.
+                --era/--country narrow the sweep to one combination (used to
+                split a full run into per-invocation chunks); omitted means
+                every shipped era x every playable country in it.
 
 Options:
   --era <id>      Era id from listEras() (e.g. 1953). Required for run/invariants.
   --country <id>  Country id uppercase (e.g. US). Required for run/invariants.
   --seed <s>      RNG seed string. Required for run/invariants.
   --turns <n>     Number of turns to advance (integer >= 0).
-  --json          For run/invariants: output full JSON instead of tables.
+  --json          For run/invariants/qa: output full JSON instead of tables.
+  --quick         For qa: 400 turns / 100-turn checkpoints instead of 2080/260.
 `);
 }
 
@@ -39,8 +53,8 @@ function parseArgs(argv: string[]): { cmd: string; opts: Record<string, string |
   let i = 1;
   while (i < args.length) {
     const a = args[i]!;
-    if (a === "--json") {
-      opts["json"] = true;
+    if (a === "--json" || a === "--quick") {
+      opts[a.slice(2)] = true;
       i++;
     } else if (a.startsWith("--")) {
       const key = a.slice(2);
@@ -298,6 +312,31 @@ async function commandInvariants(opts: Record<string, string | boolean>): Promis
   }
 }
 
+async function commandQa(opts: Record<string, string | boolean>): Promise<void> {
+  const quick = opts["quick"] === true;
+  const json = opts["json"] === true;
+  const qaOpts = quick ? QUICK_QA_OPTIONS : FULL_QA_OPTIONS;
+  const era = typeof opts["era"] === "string" ? opts["era"] : undefined;
+  const country = typeof opts["country"] === "string" ? opts["country"] : undefined;
+  if (era !== undefined) validateEra(era);
+  if (country !== undefined) validateCountryId(country);
+
+  const filter: QaFilter = {};
+  if (era !== undefined) filter.era = era;
+  if (country !== undefined) filter.country = country;
+  const results = runQa(qaOpts, filter);
+
+  if (json) {
+    console.log(JSON.stringify(results, null, 2));
+  } else {
+    console.log(formatQaReport(results));
+  }
+
+  if (results.some((r) => !r.ok)) {
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   const { cmd, opts } = parseArgs(process.argv);
   if (cmd === "help") {
@@ -316,6 +355,9 @@ async function main(): Promise<void> {
       break;
     case "invariants":
       await commandInvariants(opts);
+      break;
+    case "qa":
+      await commandQa(opts);
       break;
     default:
       console.error(`Unknown command: ${cmd}`);

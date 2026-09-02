@@ -6,7 +6,8 @@
   "scripts": {
     "sim": "tsx src/sim.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify:qa": "tsx src/sim.ts qa --quick"
   },
   "dependencies": {
     "@rotunda/content": "*",

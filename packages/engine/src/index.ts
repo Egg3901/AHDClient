@@ -36,3 +36,16 @@ export * from "./history/types.js";
 export { recordWorldHistory, computePlayerBondsValue, computePlayerSharesValue } from "./history/phases.js";
 export { checkInvariants } from "./history/invariants.js";
 export type { InvariantReport, InvariantFinding, InvariantSeverity } from "./history/invariants.js";
+// W42 QA gate: engine-side clamp bounds, exposed so the CLI's economy
+// sanity bands check against the real enforced ranges (macroCountryTurn.ts,
+// metrics/inflationRecalc.ts) rather than a duplicated set of magic numbers.
+export {
+  GROWTH_RATE_MIN,
+  GROWTH_RATE_MAX,
+  UNEMPLOYMENT_MIN,
+  UNEMPLOYMENT_MAX,
+  INFLATION_MIN,
+  INFLATION_MAX,
+  OUTPUT_GAP_BOUND,
+} from "./economy/macroConstants.js";
+export { GOVERNMENT_CHAMBER_BY_COUNTRY } from "./government/constants.js";

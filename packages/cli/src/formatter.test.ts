@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { formatProgressTable, formatSummaryTable } from "./formatter.js";
+import { formatProgressTable, formatSummaryTable, formatQaReport } from "./formatter.js";
 import type { ProgressRow } from "./formatter.js";
 import type { WorldState } from "@rotunda/engine";
+import type { QaCountryResult } from "./qa.js";
 
 function makeWorld(): WorldState {
   return {
@@ -160,5 +161,67 @@ describe("formatSummaryTable", () => {
     const out = formatSummaryTable(world);
     expect(out).toContain("0.50");
     expect(out).toContain("-0.20");
+  });
+});
+
+function makeQaResult(overrides: Partial<QaCountryResult> = {}): QaCountryResult {
+  return {
+    era: "1953",
+    countryId: "US",
+    countryName: "United States",
+    turns: 2080,
+    seed: "qa-1953-US",
+    determinismOk: true,
+    determinismDiffCount: 0,
+    invariantReports: [{ turn: 0, status: "green", checksRun: 10, findings: [] }],
+    invariantOk: true,
+    economyBandViolations: [],
+    seatSumViolations: [],
+    electionsSeen: 5,
+    electionsResolved: 3,
+    electionsOk: true,
+    governmentApplicable: false,
+    governmentFormed: false,
+    governmentStuckPending: false,
+    politicianCountInitial: 500,
+    politicianCountFinal: 520,
+    politicianPopulationOk: true,
+    treasuryBalanceFinal: -1000,
+    treasuryBoundsOk: true,
+    ok: true,
+    ...overrides,
+  };
+}
+
+describe("formatQaReport", () => {
+  it("renders an all-pass summary line when every result is ok", () => {
+    const out = formatQaReport([makeQaResult()]);
+    expect(out).toContain("OK");
+    expect(out).toContain("All 1 era/country combinations passed.");
+  });
+
+  it("marks government n/a for countries without formation and formed/pending otherwise", () => {
+    const out = formatQaReport([
+      makeQaResult({ countryId: "US", governmentApplicable: false }),
+      makeQaResult({ countryId: "UK", governmentApplicable: true, governmentFormed: true }),
+    ]);
+    expect(out).toContain("n/a");
+    expect(out).toContain("formed");
+  });
+
+  it("dumps per-check violation detail for a failing result", () => {
+    const failing = makeQaResult({
+      countryId: "RU",
+      ok: false,
+      determinismOk: false,
+      determinismDiffCount: 3,
+      economyBandViolations: [{ metric: "growthRate", value: 5, min: -0.15, max: 0.15, turn: 260 }],
+      seatSumViolations: [{ chamberKey: "sovietOfTheUnion", turn: 260, seatsByPartySum: 400, vacancies: 10, expectedSeats: 526 }],
+    });
+    const out = formatQaReport([failing]);
+    expect(out).toContain("FAILED");
+    expect(out).toContain("3 diffs between twin runs");
+    expect(out).toContain("growthRate=5");
+    expect(out).toContain("sovietOfTheUnion");
   });
 });
