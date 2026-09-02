@@ -165,6 +165,7 @@ function processCountry(world: WorldState, countryId: string, chamberKey: string
         gov.governingPartyId = outcome.governingPartyId;
         gov.coalitionPartyIds = outcome.coalitionPartyIds;
         gov.pmPoliticianId = pmId;
+        if (countryId === "CN") syncCnPresident(world, pmId, outcome.governingPartyId);
         gov.totalSeatsSupporting = outcome.totalSeatsSupporting;
         gov.totalSeats = chamber.seats;
         gov.majorityThreshold = majorityThreshold(chamber.seats);
@@ -182,6 +183,29 @@ function processCountry(world: WorldState, countryId: string, chamberKey: string
       }
     }
   }
+}
+
+/**
+ * CN head of state (W61): COUNTRY_CONFIGS.CN headOfStateSelection
+ * "partyChairSync" — the President tracks the governing party's chair, the
+ * Premier is the chamber-invested head of government. Rotunda parties carry
+ * no seeded chair (PORT-STUB: party leadership elections), so the office
+ * follows the Premier until one exists.
+ */
+function syncCnPresident(world: WorldState, pmId: string, partyId: string): void {
+  const party = world.parties[partyId] as unknown as Record<string, unknown> | undefined;
+  const chairId = typeof party?.["chairId"] === "string" ? (party["chairId"] as string) : null;
+  const presidentId = chairId ?? pmId;
+  const prev = world.executives["CN"];
+  if (prev?.presidentId === presidentId) return;
+  world.executives["CN"] = {
+    countryId: "CN",
+    presidentId,
+    presidentParty: partyId,
+    termStartTurn: world.meta.turn,
+    vicePresidentId: null,
+    vicePresidentParty: null,
+  };
 }
 
 export const governmentFormationPhase: TurnPhase = {

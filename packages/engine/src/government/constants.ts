@@ -77,13 +77,33 @@ export const GOVERNMENT_CHAMBER_BY_COUNTRY: Record<string, string> = {
   UK: "commons",
   RU: "sovietOfTheUnion",
   DD: "volkskammer",
+  // W61 roster (COUNTRY_CONFIGS: JP parliamentaryMonarchy / DE parliamentaryRepublic /
+  // IE parliamentaryRepublic / CN onePartyState; the head of government is
+  // invested by the lower chamber in each). BR is presidential: no PM.
+  JP: "shugiin",
+  DE: "bundestag",
+  IE: "dail",
+  CN: "npc",
 };
+
+/**
+ * Countries whose regions carry an elected regional executive ("governor"
+ * electionType in mainline: US governors, JP regional governors, DE
+ * Minister-Presidents, CN provincial governors, BR state governors, IE
+ * regional chairs). Source: COUNTRY_CONFIGS officeTypes per country and
+ * perpetualElections.ts ensure{JP,CN,BR}GovernorElections / DE ministerPresident.
+ */
+export const GOVERNOR_COUNTRIES: ReadonlySet<string> = new Set(["US", "JP", "DE", "CN", "BR", "IE"]);
 
 /** Base election type this chamber's regular elections run under, keyed by GOVERNMENT_CHAMBER_BY_COUNTRY's chamberKey. */
 export const BASE_ELECTION_TYPE_BY_CHAMBER: Record<string, string> = {
   commons: "commons",
   sovietOfTheUnion: "supremeSovietDeputy",
   volkskammer: "volkskammerDeputy",
+  shugiin: "shugiin",
+  bundestag: "bundestag",
+  dail: "dail",
+  npc: "npcDelegate",
 };
 
 /**
@@ -106,6 +126,12 @@ export const SNAP_ELECTION_TYPE_BY_CHAMBER: Record<string, string> = {
   // single-winner race and seated 1 of 559 deputies (QA sweep, 1979 RU).
   sovietOfTheUnion: "snap_supremeSovietDeputy",
   volkskammer: "snap_volkskammerDeputy",
+  // W61: snap_shugiin / snap_bundestag are mainline names (canonicalCycle.ts,
+  // DEFAULT_DURATIONS); snap_dail / snap_npcDelegate follow the same convention.
+  shugiin: "snap_shugiin",
+  bundestag: "snap_bundestag",
+  dail: "snap_dail",
+  npc: "snap_npcDelegate",
 };
 
 /**
@@ -120,3 +146,42 @@ export const SNAP_ELECTION_TYPE_BY_CHAMBER: Record<string, string> = {
 export const SNAP_DURATION_TURNS = 48;
 export const SNAP_PRIMARY_DURATION_TURNS = 24;
 export const SNAP_GENERAL_DURATION_TURNS = 24;
+
+/**
+ * Lower chambers contested PER REGION with totalSeats = region.houseSeats
+ * (US house is handled by its own apportionment path). Sources: mainline
+ * perpetualElections.ts ensureJPElections / ensureDEElections (DE_WAHLKREIS_SEATS)
+ * / ensureCNElections (getCnNpcSeats) / ensureBRElections / ensureIEElections.
+ */
+export const LOWER_CHAMBER_PER_REGION: Record<string, { electionType: string; chamberKey: string }> = {
+  JP: { electionType: "shugiin", chamberKey: "shugiin" },
+  DE: { electionType: "bundestag", chamberKey: "bundestag" },
+  CN: { electionType: "npcDelegate", chamberKey: "npc" },
+  BR: { electionType: "chamber", chamberKey: "chamber" },
+  IE: { electionType: "dail", chamberKey: "dail" },
+};
+
+/**
+ * Subnational chambers contested per region with totalSeats = region.senateSeats.
+ * Sources: mainline ensurePerpetualElections (stateSenate), ensureUKRegionalCouncilElections,
+ * ensureRURepublicSovietElections, ensureDDLandAssemblyElections,
+ * ensureJPRegionalCouncilElections, DE landtag per Land, ensureCNPeoplesCongressElections
+ * (getCnPeoplesCongressSeats, stored as the region's senateSeats), ensureIELocalCouncilElections.
+ */
+export const SUBNATIONAL_CHAMBER_PER_REGION: Record<string, { electionType: string; chamberKey: string }> = {
+  US: { electionType: "stateSenate", chamberKey: "stateSenate" },
+  UK: { electionType: "regionalCouncil", chamberKey: "regionalCouncil" },
+  RU: { electionType: "republicSupremeSoviet", chamberKey: "republicSupremeSoviet" },
+  DD: { electionType: "landAssembly", chamberKey: "landAssembly" },
+  JP: { electionType: "regionalCouncil", chamberKey: "regionalCouncil" },
+  DE: { electionType: "landtag", chamberKey: "landtag" },
+  CN: { electionType: "peoplesCongress", chamberKey: "peoplesCongress" },
+  IE: { electionType: "localCouncil", chamberKey: "localCouncil" },
+};
+
+/**
+ * JP Sangiin seats per region. Source: src/lib/constants/states.ts JP_SANGIIN_SEATS
+ * (sum 248). Class split per historicalSeats.ts JP_SANGIIN_2020 header:
+ * class 1 = ceil, class 2 = floor.
+ */
+export const JP_SANGIIN_SEATS: Record<string, number> = { HOK: 7, TOH: 20, KAN: 80, CHU: 44, KNS: 44, CGK: 14, SHI: 8, KYU: 31 };

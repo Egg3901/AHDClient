@@ -1,0 +1,108 @@
+import type { StateSeed } from "../types.js";
+/**
+ * Japan regions for 1991-default. Generated from mainline AHDGame — DO NOT HAND-EDIT.
+ * Generated: 2026-09-02 by packages/content/scripts/generateRosters.ts
+ * Sources:
+ * - src/lib/seeds/jp/jpRegions1991.ts
+ * - src/lib/seeds/registration/registrationLanes1991.ts build1991RegistrationSeeds JP entries
+ */
+export const jpRegions1991: StateSeed[] = [
+  {
+    id: "HOK",
+    name: "Hokkaido",
+    countryId: "JP",
+    population: 5644000,
+    gdp: 17500000,
+    houseSeats: 23,
+    senateSeats: 100,
+    region: "Hokkaido",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "LDP", org: 30, reg: 39 }, { abbr: "JSP", org: 24, reg: 32 }, { abbr: "KMT", org: 6, reg: 8 }, { abbr: "JCP", org: 7, reg: 9 }, { abbr: "DSP", org: 3, reg: 5 }], independent: 0, unregistered: 7, unaffiliatedOrg: 30 },
+  },
+  {
+    id: "TOH",
+    name: "Tohoku",
+    countryId: "JP",
+    population: 9738000,
+    gdp: 27500000,
+    houseSeats: 50,
+    senateSeats: 299,
+    region: "Tohoku",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "LDP", org: 39, reg: 51 }, { abbr: "JSP", org: 16, reg: 21 }, { abbr: "KMT", org: 5, reg: 6 }, { abbr: "JCP", org: 5, reg: 6 }, { abbr: "DSP", org: 3, reg: 4 }], independent: 0, unregistered: 12, unaffiliatedOrg: 32 },
+  },
+  {
+    id: "KAN",
+    name: "Kanto",
+    countryId: "JP",
+    population: 38500000,
+    gdp: 168000000,
+    houseSeats: 144,
+    senateSeats: 581,
+    region: "Kanto",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "LDP", org: 28, reg: 38 }, { abbr: "JSP", org: 21, reg: 28 }, { abbr: "KMT", org: 9, reg: 12 }, { abbr: "JCP", org: 9, reg: 11 }, { abbr: "DSP", org: 4, reg: 6 }], independent: 0, unregistered: 5, unaffiliatedOrg: 29 },
+  },
+  {
+    id: "CHU",
+    name: "Chubu",
+    countryId: "JP",
+    population: 20800000,
+    gdp: 72000000,
+    houseSeats: 86,
+    senateSeats: 483,
+    region: "Chubu",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "LDP", org: 34, reg: 44 }, { abbr: "JSP", org: 19, reg: 25 }, { abbr: "KMT", org: 7, reg: 9 }, { abbr: "JCP", org: 6, reg: 8 }, { abbr: "DSP", org: 4, reg: 6 }], independent: 0, unregistered: 8, unaffiliatedOrg: 30 },
+  },
+  {
+    id: "KNS",
+    name: "Kansai",
+    countryId: "JP",
+    population: 22700000,
+    gdp: 76000000,
+    houseSeats: 92,
+    senateSeats: 414,
+    region: "Kansai",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "LDP", org: 27, reg: 36 }, { abbr: "JSP", org: 19, reg: 25 }, { abbr: "KMT", org: 11, reg: 14 }, { abbr: "JCP", org: 10, reg: 13 }, { abbr: "DSP", org: 5, reg: 6 }], independent: 0, unregistered: 6, unaffiliatedOrg: 28 },
+  },
+  {
+    id: "CGK",
+    name: "Chugoku",
+    countryId: "JP",
+    population: 7745000,
+    gdp: 23500000,
+    houseSeats: 34,
+    senateSeats: 238,
+    region: "Chugoku",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "LDP", org: 41, reg: 53 }, { abbr: "JSP", org: 15, reg: 19 }, { abbr: "KMT", org: 5, reg: 7 }, { abbr: "JCP", org: 4, reg: 6 }, { abbr: "DSP", org: 3, reg: 4 }], independent: 0, unregistered: 11, unaffiliatedOrg: 32 },
+  },
+  {
+    id: "SHI",
+    name: "Shikoku",
+    countryId: "JP",
+    population: 4195000,
+    gdp: 11000000,
+    houseSeats: 20,
+    senateSeats: 163,
+    region: "Shikoku",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "LDP", org: 39, reg: 51 }, { abbr: "JSP", org: 17, reg: 22 }, { abbr: "KMT", org: 5, reg: 7 }, { abbr: "JCP", org: 4, reg: 5 }, { abbr: "DSP", org: 3, reg: 4 }], independent: 0, unregistered: 11, unaffiliatedOrg: 32 },
+  },
+  {
+    id: "KYU",
+    name: "Kyushu & Okinawa",
+    countryId: "JP",
+    population: 14690000,
+    gdp: 45000000,
+    houseSeats: 62,
+    senateSeats: 401,
+    region: "Kyushu",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "LDP", org: 36, reg: 47 }, { abbr: "JSP", org: 18, reg: 23 }, { abbr: "KMT", org: 6, reg: 8 }, { abbr: "JCP", org: 5, reg: 7 }, { abbr: "DSP", org: 3, reg: 5 }], independent: 0, unregistered: 10, unaffiliatedOrg: 32 },
+  },
+];
+
+// Totals: 8 regions, 511 lower-house seats, 2679 upper/subnational seats (sum).

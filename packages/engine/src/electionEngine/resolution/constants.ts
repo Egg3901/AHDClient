@@ -104,6 +104,8 @@ export const DEFAULT_DURATIONS: Record<string, { durationHours: number; primaryD
   snap_commons: { durationHours: 48, primaryDurationHours: 24, generalDurationHours: 24 },
   snap_bundestag: { durationHours: 48, primaryDurationHours: 24, generalDurationHours: 24 },
   snap_lowerChamber: { durationHours: 48, primaryDurationHours: 24, generalDurationHours: 24 },
+  // W61: IE Uachtarán nationwide race. Source: src/lib/constants/electionDurations.ts:86.
+  uachtaran: { durationHours: 48, primaryDurationHours: 24, generalDurationHours: 24 },
   special_governor: { durationHours: 48, primaryDurationHours: 0, generalDurationHours: 48 },
   npcDelegate: { durationHours: 48, primaryDurationHours: 24, generalDurationHours: 24 },
   peoplesCongress: { durationHours: 48, primaryDurationHours: 24, generalDurationHours: 24 },
@@ -157,6 +159,10 @@ export const MULTI_SEAT_TYPES: ReadonlySet<string> = new Set([
   "snap_supremeSovietDeputy",
   "snap_nationalitiesDeputy",
   "snap_volkskammerDeputy",
+  // W61: JP/DE/IE/CN snap variants for the Dail and NPC (Rotunda-native names,
+  // same snap_<baseType> convention); snap_shugiin/snap_bundestag are mainline.
+  "snap_dail",
+  "snap_npcDelegate",
 ]);
 
 // ─── Bloc list ────────────────────────────────────────────────────────────

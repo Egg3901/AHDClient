@@ -1,0 +1,138 @@
+import type { StateDemographicsSeed } from "./usStateDemographics1953.js";
+/**
+ * Japan region demographics for 2019. Generated from mainline AHDGame — DO NOT HAND-EDIT.
+ * Generated: 2026-09-02 by packages/content/scripts/generateRosters.ts
+ * Sources:
+ * - src/lib/seeds/international/jp.ts getJpModel("2019") via getCountryLayer1Model
+ * - src/lib/seeds/international/derive.ts buildModelRegionDemographics (the path admin/seed/seedJP.ts runs)
+ */
+export const JP_DEMOGRAPHICS_2019: StateDemographicsSeed[] = [
+  {
+    stateId: "HOK",
+    categoryWeights: {"jp_voterGroups":100},
+    groups: {
+      salaryman_conservative: { population: 11.34, economicLean: 0, socialLean: 0.1, turnout: 63 },
+      urban_progressive: { population: 9.68, economicLean: -1.7, socialLean: -3.2, turnout: 57 },
+      rural_traditionalist: { population: 10.95, economicLean: 2.2, socialLean: 4.3, turnout: 69 },
+      young_urban: { population: 5.25, economicLean: -2.2, socialLean: -3.7, turnout: 34 },
+      retiree: { population: 12.41, economicLean: 1.5, socialLean: 2.6, turnout: 73 },
+      public_sector: { population: 11.34, economicLean: -1.1, socialLean: -2.1, turnout: 56 },
+      small_business: { population: 9.43, economicLean: 0.5, socialLean: 0.7, turnout: 56 },
+      komeito_faithful: { population: 13.49, economicLean: -0.9, socialLean: -1.2, turnout: 65 },
+      reform_populist: { population: 8.26, economicLean: -1.2, socialLean: -1.8, turnout: 47 },
+      working_mothers: { population: 7.86, economicLean: 0, socialLean: -0.5, turnout: 52 },
+    },
+  },
+  {
+    stateId: "TOH",
+    categoryWeights: {"jp_voterGroups":100},
+    groups: {
+      salaryman_conservative: { population: 11.81, economicLean: 0.1, socialLean: 0.2, turnout: 63 },
+      urban_progressive: { population: 7.94, economicLean: -1.6, socialLean: -3.1, turnout: 57 },
+      rural_traditionalist: { population: 13.74, economicLean: 2.3, socialLean: 4.4, turnout: 69 },
+      young_urban: { population: 4.15, economicLean: -2.2, socialLean: -3.6, turnout: 34 },
+      retiree: { population: 13.94, economicLean: 1.5, socialLean: 2.7, turnout: 73 },
+      public_sector: { population: 10.24, economicLean: -1, socialLean: -1.9, turnout: 56 },
+      small_business: { population: 10.39, economicLean: 0.5, socialLean: 0.7, turnout: 56 },
+      komeito_faithful: { population: 12.33, economicLean: -0.6, socialLean: -0.7, turnout: 65 },
+      reform_populist: { population: 7.28, economicLean: -0.9, socialLean: -1.5, turnout: 47 },
+      working_mothers: { population: 8.19, economicLean: 0, socialLean: -0.3, turnout: 52 },
+    },
+  },
+  {
+    stateId: "KAN",
+    categoryWeights: {"jp_voterGroups":100},
+    groups: {
+      salaryman_conservative: { population: 10.72, economicLean: -0.1, socialLean: -0.1, turnout: 63 },
+      urban_progressive: { population: 12.34, economicLean: -1.7, socialLean: -3.3, turnout: 57 },
+      rural_traditionalist: { population: 6.27, economicLean: 1.9, socialLean: 4.1, turnout: 69 },
+      young_urban: { population: 6.76, economicLean: -2.3, socialLean: -3.7, turnout: 34 },
+      retiree: { population: 10.6, economicLean: 1.5, socialLean: 2.6, turnout: 73 },
+      public_sector: { population: 12.6, economicLean: -1.3, socialLean: -2.4, turnout: 56 },
+      small_business: { population: 8.38, economicLean: 0.5, socialLean: 0.7, turnout: 56 },
+      komeito_faithful: { population: 15.01, economicLean: -1.3, socialLean: -1.8, turnout: 65 },
+      reform_populist: { population: 9.66, economicLean: -1.5, socialLean: -2.2, turnout: 47 },
+      working_mothers: { population: 7.65, economicLean: -0.1, socialLean: -0.6, turnout: 52 },
+    },
+  },
+  {
+    stateId: "CHU",
+    categoryWeights: {"jp_voterGroups":100},
+    groups: {
+      salaryman_conservative: { population: 11.6, economicLean: 0.1, socialLean: 0.1, turnout: 63 },
+      urban_progressive: { population: 9.82, economicLean: -1.6, socialLean: -3.2, turnout: 57 },
+      rural_traditionalist: { population: 9.57, economicLean: 2.2, socialLean: 4.3, turnout: 69 },
+      young_urban: { population: 5.17, economicLean: -2.2, socialLean: -3.7, turnout: 34 },
+      retiree: { population: 12.31, economicLean: 1.5, socialLean: 2.5, turnout: 73 },
+      public_sector: { population: 11.37, economicLean: -1.1, socialLean: -2.1, turnout: 56 },
+      small_business: { population: 9.99, economicLean: 0.5, socialLean: 0.7, turnout: 56 },
+      komeito_faithful: { population: 13.47, economicLean: -0.9, socialLean: -1.2, turnout: 65 },
+      reform_populist: { population: 8.37, economicLean: -1.1, socialLean: -1.8, turnout: 47 },
+      working_mothers: { population: 8.33, economicLean: 0, socialLean: -0.4, turnout: 52 },
+    },
+  },
+  {
+    stateId: "KNS",
+    categoryWeights: {"jp_voterGroups":100},
+    groups: {
+      salaryman_conservative: { population: 10.89, economicLean: 0, socialLean: -0.1, turnout: 63 },
+      urban_progressive: { population: 11.78, economicLean: -1.8, socialLean: -3.3, turnout: 57 },
+      rural_traditionalist: { population: 6.67, economicLean: 1.9, socialLean: 4.1, turnout: 69 },
+      young_urban: { population: 6.59, economicLean: -2.3, socialLean: -3.7, turnout: 34 },
+      retiree: { population: 10.7, economicLean: 1.5, socialLean: 2.5, turnout: 73 },
+      public_sector: { population: 12.5, economicLean: -1.3, socialLean: -2.3, turnout: 56 },
+      small_business: { population: 8.64, economicLean: 0.5, socialLean: 0.7, turnout: 56 },
+      komeito_faithful: { population: 15.05, economicLean: -1.2, socialLean: -1.7, turnout: 65 },
+      reform_populist: { population: 9.55, economicLean: -1.4, socialLean: -2.2, turnout: 47 },
+      working_mothers: { population: 7.62, economicLean: -0.1, socialLean: -0.6, turnout: 52 },
+    },
+  },
+  {
+    stateId: "CGK",
+    categoryWeights: {"jp_voterGroups":100},
+    groups: {
+      salaryman_conservative: { population: 11.76, economicLean: 0.1, socialLean: 0.2, turnout: 63 },
+      urban_progressive: { population: 8.47, economicLean: -1.6, socialLean: -3.2, turnout: 57 },
+      rural_traditionalist: { population: 12.32, economicLean: 2.3, socialLean: 4.4, turnout: 69 },
+      young_urban: { population: 4.41, economicLean: -2.2, socialLean: -3.7, turnout: 34 },
+      retiree: { population: 13.68, economicLean: 1.5, socialLean: 2.7, turnout: 73 },
+      public_sector: { population: 10.6, economicLean: -1, socialLean: -1.9, turnout: 56 },
+      small_business: { population: 10.3, economicLean: 0.5, socialLean: 0.7, turnout: 56 },
+      komeito_faithful: { population: 12.77, economicLean: -0.7, socialLean: -0.9, turnout: 65 },
+      reform_populist: { population: 7.58, economicLean: -1, socialLean: -1.6, turnout: 47 },
+      working_mothers: { population: 8.12, economicLean: 0, socialLean: -0.3, turnout: 52 },
+    },
+  },
+  {
+    stateId: "SHI",
+    categoryWeights: {"jp_voterGroups":100},
+    groups: {
+      salaryman_conservative: { population: 11.77, economicLean: 0.2, socialLean: 0.3, turnout: 63 },
+      urban_progressive: { population: 7.47, economicLean: -1.6, socialLean: -3.1, turnout: 57 },
+      rural_traditionalist: { population: 14.29, economicLean: 2.3, socialLean: 4.4, turnout: 69 },
+      young_urban: { population: 3.85, economicLean: -2.2, socialLean: -3.6, turnout: 34 },
+      retiree: { population: 14.54, economicLean: 1.5, socialLean: 2.7, turnout: 73 },
+      public_sector: { population: 9.99, economicLean: -0.9, socialLean: -1.8, turnout: 56 },
+      small_business: { population: 10.6, economicLean: 0.5, socialLean: 0.7, turnout: 56 },
+      komeito_faithful: { population: 12.24, economicLean: -0.6, socialLean: -0.6, turnout: 65 },
+      reform_populist: { population: 7.15, economicLean: -0.8, socialLean: -1.4, turnout: 47 },
+      working_mothers: { population: 8.09, economicLean: 0.1, socialLean: -0.3, turnout: 52 },
+    },
+  },
+  {
+    stateId: "KYU",
+    categoryWeights: {"jp_voterGroups":100},
+    groups: {
+      salaryman_conservative: { population: 11.54, economicLean: 0.1, socialLean: 0.1, turnout: 63 },
+      urban_progressive: { population: 9.03, economicLean: -1.6, socialLean: -3.2, turnout: 57 },
+      rural_traditionalist: { population: 11.34, economicLean: 2.2, socialLean: 4.3, turnout: 69 },
+      young_urban: { population: 4.86, economicLean: -2.2, socialLean: -3.7, turnout: 34 },
+      retiree: { population: 12.75, economicLean: 1.5, socialLean: 2.6, turnout: 73 },
+      public_sector: { population: 11, economicLean: -1.1, socialLean: -2, turnout: 56 },
+      small_business: { population: 10.04, economicLean: 0.5, socialLean: 0.7, turnout: 56 },
+      komeito_faithful: { population: 13.19, economicLean: -0.8, socialLean: -1.1, turnout: 65 },
+      reform_populist: { population: 8.09, economicLean: -1, socialLean: -1.7, turnout: 47 },
+      working_mothers: { population: 8.16, economicLean: 0, socialLean: -0.4, turnout: 52 },
+    },
+  },
+];

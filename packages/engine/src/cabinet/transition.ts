@@ -156,7 +156,10 @@ export function fillVacantCabinetSlots(world: WorldState, countryId: string): st
  * Mirrors mainline's UK cabinetApi direct appointment (no confirmation).
  */
 export function fillUkCabinetDirectly(world: WorldState, countryId: string): number {
-  if (countryId !== "UK") return 0;
+  // Parliamentary path: any country whose head of government is invested by a
+  // chamber (GOVERNMENT_CHAMBER_BY_COUNTRY) and that has a positions table. The
+  // US keeps its nomination + confirmation path.
+  if (countryId === "US") return 0;
   const gov = world.governments[countryId];
   if (!gov || gov.status !== "formed" || !gov.pmPoliticianId) return 0;
 

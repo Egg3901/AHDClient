@@ -1,4 +1,5 @@
 import type { SeedPack } from "../types.js";
+import { ROSTER_1991_PARTIES, ROSTER_1991_LEGISLATURES, ROSTER_1991_STATES } from "./roster1991.js";
 import { usStates1991 } from "./usStates1991.js";
 import { ukRegions1991 } from "./ukRegions1991.js";
 
@@ -62,31 +63,31 @@ export const pack1991: SeedPack = {
     {
       id: "JP",
       name: "Japan",
-      playable: false,
+      playable: true,
       economy: { gdp: 3_494_424, growthRate: 0.034, inflationRate: 0.033, unemploymentRate: 0.021 },
     },
     {
       id: "DE",
       name: "Germany",
-      playable: false,
+      playable: true,
       economy: { gdp: 1_882_353, growthRate: 0.051, inflationRate: 0.035, unemploymentRate: 0.063 },
     },
     {
       id: "IE",
       name: "Ireland",
-      playable: false,
+      playable: true,
       economy: { gdp: 28_235, growthRate: 0.02, inflationRate: 0.032, unemploymentRate: 0.144 },
     },
     {
       id: "BR",
       name: "Brazil",
-      playable: false,
+      playable: true,
       economy: { gdp: 180_000, growthRate: 0.01, inflationRate: 4.8, unemploymentRate: 0.048 },
     },
     {
       id: "CN",
       name: "China",
-      playable: false,
+      playable: true,
       economy: { gdp: 409_399, growthRate: 0.093, inflationRate: 0.034, unemploymentRate: 0.023 },
     },
     {
@@ -128,8 +129,9 @@ export const pack1991: SeedPack = {
   ],
   // State layer (regions, apportionment, registration) generated from mainline's
   // per-era bundles by scripts/generateStateLayer.ts; see each file's header.
-  states: [...usStates1991, ...ukRegions1991],
+  states: [...ROSTER_1991_STATES, ...usStates1991, ...ukRegions1991],
   parties: [
+    ...ROSTER_1991_PARTIES,
     { id: "US_DEM", name: "Democratic Party", countryId: "US", abbreviation: "DEM", color: "#3B82F6", economicPosition: -2, socialPosition: -2 },
     { id: "US_REP", name: "Republican Party", countryId: "US", abbreviation: "REP", color: "#EF4444", economicPosition: 2, socialPosition: 2 },
     // UK roster for 1991-default per ukParties.ts validForPresets: adds UUP
@@ -146,6 +148,7 @@ export const pack1991: SeedPack = {
     { id: "UK_UUP", name: "Ulster Unionist Party", countryId: "UK", abbreviation: "UUP", color: "#9999FF", economicPosition: 1, socialPosition: 2 },
   ],
   legislatures: [
+    ...ROSTER_1991_LEGISLATURES,
     {
       // US chamber sizes constitutionally fixed. US_HOUSE_1992 (435: 268
       // Democrat / 166 Republican / 1 independent) and US_SENATE_1992 (100:

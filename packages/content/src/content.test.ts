@@ -78,14 +78,15 @@ describe("validatePack", () => {
     expect(playable).toEqual(["DD", "RU", "UK", "US"]);
   });
 
-  it("1991 and 2019 packs contract to POST_COLD_WAR_PLAYER (US/UK only) — no RU/DD entities", async () => {
+  it("1991 and 2019 packs open the roster mainline's presets seed (RESET_PRESETS[...].countries) and carry no RU/DD entities", async () => {
+    // The manifest's POST_COLD_WAR_PLAYER (US/UK) is a narrower access gate than
+    // the seeded worlds; the seeded roster is authoritative (W61).
     const { pack1991, pack2019 } = await import("./packs/index.js");
-    for (const pack of [pack1991, pack2019]) {
-      const ids = new Set(pack.countries.map((c) => c.id));
-      expect(ids.has("RU")).toBe(false);
-      expect(ids.has("DD")).toBe(false);
-      const playable = pack.countries.filter((c) => c.playable).map((c) => c.id).sort();
-      expect(playable).toEqual(["UK", "US"]);
+    const playable = (p: SeedPack) => p.countries.filter((c) => c.playable).map((c) => c.id).sort();
+    expect(playable(pack1991)).toEqual(["BR", "CN", "DE", "IE", "JP", "UK", "US"]);
+    expect(playable(pack2019)).toEqual(["CN", "DE", "IE", "JP", "UK", "US"]);
+    for (const p of [pack1991, pack2019]) {
+      expect(p.countries.some((c) => c.id === "RU" || c.id === "DD"), `${p.era.id} RU/DD`).toBe(false);
     }
   });
 
@@ -318,14 +319,43 @@ describe("state layer (regions, apportionment) per pack", () => {
     }
   });
 
-  it("RU/DD (where present): region apportionment sums to the national and subnational chambers", () => {
+  it("RU/DD/JP/DE/CN/BR/IE (where present): region apportionment sums to the lower and subnational chambers", () => {
     for (const pack of PACKS) {
-      for (const [cid, lower, upper] of [["RU", "sovietOfTheUnion", "republicSupremeSoviet"], ["DD", "volkskammer", "landAssembly"]] as const) {
-        if (!pack.countries.some((c) => c.id === cid)) continue;
+      // Lower/subnational chamber pairs contested per region for every non-US/UK
+      // playable country (W61 adds JP/DE/CN/BR/IE; see elections/orchestration.ts
+      // LOWER_PER_REGION + SUBNATIONAL_CHAMBERS). BR's upper house is its Senado.
+      for (const [cid, lower, upper] of [["RU", "sovietOfTheUnion", "republicSupremeSoviet"], ["DD", "volkskammer", "landAssembly"], ["JP", "shugiin", "regionalCouncil"], ["DE", "bundestag", "landtag"], ["CN", "npc", "peoplesCongress"], ["BR", "chamber", "senate"], ["IE", "dail", "localCouncil"]] as const) {
+        // Only playable entries carry a region layer (economy-only entries do not).
+        if (!pack.countries.some((c) => c.id === cid && c.playable)) continue;
         const rs = (pack.states ?? []).filter((s) => s.countryId === cid);
         expect(rs.length, `${pack.era.id} ${cid}`).toBeGreaterThan(0);
         expect(sum(rs, "houseSeats"), `${pack.era.id} ${cid} ${lower}`).toBe(seatsOf(pack, cid, lower));
         expect(sum(rs, "senateSeats"), `${pack.era.id} ${cid} ${upper}`).toBe(seatsOf(pack, cid, upper));
+      }
+    }
+  });
+});
+
+describe("W61 post-Cold-War rosters", () => {
+  it("1991 opens US/UK/JP/DE/CN/BR/IE and 2019 opens US/UK/JP/DE/CN/IE (mainline RESET_PRESETS[...].countries)", () => {
+    const playable = (era: string) => PACKS.find((p) => p.era.id === era)!.countries.filter((c) => c.playable).map((c) => c.id).sort();
+    expect(playable("1991")).toEqual(["BR", "CN", "DE", "IE", "JP", "UK", "US"]);
+    expect(playable("2019")).toEqual(["CN", "DE", "IE", "JP", "UK", "US"]);
+    expect(playable("1953")).toEqual(["DD", "RU", "UK", "US"]);
+    expect(playable("1979")).toEqual(["DD", "RU", "UK", "US"]);
+  });
+
+  it("every playable country has parties and a legislature whose elected chambers can be filled from its regions", () => {
+    for (const pack of PACKS) {
+      for (const c of pack.countries.filter((x) => x.playable)) {
+        expect((pack.parties ?? []).filter((p) => p.countryId === c.id).length, `${pack.era.id} ${c.id} parties`).toBeGreaterThan(0);
+        const leg = pack.legislatures?.find((l) => l.countryId === c.id);
+        expect(leg, `${pack.era.id} ${c.id} legislature`).toBeDefined();
+        for (const ch of leg!.chambers) {
+          const seated = Object.values(ch.composition.seatsByParty).reduce((a, b) => a + b, 0);
+          expect(seated + ch.composition.vacancies, `${pack.era.id} ${c.id} ${ch.key}`).toBe(ch.seats);
+          for (const pid of Object.keys(ch.composition.seatsByParty)) expect((pack.parties ?? []).some((p) => p.id === pid), `${pack.era.id} ${c.id} ${ch.key} party ${pid}`).toBe(true);
+        }
       }
     }
   });

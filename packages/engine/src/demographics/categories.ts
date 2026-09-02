@@ -1,3 +1,4 @@
+import { JP_CATEGORY, DE_CATEGORY, IE_CATEGORY, CN_CATEGORY, BR_CATEGORY } from "./categoriesPorted.js";
 /**
  * Demographic categories — ports mainline's category tables.
  *
@@ -118,6 +119,12 @@ export const CATEGORIES_BY_COUNTRY_1953: Record<string, DemographicCategory[]> =
   UK: [UK_CATEGORY],
   RU: [RU_CATEGORY],
   DD: [DD_CATEGORY],
+  // W61 roster (era-neutral group definitions; see categoriesPorted.ts sources).
+  JP: [JP_CATEGORY],
+  DE: [DE_CATEGORY],
+  IE: [IE_CATEGORY],
+  CN: [CN_CATEGORY],
+  BR: [BR_CATEGORY],
 };
 
 export function categoriesForCountry(countryId: string): DemographicCategory[] {

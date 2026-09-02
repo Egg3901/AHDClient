@@ -1,5 +1,5 @@
 import { rngFromSeed } from "./rng.js";
-import { assignUsSeatGeography } from "./elections/seatGeography.js";
+import { assignUsSeatGeography, assignRegionalSeatGeography } from "./elections/seatGeography.js";
 import type { WorldState } from "./types.js";
 import { getPackByEra, PACKS_BY_DATE } from "@rotunda/content";
 import { createPoliticiansForWorld } from "./politician.js";
@@ -16,6 +16,15 @@ import { UK_DEMOGRAPHICS_1991 } from "./demographics/ukDemographics1991.js";
 import { UK_DEMOGRAPHICS_2019 } from "./demographics/ukDemographics2019.js";
 import { RU_DEMOGRAPHICS_1979 } from "./demographics/ruDemographics1979.js";
 import { DD_DEMOGRAPHICS_1979 } from "./demographics/ddDemographics1979.js";
+import { JP_DEMOGRAPHICS_1991 } from "./demographics/jpDemographics1991.js";
+import { JP_DEMOGRAPHICS_2019 } from "./demographics/jpDemographics2019.js";
+import { DE_DEMOGRAPHICS_1991 } from "./demographics/deDemographics1991.js";
+import { DE_DEMOGRAPHICS_2019 } from "./demographics/deDemographics2019.js";
+import { CN_DEMOGRAPHICS_1991 } from "./demographics/cnDemographics1991.js";
+import { CN_DEMOGRAPHICS_2019 } from "./demographics/cnDemographics2019.js";
+import { BR_DEMOGRAPHICS_1991 } from "./demographics/brDemographics1991.js";
+import { IE_DEMOGRAPHICS_1991 } from "./demographics/ieDemographics1991.js";
+import { IE_DEMOGRAPHICS_2019 } from "./demographics/ieDemographics2019.js";
 import {
   COMMODITY_BASE_PRICES,
   COMMODITY_TYPES,
@@ -74,7 +83,7 @@ import { seedInternationalOrgs } from "./internationalOrgs/seed.js";
 // v33->v34->35->36->37 chain depending on merge order, same pattern as every
 // prior multi-wave resolver note in save.ts (see v16->v17, v27->v28, etc.).
 import { computeFormation } from "./government/formation.js";
-import { GOVERNMENT_CHAMBER_BY_COUNTRY } from "./government/constants.js";
+import { GOVERNMENT_CHAMBER_BY_COUNTRY, GOVERNOR_COUNTRIES } from "./government/constants.js";
 
 // Pre-allocated v39 for M1 (Lane 12 Head of State mode). This branch point
 // is v33 (W6 metrics); v34-v38 are reserved for other in-flight batches
@@ -764,6 +773,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     internationalOrgs,
   };
   assignUsSeatGeography(world);
+  assignRegionalSeatGeography(world);
   // W12: charter the financial-sector NPC corp of every playable country as
   // a retail bank. Mutates world.corporations in place, same post-
   // construction-mutation pattern as assignUsSeatGeography above.
@@ -1031,44 +1041,34 @@ function seedDemographics(
   if (ruSeeds) for (const s of ruSeeds) ruMap.set(s.stateId, s);
   const ddMap = new Map<string, StateDemographicsSeed>();
   if (ddSeeds) for (const s of ddSeeds) ddMap.set(s.stateId, s);
+  // W61 roster countries (1991: JP/DE/CN/BR/IE, 2019: JP/DE/CN/IE) plus the
+  // four originals, keyed by country for the generic attach loop below.
+  const toMap = (rows: StateDemographicsSeed[] | null): Map<string, StateDemographicsSeed> => {
+    const m = new Map<string, StateDemographicsSeed>();
+    if (rows) for (const r of rows) m.set(r.stateId, r);
+    return m;
+  };
+  const seedMapsByCountry: Record<string, Map<string, StateDemographicsSeed>> = {
+    US: usMap,
+    UK: ukMap,
+    RU: ruMap,
+    DD: ddMap,
+    JP: toMap(pick({ "1991": JP_DEMOGRAPHICS_1991, "2019": JP_DEMOGRAPHICS_2019 })),
+    DE: toMap(pick({ "1991": DE_DEMOGRAPHICS_1991, "2019": DE_DEMOGRAPHICS_2019 })),
+    CN: toMap(pick({ "1991": CN_DEMOGRAPHICS_1991, "2019": CN_DEMOGRAPHICS_2019 })),
+    BR: toMap(pick({ "1991": BR_DEMOGRAPHICS_1991 })),
+    IE: toMap(pick({ "1991": IE_DEMOGRAPHICS_1991, "2019": IE_DEMOGRAPHICS_2019 })),
+  };
 
   const nowIso = `${_startDate}T00:00:00.000Z`;
   for (const [rid, region] of Object.entries(regions)) {
     const cid = region.countryId;
     const catsFor = (CATEGORIES_BY_COUNTRY_1953[cid] ?? []) as import("./demographics/categories.js").DemographicCategory[];
     let demo: import("./demographics/stateDemographics.js").StateDemographics | null = null;
-    if (cid === "US" && usMap.has(rid)) {
-      const seed = usMap.get(rid)!;
-      const groups: Record<string, import("./demographics/stateDemographics.js").StateDemographicGroup> = {};
-      for (const [gid, g] of Object.entries(seed.groups as Record<string, { population: number; economicLean: number; socialLean: number; turnout: number }>)) {
-        const gg = g as { population: number; economicLean: number; socialLean: number; turnout: number };
-        groups[gid] = { population: gg.population, economicLean: gg.economicLean, socialLean: gg.socialLean, turnout: gg.turnout };
-      }
-      demo = {
-        _id: rid,
-        countryId: cid,
-        categoryWeights: { ...seed.categoryWeights },
-        groups,
-        lastUpdated: nowIso,
-      };
-    } else if (cid === "UK" && ukMap.has(rid)) {
-      const seed = ukMap.get(rid)!;
-      const groups: Record<string, import("./demographics/stateDemographics.js").StateDemographicGroup> = {};
-      for (const [gid, g] of Object.entries(seed.groups as Record<string, { population: number; economicLean: number; socialLean: number; turnout: number }>)) {
-        const gg = g as { population: number; economicLean: number; socialLean: number; turnout: number };
-        groups[gid] = { population: gg.population, economicLean: gg.economicLean, socialLean: gg.socialLean, turnout: gg.turnout };
-      }
-      demo = { _id: rid, countryId: cid, categoryWeights: { ...seed.categoryWeights }, groups, lastUpdated: nowIso };
-    } else if (cid === "RU" && ruMap.has(rid)) {
-      const seed = ruMap.get(rid)!;
-      const groups: Record<string, import("./demographics/stateDemographics.js").StateDemographicGroup> = {};
-      for (const [gid, g] of Object.entries(seed.groups as Record<string, { population: number; economicLean: number; socialLean: number; turnout: number }>)) {
-        const gg = g as { population: number; economicLean: number; socialLean: number; turnout: number };
-        groups[gid] = { population: gg.population, economicLean: gg.economicLean, socialLean: gg.socialLean, turnout: gg.turnout };
-      }
-      demo = { _id: rid, countryId: cid, categoryWeights: { ...seed.categoryWeights }, groups, lastUpdated: nowIso };
-    } else if (cid === "DD" && ddMap.has(rid)) {
-      const seed = ddMap.get(rid)!;
+    const seedMap = seedMapsByCountry[cid];
+    if (seedMap?.has(rid)) {
+      // Real Layer-1 seed for this (era, country, region), see seedMapsByCountry.
+      const seed = seedMap.get(rid)!;
       const groups: Record<string, import("./demographics/stateDemographics.js").StateDemographicGroup> = {};
       for (const [gid, g] of Object.entries(seed.groups as Record<string, { population: number; economicLean: number; socialLean: number; turnout: number }>)) {
         const gg = g as { population: number; economicLean: number; socialLean: number; turnout: number };
@@ -1307,10 +1307,10 @@ function seedGovernors(regions: WorldState["regions"]): WorldState["governors"] 
   // Citation constants: GUBERNATORIAL_ACTION_CAP = 3 (src/lib/constants/governorOffice.ts).
   const governors: WorldState["governors"] = {};
   for (const region of Object.values(regions)) {
-    if (region.countryId !== "US") continue;
+    if (!GOVERNOR_COUNTRIES.has(region.countryId)) continue;
     governors[region.id] = {
       stateId: region.id,
-      countryId: "US",
+      countryId: region.countryId,
       governorId: null,
       governorParty: null,
       governorName: null,

@@ -61,3 +61,27 @@ see `packages/content/scripts/generateStateLayer.ts` for the pattern.
 
 ## Definition of done
 `npm run verify` EXIT:0; `npm run verify:qa` green for 2019 x {US,UK,JP,DE,IE,CN}; content seat-sum tests extended to the new chambers; ROADMAP row W61 added; no invented numbers.
+
+## M1 landed (2026-09-02) — what shipped and what M2 still owes
+Shipped by `packages/content/scripts/generateRosters.ts` (run from the mainline
+checkout) plus engine wiring: regions + registration + Layer-1 demographics +
+voter-group categories for JP/DE/CN/BR/IE (1991) and JP/DE/CN/IE (2019); parties
+and legislatures with 1990/1991/1992 and 2020/2021 seat-table compositions;
+per-region election series for every lower, upper and subnational chamber;
+governors for JP/DE/CN/BR/IE; IE uachtaran nationwide race; CN president via
+partyChairSync; parliamentary cabinets from the ported JP/DE/IE/CN position
+tables; economic-model archetypes from COUNTRY_CONFIGS.seedEconomicModel.
+
+M2 (open, in dependency order):
+1. **Legislation catalogs** for JP/DE/IE/CN/BR (~300 types, mainline
+   `seeds/*/{c}LegislationTypes.ts`) into `legislation/catalog.ts`.
+2. **Authored national budgets for 1979/1991/2019** (all playable countries,
+   US/UK included): mainline `getNationalBudgetSeedConfigsForPreset(preset)`
+   carries every BudgetSeed field except taxRates, which resolve from the
+   tax-policy law types in (1). Until then those eras run on the engine's
+   synthesized-budget fallback exactly as US/UK already do there.
+3. BR president: mainline's nationwideExecutive.ts leaves the BR race
+   unactivated, so Rotunda keeps the office vacant (PORT-STUB, named).
+4. JP Sangiin / BR Senado class staggering (mainline simplifies too), DE AMS
+   list seats (Bundestag sized to Wahlkreis seats like mainline's per-Land
+   races), IE STV (Hamilton PR allocates).

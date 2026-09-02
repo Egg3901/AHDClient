@@ -1,0 +1,108 @@
+import type { StateSeed } from "../types.js";
+/**
+ * Ireland regions for 1991-default. Generated from mainline AHDGame — DO NOT HAND-EDIT.
+ * Generated: 2026-09-02 by packages/content/scripts/generateRosters.ts
+ * Sources:
+ * - src/lib/seeds/ie/ieRegions1991.ts
+ * - src/lib/seeds/ie/ieRegionVoteShares.ts IE_REGION_VOTE_SHARES_1989 via ieStatePartyOrgCalculations.ts calculateIEPartyOrg
+ */
+export const ieRegions1991: StateSeed[] = [
+  {
+    id: "DUB",
+    name: "Dublin",
+    countryId: "IE",
+    population: 1025000,
+    gdp: 16000,
+    houseSeats: 64,
+    senateSeats: 9,
+    region: "Leinster",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "FF", org: 54, reg: 38 }, { abbr: "FG", org: 41, reg: 28 }, { abbr: "LAB", org: 21, reg: 12 }, { abbr: "WP", org: 14, reg: 7 }, { abbr: "PD", org: 14, reg: 7 }], independent: 8, unregistered: 0, unaffiliatedOrg: 0 },
+  },
+  {
+    id: "KIL",
+    name: "Kildare",
+    countryId: "IE",
+    population: 326000,
+    gdp: 3600,
+    houseSeats: 13,
+    senateSeats: 8,
+    region: "Leinster",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "FF", org: 62, reg: 44 }, { abbr: "FG", org: 44, reg: 30 }, { abbr: "LAB", org: 17, reg: 9 }, { abbr: "WP", org: 8, reg: 2 }, { abbr: "PD", org: 14, reg: 7 }], independent: 8, unregistered: 0, unaffiliatedOrg: 0 },
+  },
+  {
+    id: "MID",
+    name: "Midlands",
+    countryId: "IE",
+    population: 202000,
+    gdp: 1800,
+    houseSeats: 10,
+    senateSeats: 7,
+    region: "Leinster",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "FF", org: 70, reg: 50 }, { abbr: "FG", org: 48, reg: 33 }, { abbr: "LAB", org: 15, reg: 8 }, { abbr: "WP", org: 6, reg: 1 }, { abbr: "PD", org: 9, reg: 3 }], independent: 5, unregistered: 0, unaffiliatedOrg: 0 },
+  },
+  {
+    id: "WEX",
+    name: "Wexford",
+    countryId: "IE",
+    population: 384000,
+    gdp: 3600,
+    houseSeats: 14,
+    senateSeats: 7,
+    region: "Leinster",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "FF", org: 65, reg: 46 }, { abbr: "FG", org: 44, reg: 30 }, { abbr: "LAB", org: 19, reg: 11 }, { abbr: "WP", org: 8, reg: 2 }, { abbr: "PD", org: 10, reg: 4 }], independent: 7, unregistered: 0, unaffiliatedOrg: 0 },
+  },
+  {
+    id: "LIM",
+    name: "Limerick",
+    countryId: "IE",
+    population: 309000,
+    gdp: 4000,
+    houseSeats: 11,
+    senateSeats: 7,
+    region: "Munster",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "FF", org: 65, reg: 46 }, { abbr: "FG", org: 47, reg: 32 }, { abbr: "LAB", org: 15, reg: 8 }, { abbr: "WP", org: 6, reg: 1 }, { abbr: "PD", org: 13, reg: 6 }], independent: 7, unregistered: 0, unaffiliatedOrg: 0 },
+  },
+  {
+    id: "COR",
+    name: "Cork",
+    countryId: "IE",
+    population: 545000,
+    gdp: 6100,
+    houseSeats: 18,
+    senateSeats: 8,
+    region: "Munster",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "FF", org: 58, reg: 41 }, { abbr: "FG", org: 47, reg: 32 }, { abbr: "LAB", org: 19, reg: 11 }, { abbr: "WP", org: 8, reg: 2 }, { abbr: "PD", org: 14, reg: 7 }], independent: 7, unregistered: 0, unaffiliatedOrg: 0 },
+  },
+  {
+    id: "GAL",
+    name: "Galway",
+    countryId: "IE",
+    population: 348000,
+    gdp: 3300,
+    houseSeats: 14,
+    senateSeats: 7,
+    region: "Connacht",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "FF", org: 69, reg: 49 }, { abbr: "FG", org: 49, reg: 34 }, { abbr: "LAB", org: 14, reg: 7 }, { abbr: "WP", org: 6, reg: 1 }, { abbr: "PD", org: 10, reg: 4 }], independent: 5, unregistered: 0, unaffiliatedOrg: 0 },
+  },
+  {
+    id: "DON",
+    name: "Donegal",
+    countryId: "IE",
+    population: 386000,
+    gdp: 3300,
+    houseSeats: 16,
+    senateSeats: 7,
+    region: "Ulster",
+    senateClasses: [1, 2],
+    registration: { parties: [{ abbr: "FF", org: 70, reg: 50 }, { abbr: "FG", org: 47, reg: 32 }, { abbr: "LAB", org: 14, reg: 7 }, { abbr: "WP", org: 8, reg: 2 }, { abbr: "PD", org: 10, reg: 4 }], independent: 5, unregistered: 0, unaffiliatedOrg: 0 },
+  },
+];
+
+// Totals: 8 regions, 160 lower-house seats, 60 upper/subnational seats (sum).

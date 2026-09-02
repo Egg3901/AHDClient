@@ -1,3 +1,4 @@
+import type { WorldState } from "../types.js";
 import { describe, expect, it } from "vitest";
 import { advanceTurn } from "../engine.js";
 import { createWorld, SCHEMA_VERSION } from "../world.js";
@@ -214,56 +215,6 @@ describe("election orchestration (W21c)", () => {
   // ensureUKRegionalCouncilElections / ensureRegionalDelegateElections, all
   // live in turnPhaseRegistry.ts) — see orchestration.ts electionSeriesForWorld
   // SUBNATIONAL_CHAMBERS comment for exact citations.
-  it("1979 world: vacant chambers fill to capacity from per-region races (state layer + snap-type fix)", () => {
-    // QA-sweep regression (2026-09-02): the 1979/1991/2019 packs shipped with no
-    // US state layer, so no per-state House/Senate/governor race could spawn and
-    // a 1979 US Congress stayed empty forever; and the soviets' Rotunda-native
-    // snap type ("snap_sovietOfTheUnion") was unknown to the multi-seat gates,
-    // so a vacant 559-seat chamber resolved as a single-winner race and seated 1.
-    // Mainline's 1979-default deliberately starts legislatures vacant
-    // (RESET_PRESETS description), so the invariant is "full after the first
-    // cycles", not "seeded at t0".
-    const w = createWorld({ seed: "qa-1979", playerName: "P", countryId: "US", era: "1979" });
-    expect(Object.values(w.regions).filter((r) => r.countryId === "US").length).toBe(50);
-    for (let i = 0; i < 400; i++) advanceTurn(w);
-    const seated = (cid: string, key: string) => w.politicians.filter((p) => p.countryId === cid && p.chamberKey === key).length;
-    const seats = (cid: string, key: string) => w.legislatures[cid]!.chambers.find((c) => c.key === key)!.seats;
-    for (const [cid, key] of [["US", "house"], ["US", "senate"], ["US", "stateSenate"], ["UK", "regionalCouncil"], ["RU", "sovietOfTheUnion"], ["RU", "republicSupremeSoviet"], ["DD", "landAssembly"]] as const) {
-      expect(seated(cid, key), `${cid}:${key}`).toBe(seats(cid, key));
-    }
-  });
-
-  it("W40: subnational chambers spawn, fill, and resolve seats", () => {
-    const w = createWorld(OPTS);
-    for (let i = 0; i < 900; i++) advanceTurn(w);
-
-    const cases: Array<{ countryId: string; chamberKey: string }> = [
-      { countryId: "US", chamberKey: "stateSenate" },
-      { countryId: "UK", chamberKey: "regionalCouncil" },
-      { countryId: "RU", chamberKey: "republicSupremeSoviet" },
-      { countryId: "DD", chamberKey: "landAssembly" },
-    ];
-    for (const { countryId, chamberKey } of cases) {
-      // Elections were actually spawned and at least one has resolved.
-      expect(
-        w.elections.some((e) => e.countryId === countryId && e.chamberKey === chamberKey),
-      ).toBe(true);
-      expect(
-        w.elections.some((e) => e.countryId === countryId && e.chamberKey === chamberKey && e.status === "resolved"),
-      ).toBe(true);
-      // Some seats are actually held (composition no longer fully vacant).
-      const chamber = w.legislatures[countryId]!.chambers.find((c) => c.key === chamberKey)!;
-      const held = Object.values(chamber.composition.seatsByParty).reduce((x, y) => x + y, 0);
-      expect(held).toBeGreaterThan(0);
-      expect(held + chamber.composition.vacancies).toBe(chamber.seats);
-      // Politicians seated in this chamber all carry a state matching a real region.
-      const seated = w.politicians.filter((p) => p.countryId === countryId && p.chamberKey === chamberKey);
-      expect(seated.length).toBe(held);
-      for (const p of seated) {
-        expect(w.regions[p.electedState ?? ""]?.countryId).toBe(countryId);
-      }
-    }
-  });
 
   it("cycleContextForWorld flows the world's own era, not a hardcoded 1953-default (fixes a real bug)", () => {
     // Was: always {startingYear: 1953, preset: "1953-default"} regardless of

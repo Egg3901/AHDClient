@@ -35,6 +35,8 @@ export const US_CABINET_POSITIONS: readonly CabinetPosition[] = [
   { id: "vicePresident", name: "Vice President", order: 0, yearEnabled: 1775 },
 ] as const;
 
+import { JP_CABINET_POSITIONS, DE_CABINET_POSITIONS, IE_CABINET_POSITIONS, CN_CABINET_POSITIONS } from "./positionsPorted.js";
+
 export const UK_CABINET_POSITIONS: readonly CabinetPosition[] = [
   { id: "deputy_prime_minister", name: "Deputy Prime Minister", order: 0, yearEnabled: 1775 },
   { id: "first_secretary_of_state", name: "First Secretary of State", order: 1, yearEnabled: 1962 },
@@ -58,6 +60,12 @@ export const UK_CABINET_POSITIONS: readonly CabinetPosition[] = [
 export const CABINET_POSITIONS_BY_COUNTRY: Record<string, readonly CabinetPosition[]> = {
   US: US_CABINET_POSITIONS,
   UK: UK_CABINET_POSITIONS,
+  // W61 roster: ported position tables (cabinet/positionsPorted.ts); filled via the
+  // parliamentary direct-appointment path like the UK.
+  JP: JP_CABINET_POSITIONS,
+  DE: DE_CABINET_POSITIONS,
+  IE: IE_CABINET_POSITIONS,
+  CN: CN_CABINET_POSITIONS,
 };
 
 export function cabinetPositionsForCountry(countryId: string): readonly CabinetPosition[] {

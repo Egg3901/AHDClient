@@ -1,4 +1,5 @@
 import type { SeedPack } from "../types.js";
+import { ROSTER_2019_PARTIES, ROSTER_2019_LEGISLATURES, ROSTER_2019_STATES } from "./roster2019.js";
 import { usStates2019 } from "./usStates2019.js";
 import { ukRegions2019 } from "./ukRegions2019.js";
 
@@ -74,19 +75,19 @@ export const pack2019: SeedPack = {
     {
       id: "JP",
       name: "Japan",
-      playable: false,
+      playable: true,
       economy: { gdp: 5_188_679, growthRate: 0.006, inflationRate: 0.005, unemploymentRate: 0.024 },
     },
     {
       id: "DE",
       name: "Germany",
-      playable: false,
+      playable: true,
       economy: { gdp: 4_891_304, growthRate: 0.011, inflationRate: 0.018, unemploymentRate: 0.031 },
     },
     {
       id: "IE",
       name: "Ireland",
-      playable: false,
+      playable: true,
       economy: { gdp: 543_478, growthRate: 0.035, inflationRate: 0.032, unemploymentRate: 0.043 },
     },
     {
@@ -98,7 +99,7 @@ export const pack2019: SeedPack = {
     {
       id: "CN",
       name: "China",
-      playable: false,
+      playable: true,
       economy: { gdp: 17_500_000, growthRate: 0.052, inflationRate: 0.002, unemploymentRate: 0.05 },
     },
     {
@@ -110,8 +111,9 @@ export const pack2019: SeedPack = {
   ],
   // State layer (regions, apportionment, registration) generated from mainline's
   // per-era bundles by scripts/generateStateLayer.ts; see each file's header.
-  states: [...usStates2019, ...ukRegions2019],
+  states: [...ROSTER_2019_STATES, ...usStates2019, ...ukRegions2019],
   parties: [
+    ...ROSTER_2019_PARTIES,
     { id: "US_DEM", name: "Democratic Party", countryId: "US", abbreviation: "DEM", color: "#3B82F6", economicPosition: -2, socialPosition: -2 },
     { id: "US_REP", name: "Republican Party", countryId: "US", abbreviation: "REP", color: "#EF4444", economicPosition: 2, socialPosition: 2 },
     // UK roster for 2019-default per ukParties.ts validForPresets: adds RUK
@@ -127,6 +129,7 @@ export const pack2019: SeedPack = {
     { id: "UK_SF", name: "Sinn Fein", countryId: "UK", abbreviation: "SF", color: "#326760", economicPosition: -3, socialPosition: -2 },
   ],
   legislatures: [
+    ...ROSTER_2019_LEGISLATURES,
     {
       // US chamber sizes constitutionally fixed. US_HOUSE_2020 (433 named:
       // 231 Democrat / 201 Republican / 1 independent) and US_SENATE_2020

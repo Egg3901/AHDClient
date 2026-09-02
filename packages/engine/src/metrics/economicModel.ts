@@ -288,6 +288,12 @@ function seedForCountry(countryId: string, era: string): EconomicModelId | undef
   if (countryId === "UK") return "financialized";
   if (countryId === "RU") return "stateCapitalist";
   if (countryId === "DD") return "stateCapitalist";
+  // W61 roster: COUNTRY_CONFIGS.seedEconomicModel["1991"|"2019"] verbatim.
+  if (countryId === "JP") return "industrialPowerhouse";
+  if (countryId === "DE") return is1991Era ? "industrialPowerhouse" : "socialMarket";
+  if (countryId === "IE") return is1991Era ? "agrarian" : "techInnovation";
+  if (countryId === "CN") return is1991Era ? "agrarian" : "industrialPowerhouse";
+  if (countryId === "BR") return is1991Era ? "agrarian" : "resourceExtraction";
   return undefined;
 }
 

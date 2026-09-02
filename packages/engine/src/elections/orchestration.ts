@@ -18,6 +18,7 @@ import { realAccumulate } from "./tallyAdapter.js";
 import { ensureCampaignsForElection, archiveCampaignsForElection } from "../campaigns/lifecycle.js";
 import { applyPresidentialResolution } from "./presidentialResolution.js";
 import { declareCandidacy } from "./candidacy.js";
+import { GOVERNOR_COUNTRIES, LOWER_CHAMBER_PER_REGION, SUBNATIONAL_CHAMBER_PER_REGION, JP_SANGIIN_SEATS } from "../government/constants.js";
 
 /**
  * W21c orchestration: turns the pure election library into live world behavior.
@@ -59,6 +60,7 @@ function worldNow(world: WorldState): Date {
   return new Date(`${world.meta.date}T00:00:00Z`);
 }
 
+
 /** Election series solo currently schedules, per playable country. */
 interface SeriesSpec {
   electionType: string;
@@ -66,6 +68,8 @@ interface SeriesSpec {
   chamberKey: string;
   state?: string;
   senateClass?: 1 | 2 | 3;
+  /** JP Sangiin class (1|2); rides the record's senateClass slot for ids and seat matching. */
+  chamberClass?: 1 | 2;
   totalSeats: number;
 }
 
@@ -93,8 +97,47 @@ export function electionSeriesForWorld(world: WorldState): SeriesSpec[] {
   // cycle anchors already ported in electionEngine/resolution (governorStateSenate).
   for (const region of Object.values(regions)) {
     const r = region as unknown as { id: string; countryId: string };
-    if (r.countryId !== "US") continue;
-    specs.push({ electionType: "governor", countryId: "US", chamberKey: "governor", state: r.id, totalSeats: 1 });
+    if (!GOVERNOR_COUNTRIES.has(r.countryId)) continue;
+    specs.push({ electionType: "governor", countryId: r.countryId, chamberKey: "governor", state: r.id, totalSeats: 1 });
+  }
+  // W61 post-Cold-War roster (1991: JP/DE/CN/BR/IE; 2019: JP/DE/CN/IE). Every
+  // lower chamber is contested per region with totalSeats = the region's
+  // houseSeats, exactly as mainline's per-country spawners size them:
+  //   JP shugiin      perpetualElections.ts ensureJPElections (jpRegions houseDistricts)
+  //   DE bundestag    ensureDEElections (DE_WAHLKREIS_SEATS per Land)
+  //   CN npcDelegate  ensureCNElections (getCnNpcSeats per macro-region)
+  //   BR chamber      ensureBRElections (brRegions houseDistricts)
+  //   IE dail         ensureIEElections (ieRegions houseDistricts, PR-STV)
+  // BR senate: ensureBRSenateElections per region (senateSeats). JP sangiin:
+  // ensureJPCouncillorElections, two classes per region, class 1 = ceil,
+  // class 2 = floor of the region's JP_SANGIIN_SEATS. IE uachtaran:
+  // ensureIEUachtaranElections, one nationwide single-winner race.
+  const LOWER_PER_REGION = LOWER_CHAMBER_PER_REGION;
+  for (const region of Object.values(regions)) {
+    const r = region as unknown as { id: string; countryId: string; houseSeats?: number; senateSeats?: number };
+    const lower = LOWER_PER_REGION[r.countryId];
+    if (!lower) continue;
+    const leg = world.legislatures[r.countryId];
+    if (!leg) continue;
+    const chamber = leg.chambers.find((c) => c.key === lower.chamberKey);
+    if (chamber && chamber.elected && typeof r.houseSeats === "number" && r.houseSeats > 0) {
+      specs.push({ electionType: lower.electionType, countryId: r.countryId, chamberKey: lower.chamberKey, state: r.id, totalSeats: r.houseSeats });
+    }
+    if (r.countryId === "BR" && typeof r.senateSeats === "number" && r.senateSeats > 0) {
+      const senate = leg.chambers.find((c) => c.key === "senate");
+      if (senate && senate.elected) specs.push({ electionType: "senate", countryId: "BR", chamberKey: "senate", state: r.id, totalSeats: r.senateSeats });
+    }
+    if (r.countryId === "JP") {
+      const sangiin = leg.chambers.find((c) => c.key === "sangiin");
+      const n = JP_SANGIIN_SEATS[r.id];
+      if (sangiin && sangiin.elected && n) {
+        specs.push({ electionType: "sangiin", countryId: "JP", chamberKey: "sangiin", state: r.id, chamberClass: 1, totalSeats: Math.ceil(n / 2) });
+        specs.push({ electionType: "sangiin", countryId: "JP", chamberKey: "sangiin", state: r.id, chamberClass: 2, totalSeats: Math.floor(n / 2) });
+      }
+    }
+  }
+  if (world.legislatures["IE"]) {
+    specs.push({ electionType: "uachtaran", countryId: "IE", chamberKey: "president", totalSeats: 1 });
   }
   // US president (W24): one nationwide record, no `state`. Scope is US only -
   // see executive/types.ts file doc for why other presidential countries are
@@ -135,12 +178,7 @@ export function electionSeriesForWorld(world: WorldState): SeriesSpec[] {
   // resolved by `seatAllocation.ts` from the hardcoded UK_REGIONAL_COUNCIL_SEATS
   // constant (ignoring `apportionment.houseSeats`), matching mainline's own
   // separate `UK_REGIONAL_COUNCIL_SEATS` table — no change needed there.
-  const SUBNATIONAL_CHAMBERS: Record<string, { electionType: string; chamberKey: string }> = {
-    US: { electionType: "stateSenate", chamberKey: "stateSenate" },
-    UK: { electionType: "regionalCouncil", chamberKey: "regionalCouncil" },
-    RU: { electionType: "republicSupremeSoviet", chamberKey: "republicSupremeSoviet" },
-    DD: { electionType: "landAssembly", chamberKey: "landAssembly" },
-  };
+  const SUBNATIONAL_CHAMBERS = SUBNATIONAL_CHAMBER_PER_REGION;
   for (const region of Object.values(regions)) {
     const r = region as unknown as { id: string; countryId: string; senateSeats?: number };
     const spec = SUBNATIONAL_CHAMBERS[r.countryId];
@@ -161,7 +199,8 @@ export function electionSeriesForWorld(world: WorldState): SeriesSpec[] {
 }
 
 function seriesKey(s: SeriesSpec): string {
-  return `${s.electionType}:${s.countryId}:${s.state ?? "-"}${s.senateClass ? `:cl${s.senateClass}` : ""}`;
+  const cls = s.senateClass ?? s.chamberClass;
+  return `${s.electionType}:${s.countryId}:${s.state ?? "-"}${cls ? `:cl${cls}` : ""}`;
 }
 
 function recordSeriesKey(r: ElectionRecord): string {
@@ -345,6 +384,78 @@ function fillPresidentialCandidates(world: WorldState, rng: WorldRng, rec: Elect
 }
 
 /** Fill candidacies: incumbents re-enter, majors field challengers, player joins if declared. */
+/**
+ * IE Uachtarán na hÉireann (W61): one nationwide single-winner race
+ * (mainline perpetualElections.ts ensureIEUachtaranElections, canonicalCycle
+ * "uachtaran" 7-year cycle, electionMethod.ts uachtaran: "headOfState" fptp).
+ * The incumbent comes from `world.executives.IE` like the US president; no
+ * running mate (the office has none). Winner seats as executives.IE.presidentId.
+ */
+function fillUachtaranCandidates(world: WorldState, rng: WorldRng, rec: ElectionRecord): void {
+  const seen = new Set(rec.candidates.map((c) => c.id));
+  const exec = world.executives[rec.countryId];
+  if (exec?.presidentId && !seen.has(exec.presidentId)) {
+    const id = exec.presidentId;
+    const name = id === "player" ? world.player.name : (world.politicians.find((p) => p.id === id)?.name ?? id);
+    rec.candidates.push({ id, name, partyId: exec.presidentParty ?? "independent", isNPP: id !== "player", incumbent: true });
+    seen.add(id);
+  }
+  const incumbentPartyId = exec?.presidentId ? exec.presidentParty : null;
+  const majorParties = Object.values(world.parties).filter(
+    (p) => p.countryId === rec.countryId && (p.tier === "major" || p.id === incumbentPartyId),
+  );
+  for (const party of majorParties.sort((a, b) => a.id.localeCompare(b.id))) {
+    if (rec.candidates.some((c) => c.partyId === party.id)) continue;
+    const ch = makeChallenger(world, rng, rec, party.id, 0);
+    world.politicians.push(ch);
+    rec.candidates.push({ id: ch.id, name: ch.name, partyId: party.id, isNPP: true, incumbent: false });
+  }
+  ensureCampaignsForElection(world, rec);
+}
+
+function applyUachtaranResolution(world: WorldState, rec: ElectionRecord): void {
+  const candidates: CandidateInput[] = rec.candidates.map((c) => ({
+    _id: c.id,
+    electionId: rec.id,
+    ...(c.id === "player" ? { characterId: "player" } : {}),
+    characterName: c.name,
+    party: c.partyId,
+    isNPP: c.isNPP,
+  }));
+  const input: GeneralResolutionInput = {
+    election: { _id: rec.id, electionType: rec.electionType, countryId: rec.countryId, state: rec.state, cycle: rec.cycle, status: rec.status } as GeneralResolutionInput["election"],
+    tally: { electionId: rec.id, totalVotes: rec.tally, finalized: true },
+    candidates,
+    totalSeats: 1,
+    currentYear: Number(world.meta.date.slice(0, 4)),
+  };
+  const result = resolveGeneralElectionPure(input);
+  let winnerId: string | null = null;
+  let maxSeats = 0;
+  for (const [candId, seats] of Object.entries(result?.seatsEstimate ?? {})) {
+    if (seats > maxSeats) { maxSeats = seats; winnerId = candId; }
+  }
+  if (!winnerId) {
+    let best = -1;
+    for (const c of rec.candidates) { const v = rec.tally[c.id] ?? 0; if (v > best) { best = v; winnerId = c.id; } }
+  }
+  const winner = winnerId ? rec.candidates.find((c) => c.id === winnerId) : undefined;
+  if (winner) {
+    world.executives[rec.countryId] = {
+      countryId: rec.countryId,
+      presidentId: winner.id,
+      presidentParty: winner.partyId,
+      termStartTurn: world.meta.turn,
+      vicePresidentId: null,
+      vicePresidentParty: null,
+    };
+    rec.winners = [winner.id];
+  }
+  rec.status = "resolved";
+  rec.resolvedTurn = world.meta.turn;
+  cullOrphanedGenerated(world);
+}
+
 export function fillCandidates(world: WorldState, rng: WorldRng, rec: ElectionRecord): void {
   if (rec.electionType === "president") {
     fillPresidentialCandidates(world, rng, rec);
@@ -352,6 +463,10 @@ export function fillCandidates(world: WorldState, rng: WorldRng, rec: ElectionRe
   }
   if (rec.electionType === "governor" || rec.electionType === "special_governor") {
     fillGovernorCandidates(world, rng, rec);
+    return;
+  }
+  if (rec.electionType === "uachtaran") {
+    fillUachtaranCandidates(world, rng, rec);
     return;
   }
   const holders = seatHolders(world, rec);
@@ -515,6 +630,10 @@ export function applyResolution(world: WorldState, rec: ElectionRecord): void {
     applyGovernorResolution(world, rec);
     return;
   }
+  if (rec.electionType === "uachtaran") {
+    applyUachtaranResolution(world, rec);
+    return;
+  }
   const candidates: CandidateInput[] = rec.candidates.map((c) => ({
     _id: c.id,
     electionId: rec.id,
@@ -650,14 +769,17 @@ export function runElectionTimers(world: WorldState, rng: WorldRng): void {
             countryId: spec.countryId,
             state: spec.state,
             senateClass: spec.senateClass,
+            chamberClass: spec.chamberClass,
           } as unknown as Parameters<typeof planNextElectionForType>[0]);
     if (!plan) continue;
     const rec: ElectionRecord = {
-      id: electionRecordId(plan, spec.senateClass),
+      id: electionRecordId(plan, spec.senateClass ?? spec.chamberClass),
       electionType: plan.electionType,
       countryId: plan.countryId,
       state: spec.state,
-      senateClass: spec.senateClass,
+      // JP Sangiin class rides the senateClass slot: seat matching (seatHolders)
+      // and record ids key on it exactly like US Senate classes.
+      senateClass: (spec.senateClass ?? spec.chamberClass) as 1 | 2 | 3 | undefined,
       cycle: plan.cycle,
       status: plan.status,
       startTurn: plan.startTurn,
@@ -725,7 +847,7 @@ export function runAutoReelectionEntry(world: WorldState): void {
   if (!seat) return;
   for (const rec of [...world.elections].sort((a, b) => a.id.localeCompare(b.id))) {
     if (rec.status === "resolved") continue;
-    if (rec.electionType === "president") continue;
+    if (rec.electionType === "president" || rec.electionType === "uachtaran") continue;
     if (rec.countryId !== seat.countryId || rec.chamberKey !== seat.chamberKey) continue;
     if (world.meta.turn > rec.primaryEndTurn) continue;
     if (rec.candidates.some((c) => c.id === "player")) continue;

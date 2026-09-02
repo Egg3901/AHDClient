@@ -62,10 +62,11 @@ export const cabinetTransitionPhase: TurnPhase = {
 
     // UK cabinet per-parliamentary appointment path: if UK government exists formed but cabinet empty, fill it
     // (covers first world creation where government forms before cabinet phase)
-    if (world.governments["UK"]?.status === "formed") {
-      const ukMembers = (world.cabinetMembers ?? []).filter((m) => m.countryId === "UK");
-      if (ukMembers.length === 0) {
-        fillUkCabinetDirectly(world, "UK");
+    for (const [countryId, gov] of Object.entries(world.governments)) {
+      if (gov.status !== "formed") continue;
+      const members = (world.cabinetMembers ?? []).filter((m) => m.countryId === countryId);
+      if (members.length === 0) {
+        fillUkCabinetDirectly(world, countryId);
       }
     }
 
