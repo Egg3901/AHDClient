@@ -114,3 +114,15 @@ To enable:
 `docs/FRAMEWORK.md`; desktop-touching changes additionally need
 `npm run build:web --workspace apps/desktop` and `cargo check` in
 `apps/desktop/src-tauri` to pass before a packaging run.
+
+
+## Web preview publish
+
+The web preview is served under a subpath, so it must be built with a relative base or every asset 404s/401s against the host root:
+
+```
+npm run build:preview --workspace apps/desktop
+cp -r apps/desktop/dist/. <publish dir>/
+```
+
+`build:web` (absolute base) is for the Tauri bundle only.
