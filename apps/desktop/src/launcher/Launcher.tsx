@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { listEras, listPlayableCountries } from "@rotunda/engine";
+import desktopPackage from "../../package.json";
 import ahdLogo from "../assets/ahd-logo.png";
+import type { SaveSlotMeta } from "../saves.js";
 import { CommandGlobe, themeForEra } from "./CommandGlobe.js";
 import "./launcher.css";
 
@@ -8,10 +10,12 @@ type Mode = "sp" | "mp";
 
 interface Props {
   onNewWorld: (eraId: string) => void;
+  onContinue: (slot: string) => void;
   onLoad: () => void;
   onPlayOnline: () => void;
   error: string | null;
   onClearError: () => void;
+  latestSave: SaveSlotMeta | null;
 }
 
 const ERA_SUBTITLES: Readonly<Record<string, string>> = {
@@ -30,10 +34,12 @@ function eraSubtitle(id: string, label: string): string {
 
 export function Launcher({
   onNewWorld,
+  onContinue,
   onLoad,
   onPlayOnline,
   error,
   onClearError,
+  latestSave,
 }: Props): JSX.Element {
   const eras = listEras();
   const [mode, setMode] = useState<Mode>("sp");
@@ -149,14 +155,27 @@ export function Launcher({
               </>
             ) : (
               <>
+                {latestSave && (
+                  <button
+                    className="launcher-btn launcher-btn-primary launcher-btn-continue"
+                    onClick={() => onContinue(latestSave.slot)}
+                    title={`Turn ${latestSave.turn} · ${latestSave.date} · ${latestSave.country}`}
+                  >
+                    <span>
+                      Continue
+                      <small>{latestSave.playerName} · turn {latestSave.turn}</small>
+                    </span>
+                    <span aria-hidden="true">&#8594;</span>
+                  </button>
+                )}
                 <button
-                  className="launcher-btn launcher-btn-primary"
+                  className={`launcher-btn ${latestSave ? "launcher-btn-secondary" : "launcher-btn-primary"}`}
                   onClick={() => onNewWorld(eraId)}
                 >
-                  Start a new world <span aria-hidden="true">&#8594;</span>
+                  New world <span aria-hidden="true">&#8594;</span>
                 </button>
                 <button className="launcher-btn launcher-btn-secondary" onClick={onLoad}>
-                  Load a save
+                  All saves
                 </button>
               </>
             )}
@@ -165,7 +184,7 @@ export function Launcher({
       </section>
 
       <footer className="launcher-footer">
-        <span>Rotunda 0.9.0</span>
+        <span>Rotunda {desktopPackage.version}</span>
         <span>Singleplayer saves stay on this device</span>
       </footer>
     </main>

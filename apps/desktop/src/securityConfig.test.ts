@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import tauriConfig from "../src-tauri/tauri.conf.json";
 import desktopPackage from "../package.json";
+import rootPackage from "../../../package.json";
 import defaultCapability from "../src-tauri/capabilities/default.json";
 import onlineCapability from "../src-tauri/capabilities/online.json";
 
@@ -43,6 +44,18 @@ describe("desktop security configuration", () => {
 });
 
 describe("desktop platform configuration", () => {
+  it("keeps release versions and the changelog synchronized", () => {
+    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
+    const cargoManifest = readFileSync(join(sourceDirectory, "../src-tauri/Cargo.toml"), "utf8");
+    const changelog = readFileSync(join(sourceDirectory, "../../../CHANGELOG.md"), "utf8");
+    const cargoVersion = cargoManifest.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+
+    expect(rootPackage.version).toBe(desktopPackage.version);
+    expect(tauriConfig.version).toBe(desktopPackage.version);
+    expect(cargoVersion).toBe(desktopPackage.version);
+    expect(changelog).toContain(`## [${desktopPackage.version}]`);
+  });
+
   it("builds native bundles on Linux, Windows, and macOS runners", () => {
     expect(tauriConfig.bundle.targets).toBe("all");
     expect(tauriConfig.app.windows[0]?.backgroundColor).toBe("#f4efe5");
@@ -103,7 +116,10 @@ describe("desktop platform configuration", () => {
     const logo = readFileSync(join(sourceDirectory, "assets/ahd-logo.png"));
     expect(launcher).not.toContain("fetch(");
     expect(launcher).toContain('import ahdLogo from "../assets/ahd-logo.png";');
+    expect(launcher).toContain('import desktopPackage from "../../package.json";');
     expect(launcher).toContain('className="launcher-logo" src={ahdLogo} alt=""');
+    expect(launcher).toContain("Rotunda {desktopPackage.version}");
+    expect(launcher).not.toContain("Rotunda 0.9.0");
     expect(launcher).not.toContain("StreakField");
     expect(createHash("sha256").update(logo).digest("hex")).toBe(
       "1a7fe54f33c781d6b7741277a20a9e800ca5525a0fbea790a7109c3e119f66a9",

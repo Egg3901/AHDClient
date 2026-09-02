@@ -375,6 +375,20 @@
   background: #fff;
 }
 
+.launcher-btn-continue > span:first-child {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+}
+
+.launcher-btn-continue small {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 9px;
+  font-weight: 500;
+}
+
 .launcher-caption {
   max-width: 220px;
   margin: 0 0 0 4px;
@@ -581,6 +595,10 @@
     flex: 1 1 200px;
   }
 
+  .launcher-btn-continue {
+    flex-basis: 230px;
+  }
+
   .launcher-btn-secondary {
     flex: 0 1 auto;
   }
@@ -643,6 +661,10 @@
     min-width: 0;
     padding: 0 13px;
     font-size: 12px;
+  }
+
+  .launcher-btn-continue {
+    grid-column: 1 / -1;
   }
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "rotunda",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A House Divided client with local singleplayer and multiplayer entry points",
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
@@ -14,7 +14,8 @@
     "test": "npm run test --workspaces --if-present",
     "dev": "npm run dev --workspace apps/desktop",
     "verify": "npm run typecheck && npm run test",
-    "verify:qa": "npm run verify:qa --workspace packages/cli"
+    "verify:qa": "npm run verify:qa --workspace packages/cli",
+    "release:check": "node scripts/release-check.mjs"
   },
   "engines": {
     "node": ">=22.12.0"

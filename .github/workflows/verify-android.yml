@@ -53,6 +53,7 @@ jobs:
           workspaces: apps/desktop/src-tauri -> target
 
       - run: npm ci
+      - run: npm run release:check
       - run: npm run typecheck
       - run: npm test --workspace apps/desktop
       - run: npm test --workspace packages/content

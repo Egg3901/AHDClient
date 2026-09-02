@@ -40,6 +40,19 @@ describe("desktop game session", () => {
     expect(world.meta.cheatsUsed).toBe(true);
   });
 
+  it("honors simulation controls selected before the first turn", async () => {
+    const world = await game.newGame({ ...OPTS, featureFlags: { elections: false, events: false } });
+
+    expect(world.featureFlags.elections).toBe(false);
+    expect(world.featureFlags.events).toBe(false);
+    expect(world.featureFlags.economy).toBe(true);
+
+    await game.advanceTurn();
+
+    expect(world.featureFlags.elections).toBe(false);
+    expect(world.featureFlags.events).toBe(false);
+  });
+
   it("replaces an edited world only after save-schema validation", async () => {
     const world = await game.newGame(OPTS);
     const candidate = JSON.stringify({ ...world, player: { ...world.player, cash: 7654 } });

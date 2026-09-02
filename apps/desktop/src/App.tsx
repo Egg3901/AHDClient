@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import type { TurnReport, WorldFeatureFlag, WorldState } from "@rotunda/engine";
-import { listEras, listPlayableCountries, rulingPartyForCountry, WORLD_FEATURE_FLAG_DEFINITIONS } from "@rotunda/engine";
+import type { TurnReport, WorldFeatureFlag, WorldFeatureFlags, WorldState } from "@rotunda/engine";
+import {
+  DEFAULT_WORLD_FEATURE_FLAGS,
+  listEras,
+  listPlayableCountries,
+  rulingPartyForCountry,
+  WORLD_FEATURE_FLAG_DEFINITIONS,
+} from "@rotunda/engine";
 import { game } from "./game.js";
 import { Launcher } from "./launcher/Launcher.js";
 import { themeForEra } from "./launcher/CommandGlobe.js";
@@ -20,7 +26,8 @@ import { PartiesScreen } from "./parties/Parties.js";
 import "./parties/parties.css";
 import { SavesScreen } from "./saves/SavesScreen.js";
 import "./saves/saves.css";
-import { maybeAutosave } from "./saves.js";
+import { listSlots, loadFromSlot, maybeAutosave } from "./saves.js";
+import type { SaveSlotMeta } from "./saves.js";
 import { CharacterPanel } from "./character/CharacterPanel.js";
 import "./character/character.css";
 import { ActionsHub } from "./actions/ActionsHub.js";
@@ -148,6 +155,9 @@ function NewWorldScreen({
     }
   }, [mode, era, countryId]);
   const [startingCash, setStartingCash] = useState("10000");
+  const [featureFlags, setFeatureFlags] = useState<WorldFeatureFlags>(() => ({
+    ...DEFAULT_WORLD_FEATURE_FLAGS,
+  }));
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [rows, setRows] = useState<EditorRow[]>(() => {
     try {
@@ -234,7 +244,12 @@ function NewWorldScreen({
     return Math.abs(n - 10000) > 1e-6;
   }, [startingCash]);
 
-  const totalModified = modifiedCount + (cashModified ? 1 : 0);
+  const pausedFeatureCount = useMemo(
+    () => Object.values(featureFlags).filter((enabled) => !enabled).length,
+    [featureFlags],
+  );
+
+  const totalModified = modifiedCount + (cashModified ? 1 : 0) + pausedFeatureCount;
 
   const hasInvalid = useMemo(() => {
     if (!isValidCash(startingCash)) return true;
@@ -279,6 +294,15 @@ function NewWorldScreen({
       })),
     );
     setStartingCash("10000");
+    setFeatureFlags({ ...DEFAULT_WORLD_FEATURE_FLAGS });
+  };
+
+  const setAllFeatures = (enabled: boolean) => {
+    setFeatureFlags(
+      Object.fromEntries(
+        WORLD_FEATURE_FLAG_DEFINITIONS.map(({ key }) => [key, enabled]),
+      ) as WorldFeatureFlags,
+    );
   };
 
   const handleCreate = async () => {
@@ -341,7 +365,14 @@ function NewWorldScreen({
       if (Object.keys(countries).length > 0) overrides.countries = countries;
 
       const world = await createWorldWithOverrides(
-        { seed: seed.trim(), playerName: name.trim(), countryId, era, mode },
+        {
+          seed: seed.trim(),
+          playerName: name.trim(),
+          countryId,
+          era,
+          mode,
+          featureFlags,
+        },
         overrides,
       );
       onCreated(world);
@@ -543,6 +574,42 @@ function NewWorldScreen({
                     </tbody>
                   </table>
                 </div>
+
+                <div className="nw-feature-head row spread">
+                  <div>
+                    <strong>Simulation systems</strong>
+                    <div className="muted small">
+                      Pause systems before the first turn. Their state is retained and they can be resumed later from Tools.
+                    </div>
+                  </div>
+                  <div className="row">
+                    <button type="button" className="secondary small-btn" onClick={() => setAllFeatures(true)}>
+                      Enable all
+                    </button>
+                    <button type="button" className="secondary small-btn" onClick={() => setAllFeatures(false)}>
+                      Pause all
+                    </button>
+                  </div>
+                </div>
+
+                <div className="nw-feature-grid">
+                  {WORLD_FEATURE_FLAG_DEFINITIONS.map(({ key, label, description }) => (
+                    <label className="nw-feature-card" key={key}>
+                      <input
+                        type="checkbox"
+                        checked={featureFlags[key]}
+                        onChange={(event) => {
+                          const enabled = event.target.checked;
+                          setFeatureFlags((current) => ({ ...current, [key]: enabled }));
+                        }}
+                      />
+                      <span>
+                        <strong>{label}</strong>
+                        <small>{description}</small>
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
           </section>
@@ -550,6 +617,7 @@ function NewWorldScreen({
           <div className="nw-summary muted small">
             {mode === "hos" ? "Head of State" : "Career"} · {eraLabel} · {countryLabel} · seed {seed.trim() || "—"} · {modifiedCount} {modifiedCount === 1 ? "country" : "countries"} modified
             {cashModified ? " · cash modified" : ""}
+            {pausedFeatureCount > 0 ? ` · ${pausedFeatureCount} systems paused` : ""}
           </div>
 
           {error && (
@@ -1520,6 +1588,22 @@ export function App() {
   const [isDirty, setIsDirty] = useState(false);
   const [launcherError, setLauncherError] = useState<string | null>(null);
   const [savesError, setSavesError] = useState<string | null>(null);
+  const [latestSave, setLatestSave] = useState<SaveSlotMeta | null>(null);
+
+  useEffect(() => {
+    if (screen !== "launcher") return;
+    let active = true;
+    void listSlots()
+      .then((slots) => {
+        if (active) setLatestSave(slots[0] ?? null);
+      })
+      .catch(() => {
+        if (active) setLatestSave(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [screen]);
 
   const handleNewWorldCreated = (w: WorldState) => {
     setWorld(w);
@@ -1549,6 +1633,15 @@ export function App() {
     setLauncherError(null);
     setSavesError(null);
     setScreen("game");
+  };
+
+  const handleContinue = async (slot: string) => {
+    setLauncherError(null);
+    try {
+      handleSavesLoad(await loadFromSlot(slot));
+    } catch (error) {
+      setLauncherError(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const handleAdvanceWorld = (w: WorldState) => {
@@ -1605,11 +1698,13 @@ export function App() {
     <>
       <Launcher
         onPlayOnline={() => void openOnline()}
+        onContinue={(slot) => void handleContinue(slot)}
         onNewWorld={(eraId) => {
           setPendingEra(eraId);
           setScreen("newWorld");
         }}
         onLoad={openSavesFromLauncher}
+        latestSave={latestSave}
         error={launcherError}
         onClearError={() => setLauncherError(null)}
       />

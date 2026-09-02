@@ -1,9 +1,10 @@
 # Releasing ROTUNDA (apps/desktop)
 
 Build commands per OS for the Tauri desktop shell. Product name "A House Divided",
-identifier `net.lakesidegames.rotunda`, version tracked in
-`apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/Cargo.toml`, and
-`apps/desktop/package.json` (keep the three in sync).
+identifier `net.lakesidegames.rotunda`, version tracked in the root and desktop
+`package.json` files, `apps/desktop/src-tauri/tauri.conf.json`, and
+`apps/desktop/src-tauri/Cargo.toml`. Run `npm run release:check` after changing
+the version. CI and bundle workflows reject version or changelog drift.
 
 ## Linux (verified, this is the build this doc was written against)
 
@@ -49,7 +50,7 @@ The `desktop bundles` workflow builds DMGs for Apple Silicon and Intel on
 Public distribution still needs an Apple Developer signing identity and
 notarization credentials. `icons/icon.icns` is already generated and ready.
 
-## Android (buildable preview)
+## Android
 
 The checked-in Tauri Android project lives at
 `apps/desktop/src-tauri/gen/android`. It packages the same local singleplayer
@@ -92,7 +93,7 @@ The `tauri icon` command generates icons for every platform. This repo commits
 the desktop set and the Android resources copied into `gen/android`; iOS and
 MSIX-only outputs are not release inputs.
 
-## Auto-updates (scaffolded, disabled)
+## Auto-updates (credential-blocked, disabled)
 
 `tauri-plugin-updater` is **not** wired in yet. The release channel (where
 signed update manifests get hosted) and the signing keypair are an owner
@@ -123,7 +124,8 @@ To enable:
 `npm run verify` (typecheck + engine tests) is the merge gate per
 `docs/FRAMEWORK.md`; desktop-touching changes additionally need
 `npm run build:web --workspace apps/desktop` and `cargo check` in
-`apps/desktop/src-tauri` to pass before a packaging run.
+`apps/desktop/src-tauri` to pass before a packaging run. Begin every release
+candidate check with `npm run release:check`.
 
 
 ## Web preview publish

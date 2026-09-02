@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img alt="status" src="https://img.shields.io/badge/status-0.9_build_preview-000000?style=flat-square&labelColor=1a1a1a"/>
+  <img alt="status" src="https://img.shields.io/badge/status-1.0.0_release-000000?style=flat-square&labelColor=1a1a1a"/>
   <img alt="shell" src="https://img.shields.io/badge/shell-Tauri_2-000000?style=flat-square&labelColor=1a1a1a"/>
   <img alt="engine" src="https://img.shields.io/badge/engine-TypeScript,_deterministic-000000?style=flat-square&labelColor=1a1a1a"/>
   <img alt="license" src="https://img.shields.io/badge/license-PolyForm_NC_1.0.0-000000?style=flat-square&labelColor=1a1a1a"/>
@@ -48,6 +48,7 @@ Requires Node >= 22.12 and Rust (plus `libwebkit2gtk-4.1-dev` on Linux).
 
 ```
 npm install
+npm run release:check # synchronized version and changelog metadata
 npm run verify   # typecheck + engine tests: the merge gate
 npm run dev      # tauri dev
 ```

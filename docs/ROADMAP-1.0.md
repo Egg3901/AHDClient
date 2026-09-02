@@ -1,12 +1,14 @@
 # ROTUNDA 1.0 roadmap
 
-1.0 means completion: full singleplayer parity with mainline A House Divided's shipped systems for the 1953, 1979, 1991, and 2019 seed packs; the hardened multiplayer entry; granular creation, cheats, and saves; signed distribution; and working updates. The current 0.9 tree is a build preview, not 1.0: signing, publishing, updates, device QA, and the explicitly listed W61 gameplay gaps remain open. Nothing on mainline's phase list may be silently skipped; every phase must be ported or explicitly recorded as N/A for singleplayer.
+1.0.0 is the first supported ROTUNDA client release: local singleplayer for the four shipped eras, a hardened multiplayer entry, granular creation and editing, reliable local saves, desktop bundles, and an Android build. The source release is versioned and reproducible. Public signing, store submission, notarization, and updater publication remain owner-operated distribution work because they require private credentials and live endpoints.
+
+Mainline parity remains a continuing content and simulation goal, not a license to hide incomplete mechanics. Systems that are not implemented must stay explicitly unavailable with a named blocker. The supported 1.0 surface may not silently skip a turn phase; each phase is implemented, deliberately not applicable to local singleplayer, or recorded as a visible PORT-STUB.
 
 Working method: numbered waves. One wave = one muse brief (or an inline pass by the operator), landing verified and merged before its lane advances. Two to three agents run concurrently across disjoint lanes. Observed cadence: a wave lands in about 45 minutes including merge; roughly 2.5 waves/hour sustained.
 
 ## Progress ledger (done)
 
-Engine core (turn pipeline, RNG, saves) - four real seed packs - 21 playable era/country combinations across 11 unique countries - macro economy (output gap, Okun, Phillips) - political skeleton (parties, legislatures, real compositions) - NPC name generation - sim CLI (run/determinism/bench/QA) - launcher with era command globe - granular creation flow - singleplayer tools with quick edits, typed simulation flags, and validated complete-world editing - schema v42 with chained migrations. The 2026-09-02 audit ran all 1,512 repository tests green before the schema v42 work; test count is evidence for that tree, not a release-readiness claim.
+Engine core (turn pipeline, RNG, saves) - four real seed packs - 21 playable era/country combinations across 11 unique countries - macro economy (output gap, Okun, Phillips) - political skeleton (parties, legislatures, real compositions) - NPC name generation - sim CLI (run/determinism/bench/QA) - launcher with era command globe and latest-save continuation - granular creation flow, including pre-turn simulation controls - singleplayer tools with quick edits, typed simulation flags, and validated complete-world editing - schema v42 with chained migrations.
 
 ## Lane 1: economy core (engine)
 
@@ -111,7 +113,7 @@ activityLogging (server telemetry), auditAnomalyScan / suspiciousDetection / fin
 
 ## UI lane (desktop, trails its engine wave)
 
-U1 government viewer (in flight) - U2 economy dashboard with charts - U3 corporation management - U4 banking and portfolio - U5 elections center and results night - U6 congress/bills - U7 party screens - U8 campaign screen - U9 world map/globe screen (region geojsons, same source as mainline) - U10 character and actions hub - U11 events and news feed - U12 history charts - U13 saves: slots, autosave, crash-safe writes - U14 singleplayer tools (quick world edits, feature flags, validated complete-world JSON)
+SHIPPED: U1 government viewer - U2 economy dashboard with charts - U3 corporation management - U4 banking and portfolio - U5 elections center and results night - U6 congress/bills - U7 party screens - U8 campaign screen - U9 world map/globe screen - U10 character and actions hub - U11 events and news feed - U12 history charts - U13 saves with slots, rotating autosave, crash-safe writes, import/export, and latest-save continuation - U14 singleplayer tools with quick world edits, feature flags, and validated complete-world JSON. The new-world flow can set all 26 simulation controls before turn zero.
 
 ## Platform lane
 
@@ -119,18 +121,18 @@ U1 government viewer (in flight) - U2 economy dashboard with charts - U3 corpora
 - P2 packaging: tauri bundle and icons; Linux, Windows, and macOS unsigned validation bundles run through `.github/workflows/release-desktop.yml`; public signing, notarization, publishing, and the updater endpoint still require owner credentials and release decisions
 - P3 multiplayer viewer polish: session persistence, external link handling; ahd-client feature audit, absorption, archive
 - P4 QA gate: 40 in-game years per era via CLI without invariant breaks, determinism in verify, bench budget, manual smoke checklist on a real desktop
-- P5 release: 1.0.0 version, changelog, distribution
+- P5 release source: SHIPPED - synchronized 1.0.0 metadata, changelog, and CI release check. Signed public distribution and updater publication remain credential-bound owner operations.
 
 ## Dependency notes
 
 Lanes 1-4 and 8-11 are mutually independent; run continuously, two to three concurrent. Lane 5 needs W19 (support) and W38 (US states). Lane 6 needs W18. Lane 7 anytime. UI waves start when their engine wave merges. Platform lane last except P1.
 
-## Post-1.0 lane
+## Mobile lane
 
-- A1 Android foundation: SHIPPED in the Tauri client with an initialized Android project, local SP engine, responsive launcher, ARM64 debug APK proof, unsigned ARM64 release AAB proof, and CI build. Play Online navigates the app's single mobile webview so the existing OAuth and persistent cookie flow remains in-app; remote Tauri API access stays disabled. Device QA, accessibility polish, signed AAB distribution, and the owner decision to replace the existing multiplayer-only Capacitor app remain release work.
+- A1 Android foundation: SHIPPED in the Tauri client with an initialized Android project, local SP engine, responsive launcher, ARM64 debug APK proof, unsigned ARM64 release AAB proof, and CI build. Play Online navigates the app's single mobile webview so the existing OAuth and persistent cookie flow remains in-app; remote Tauri API access stays disabled. Store publication still requires real-device QA, an owner-provided Play upload key, and the owner decision to replace the existing multiplayer-only Capacitor app.
 
 ## Count
 
-The 60-wave count above is the historical implementation plan, not proof of completion. Current release blockers are recorded in the platform lane and W61 entry; signed artifacts and real-device smoke tests must be reported separately from simulation QA.
+The 60-wave count above is the historical implementation plan, not proof of completion. Signed artifacts, store submissions, live updater rollout, and real-device smoke tests must be reported separately from simulation QA and are not implied by the 1.0.0 source version.
 
 - W61 post-Cold-War playable rosters: DONE (M1) — 1991 opens JP/DE/CN/BR/IE and 2019 opens JP/DE/CN/IE per mainline RESET_PRESETS[...].countries; regions, registration, Layer-1 demographics, parties, seat-table compositions, cabinet position tables and voter-group categories generated from mainline by `packages/content/scripts/generateRosters.ts`; per-region election series for every lower/upper/subnational chamber, governors, IE uachtaran, CN partyChairSync president. M2: legislation catalogs SHIPPED (257 generated entries, all PORT-STUB: 8 blocked only on a hand-authored effect descriptor, the rest on the political-metrics board gap); authored per-era budgets SHIPPED (generateBudgets.ts, tax ladder live at schema v41); still open (coupled: tax rates resolve from tax-policy law types), BR president (mainline itself does not activate it), JP Sangiin/BR Senado class staggering, DE AMS list seats, IE STV.
