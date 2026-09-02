@@ -1,6 +1,6 @@
 /**
  * 1953 national sector weights for the four playable countries, verbatim from
- * mainline. Source: /root/projects/AHDGame/src/lib/seeds/reference/
+ * mainline. Source: <mainline-checkout>/src/lib/seeds/reference/
  * sectorSeedWeights1953.ts COUNTRY_SECTOR_WEIGHTS_1953.
  *
  * Values are "relative percentage-of-GDP allocations across the 17 game

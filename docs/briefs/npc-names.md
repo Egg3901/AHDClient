@@ -4,7 +4,7 @@ Read `docs/FRAMEWORK.md` first. You own `packages/engine/src/npp/` (new director
 
 ## Source of truth (READ-ONLY)
 
-Mainline at `/root/projects/AHDGame`: `src/lib/npp/nameGenerator.ts`, `src/lib/npp/nameEra.ts`, and whatever name data they import. **Live production-shared tree: read only, no git, no npm there.**
+Mainline at `<mainline-checkout>`: `src/lib/npp/nameGenerator.ts`, `src/lib/npp/nameEra.ts`, and whatever name data they import. **Live production-shared tree: read only, no git, no npm there.**
 
 ## Goal
 

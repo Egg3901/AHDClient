@@ -28,8 +28,8 @@
  *   src/lib/metricEngine/). The pure helper is real and tested; the phase does
  *   not yet mutate WorldState political fields.
  *
- * Source: /root/projects/AHDGame/src/lib/unions/unionPoliticalContributions.ts
- *         /root/projects/AHDGame/src/lib/unions/labourRelationsPoliticalProvider.ts
+ * Source: <mainline-checkout>/src/lib/unions/unionPoliticalContributions.ts
+ *         <mainline-checkout>/src/lib/unions/labourRelationsPoliticalProvider.ts
  */
 
 import type { UnionServiceId } from "./services.js";

@@ -1,7 +1,7 @@
 /**
  * Era gating for generated politician names.
  *
- * Source: /root/projects/AHDGame/src/lib/npp/nameEra.ts (verbatim port).
+ * Source: <mainline-checkout>/src/lib/npp/nameEra.ts (verbatim port).
  * Only names that are demonstrably modern in American use are gated;
  * traditional names carry no entry and work in every era. See mainline
  * header for full rationale.

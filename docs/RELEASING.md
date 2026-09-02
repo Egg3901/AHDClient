@@ -11,7 +11,7 @@ Prerequisites (Debian/Ubuntu package names):
 
 - `libwebkit2gtk-4.1-dev`, `libgtk-3-dev` (runtime: `libwebkit2gtk-4.1-0`, `libgtk-3-0`)
 - `librsvg2-bin` (only needed to regenerate icons from SVG, see below)
-- Rust stable toolchain (`rustc`/`cargo`), Node 22+
+- Rust stable toolchain (`rustc`/`cargo`), Node 22.12+
 - `dpkg-deb` for the .deb target (present on any Debian-family box)
 - AppImage tooling (`appimagetool`, `linuxdeploy` + plugins) is downloaded
   automatically by the Tauri bundler on first build and cached; requires

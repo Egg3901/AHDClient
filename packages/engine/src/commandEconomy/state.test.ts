@@ -7,7 +7,7 @@ import {
   updateSecondEconomy,
 } from "./state.js";
 
-// Formula source (all): /root/projects/AHDGame/src/lib/economy/commandEconomyState.ts
+// Formula source (all): <mainline-checkout>/src/lib/economy/commandEconomyState.ts
 describe("accumulateOverhang", () => {
   it("hand-computed: wage growth outrunning goods growth accrues overhang", () => {
     // gap = 10 - 2 = 8; flow = (1 * 8) / 48 = 0.16667; result = 50*0.99 + 0.16667

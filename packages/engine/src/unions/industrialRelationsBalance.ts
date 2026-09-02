@@ -24,7 +24,7 @@
  * until the full mandate land. The scenario list and output fields are
  * verbatim from the mainline file so tests can golden the shape.
  *
- * Source: /root/projects/AHDGame/src/simulation/industrialRelationsBalance.ts
+ * Source: <mainline-checkout>/src/simulation/industrialRelationsBalance.ts
  */
 
 export interface IndustrialRelationsBalanceScenario {

@@ -1,12 +1,12 @@
 # ROTUNDA 1.0 roadmap
 
-1.0 means completion: full singleplayer parity with mainline A House Divided's shipped systems (eras 1953 and 1960), the hardened multiplayer viewer, granular creation, cheats, saves, packaged installers with updates. Nothing on mainline's phase list is skipped; every phase is either ported or explicitly N/A-for-singleplayer with a reason recorded here.
+1.0 means completion: full singleplayer parity with mainline A House Divided's shipped systems for the 1953, 1979, 1991, and 2019 seed packs; the hardened multiplayer entry; granular creation, cheats, and saves; signed distribution; and working updates. The current 0.9 tree is a build preview, not 1.0: signing, publishing, updates, device QA, and the explicitly listed W61 gameplay gaps remain open. Nothing on mainline's phase list may be silently skipped; every phase must be ported or explicitly recorded as N/A for singleplayer.
 
 Working method: numbered waves. One wave = one muse brief (or an inline pass by the operator), landing verified and merged before its lane advances. Two to three agents run concurrently across disjoint lanes. Observed cadence: a wave lands in about 45 minutes including merge; roughly 2.5 waves/hour sustained.
 
 ## Progress ledger (done)
 
-Engine core (turn pipeline, RNG, saves) - real seed packs, 27 countries, both eras - macro economy (output gap, Okun, Phillips) - political skeleton (parties, legislatures, real 1953 compositions) - 1,815 seated politicians - NPC name generator (25 country pools) - sim CLI (run/determinism/bench, 64k turns/sec) - launcher with era command globe - granular creation flow - cheat panel + engine cheat API - schema v5 with chained migrations - 122 tests green.
+Engine core (turn pipeline, RNG, saves) - four real seed packs - 21 playable era/country combinations across 11 unique countries - macro economy (output gap, Okun, Phillips) - political skeleton (parties, legislatures, real compositions) - NPC name generation - sim CLI (run/determinism/bench/QA) - launcher with era command globe - granular creation flow - cheat panel + engine cheat API - schema v41 with chained migrations. The 2026-09-02 audit ran all 1,512 repository tests green; test count is evidence for that tree, not a release-readiness claim.
 
 ## Lane 1: economy core (engine)
 
@@ -131,6 +131,6 @@ Lanes 1-4 and 8-11 are mutually independent; run continuously, two to three conc
 
 ## Count
 
-41 engine/content waves + 14 UI waves + 5 platform waves = 60 waves, minus 1 in flight. At observed cadence this is roughly two sustained days of continuous operation, bounded by merge serialization and the windows/macOS packaging decision, not by engine work.
+The 60-wave count above is the historical implementation plan, not proof of completion. Current release blockers are recorded in the platform lane and W61 entry; signed artifacts and real-device smoke tests must be reported separately from simulation QA.
 
 - W61 post-Cold-War playable rosters: DONE (M1) — 1991 opens JP/DE/CN/BR/IE and 2019 opens JP/DE/CN/IE per mainline RESET_PRESETS[...].countries; regions, registration, Layer-1 demographics, parties, seat-table compositions, cabinet position tables and voter-group categories generated from mainline by `packages/content/scripts/generateRosters.ts`; per-region election series for every lower/upper/subnational chamber, governors, IE uachtaran, CN partyChairSync president. M2: legislation catalogs SHIPPED (257 generated entries, all PORT-STUB: 8 blocked only on a hand-authored effect descriptor, the rest on the political-metrics board gap); authored per-era budgets SHIPPED (generateBudgets.ts, tax ladder live at schema v41); still open (coupled: tax rates resolve from tax-policy law types), BR president (mainline itself does not activate it), JP Sangiin/BR Senado class staggering, DE AMS list seats, IE STV.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { advanceTradeGrowth, computeTradeGrowthTarget } from "./tradeGrowth.js";
 
-// Formula source: /root/projects/AHDGame/src/lib/metricEngine/registry/economic.ts tradeGrowthNode
+// Formula source: <mainline-checkout>/src/lib/metricEngine/registry/economic.ts tradeGrowthNode
 describe("computeTradeGrowthTarget", () => {
   it("neutral inputs return WORLD_TRADE_BASELINE", () => {
     expect(

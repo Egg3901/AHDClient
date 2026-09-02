@@ -10,7 +10,7 @@
  *  - strikeSoftening -> strike pressure damping (PORT-STUB: no strike system yet)
  *  - workerSecurityNudge -> political board via labourRelationsPoliticalProvider (political.ts)
  *
- * Source: /root/projects/AHDGame/src/lib/unions/unionServices.ts
+ * Source: <mainline-checkout>/src/lib/unions/unionServices.ts
  */
 
 import { TURNS_PER_YEAR } from "../economy/macroConstants.js";

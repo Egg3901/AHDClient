@@ -4,7 +4,7 @@ Read `docs/FRAMEWORK.md` first. You own `packages/engine`. Do not touch `package
 
 ## Source of truth (READ-ONLY)
 
-Mainline lives at `/root/projects/AHDGame`. Entry point: `/root/projects/AHDGame/src/lib/world/macro/index.ts` and whatever it imports, plus the phase wiring around `macroCountryTurn` in `src/lib/turn/`. **That checkout is a live production-shared tree: read files only, never write, never run git or npm there.**
+Mainline lives at `<mainline-checkout>`. Entry point: `<mainline-checkout>/src/lib/world/macro/index.ts` and whatever it imports, plus the phase wiring around `macroCountryTurn` in `src/lib/turn/`. **That checkout is a live production-shared tree: read files only, never write, never run git or npm there.**
 
 ## Goal
 

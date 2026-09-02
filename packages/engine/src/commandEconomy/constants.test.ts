@@ -13,8 +13,8 @@ import {
   wageFundConstrainedGrowth,
 } from "./constants.js";
 
-// Formula source: /root/projects/AHDGame/src/lib/constants/commandEconomy.ts
-// and /root/projects/AHDGame/src/lib/economy/twoCircuitMoney.ts
+// Formula source: <mainline-checkout>/src/lib/constants/commandEconomy.ts
+// and <mainline-checkout>/src/lib/economy/twoCircuitMoney.ts
 
 describe("scheduledMarketizationLevel", () => {
   it("RU/DD read the 1953 command-band seed within their era, MARKET_LEVEL after", () => {

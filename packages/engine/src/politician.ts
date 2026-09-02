@@ -1,7 +1,7 @@
 /**
  * Politician generation — deterministic NPC office-holders for legislatures.
  *
- * Sources (READ-ONLY mainline at /root/projects/AHDGame):
+ * Sources (READ-ONLY mainline at <mainline-checkout>):
  * - Ideology jitter: src/lib/npp/generator.ts `generatePolicyPositions` (lines 419-465).
  *   At quality 0, varianceFactor = Math.max(0.5, 2 - (0+20)/25) = 1.2, and
  *   economic = clamp(base + randomInRange(-varianceFactor, varianceFactor), -5, 5)

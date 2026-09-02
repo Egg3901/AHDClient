@@ -7,7 +7,7 @@ import {
   seedCapitalStock,
 } from "./capitalStock.js";
 
-// Formula source: /root/projects/AHDGame/src/lib/metricEngine/capitalStock.ts
+// Formula source: <mainline-checkout>/src/lib/metricEngine/capitalStock.ts
 describe("investmentRate", () => {
   it("at the neutral rate, investment rate is exactly BASE_INVESTMENT_RATE", () => {
     expect(investmentRate(3, 3)).toBeCloseTo(0.2, 10);

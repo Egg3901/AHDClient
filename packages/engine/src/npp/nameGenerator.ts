@@ -1,12 +1,12 @@
 /**
  * Deterministic NPC name generator.
  *
- * Source: /root/projects/AHDGame/src/lib/npp/nameGenerator.ts
- *         /root/projects/AHDGame/src/lib/npp/nameEra.ts
- *         /root/projects/AHDGame/src/lib/npp/nameLists1.ts
- *         /root/projects/AHDGame/src/lib/npp/nameLists2.ts
- *         /root/projects/AHDGame/src/lib/npp/nameLists3.ts
- *         /root/projects/AHDGame/src/lib/npp/nameLists4.ts
+ * Source: <mainline-checkout>/src/lib/npp/nameGenerator.ts
+ *         <mainline-checkout>/src/lib/npp/nameEra.ts
+ *         <mainline-checkout>/src/lib/npp/nameLists1.ts
+ *         <mainline-checkout>/src/lib/npp/nameLists2.ts
+ *         <mainline-checkout>/src/lib/npp/nameLists3.ts
+ *         <mainline-checkout>/src/lib/npp/nameLists4.ts
  *
  * All randomness flows through the passed WorldRng (no Math.random / Date.now),
  * faithful to mainline's pools, weighting, gender ratios, feminizers, and era

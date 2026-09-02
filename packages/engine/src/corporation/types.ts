@@ -19,7 +19,7 @@
  * corp can own more than one sector — deferred to a future wave alongside
  * multi-sector ownership / player-run corporations.
  *
- * Source: /root/projects/AHDGame/src/lib/db/types/corporation.ts (Corporation
+ * Source: <mainline-checkout>/src/lib/db/types/corporation.ts (Corporation
  * lines 144-589, CorporateSector lines 622-1264) — fields kept are the subset
  * relevant to production/revenue/costs/NPC-management; market/M&A/subsidiary/
  * tech/governance fields are omitted (see constants.ts file doc for the full
@@ -28,7 +28,7 @@
 
 /**
  * The 17 mainline industry sector types.
- * Source: /root/projects/AHDGame/src/lib/constants/corporations.ts:17-34
+ * Source: <mainline-checkout>/src/lib/constants/corporations.ts:17-34
  * CORPORATION_TYPES (verbatim order).
  */
 import type { BankCharter } from "../banking/types.js";
@@ -57,7 +57,7 @@ export type CorporationType = (typeof CORPORATION_TYPES)[number];
 
 /**
  * CEO behavior archetype, derived deterministically from personality.
- * Source: /root/projects/AHDGame/src/lib/npp/ceoArchetype.ts CeoArchetype.
+ * Source: <mainline-checkout>/src/lib/npp/ceoArchetype.ts CeoArchetype.
  */
 export type CeoArchetype = "aggressive" | "cautious" | "innovator" | "costCutter";
 

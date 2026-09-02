@@ -1,6 +1,6 @@
 # Brief W37: port NPC behavior cluster
 
-Read `docs/FRAMEWORK.md`. Mainline at `/root/projects/AHDGame` is READ-ONLY. You own `packages/engine` NPC behavior surface (`src/npp/` behavior modules, phase registrations, politician field extensions). Do NOT touch `src/elections/orchestration.ts` or `src/electionEngine/` (operator active there). Schema: current is v13; take v14 if fields are needed, chained migration + test; one-line cli fixture bump allowed.
+Read `docs/FRAMEWORK.md`. Mainline at `<mainline-checkout>` is READ-ONLY. You own `packages/engine` NPC behavior surface (`src/npp/` behavior modules, phase registrations, politician field extensions). Do NOT touch `src/elections/orchestration.ts` or `src/electionEngine/` (operator active there). Schema: current is v13; take v14 if fields are needed, chained migration + test; one-line cli fixture bump allowed.
 
 Port from mainline the NPC behavior cluster: `nppBehavior`, `nppRelationshipMaintenance`, `nppBillSponsorship`, `nppActionProcessing`, `nppFundGeneration` (whatever `fundGeneration` did not already cover), and NPP stance logic including the stance-mimicry fix, from `src/lib/npp/` and their turn wiring. NPCs should spend their action points and funds like mainline: org/GOTV/support investment via the existing W34 action catalog and party phases, bill sponsorship through the W27 legislation API, relationship state as mainline models it.
 

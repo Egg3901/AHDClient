@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { clampConcentration, sociMultiplier } from "./stateOwnershipConcentration.js";
 
-// Formula source: /root/projects/AHDGame/src/lib/nationalization/concentration.ts
+// Formula source: <mainline-checkout>/src/lib/nationalization/concentration.ts
 describe("clampConcentration", () => {
   it("clamps to [0, 100] and NaN-guards", () => {
     expect(clampConcentration(150)).toBe(100);

@@ -1,6 +1,6 @@
 # Brief W34: port player action economy (actionRefresh, fundGeneration, action catalog)
 
-Read `docs/FRAMEWORK.md`. Mainline at `/root/projects/AHDGame` is READ-ONLY. You own `packages/engine` actions surface. Do not touch `apps/desktop` (an agent is active there). Determinism doctrine; cite sources; PORT-STUB at mainline-neutral values; schema bump + chained migration + test; one-line cli fixture bump allowed.
+Read `docs/FRAMEWORK.md`. Mainline at `<mainline-checkout>` is READ-ONLY. You own `packages/engine` actions surface. Do not touch `apps/desktop` (an agent is active there). Determinism doctrine; cite sources; PORT-STUB at mainline-neutral values; schema bump + chained migration + test; one-line cli fixture bump allowed.
 
 Port from mainline: `actionRefresh` and `fundGeneration` phases plus the action catalog machinery under `src/lib/actions/` (action definitions, costs, cooldowns, fundraise quote logic per `actions.fundraiseQuote`). Deliver:
 

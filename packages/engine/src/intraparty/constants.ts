@@ -1,6 +1,6 @@
 /**
  * Intra-party election constants.
- * All values cite mainline sources at /root/projects/AHDGame. Do not invent numbers.
+ * All values cite mainline sources at <mainline-checkout>. Do not invent numbers.
  */
 
  // State party elections: src/lib/statePartyElections.ts ELECTION_DURATION_TURNS = 72

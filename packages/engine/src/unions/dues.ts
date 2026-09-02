@@ -16,9 +16,9 @@
  * demographic bridge lives in one place (phases.ts) instead of being baked
  * into every formula.
  *
- * Source: /root/projects/AHDGame/src/lib/unions/unionDues.ts
- *         /root/projects/AHDGame/src/lib/unions/unionServices.ts (annualWageFromDaily, services*)
- *         /root/projects/AHDGame/src/lib/constants/turnTime.ts TURNS_PER_YEAR 48
+ * Source: <mainline-checkout>/src/lib/unions/unionDues.ts
+ *         <mainline-checkout>/src/lib/unions/unionServices.ts (annualWageFromDaily, services*)
+ *         <mainline-checkout>/src/lib/constants/turnTime.ts TURNS_PER_YEAR 48
  */
 
 import { TURNS_PER_YEAR } from "../economy/macroConstants.js";

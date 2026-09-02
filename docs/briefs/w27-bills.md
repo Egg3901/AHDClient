@@ -1,6 +1,6 @@
 # Brief W27: port the legislation core (bills, voting, cloture, committees)
 
-Read `docs/FRAMEWORK.md`. Mainline at `/root/projects/AHDGame` is READ-ONLY. You own `packages/engine` legislation surface (new `src/legislation/` modules, phases, types/world/save extensions, action catalog additions). Do NOT touch `packages/engine/src/electionEngine/` (agent active there) or `apps/desktop`. Schema: current is v11; take v12 with chained migration + test; one-line cli fixture bump allowed.
+Read `docs/FRAMEWORK.md`. Mainline at `<mainline-checkout>` is READ-ONLY. You own `packages/engine` legislation surface (new `src/legislation/` modules, phases, types/world/save extensions, action catalog additions). Do NOT touch `packages/engine/src/electionEngine/` (agent active there) or `apps/desktop`. Schema: current is v11; take v12 with chained migration + test; one-line cli fixture bump allowed.
 
 Port from mainline: `billLifecycle` (+ helpers), `billVoteLogic`, cloture with the quorum rule, `stateBillTimers`, and the committee model to the depth `billLifecycle` requires, from `src/lib/billLifecycle.ts`, `src/lib/billVoteLogic.ts`, `src/lib/billLifecycleHelpers.ts`, `src/lib/congress/`, and the bill catalog under `src/lib/` (bill types/effects catalog; port the catalog entries whose effect targets exist in solo: economy fields, party/support effects; entries with unported targets get `PORT-STUB: unavailable` status with the blocking system named). Deliver:
 

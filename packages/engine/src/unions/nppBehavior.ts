@@ -27,7 +27,7 @@
  *  - The NPP_DEMAND_MIN_UNIONIZATION / NPP_DEMAND_PREMIUM / NPP_DEMAND_CEILING constants
  *  - The militancy helper
  *
- * Source: /root/projects/AHDGame/src/lib/turn/unions/nppUnionBehavior.ts
+ * Source: <mainline-checkout>/src/lib/turn/unions/nppUnionBehavior.ts
  */
 
 import type { WorldState } from "../types.js";

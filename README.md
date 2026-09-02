@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img alt="status" src="https://img.shields.io/badge/status-pre--alpha-000000?style=flat-square&labelColor=1a1a1a"/>
+  <img alt="status" src="https://img.shields.io/badge/status-0.9_build_preview-000000?style=flat-square&labelColor=1a1a1a"/>
   <img alt="shell" src="https://img.shields.io/badge/shell-Tauri_2-000000?style=flat-square&labelColor=1a1a1a"/>
   <img alt="engine" src="https://img.shields.io/badge/engine-TypeScript,_deterministic-000000?style=flat-square&labelColor=1a1a1a"/>
   <img alt="license" src="https://img.shields.io/badge/license-PolyForm_NC_1.0.0-000000?style=flat-square&labelColor=1a1a1a"/>
@@ -17,7 +17,7 @@ Singleplayer runs no server. The simulation is a library inside the app process:
 
 ```mermaid
 flowchart LR
-  subgraph desktop["apps/desktop &nbsp;(Tauri 2)"]
+  subgraph client["apps/desktop &nbsp;(Tauri 2 desktop + Android)"]
     launcher["Launcher"] --> online["Online window\nhardened webview,\nzero capabilities"]
     launcher --> sp["Singleplayer UI\n(React)"]
   end
@@ -31,7 +31,7 @@ flowchart LR
 |---|---|
 | `packages/engine` | Deterministic simulation core. No Tauri, no DOM, no IO. Runs headless. |
 | `packages/content` | Era seed packs: versioned world templates the engine boots from. |
-| `apps/desktop` | Rust shell plus React webview. Owns windows, dialogs, file IO, mode routing. |
+| `apps/desktop` | Tauri Rust shell plus React webview for desktop and Android. Owns windows, dialogs, file IO, and mode routing. |
 
 Design rules, in order of importance:
 
@@ -44,7 +44,7 @@ The full integration contract, module boundaries, and the binding security doctr
 
 ## Development
 
-Requires Node >= 22 and Rust (plus `libwebkit2gtk-4.1-dev` on Linux).
+Requires Node >= 22.12 and Rust (plus `libwebkit2gtk-4.1-dev` on Linux).
 
 ```
 npm install

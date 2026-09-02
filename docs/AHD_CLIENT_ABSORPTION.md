@@ -1,6 +1,6 @@
 # ahd-client absorption audit
 
-Read-only audit of `/root/projects/ahd-client` (Electron, v1.3.0, MIT) against ROTUNDA's multiplayer window, done for P3 (see ROADMAP-1.0.md). Every claim below is sourced from `ahd-client` source at the paths given; nothing is inferred from its docs without cross-checking the code. ROTUNDA-side facts are sourced from `apps/desktop/src-tauri` as of this branch (`feat/p3-mp-polish`).
+Read-only audit of `<legacy-client-checkout>` (Electron, v1.3.0, MIT) against ROTUNDA's multiplayer window, done for P3 (see ROADMAP-1.0.md). Every claim below is sourced from `ahd-client` source at the paths given; nothing is inferred from its docs without cross-checking the code. ROTUNDA-side facts are sourced from `apps/desktop/src-tauri` as of this branch (`feat/p3-mp-polish`).
 
 ## Architectural note before the feature list
 

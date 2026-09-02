@@ -1,6 +1,6 @@
 # Brief W38: port US states layer
 
-Read `docs/FRAMEWORK.md`. Mainline at `/root/projects/AHDGame` is READ-ONLY. You own `packages/content` state data plus `packages/engine` state/region surface. Do not touch `apps/desktop`. Another engine wave (W34 actions) is in flight: keep to new modules plus types/world/save extensions; expect me to resolve schema-number collision at merge (take the next free number and note it).
+Read `docs/FRAMEWORK.md`. Mainline at `<mainline-checkout>` is READ-ONLY. You own `packages/content` state data plus `packages/engine` state/region surface. Do not touch `apps/desktop`. Another engine wave (W34 actions) is in flight: keep to new modules plus types/world/save extensions; expect me to resolve schema-number collision at merge (take the next free number and note it).
 
 Port from mainline the US subnational layer for 1953:
 

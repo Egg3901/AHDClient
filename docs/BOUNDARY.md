@@ -1,11 +1,11 @@
 # Boundary: this repo vs mainline A House Divided
 
-This document defines the boundary between ROTUNDA (this repo, private) and mainline A House Divided (`Egg3901/AHDGame`, public). Mainline's mirror of this boundary is documented internally on the mainline side, not in its public repo. This repo has no public documentation surface; the public AHD repo is the only public surface and does not reference this project.
+This document defines the code and product boundary between ROTUNDA and mainline A House Divided (`Egg3901/AHDGame`). Both repositories are source-available; this document contains no deployment paths or private operational details.
 
 ## What each side is
 
 - **Mainline**: the live multiplayer service. Server-authoritative, real-time turns, accounts, moderation, Mongo persistence.
-- **ROTUNDA**: the unified desktop client. Multiplayer viewer (hardened webview onto the live site) plus fully local singleplayer running its own engine. No server components, ever.
+- **ROTUNDA**: the multiplatform client. Desktop provides a hardened multiplayer webview; Android opens multiplayer in the system browser. Both provide fully local singleplayer running its own engine. No server components, ever.
 
 ## Direction of flow
 
@@ -28,4 +28,4 @@ This document defines the boundary between ROTUNDA (this repo, private) and main
 - Local JSON saves with schema migrations; mainline persists in Mongo.
 - Solo-only surfaces: granular world creation overrides, cheat panel, Head of State mode.
 
-Changes to this boundary require an owner decision and an update to this file plus the internal mainline-side mirror.
+Changes to this boundary require an owner decision and coordinated updates to the boundary notes in both projects.

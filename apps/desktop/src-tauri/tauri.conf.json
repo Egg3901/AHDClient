@@ -45,7 +45,7 @@
     ],
     "category": "Utility",
     "shortDescription": "A House Divided: Solo",
-    "longDescription": "Unified desktop client for A House Divided: local singleplayer worlds and a viewer for the live multiplayer game.",
+    "longDescription": "A House Divided client with local singleplayer worlds and a secure entry to the live multiplayer game.",
     "linux": {
       "deb": {
         "depends": []

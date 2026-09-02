@@ -1,6 +1,6 @@
 # ROTUNDA framework
 
-Codename ROTUNDA: the unified A House Divided desktop client. One app, two modes: viewer for the live multiplayer game, and fully local singleplayer worlds bootable in any era as any playable country.
+Codename ROTUNDA: the multiplatform A House Divided client. One app, two modes: an entry to the live multiplayer game and fully local singleplayer worlds bootable in any era as any playable country. Desktop hosts multiplayer in an isolated webview; Android hands multiplayer to the system browser.
 
 This document is the integration contract. Parallel work streams build against it; changing a contract here requires updating this file in the same commit.
 

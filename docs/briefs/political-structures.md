@@ -4,7 +4,7 @@ Read `docs/FRAMEWORK.md` first. You own `packages/engine` and `packages/content`
 
 ## Source of truth (READ-ONLY)
 
-Mainline at `/root/projects/AHDGame`. Relevant: `src/lib/constants/countries.ts` (COUNTRY_CONFIGS, legislature shapes), `src/lib/seeds/<country>/` (party seeds), `src/lib/seeds/defaultPartyTiers.ts`, party and legislature model shapes wherever mainline defines them. **Live production-shared tree: read only, no git, no npm there.**
+Mainline at `<mainline-checkout>`. Relevant: `src/lib/constants/countries.ts` (COUNTRY_CONFIGS, legislature shapes), `src/lib/seeds/<country>/` (party seeds), `src/lib/seeds/defaultPartyTiers.ts`, party and legislature model shapes wherever mainline defines them. **Live production-shared tree: read only, no git, no npm there.**
 
 ## Goal
 

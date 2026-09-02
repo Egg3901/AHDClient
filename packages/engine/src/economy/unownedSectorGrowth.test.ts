@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { growUnownedSectorRevenue } from "./unownedSectorGrowth.js";
 
-// Formula source: /root/projects/AHDGame/src/lib/turn/unownedSectorGrowth.ts (pre-plants branch)
+// Formula source: <mainline-checkout>/src/lib/turn/unownedSectorGrowth.ts (pre-plants branch)
 describe("growUnownedSectorRevenue", () => {
   it("hand-computed: grows at HALF the paired corp's growth rate", () => {
     // annualRate = 10*0.5 = 5; perTurnRate = 5/48; new = round(1000*(1+ (5/48)/100))

@@ -44,7 +44,7 @@ import { computeRealizedRevenueGrowthRate } from "../corporation/constants.js";
 
 /**
  * Advance the output gap by one turn and derive integrated gdpGrowth.
- * Formula: source /root/projects/AHDGame/src/lib/metricEngine/outputGap.ts advanceOutputGap
+ * Formula: source <mainline-checkout>/src/lib/metricEngine/outputGap.ts advanceOutputGap
  */
 export function advanceOutputGap(
   prevGap: number,
@@ -64,7 +64,7 @@ export function advanceOutputGap(
 
 /**
  * Okun's law target for unemployment.
- * Formula: source /root/projects/AHDGame/src/lib/metricEngine/registry/economic.ts unemploymentNode
+ * Formula: source <mainline-checkout>/src/lib/metricEngine/registry/economic.ts unemploymentNode
  */
 export function okunTarget(
   prevUnemploymentPct: number,
@@ -96,7 +96,7 @@ export function computeFiscalTerm(surplus: number, gdp: number): number {
 
 /**
  * Simplified country-level inflation.
- * Pure core of /root/projects/AHDGame/src/lib/budget/inflation.ts calculateInflationWithBreakdown
+ * Pure core of <mainline-checkout>/src/lib/budget/inflation.ts calculateInflationWithBreakdown
  * with neutral values for every input that requires unported systems except the fiscal term
  * (W2, deficit/GDP) and the monetary term (W3, central-bank rate gap with lag).
  */

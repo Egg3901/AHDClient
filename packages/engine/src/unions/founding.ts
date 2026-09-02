@@ -6,9 +6,9 @@
  * Names from historical table where authored, else generic fallback
  * (see unionNames.ts genericUnionName).
  *
- * Source: /root/projects/AHDGame/src/lib/seeds/reference/unionNames.ts
- *         /root/projects/AHDGame/src/lib/unions/unionNames.ts genericUnionName / getUnionName
- *         /root/projects/AHDGame/src/lib/constants/corporations.ts CORPORATION_TYPES
+ * Source: <mainline-checkout>/src/lib/seeds/reference/unionNames.ts
+ *         <mainline-checkout>/src/lib/unions/unionNames.ts genericUnionName / getUnionName
+ *         <mainline-checkout>/src/lib/constants/corporations.ts CORPORATION_TYPES
  *         corporation/sectorSeedWeights1953.ts SECTOR_WEIGHTS_1953
  */
 

@@ -4,7 +4,7 @@ Read `docs/FRAMEWORK.md` first. You own `packages/engine` (and `packages/content
 
 ## Source of truth (READ-ONLY)
 
-Mainline at `/root/projects/AHDGame`: `src/lib/npp/generator.ts` (challenger/NPC generation: ideology jitter, age, attributes), plus anything it imports. The name generator is ALREADY ported at `packages/engine/src/npp/nameGenerator.ts`; use it, do not re-port. **Live production tree: read only.**
+Mainline at `<mainline-checkout>`: `src/lib/npp/generator.ts` (challenger/NPC generation: ideology jitter, age, attributes), plus anything it imports. The name generator is ALREADY ported at `packages/engine/src/npp/nameGenerator.ts`; use it, do not re-port. **Live production tree: read only.**
 
 ## Goal
 

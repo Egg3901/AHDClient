@@ -1,6 +1,6 @@
 # Brief U2: economy dashboard screen
 
-Read `docs/FRAMEWORK.md`. You own `apps/desktop`. Do not touch `packages/*` (an engine wave is in flight). Mainline at `/root/projects/AHDGame` is READ-ONLY reference for layout inspiration only; do not copy proprietary-looking assets, just structure.
+Read `docs/FRAMEWORK.md`. You own `apps/desktop`. Do not touch `packages/*` (an engine wave is in flight). Mainline at `<mainline-checkout>` is READ-ONLY reference for layout inspiration only; do not copy proprietary-looking assets, just structure.
 
 ## Goal
 

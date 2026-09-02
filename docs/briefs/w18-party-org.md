@@ -1,6 +1,6 @@
 # Brief W18: port party organization turn phases
 
-Standard rules apply (read `docs/FRAMEWORK.md`; mainline at `/root/projects/AHDGame` is READ-ONLY; determinism doctrine; `npm install` first; merge gate `npm run verify`; conventional commits, no push, no em dashes; cite mainline sources per formula; PORT-STUB missing inputs at mainline-neutral values; schema bump + migration + test for any WorldState change; the cli fixture in `packages/cli/src/formatter.test.ts` may be updated one line if schema changes).
+Standard rules apply (read `docs/FRAMEWORK.md`; mainline at `<mainline-checkout>` is READ-ONLY; determinism doctrine; `npm install` first; merge gate `npm run verify`; conventional commits, no push, no em dashes; cite mainline sources per formula; PORT-STUB missing inputs at mainline-neutral values; schema bump + migration + test for any WorldState change; the cli fixture in `packages/cli/src/formatter.test.ts` may be updated one line if schema changes).
 
 You own `packages/engine` party surface. Do not touch `apps/desktop`. Another engine wave (commodities) runs in parallel; keep changes inside new party modules, registry lines, your types additions, and tests.
 

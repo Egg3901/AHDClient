@@ -3,7 +3,7 @@
  * wiring, determinism, and migration.
  *
  * Every golden cites its mainline source (file:line as verified against
- * /root/projects/AHDGame at port time); PORT-STUB blockers are named in the
+ * <mainline-checkout> at port time); PORT-STUB blockers are named in the
  * per-module file docs (policyEffects/*, ministerialOrders/*, coldWar/*,
  * wars/*, alignment/*, internationalOrgs/* — search for "B0"/"B1" prefixed
  * blocker ids).

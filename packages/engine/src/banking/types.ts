@@ -2,7 +2,7 @@
  * Private banking types — W12 port of mainline's chartered-bank subdocument
  * and its satellite collections.
  *
- * Source: /root/projects/AHDGame/src/lib/db/types/bank.ts (BankCharter,
+ * Source: <mainline-checkout>/src/lib/db/types/bank.ts (BankCharter,
  * BankLoan, DepositInsuranceFund — fields kept are the subset this wave's
  * scope actually reads/writes; see banking/bankingTurn.ts and
  * banking/bankSolvencyTurn.ts file docs for the full scope-cut rationale).

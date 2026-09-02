@@ -229,7 +229,7 @@ export const CEO_ARCHETYPE_MODIFIERS: Record<CeoArchetype, CeoArchetypeModifiers
 export const PERSISTENT_INSOLVENCY_GRACE_TURNS = 30;
 
 // ── Macro wire: realized revenue growth rate ────────────────────────────
-// Source: /root/projects/AHDGame/src/lib/turn/gdpGrowth.ts:189-209
+// Source: <mainline-checkout>/src/lib/turn/gdpGrowth.ts:189-209
 // computeRealizedRevenueGrowthRate (verbatim). This is the "one-turn delta"
 // variant, not the EMA-smoothed computeTrailingRevenueGrowthRate companion
 // (gdpGrowth.ts:299-310): mainline added the trailing variant specifically to

@@ -22,10 +22,10 @@ CN_PEOPLES_CONGRESS_1991, DE_LANDTAG_1990, DE_MINISTERPRAESIDENTEN_1992, and the
 build1991RegistrationSeeds (BR:5), Layer-1 model via getCountryLayer1Model("BR").
 
 ## Doctrine (unchanged)
-Mainline `/root/projects/AHDGame` is read-only source of truth. Every number
+Mainline `<mainline-checkout>` is read-only source of truth. Every number
 ports with a `// source:` citation; anything mainline lacks is `PORT-STUB`
-with a named blocker. Engine purity holds. Generators run FROM the mainline
-checkout (`cd /root/projects/AHDGame && npx tsx <script>`) so `@/` resolves;
+with a named blocker. Engine purity holds. Generators run from the mainline
+checkout (`cd /path/to/AHDGame && npx tsx <script>`) so `@/` resolves;
 see `packages/content/scripts/generateStateLayer.ts` for the pattern.
 
 ## Mainline sources (all verified present)

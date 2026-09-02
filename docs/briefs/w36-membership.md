@@ -1,6 +1,6 @@
 # Brief W36: player and politician party membership, caucuses, endorsements
 
-Read `docs/FRAMEWORK.md`. Mainline at `/root/projects/AHDGame` is READ-ONLY. You own `packages/engine` membership surface (types, world, save, actions, party modules). Do NOT touch `packages/engine/src/electionEngine/` (another agent owns that directory this wave) or `apps/desktop`. Schema bump: current is v10; take v11 with chained migration + test; one-line cli fixture bump allowed.
+Read `docs/FRAMEWORK.md`. Mainline at `<mainline-checkout>` is READ-ONLY. You own `packages/engine` membership surface (types, world, save, actions, party modules). Do NOT touch `packages/engine/src/electionEngine/` (another agent owns that directory this wave) or `apps/desktop`. Schema bump: current is v10; take v11 with chained migration + test; one-line cli fixture bump allowed.
 
 Port from mainline the membership layer:
 

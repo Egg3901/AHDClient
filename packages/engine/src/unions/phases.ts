@@ -37,10 +37,10 @@
  * NPP before unionsTurn in the tail cluster so election is visible same turn —
  * deviation documented in registry.ts comment.
  *
- * Source: /root/projects/AHDGame/src/lib/turn/unions/index.ts processUnionsTurn
- *         /root/projects/AHDGame/src/lib/unions/unionDues.ts
- *         /root/projects/AHDGame/src/lib/unions/unionServices.ts
- *         /root/projects/AHDGame/src/lib/unions/unionPoliticalContributions.ts
+ * Source: <mainline-checkout>/src/lib/turn/unions/index.ts processUnionsTurn
+ *         <mainline-checkout>/src/lib/unions/unionDues.ts
+ *         <mainline-checkout>/src/lib/unions/unionServices.ts
+ *         <mainline-checkout>/src/lib/unions/unionPoliticalContributions.ts
  *         demographics/laborForce.ts laborForces
  *         corporation/sectorSeedWeights1953.ts SECTOR_WEIGHTS_1953
  *         budget/revenue.ts wagesAndSalaries ratio
