@@ -20,6 +20,8 @@ describe("desktop security configuration", () => {
   it("keeps the remote multiplayer window capability-empty", () => {
     expect(onlineCapability.windows).toEqual(["online"]);
     expect(onlineCapability.permissions).toEqual([]);
+    expect("remote" in defaultCapability).toBe(false);
+    expect("remote" in onlineCapability).toBe(false);
   });
 
   it("keeps persistent filesystem permissions scoped to managed saves", () => {
@@ -63,6 +65,11 @@ describe("desktop platform configuration", () => {
 
   it("keeps a reproducible Android project and build commands", () => {
     const sourceDirectory = dirname(fileURLToPath(import.meta.url));
+    const rustHost = readFileSync(join(sourceDirectory, "../src-tauri/src/lib.rs"), "utf8");
+    const androidManifest = readFileSync(
+      join(sourceDirectory, "../src-tauri/gen/android/app/src/main/AndroidManifest.xml"),
+      "utf8",
+    );
     const workflow = readFileSync(
       join(sourceDirectory, "../../../.github/workflows/verify-android.yml"),
       "utf8",
@@ -80,6 +87,11 @@ describe("desktop platform configuration", () => {
     expect(workflow).toContain("npm test --workspace apps/desktop");
     expect(workflow).toContain("npm test --workspace packages/content");
     expect(workflow).toContain("npm test --workspace packages/engine -- --run src/engine.test.ts");
+    expect(rustHost).toMatch(
+      /#\[cfg\(mobile\)\][\s\S]*?fn open_online_window[\s\S]*?get_webview_window\("main"\)[\s\S]*?\.navigate\(url\)/,
+    );
+    expect(androidManifest).toContain('android:roundIcon="@mipmap/ic_launcher_round"');
+    expect(androidManifest).not.toContain("LEANBACK_LAUNCHER");
   });
 
   it("keeps launcher effects inside the local security boundary", () => {
@@ -87,6 +99,7 @@ describe("desktop platform configuration", () => {
     const launcher = readFileSync(join(sourceDirectory, "launcher/Launcher.tsx"), "utf8");
     const globe = readFileSync(join(sourceDirectory, "launcher/CommandGlobe.tsx"), "utf8");
     expect(launcher).not.toContain("fetch(");
+    expect(launcher).not.toContain("StreakField");
     expect(globe).toContain('window.addEventListener("resize", handleResize);');
     expect(globe).toContain('window.removeEventListener("resize", handleResize);');
   });

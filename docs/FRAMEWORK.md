@@ -1,6 +1,6 @@
 # ROTUNDA framework
 
-Codename ROTUNDA: the multiplatform A House Divided client. One app, two modes: an entry to the live multiplayer game and fully local singleplayer worlds bootable in any era as any playable country. Desktop hosts multiplayer in an isolated webview; Android hands multiplayer to the system browser.
+Codename ROTUNDA: the multiplatform A House Divided client. One app, two modes: an entry to the live multiplayer game and fully local singleplayer worlds bootable in any era as any playable country. Desktop hosts multiplayer in an isolated webview; Android navigates the app webview so sign-in and session continuity match the existing mobile client.
 
 This document is the integration contract. Parallel work streams build against it; changing a contract here requires updating this file in the same commit.
 
@@ -84,7 +84,7 @@ The rule that keeps modes safe: **a mode is who the player is, never how the wor
 ## Security doctrine (binding)
 
 1. **Singleplayer is fully local.** No server process, no listeners, no network requests from SP surfaces. The engine is a library in the app process; turns cost the player's CPU and nothing else.
-2. **The online mode is a webview onto https://www.ahousedividedgame.com in a dedicated desktop window.** On mobile it opens in the system browser, outside the SP webview. Remote content never gets Tauri IPC or capabilities. Do not grant fs, dialog, or shell to the online window. Never enable remote-domain IPC access.
+2. **The online mode loads https://ahousedividedgame.com in a webview.** Desktop uses a dedicated zero-capability window. Mobile, where Tauri supports only one webview, navigates the main webview so OAuth callbacks and the multiplayer cookie jar stay inside the app; Android Back follows web history to return to the local client. Tauri remote API access is not enabled, so remote pages cannot use the main window's local fs, dialog, or command permissions. Desktop OAuth navigation is limited to the same Discord and Google hosts used by the existing mobile client. Never enable remote-domain IPC access.
 3. **Capabilities are minimal and per-window.** The SP window holds dialog open/save, read/write access to dialog-picked files, and only the filesystem operations required for managed slots under `$APPDATA/saves/**` (read, write, atomic rename, create/list, stat, and delete). No other persistent filesystem path is in scope.
 4. **Saves are inert data.** Loading validates format and schema version and fails hard; no code or paths execute from a save file.
 

@@ -14,16 +14,16 @@ export interface EraTheme {
 // amber (analog/CRT era), 1991 cyan (early digital/LCD era), 2019 a
 // cooler modern default distinct from the retro three.
 const ERA_THEMES: Record<string, EraTheme> = {
-  "1953": { phosphor: "#2af57f", dim: "42,245,127", label: "COMMAND / 1953" },
-  "1979": { phosphor: "#ffb347", dim: "255,179,71", label: "COMMAND / 1979" },
-  "1991": { phosphor: "#33d6ff", dim: "51,214,255", label: "COMMAND / 1991" },
-  "2019": { phosphor: "#c9d6ff", dim: "201,214,255", label: "COMMAND / 2019" },
+  "1953": { phosphor: "#2af57f", dim: "42,245,127", label: "LOCAL WORLD / 1953" },
+  "1979": { phosphor: "#ffb347", dim: "255,179,71", label: "LOCAL WORLD / 1979" },
+  "1991": { phosphor: "#33d6ff", dim: "51,214,255", label: "LOCAL WORLD / 1991" },
+  "2019": { phosphor: "#c9d6ff", dim: "201,214,255", label: "LOCAL WORLD / 2019" },
 };
 
 const DEFAULT_THEME: EraTheme = ERA_THEMES["1953"]!;
 
 export function themeForEra(eraId: string): EraTheme {
-  return ERA_THEMES[eraId] ?? { ...DEFAULT_THEME, label: `COMMAND / ${eraId}` };
+  return ERA_THEMES[eraId] ?? { ...DEFAULT_THEME, label: `LOCAL WORLD / ${eraId}` };
 }
 
 const CAPITALS: readonly { name: string; lat: number; lon: number }[] = [
@@ -221,7 +221,7 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
         {live ? (
           <>
             <span className="launcher-globe-dot live" aria-hidden="true" />
-            LIVE
+            MULTIPLAYER
           </>
         ) : (
           <>

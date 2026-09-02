@@ -9,7 +9,7 @@
   <img alt="license" src="https://img.shields.io/badge/license-PolyForm_NC_1.0.0-000000?style=flat-square&labelColor=1a1a1a"/>
 </p>
 
-**ROTUNDA** is the multiplatform client for [A House Divided](https://www.ahousedividedgame.com): one native app with a live multiplayer entry and a fully local singleplayer sandbox. Desktop builds keep multiplayer in a hardened second webview; Android opens it in the system browser. Boot a local world in any era, as any playable country, advance turns at your own pace, save, and replay a seed.
+**ROTUNDA** is the multiplatform client for [A House Divided](https://ahousedividedgame.com): one native app with a live multiplayer entry and a fully local singleplayer sandbox. Desktop builds keep multiplayer in a hardened second webview. Android uses its single app webview for multiplayer so the existing OAuth and cookie-backed session flow stays in-app; Tauri remote API access remains disabled. Boot a local world in any era, as any playable country, advance turns at your own pace, save, and replay a seed.
 
 Singleplayer runs no server. The simulation is a library inside the app process: no listeners, no network, no accounts. Turns cost the player's CPU and nothing else.
 
@@ -18,7 +18,7 @@ Singleplayer runs no server. The simulation is a library inside the app process:
 ```mermaid
 flowchart LR
   subgraph client["apps/desktop &nbsp;(Tauri 2 desktop + Android)"]
-    launcher["Launcher"] --> online["Online window\nhardened webview,\nzero capabilities"]
+    launcher["Launcher"] --> online["Multiplayer webview\nisolated desktop window /\nsame-view mobile navigation\nremote IPC disabled"]
     launcher --> sp["Singleplayer UI\n(React)"]
   end
   sp --> engine["packages/engine\npure TS turn pipeline"]

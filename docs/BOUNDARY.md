@@ -5,7 +5,7 @@ This document defines the code and product boundary between ROTUNDA and mainline
 ## What each side is
 
 - **Mainline**: the live multiplayer service. Server-authoritative, real-time turns, accounts, moderation, Mongo persistence.
-- **ROTUNDA**: the multiplatform client. Desktop provides a hardened multiplayer webview; Android opens multiplayer in the system browser. Both provide fully local singleplayer running its own engine. No server components, ever.
+- **ROTUNDA**: the multiplatform client. Desktop provides a hardened multiplayer webview; Android keeps multiplayer in its one app webview with remote Tauri API access disabled. Both provide fully local singleplayer running its own engine. No server components, ever.
 
 ## Direction of flow
 

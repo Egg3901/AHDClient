@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2/capability",
   "identifier": "default",
-  "description": "Main window - dialog open/save, managed saves under $APPDATA/saves/** with crash-safe tmp rename, and opening the multiplayer window (Rust-side command; the online window itself gets zero capabilities, see capabilities/online.json)",
+  "description": "Main window - dialog open/save, managed saves under $APPDATA/saves/** with crash-safe tmp rename, and entering multiplayer through Rust. Desktop uses the zero-capability online window; mobile navigates this webview but grants no remote API access.",
   "windows": ["main"],
   "permissions": [
     "core:default",

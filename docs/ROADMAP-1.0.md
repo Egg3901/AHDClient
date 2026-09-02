@@ -127,7 +127,7 @@ Lanes 1-4 and 8-11 are mutually independent; run continuously, two to three conc
 
 ## Post-1.0 lane
 
-- A1 Android foundation: SHIPPED in the Tauri client with an initialized Android project, local SP engine, mobile layout baseline, ARM64 debug APK proof, and CI build. Play Online deliberately opens the system browser to preserve the no-remote-capabilities boundary. Device QA, accessibility polish, signed AAB distribution, and any decision to replace the existing multiplayer-only Capacitor app remain release work.
+- A1 Android foundation: SHIPPED in the Tauri client with an initialized Android project, local SP engine, responsive launcher, ARM64 debug APK proof, unsigned ARM64 release AAB proof, and CI build. Play Online navigates the app's single mobile webview so the existing OAuth and persistent cookie flow remains in-app; remote Tauri API access stays disabled. Device QA, accessibility polish, signed AAB distribution, and the owner decision to replace the existing multiplayer-only Capacitor app remain release work.
 
 ## Count
 

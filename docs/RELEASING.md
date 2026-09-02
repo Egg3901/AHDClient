@@ -53,24 +53,26 @@ notarization credentials. `icons/icon.icns` is already generated and ready.
 
 The checked-in Tauri Android project lives at
 `apps/desktop/src-tauri/gen/android`. It packages the same local singleplayer
-engine and React UI as desktop. On Android, Play Online opens the live site in
-the system browser so remote content never enters the capability-bearing local
-webview.
+engine and React UI as desktop. On Android, Play Online navigates the app's
+single webview so OAuth callbacks and multiplayer cookies remain in the same
+session. Remote pages do not receive Tauri API access because no remote origin
+is present in the capability configuration. Android Back follows web history
+back toward the local launcher.
 
 Install Android SDK Platform 36, Build Tools 36, NDK 27.0.12077973, JDK 21,
 and the Rust Android targets. Then run:
 
 ```bash
 npm run android:build:apk --workspace apps/desktop -- --debug --target aarch64
-npm run android:build:aab --workspace apps/desktop
+npm run android:build:aab --workspace apps/desktop -- --target aarch64
 ```
 
 The first command is the local and CI validation build. It writes
 `app-universal-debug.apk` under
 `apps/desktop/src-tauri/gen/android/app/build/outputs/apk/universal/debug/`.
-The AAB command is for Play distribution and requires an owner-provided upload
-key before release. `.github/workflows/verify-android.yml` builds and retains
-the ARM64 debug APK without signing secrets.
+The AAB command produces an unsigned release bundle for validation. Play
+distribution requires an owner-provided upload key. `.github/workflows/verify-android.yml`
+builds and retains the ARM64 debug APK without signing secrets.
 
 ## Icon generation
 

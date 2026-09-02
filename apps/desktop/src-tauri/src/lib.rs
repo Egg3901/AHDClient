@@ -1,19 +1,45 @@
+use tauri::{Manager, Url};
 #[cfg(desktop)]
-use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{WebviewUrl, WebviewWindowBuilder, WindowEvent};
+#[cfg(desktop)]
 use tauri_plugin_opener::OpenerExt;
 
-/// Multiplayer viewer target. The online window is a plain webview onto this
-/// origin and nothing else; see docs/FRAMEWORK.md "Security doctrine" #2.
-const ONLINE_URL: &str = "https://www.ahousedividedgame.com";
+/// Canonical multiplayer viewer target. See docs/FRAMEWORK.md
+/// "Security doctrine" #2 for the tightly bounded navigation policy.
+const ONLINE_URL: &str = "https://ahousedividedgame.com";
 #[cfg(desktop)]
-const ONLINE_HOST: &str = "www.ahousedividedgame.com";
+const ONLINE_HOST: &str = "ahousedividedgame.com";
+#[cfg(desktop)]
+const AUXILIARY_ONLINE_HOSTS: &[&str] = &[
+  "www.ahousedividedgame.com",
+  "discord.com",
+  "accounts.google.com",
+  "www.google.com",
+];
 
 /// True if `url` is the exact HTTPS online origin. Anything else
 /// (in-page navigation or a clicked link) gets kicked out to the system
 /// browser instead of being followed inside the app.
 #[cfg(desktop)]
 fn is_online_origin(url: &Url) -> bool {
-  url.scheme() == "https" && url.host_str() == Some(ONLINE_HOST)
+  url.scheme() == "https"
+    && url.host_str() == Some(ONLINE_HOST)
+    && url.port_or_known_default() == Some(443)
+}
+
+/// The multiplayer webview may stay inside the game origin and the small set
+/// of OAuth and callback hosts used by the existing mobile client. It still
+/// has no Tauri remote API access or capabilities. Other links open in the
+/// system browser.
+#[cfg(desktop)]
+fn is_online_navigation_allowed(url: &Url) -> bool {
+  let secure_default_port =
+    url.scheme() == "https" && url.port_or_known_default() == Some(443);
+  is_online_origin(url)
+    || (secure_default_port
+      && url
+        .host_str()
+        .is_some_and(|host| AUXILIARY_ONLINE_HOSTS.contains(&host)))
 }
 
 /// Opens (or focuses) the multiplayer window.
@@ -30,10 +56,9 @@ fn is_online_origin(url: &Url) -> bool {
 ///   folder / WKWebView default store / WebKitGTK profile), which survives
 ///   app restarts by default. This is the Tauri default; nothing extra is
 ///   configured to get it.
-/// - External links: `on_navigation` only allows staying on the exact HTTPS
-///   `www.ahousedividedgame.com` origin; anything else denies the in-app navigation and opens the
-///   system browser via `tauri_plugin_opener`, called directly from Rust (no IPC
-///   round-trip through the online webview).
+/// - Navigation: `on_navigation` allows the canonical game origin and the
+///   OAuth hosts used by its sign-in flow. Anything else opens in the system
+///   browser through `tauri_plugin_opener`.
 /// - `window.open()` / `target="_blank"`: `on_new_window` always denies creating
 ///   a second Tauri-managed webview window and instead opens the URL in the
 ///   system browser. This is what stops remote content from spawning a new
@@ -58,7 +83,7 @@ fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
     .center()
     .resizable(true)
     .on_navigation(move |url| {
-      if is_online_origin(url) {
+      if is_online_navigation_allowed(url) {
         true
       } else {
         let _ = nav_app.opener().open_url(url.to_string(), None::<&str>);
@@ -95,10 +120,11 @@ fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 #[cfg(mobile)]
 fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
-  app
-    .opener()
-    .open_url(ONLINE_URL, None::<&str>)
-    .map_err(|error| error.to_string())
+  let url: Url = ONLINE_URL.parse().map_err(|error| format!("bad ONLINE_URL: {error}"))?;
+  let main = app
+    .get_webview_window("main")
+    .ok_or_else(|| "main webview is unavailable".to_string())?;
+  main.navigate(url).map_err(|error| error.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -123,21 +149,44 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-  use super::is_online_origin;
+  use super::{is_online_navigation_allowed, is_online_origin};
   use tauri::Url;
 
   #[test]
   fn online_navigation_stays_in_app_only_for_the_exact_https_origin() {
-    let allowed: Url = "https://www.ahousedividedgame.com/play".parse().unwrap();
-    let http: Url = "http://www.ahousedividedgame.com/play".parse().unwrap();
-    let apex: Url = "https://ahousedividedgame.com/play".parse().unwrap();
+    let allowed: Url = "https://ahousedividedgame.com/play".parse().unwrap();
+    let http: Url = "http://ahousedividedgame.com/play".parse().unwrap();
+    let custom_port: Url = "https://ahousedividedgame.com:444/play".parse().unwrap();
+    let redirector: Url = "https://www.ahousedividedgame.com/play".parse().unwrap();
     let subdomain: Url = "https://accounts.ahousedividedgame.com/".parse().unwrap();
     let unrelated: Url = "https://example.com/".parse().unwrap();
 
     assert!(is_online_origin(&allowed));
     assert!(!is_online_origin(&http));
-    assert!(!is_online_origin(&apex));
+    assert!(!is_online_origin(&custom_port));
+    assert!(!is_online_origin(&redirector));
     assert!(!is_online_origin(&subdomain));
     assert!(!is_online_origin(&unrelated));
+  }
+
+  #[test]
+  fn online_navigation_keeps_only_required_auth_hosts_in_the_webview() {
+    let callback_redirector: Url = "https://www.ahousedividedgame.com/api/auth/callback/discord"
+      .parse()
+      .unwrap();
+    let discord: Url = "https://discord.com/oauth2/authorize".parse().unwrap();
+    let google_accounts: Url = "https://accounts.google.com/o/oauth2/v2/auth".parse().unwrap();
+    let google_callback: Url = "https://www.google.com/".parse().unwrap();
+    let insecure_auth: Url = "http://discord.com/oauth2/authorize".parse().unwrap();
+    let fake_auth: Url = "https://login.discord.com/".parse().unwrap();
+    let custom_port: Url = "https://accounts.google.com:444/".parse().unwrap();
+
+    assert!(is_online_navigation_allowed(&callback_redirector));
+    assert!(is_online_navigation_allowed(&discord));
+    assert!(is_online_navigation_allowed(&google_accounts));
+    assert!(is_online_navigation_allowed(&google_callback));
+    assert!(!is_online_navigation_allowed(&insecure_auth));
+    assert!(!is_online_navigation_allowed(&fake_auth));
+    assert!(!is_online_navigation_allowed(&custom_port));
   }
 }

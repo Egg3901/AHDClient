@@ -1,3 +1,3 @@
-// Shared with App.tsx (opens the window) and Launcher.tsx (pings it for the
-// connection-status readout) so the two never drift apart.
-export const ONLINE_URL = "https://www.ahousedividedgame.com";
+// Browser-only fallback for environments without the Tauri bridge. Native
+// builds use the same canonical target in src-tauri/src/lib.rs.
+export const ONLINE_URL = "https://ahousedividedgame.com";
