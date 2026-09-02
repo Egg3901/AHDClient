@@ -461,6 +461,7 @@ describe("emptyPartyCleanup phase", () => {
       infamy: 0,
       actionCooldowns: {},
       personality: { loyalty: 50, ambition: 50, stubbornness: 50 },
+      cash: 0,
     });
     advanceTurn(world);
     // reconcile will fix memberCount first, then cleanup should not delete

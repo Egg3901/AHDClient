@@ -19,6 +19,7 @@ import {
   NPP_DEFAULT_REFORMISM,
 } from "./commandEconomy/constants.js";
 import { seedCapitalStock } from "./economy/capitalStock.js";
+import { seedStateResourceCapacities } from "./extraction/founding.js";
 
 /**
  * Save file = versioned JSON envelope around the full WorldState. Older
@@ -1596,9 +1597,54 @@ export function deserializeSave(raw: string): WorldState {
   if (save.schemaVersion < 35) {
     save.world.meta.schemaVersion = 35;
   }
-  // v35 -> v36: pre-allocated for parallel wave (holds v36) — no fields
-  // added by this wave. Same stub pattern as v33->v34 above.
+  // v35 -> v36: W11 (extraction/prospecting) + W35 (player wealth, international
+  // wires, achievements) batch. Pre-allocated v36; main is v33 as of this
+  // wave's branch point (heading to v34 next); a separate parallel wave holds
+  // v35. This is the latest migration, jumping from latest known (v33) to v36
+  // via the two stubs above. RESOLVER NOTE: on merge, chain in strict
+  // ascending order (v33 -> v34 -> v35 -> v36) and confirm neither v34 nor
+  // v35 also introduces `prospectingSurveys`, `stateResourceCapacities`,
+  // `achievementsEarned`, `actionCounts`, `wireQuotaUsedAnchor`,
+  // `wireQuotaWindowStartTurn`, or politician `cash` (they should not; this
+  // wave is authoritative for those names).
+  //
+  // Seeds empty prospectingSurveys/achievementsEarned, deterministic
+  // stateResourceCapacities (same seeding helper createWorld uses — no rng
+  // consumed, so this does not disturb world.meta.rng), empty player
+  // actionCounts + null wire-quota window, and 0 cash on every existing
+  // politician (a save with no politicians array segment untouched).
   if (save.schemaVersion < 36) {
+    const w = save.world as unknown as Record<string, unknown>;
+    if (!Array.isArray(w["prospectingSurveys"])) w["prospectingSurveys"] = [];
+    if (!Array.isArray(w["achievementsEarned"])) w["achievementsEarned"] = [];
+    if (typeof w["stateResourceCapacities"] !== "object" || w["stateResourceCapacities"] === null || Array.isArray(w["stateResourceCapacities"])) {
+      const regions = w["regions"] as Record<string, { id: string; countryId: string }> | undefined;
+      const meta = w["meta"] as Record<string, unknown> | undefined;
+      const era = typeof meta?.["era"] === "string" ? (meta["era"] as string) : "1953";
+      const regionIdsByCountry = new Map<string, string[]>();
+      if (regions) {
+        for (const region of Object.values(regions)) {
+          const list = regionIdsByCountry.get(region.countryId) ?? [];
+          list.push(region.id);
+          regionIdsByCountry.set(region.countryId, list);
+        }
+      }
+      w["stateResourceCapacities"] = seedStateResourceCapacities(regionIdsByCountry, era);
+    }
+    const player = w["player"] as Record<string, unknown> | undefined;
+    if (player) {
+      if (typeof player["actionCounts"] !== "object" || player["actionCounts"] === null || Array.isArray(player["actionCounts"])) {
+        player["actionCounts"] = {};
+      }
+      if (typeof player["wireQuotaUsedAnchor"] !== "number") player["wireQuotaUsedAnchor"] = 0;
+      if (player["wireQuotaWindowStartTurn"] === undefined) player["wireQuotaWindowStartTurn"] = null;
+    }
+    const politicians = w["politicians"] as Array<Record<string, unknown>> | undefined;
+    if (politicians) {
+      for (const pol of politicians) {
+        if (typeof pol["cash"] !== "number") pol["cash"] = 0;
+      }
+    }
     save.world.meta.schemaVersion = 36;
   }
   // v33 -> v37: W28 (enactment depth) + W32 (cold war / world politics)

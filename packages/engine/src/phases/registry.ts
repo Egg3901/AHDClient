@@ -124,6 +124,9 @@ import { nuclearProductionPhase, coldWarTensionPhase } from "../coldWar/phases.j
 import { warsTurnPhase } from "../wars/phases.js";
 import { ministerialOrdersPhase } from "../ministerialOrders/phases.js";
 import { policyEffectsPhase } from "../policyEffects/phases.js";
+import { resolveProspectsPhase } from "../extraction/prospecting.js";
+import { contractOfferAcceptancePhase } from "../extraction/contracts.js";
+import { achievementCheckPhase } from "../achievements/phase.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -491,5 +494,30 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   // value the same turn, same as mainline.
   ministerialOrdersPhase,
   policyEffectsPhase,
+  // W11 (extraction/prospecting) + W35 (player wealth/wires/achievements)
+  // batch, at END before newsMaintenance — same rng-stream-stability rule as
+  // every other tail cluster above (this codebase runs commodityPrices/
+  // contractSettlement mid-pipeline from W1, before this batch existed;
+  // inserting resolveProspects/contractOfferAcceptance there would shift
+  // every downstream rng draw for existing goldens — see
+  // recomputeSharePricesPhase's comment for the general rule this follows).
+  // Mainline itself runs prospecting resolution (src/lib/turn/prospecting/
+  // resolveProspects.ts) and extraction contract settlement in the same
+  // Group as commodity pricing; solo's own contractSettlement is already at
+  // its own tail-adjacent slot from W1, so this deviation is consistent with
+  // (not additional to) that earlier one.
+  //
+  // Relative order inside this cluster: resolveProspects (may grow a
+  // region's stateResourceCapacities before this turn's contract
+  // acceptance/settlement reads it) -> contractOfferAcceptance (NPC
+  // corporations claim offered contracts, same-turn as issuance when
+  // affordable) -> achievementCheck LAST, so it observes every other
+  // phase's writes this same turn (a contract just accepted, a survey that
+  // just resolved, funds just wired) before deciding what unlocked.
+  // resolveProspectsPhase draws rng (success/yield rolls);
+  // contractOfferAcceptancePhase and achievementCheckPhase are both rng-free.
+  resolveProspectsPhase,
+  contractOfferAcceptancePhase,
+  achievementCheckPhase,
   newsMaintenancePhase,
 ];

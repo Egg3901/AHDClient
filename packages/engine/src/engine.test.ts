@@ -177,6 +177,9 @@ describe("advanceTurn", () => {
       "coldWarTension",
       "ministerialOrders",
       "policyEffects",
+      "resolveProspects",
+      "contractOfferAcceptance",
+      "achievementCheck",
       "newsMaintenance",
     ]);
   });

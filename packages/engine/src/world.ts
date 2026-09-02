@@ -78,6 +78,15 @@ import { GOVERNMENT_CHAMBER_BY_COUNTRY } from "./government/constants.js";
 // so it is safe to apply on top of whatever v34-v38 migrations add — no
 // renumbering needed as long as v34-v38 land with ascending versions
 // between v33 and this v39 before the final merge.
+import { seedStateResourceCapacities } from "./extraction/founding.js";
+
+// Pre-allocated v36 for the W11 (extraction/prospecting) + W35 (player wealth,
+// international wires, achievements) batch. Main is v33 as of this wave's
+// branch point and is itself heading to v34 next; a parallel wave separately
+// holds v35. See save.ts v33->v34 and v34->v35 stubs plus the v35->v36
+// migration below for the full resolver note on merge-order splitting
+// (latest ->36 chain preserves every wave; no renumbering needed beyond
+// verifying ascending order v33->v34->v35->v36).
 export const SCHEMA_VERSION = 39;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
@@ -576,6 +585,19 @@ export function createWorld(options: NewWorldOptions): WorldState {
   }
 
   const internationalOrgs = seedInternationalOrgs(Object.keys(countries));
+  // ── Extraction capacity (W11) ─────────────────────────────────
+  // Derived from `regions` rather than threaded through as a separate
+  // return value from the region-seeding block above: every region already
+  // carries its countryId, so grouping here keeps that block's return shape
+  // (regions/electoratePools/regionTurnouts/partyRegions/partyPressures/
+  // candidateSupports) untouched for every other caller of this file.
+  const regionIdsByCountry = new Map<string, string[]>();
+  for (const region of Object.values(regions)) {
+    const list = regionIdsByCountry.get(region.countryId) ?? [];
+    list.push(region.id);
+    regionIdsByCountry.set(region.countryId, list);
+  }
+  const stateResourceCapacities = seedStateResourceCapacities(regionIdsByCountry, pack.era.id);
 
   const world: WorldState = {
     meta: {
@@ -602,6 +624,9 @@ export function createWorld(options: NewWorldOptions): WorldState {
     endorsements: [],
     commodityPrices,
     extractionContracts: [],
+    prospectingSurveys: [],
+    stateResourceCapacities,
+    achievementsEarned: [],
     regions,
     partyRegions,
     electoratePools,
@@ -672,6 +697,9 @@ export function createWorld(options: NewWorldOptions): WorldState {
       hosPartyId: options.mode === "hos" ? rulingPartyIdForCountry(era, options.countryId) : null,
       savings: 0,
       savingsHolder: "centralBank",
+      actionCounts: {},
+      wireQuotaUsedAnchor: 0,
+      wireQuotaWindowStartTurn: null,
     },
     bills,
     committees,

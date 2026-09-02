@@ -6,7 +6,9 @@ import {
   CONTRACT_DEFAULT_MISSED_PAYMENTS,
   royaltyDueAnchor,
 } from "./constants.js";
-import type { CommodityType } from "./constants.js";
+import type { CommodityType, ExtractableResource } from "./constants.js";
+import { depletedCapacityPerTurn } from "../extraction/constants.js";
+import type { StateResourceCapacity } from "../extraction/types.js";
 
 /**
  * Contract settlement turn phase.
@@ -16,28 +18,39 @@ import type { CommodityType } from "./constants.js";
  * royalty settlement per turn (rate × share × capacity × price) with
  * insufficient-funds tracking and default at CONTRACT_DEFAULT_MISSED_PAYMENTS.
  *
- * PORT-STUB counterparties: corporations not yet ported, so corporationId is
+ * PORT-STUB counterparties: corporations not yet ported (W9 landed after this
+ * module — see corporationId doc on ExtractionContract), so corporationId is
  * null for stubbed contracts. Stubbed counterparties always "pay" — we compute
  * the royalty anchor, advance idempotency, and count settled/paid, but skip
- * treasury movement (that will land with the corporation wave). Insufficient-
- * funds path is exercised only when a contract is marked with a real
- * corporationId that maps to a missing treasury (still stubbed to missed-
- * payment increment for testability).
+ * treasury movement. Insufficient-funds path is exercised only when a
+ * contract is marked with a real corporationId that maps to a missing
+ * treasury (still stubbed to missed-payment increment for testability).
  *
  * Price source: world.commodityPrices[resource].globalPrice (this turn's
  * market, since we run AFTER commodityPrices).
- * Capacity source: PORT-STUB fixed NOTIONAL_STATE_CAPACITY (mainline reads
- * StateResourceCapacity resources[resource] per (stateId, countryId)).
+ * Capacity source: W11 wires world.stateResourceCapacities (real per-region
+ * ceilings, depletion-adjusted via extraction/constants.ts
+ * depletedCapacityPerTurn) when the caller passes it; falls back to
+ * NOTIONAL_STATE_CAPACITY_UNITS below when a contract's region has no
+ * capacity doc (e.g. the W1-era test fixtures in commodity.test.ts, which
+ * construct ExtractionContract literals directly against a fresh world with
+ * no capacities argument — same royalty math as before this wave for those).
  * Missing inputs use mainline-neutral values: 0 capacity or price → 0 due,
  * no charge.
+ *
+ * Depletion (P3b): each settled turn also draws down the region's
+ * extractedUnits[resource] by the SAME units the royalty basis just used
+ * (share × capped capacity) — the exact volume mainline's own file doc
+ * (stateResourceCapacity.ts) cites as "the same basis as sector.revenue",
+ * not an invented utilization constant. A contract with no real capacity doc
+ * (fallback path) draws down nothing (there is nothing to deplete).
  */
 
 // Notional capacity per (state, resource) in units/day.
-// PORT-STUB: mainline reads per-state extraction capacity doc; Solo has no
-// state capacity table yet, so we use a calibrated constant that makes
-// royalties non-zero but bounded. Chosen so a 1% royalty on 50% share at
-// era-scaled oil price (~$1.15) yields ~$5-50 anchor units/turn, similar
-// to mainline's anchor-scaled royalties (royaltyRate 0-0.02 × share × capacity × price).
+// PORT-STUB fallback only (see file doc above): used when a contract's
+// region has no stateResourceCapacities entry. Chosen so a 1% royalty on 50%
+// share at era-scaled oil price (~$1.15) yields ~$5-50 anchor units/turn,
+// similar to mainline's anchor-scaled royalties (royaltyRate 0-0.02 × share × capacity × price).
 const NOTIONAL_STATE_CAPACITY_UNITS = 10_000;
 
 export interface ContractSettlementResult {
@@ -55,6 +68,7 @@ export function settleContractsForTurn(
   contracts: ExtractionContract[],
   commodityPrices: WorldState["commodityPrices"],
   turn: number,
+  capacities?: Record<string, StateResourceCapacity>,
 ): ContractSettlementResult {
   const result: ContractSettlementResult = {
     contractsSettled: 0,
@@ -103,13 +117,30 @@ export function settleContractsForTurn(
       priceEntry?.globalPrice ??
       (COMMODITY_BASE_PRICES[contract.resource as CommodityType] ?? 0);
 
-    const stateCapacity = NOTIONAL_STATE_CAPACITY_UNITS;
+    const capDoc = capacities?.[contract.stateId];
+    const stateCapacity = capDoc
+      ? depletedCapacityPerTurn(capDoc, contract.resource as ExtractableResource)
+      : NOTIONAL_STATE_CAPACITY_UNITS;
     const dueAnchor = royaltyDueAnchor(rate, contract.share, stateCapacity, priceAnchor);
 
     if (dueAnchor <= 0) {
       contract.lastSettlementTurn = turn;
       result.contractsSettled += 1;
       continue;
+    }
+
+    // Depletion: draw down the region's deposit by the exact volume this
+    // settlement's royalty basis used (share × capped capacity) — see file
+    // doc. Only when a real capacity doc exists; the notional fallback has
+    // nothing to deplete.
+    if (capDoc) {
+      const extractedVolume = contract.share * stateCapacity;
+      if (extractedVolume > 0) {
+        if (!capDoc.extractedUnits) capDoc.extractedUnits = {};
+        const resKey = contract.resource as ExtractableResource;
+        capDoc.extractedUnits[resKey] = (capDoc.extractedUnits[resKey] ?? 0) + extractedVolume;
+        capDoc.updatedAtTurn = turn;
+      }
     }
 
     // PORT-STUB counterparty handling
@@ -160,6 +191,6 @@ export const contractSettlementPhase: TurnPhase = {
   name: "contractSettlement",
   run(world: WorldState) {
     const turn = world.meta.turn;
-    settleContractsForTurn(world.extractionContracts, world.commodityPrices, turn);
+    settleContractsForTurn(world.extractionContracts, world.commodityPrices, turn, world.stateResourceCapacities);
   },
 };

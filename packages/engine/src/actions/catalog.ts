@@ -58,7 +58,15 @@ export type ActionId =
   | "adjustBudgetSpending"
   | "adjustTaxRate"
   | "setSubsidyRate"
-  | "commandEconomyDirective";
+  | "commandEconomyDirective"
+  // W11 extraction/prospecting
+  | "launchProspect"
+  | "issueExtractionContract"
+  // W35 player wealth: savings + wires
+  | "depositSavings"
+  | "withdrawSavings"
+  | "moveSavings"
+  | "wireTransfer";
 
 // Costs mirror mainline's dynamic tier functions but collapsed to neutral
 // goldens for solo's simpler state (no per-state GDP tier). Cited.
@@ -609,6 +617,77 @@ export const ACTION_CATALOG: Record<ActionId, ActionCatalogEntry> = {
     systems: ["commandEconomy"],
     status: "unavailable",
     blockingSystem: "commandEconomy (W7, not yet merged)",
+  },
+  // ── W11 extraction/prospecting ──────────────────────────────────
+  // Government (HoS-mode) actions only — see extraction/prospecting.ts and
+  // extraction/contracts.ts file docs for the state-level/issuer-authority
+  // PORT-STUBs. fundCost is 0: cost is paid from the country treasury
+  // (world.budgets), not the player's personal campaign funds, so it is
+  // charged directly in execute.ts rather than through the generic fundCost
+  // gate (same pattern crisisBailout's treasury-costed sibling actions do
+  // NOT use — those DO use fundCost/actor.funds; extraction cost instead
+  // comes out of the country's treasuryBalance, which can go negative/borrow
+  // like every other government spend in this codebase).
+  launchProspect: {
+    id: "launchProspect",
+    name: "Commission Geological Survey",
+    description: "Launch a national government geological survey for a resource in a region. Cost escalates with prior successes there. Requires Head of State mode. Ports src/lib/extraction/commands/launchGovernmentProspect.ts (national level only).",
+    baseCost: 3,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["extraction/prospecting"],
+    status: "available",
+  },
+  issueExtractionContract: {
+    id: "issueExtractionContract",
+    name: "Issue Extraction Contract",
+    description: "Offer an extraction contract to your country's extraction corporation for a resource/region: share, royalty rate, term, and signing fee. Requires Head of State mode. Ports src/lib/extraction/commands/issueContractOffer.ts (national level only).",
+    baseCost: 3,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["extraction/contracts"],
+    status: "available",
+  },
+  // ── W35 player wealth: savings + wires ──────────────────────────
+  depositSavings: {
+    id: "depositSavings",
+    name: "Deposit to Savings",
+    description: "Move personal cash into your savings balance. Ports src/app/api/character/savings/deposit/route.ts core balance move.",
+    baseCost: 0,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["finance/savings"],
+    status: "available",
+  },
+  withdrawSavings: {
+    id: "withdrawSavings",
+    name: "Withdraw from Savings",
+    description: "Move savings back into personal cash. Ports the withdraw sibling of the deposit route.",
+    baseCost: 0,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["finance/savings"],
+    status: "available",
+  },
+  moveSavings: {
+    id: "moveSavings",
+    name: "Move Savings Holder",
+    description: "Move your savings to the central bank or an active deposit-taking bank charter. Ports src/app/api/character/savings-holder/route.ts moveCharacterSavings.",
+    baseCost: 0,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["finance/savings"],
+    status: "available",
+  },
+  wireTransfer: {
+    id: "wireTransfer",
+    name: "Wire Transfer",
+    description: "Wire personal cash to another politician in your country (subject to a daily anchor-denominated cap). Ports src/app/api/characters/[id]/wire/route.ts core transfer + quota. Cross-border wires are PORT-STUB (no per-character currency wallets — see finance/wireTransfer.ts).",
+    baseCost: 1,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["finance/wire"],
+    status: "available",
   },
 };
 

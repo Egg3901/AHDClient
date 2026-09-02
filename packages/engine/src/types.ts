@@ -361,6 +361,28 @@ export interface WorldState {
   settlements: Settlement[];
   /** International organizations, static membership tracker. See internationalOrgs/types.js (B16). Schema v37. */
   internationalOrgs: Record<string, InternationalOrgState>;
+  /**
+   * W11: active/resolved geological surveys. Ports
+   * src/lib/db/types/prospectingSurvey.ts ProspectingSurvey. Schema v36
+   * (main v33; parallel waves hold v34/v35 — see save.ts resolver note).
+   */
+  prospectingSurveys: import("./extraction/types.js").ProspectingSurvey[];
+  /**
+   * W11: per-region extraction capacity ceiling by resource. Ports
+   * src/lib/db/types/stateResourceCapacity.ts, keyed by regionId (solo's
+   * region ids double as mainline's stateId — see types.ts Region file doc).
+   * Schema v36.
+   */
+  stateResourceCapacities: Record<string, import("./extraction/types.js").StateResourceCapacity>;
+  /**
+   * W35: earned achievement slugs, account-scoped (solo has exactly one
+   * account: the player). Ports the `characterAchievements` collection
+   * (src/lib/achievements/index.ts) collapsed to a flat slug list — no
+   * separate userId FK needed with one player. Append-only; achievements/
+   * evaluate.ts never removes a slug once earned (no revoke path ported —
+   * see achievements/catalog.ts file doc). Schema v36.
+   */
+  achievementsEarned: string[];
 }
 
 /** Source: src/lib/budget/debt.ts triggerDebtCeilingCrisis state shape (per-country here — see budget/debtCeiling.ts file doc). */
@@ -492,6 +514,16 @@ export interface Politician {
    * Source: src/lib/npp/actionAi.ts actionTemperature, applySignalScaling.
    */
   personality: PoliticianPersonality;
+  /**
+   * W35: personal cash on hand, local currency. Ports the single-currency
+   * projection of Character.cashOnHand (src/lib/db/types/character.ts) for
+   * NPC politicians — distinct from `funds` (campaign money). Solo has no
+   * NPC personal-spending AI, so this field is a pure sink/source: it only
+   * moves when the player wires cash to this politician
+   * (finance/wireTransfer.ts). Seeded 0, same "real but only reachable via
+   * one action today" status as W12's player.savingsHolder.
+   */
+  cash: number;
 }
 
 export interface PoliticianIdeology {
@@ -646,6 +678,26 @@ export interface PlayerCharacter {
    * reachable via a save edit or cheat today. Ports SavingsHolder.
    */
   savingsHolder: "centralBank" | string;
+  /**
+   * W35: per-action successful-execution counts, keyed by ActionId. Ports the
+   * denominator side of mainline's `actionLogs` collection (achievements/
+   * triggers.ts checkActionAchievements aggregates COUNT per actionType) —
+   * solo has no append-only action log, so this is the aggregate mainline
+   * derives at query time, maintained incrementally instead. Incremented by
+   * executeAction on every successful player action (any actionId, not just
+   * achievement-relevant ones, so a future trigger never needs a second log).
+   * Source: src/lib/achievements/triggers.ts checkActionAchievements.
+   */
+  actionCounts: Record<string, number>;
+  /**
+   * W35: international/personal wire daily quota tracking. Ports
+   * src/app/api/characters/[id]/wire/route.ts DAILY_WIRE_CAP_ANCHORS window
+   * (24h -> 24 turns, same turn-per-hour convention as partyJoinedTurn/
+   * PARTY_SWITCH_COOLDOWN_MS elsewhere on this type). wireQuotaWindowStartTurn
+   * null = no wire sent yet (quota window not yet opened).
+   */
+  wireQuotaUsedAnchor: number;
+  wireQuotaWindowStartTurn: number | null;
 }
 
 export interface NewsItem {
@@ -838,6 +890,12 @@ export interface CommodityState {
  * Ports src/lib/db/types/extractionContract.ts ExtractionContract.
  * Counterparty corporationId is PORT-STUB (null) where corporations not yet ported;
  * settlement treats null as a stubbed counterparty that always pays (no treasury move).
+ *
+ * W11 adds the issuance-time fields (signingFeeAnchor, termTurns, grantedBy) so
+ * the offer->accept flow (extraction/contracts.ts) has somewhere to record what
+ * was offered before a real corporationId claims it. All three are optional so
+ * the W1-era fixtures/tests above (corporationId: null, no signing fee) keep
+ * constructing valid ExtractionContract literals unchanged.
  */
 export interface ExtractionContract {
   id: string;
@@ -855,8 +913,17 @@ export interface ExtractionContract {
   grantedTurn: number;
   /** Grant level. */
   grantedByLevel: "national" | "state";
+  /**
+   * Issuer id: countryId when grantedByLevel is "national", regionId when
+   * "state". Source: src/lib/extraction/commands/issueContractOffer.ts
+   * grantedBy. Optional: contracts created before W11 (or via the settlement
+   * test fixtures above) have no issuer of record.
+   */
+  grantedBy?: string;
   /** Turn offer expires (offered only). */
   offerExpiresTurn?: number;
+  /** Turn the offer was accepted and became active. Source: acceptContractOffer.ts activatedTurn. */
+  activatedTurn?: number;
   /** Turn contract expires (term). */
   expiresTurn?: number;
   /** Consecutive missed payments. */
@@ -870,6 +937,17 @@ export interface ExtractionContract {
    * computes royalties and advances lifecycle.
    */
   corporationId: string | null;
+  /**
+   * One-time fee the accepting corporation pays the issuing government.
+   * Source: issueContractOffer.ts signingFeeAnchor. Optional: absent on
+   * stubbed/legacy contracts (no acceptance fee charged).
+   */
+  signingFeeAnchor?: number;
+  /**
+   * Contract term in turns, applied at acceptance as expiresTurn = turn + termTurns.
+   * Source: acceptContractOffer.ts termTurns / CONTRACT_TERM_TURNS_MIN default.
+   */
+  termTurns?: number;
 }
 
 /**

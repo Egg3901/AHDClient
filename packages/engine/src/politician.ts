@@ -132,6 +132,7 @@ export function generatePolitician(
     infamy: 0,
     actionCooldowns: {},
     personality,
+    cash: 0,
   };
 }
 

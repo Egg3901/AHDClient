@@ -18,6 +18,11 @@ import * as Coalition from "../intraparty/coalitions.js";
 import { getLaw } from "../legislation/catalog.js";
 import { calculateBudgetSpending } from "../budget/spending.js";
 import { calculateBudgetRevenue } from "../budget/revenue.js";
+import { launchProspectingSurvey } from "../extraction/prospecting.js";
+import { issueContractOffer } from "../extraction/contracts.js";
+import type { ExtractableResource } from "../commodity/constants.js";
+import { depositToSavings, withdrawFromSavings, moveSavingsHolder } from "../finance/savingsActions.js";
+import { wireTransfer as wireTransferFn } from "../finance/wireTransfer.js";
 
 export type ExecuteActionParams = {
   regionId?: string;
@@ -62,6 +67,15 @@ export type ExecuteActionParams = {
   budgetAmount?: number;
   taxField?: "incomeTax" | "domesticCorporateTax" | "foreignCorporateTax" | "payrollTax" | "tariffs" | "salesTax";
   taxRate?: number;
+  // W11 extraction/prospecting
+  resource?: string;
+  share?: number;
+  royaltyRatePerTurn?: number;
+  termTurns?: number;
+  signingFeeAnchor?: number;
+  // W35 player wealth
+  holder?: string;
+  targetPoliticianId?: string;
 };
 
 export type ExecuteActionResult =
@@ -166,6 +180,7 @@ function executeActionInner(
     countryId: string;
     cash?: number;
     actionCooldowns: Record<string, number>;
+    actionCounts?: Record<string, number>;
   };
 
   const turn = world.meta.turn;
@@ -237,6 +252,12 @@ function executeActionInner(
   // Deduct action points + cooldown stamp
   actor.actions -= cost;
   if (catalog.cooldown > 0) actor.actionCooldowns[actionId] = turn + catalog.cooldown + 1;
+
+  // W35: per-action success counter (achievements/evaluate.ts reads this).
+  // Player-only — see PlayerCharacter.actionCounts file doc.
+  if (found.kind === "player" && actor.actionCounts) {
+    actor.actionCounts[actionId] = (actor.actionCounts[actionId] ?? 0) + 1;
+  }
 
   // Deduct fund cost where applicable (except convertCash which adds)
   if (fundCost > 0 && actionId !== "convertCash" && actionId !== "rest" && actionId !== "investInfluence") {
@@ -1063,6 +1084,119 @@ function executeActionInner(
     budget.revenue = calculateBudgetRevenue(budget.taxRates, budget.taxBases, budget.revenue.other);
     budget.surplus = budget.revenue.total - budget.spending.total;
     return { ok: true, message: `Set ${field} to ${rate}% for ${countryId}.` };
+  }
+  // ── W11 extraction/prospecting: government actions, HoS mode only ──────
+  if (actionId === "launchProspect" || actionId === "issueExtractionContract") {
+    if (found.kind !== "player") {
+      actor.actions += cost;
+      if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
+      return { ok: false, error: "Only the player can act for the national government" };
+    }
+    if (world.player.mode !== "hos") {
+      actor.actions += cost;
+      if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
+      return { ok: false, error: `${actionId} requires Head of State mode` };
+    }
+    const resource = params.resource as ExtractableResource | undefined;
+    const regionId = params.regionId;
+    if (!resource || !regionId) {
+      actor.actions += cost;
+      if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
+      return { ok: false, error: `${actionId} requires regionId and resource` };
+    }
+    if (actionId === "launchProspect") {
+      const res = launchProspectingSurvey(world, { countryId: world.player.countryId, regionId, resource });
+      if (!res.ok) {
+        actor.actions += cost;
+        if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
+        return { ok: false, error: res.error };
+      }
+      return { ok: true, message: `Survey launched: ${res.surveyId} (cost ${res.costAnchor.toLocaleString()})` };
+    }
+    const share = params.share;
+    const royaltyRatePerTurn = params.royaltyRatePerTurn;
+    const termTurns = params.termTurns;
+    const signingFeeAnchor = params.signingFeeAnchor;
+    if (share === undefined || royaltyRatePerTurn === undefined || termTurns === undefined || signingFeeAnchor === undefined) {
+      actor.actions += cost;
+      if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
+      return { ok: false, error: "issueExtractionContract requires share, royaltyRatePerTurn, termTurns, signingFeeAnchor" };
+    }
+    const res = issueContractOffer(world, {
+      countryId: world.player.countryId,
+      regionId,
+      resource,
+      share,
+      royaltyRatePerTurn,
+      termTurns,
+      signingFeeAnchor,
+    });
+    if (!res.ok) {
+      actor.actions += cost;
+      if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
+      return { ok: false, error: res.error };
+    }
+    return { ok: true, message: `Contract offered: ${res.contractId}` };
+  }
+
+  // ── W35 player wealth: savings + wires ──────────────────────────────────
+  if (actionId === "depositSavings" || actionId === "withdrawSavings") {
+    if (found.kind !== "player") {
+      actor.actions += cost;
+      return { ok: false, error: "Only the player has personal savings" };
+    }
+    const amount = params.amount;
+    if (amount === undefined) {
+      actor.actions += cost;
+      if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
+      return { ok: false, error: `${actionId} requires amount` };
+    }
+    const res = actionId === "depositSavings" ? depositToSavings(world, amount) : withdrawFromSavings(world, amount);
+    if (!res.ok) {
+      actor.actions += cost;
+      if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
+      return { ok: false, error: res.error };
+    }
+    return { ok: true, message: actionId === "depositSavings" ? `Deposited ${amount.toLocaleString()} to savings` : `Withdrew ${amount.toLocaleString()} from savings` };
+  }
+  if (actionId === "moveSavings") {
+    if (found.kind !== "player") {
+      actor.actions += cost;
+      return { ok: false, error: "Only the player has personal savings" };
+    }
+    const holder = params.holder;
+    if (!holder) {
+      actor.actions += cost;
+      if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
+      return { ok: false, error: "moveSavings requires holder" };
+    }
+    const res = moveSavingsHolder(world, holder);
+    if (!res.ok) {
+      actor.actions += cost;
+      if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
+      return { ok: false, error: res.error };
+    }
+    return { ok: true, message: `Savings now held at ${holder}` };
+  }
+  if (actionId === "wireTransfer") {
+    if (found.kind !== "player") {
+      actor.actions += cost;
+      return { ok: false, error: "Only the player wires funds" };
+    }
+    const targetPoliticianId = params.targetPoliticianId;
+    const amount = params.amount;
+    if (!targetPoliticianId || amount === undefined) {
+      actor.actions += cost;
+      if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
+      return { ok: false, error: "wireTransfer requires targetPoliticianId and amount" };
+    }
+    const res = wireTransferFn(world, targetPoliticianId, amount);
+    if (!res.ok) {
+      actor.actions += cost;
+      if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
+      return { ok: false, error: res.error };
+    }
+    return { ok: true, message: `Wired ${amount.toLocaleString()} to ${res.recipientName}` };
   }
 
   return { ok: false, error: `No effect for ${actionId}` };

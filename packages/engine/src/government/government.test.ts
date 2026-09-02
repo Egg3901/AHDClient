@@ -30,6 +30,7 @@ function makePolitician(id: string, countryId: string, partyId: string, chamberK
     infamy: 0,
     actionCooldowns: {},
     personality: { loyalty: 50, ambition: 50, stubbornness: 50 },
+    cash: 0,
   };
 }
 
