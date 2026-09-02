@@ -9,7 +9,7 @@
   <img alt="license" src="https://img.shields.io/badge/license-PolyForm_NC_1.0.0-000000?style=flat-square&labelColor=1a1a1a"/>
 </p>
 
-**ROTUNDA** is the unified desktop client for [A House Divided](https://www.ahousedividedgame.com): one native app that is both a viewer for the live multiplayer world and a fully local singleplayer sandbox. Boot a world in any era, as any playable country, advance turns at your own pace, save anywhere, replay a seed.
+**ROTUNDA** is the multiplatform client for [A House Divided](https://www.ahousedividedgame.com): one native app with a live multiplayer entry and a fully local singleplayer sandbox. Desktop builds keep multiplayer in a hardened second webview; Android opens it in the system browser. Boot a local world in any era, as any playable country, advance turns at your own pace, save, and replay a seed.
 
 Singleplayer runs no server. The simulation is a library inside the app process: no listeners, no network, no accounts. Turns cost the player's CPU and nothing else.
 

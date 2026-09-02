@@ -49,6 +49,29 @@ The `desktop bundles` workflow builds DMGs for Apple Silicon and Intel on
 Public distribution still needs an Apple Developer signing identity and
 notarization credentials. `icons/icon.icns` is already generated and ready.
 
+## Android (buildable preview)
+
+The checked-in Tauri Android project lives at
+`apps/desktop/src-tauri/gen/android`. It packages the same local singleplayer
+engine and React UI as desktop. On Android, Play Online opens the live site in
+the system browser so remote content never enters the capability-bearing local
+webview.
+
+Install Android SDK Platform 36, Build Tools 36, NDK 27.0.12077973, JDK 21,
+and the Rust Android targets. Then run:
+
+```bash
+npm run android:build:apk --workspace apps/desktop -- --debug --target aarch64
+npm run android:build:aab --workspace apps/desktop
+```
+
+The first command is the local and CI validation build. It writes
+`app-universal-debug.apk` under
+`apps/desktop/src-tauri/gen/android/app/build/outputs/apk/universal/debug/`.
+The AAB command is for Play distribution and requires an owner-provided upload
+key before release. `.github/workflows/verify-android.yml` builds and retains
+the ARM64 debug APK without signing secrets.
+
 ## Icon generation
 
 Source of truth: `apps/desktop/src-tauri/icon-source.svg` (a square,
@@ -67,12 +90,9 @@ cd apps/desktop
 npx tauri icon src-tauri/icon-source-1024.png
 ```
 
-The `tauri icon` command generates icons for every platform (Windows/macOS/
-iOS/Android included). This repo only commits the Linux/Windows/macOS desktop
-set (`icons/32x32.png`, `64x64.png`, `128x128.png`, `128x128@2x.png`,
-`icon.png`, `icon.ico`, `icon.icns`) — delete the `icons/ios/`,
-`icons/android/`, and Windows `Square*Logo.png`/`StoreLogo.png` outputs after
-regenerating, since this project does not ship mobile or MSIX builds.
+The `tauri icon` command generates icons for every platform. This repo commits
+the desktop set and the Android resources copied into `gen/android`; iOS and
+MSIX-only outputs are not release inputs.
 
 ## Auto-updates (scaffolded, disabled)
 

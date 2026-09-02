@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import tauriConfig from "../src-tauri/tauri.conf.json";
+import desktopPackage from "../package.json";
 import defaultCapability from "../src-tauri/capabilities/default.json";
 import onlineCapability from "../src-tauri/capabilities/online.json";
 
@@ -50,5 +51,22 @@ describe("desktop platform configuration", () => {
     expect(workflow).toContain("--bundles appimage,deb");
     expect(workflow).toContain("--bundles nsis");
     expect(workflow).toContain("--bundles dmg");
+  });
+
+  it("keeps a reproducible Android project and build commands", () => {
+    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
+    const workflow = readFileSync(
+      join(sourceDirectory, "../../../.github/workflows/verify-android.yml"),
+      "utf8",
+    );
+    expect(desktopPackage.scripts["android:init"]).toBe("tauri android init");
+    expect(desktopPackage.scripts["android:dev"]).toBe("tauri android dev");
+    expect(desktopPackage.scripts["android:build:apk"]).toBe("tauri android build --apk");
+    expect(desktopPackage.scripts["android:build:aab"]).toBe("tauri android build --aab");
+    expect(existsSync(join(sourceDirectory, "../src-tauri/gen/android/gradlew"))).toBe(true);
+    expect(existsSync(join(sourceDirectory, "../../../.github/workflows/verify-android.yml"))).toBe(true);
+    expect(workflow).toContain('"platforms;android-36"');
+    expect(workflow).toContain('"build-tools;36.0.0"');
+    expect(workflow).toContain('"ndk;27.0.12077973"');
   });
 });

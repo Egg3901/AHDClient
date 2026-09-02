@@ -326,3 +326,58 @@
     animation: none;
   }
 }
+
+@media (max-width: 600px) {
+  .launcher-scope {
+    min-height: 100dvh;
+    overflow: auto;
+  }
+
+  .launcher-scope .launcher-stage {
+    min-height: 100dvh;
+    justify-content: flex-start;
+    gap: 14px;
+    padding: max(20px, env(safe-area-inset-top)) 12px max(48px, env(safe-area-inset-bottom));
+  }
+
+  .launcher-scope .launcher-mast h1 {
+    font-size: 22px;
+    letter-spacing: 0.24em;
+    text-indent: 0.24em;
+  }
+
+  .launcher-scope .launcher-mast .sub {
+    letter-spacing: 0.3em;
+    text-indent: 0.3em;
+  }
+
+  .launcher-scope .launcher-toggle {
+    width: 100%;
+  }
+
+  .launcher-scope .launcher-toggle button {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 8px;
+    letter-spacing: 0.1em;
+  }
+
+  .launcher-scope .launcher-era-row {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .launcher-scope .launcher-globe-wrap {
+    width: min(76vw, 36vh, 320px);
+  }
+
+  .launcher-scope .launcher-actions {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .launcher-scope .launcher-footer {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    letter-spacing: 0.12em;
+  }
+}

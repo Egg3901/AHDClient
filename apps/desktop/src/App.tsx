@@ -39,9 +39,10 @@ import { HeadOfStateScreen } from "./hos/HeadOfState.js";
 import "./hos/hos.css";
 import { ONLINE_URL } from "./onlineTarget.js";
 
-// The online window is built entirely on the Rust side (src-tauri/src/lib.rs,
-// `open_online_window`) so it can be given navigation/new-window guards
-// without ever handing the remote webview a Tauri capability. See
+// Desktop builds create the online window in Rust so it can be given
+// navigation and new-window guards without handing the remote webview a
+// Tauri capability. Mobile builds route the same command to the system
+// browser, keeping remote content outside the capability-bearing SP webview. See
 // docs/FRAMEWORK.md "Security doctrine" and capabilities/online.json (empty
 // permission set) plus capabilities/default.json (only "main" may invoke
 // this command). If the Tauri bridge is unavailable for any reason (e.g. a

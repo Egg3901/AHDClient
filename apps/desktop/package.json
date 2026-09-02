@@ -5,6 +5,10 @@
   "type": "module",
   "scripts": {
     "tauri": "tauri",
+    "android:init": "tauri android init",
+    "android:dev": "tauri android dev",
+    "android:build:apk": "tauri android build --apk",
+    "android:build:aab": "tauri android build --aab",
     "dev": "tauri dev",
     "build": "tauri build",
     "build:web": "vite build",

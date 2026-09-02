@@ -1,14 +1,17 @@
+#[cfg(desktop)]
 use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_opener::OpenerExt;
 
 /// Multiplayer viewer target. The online window is a plain webview onto this
 /// origin and nothing else; see docs/FRAMEWORK.md "Security doctrine" #2.
 const ONLINE_URL: &str = "https://www.ahousedividedgame.com";
+#[cfg(desktop)]
 const ONLINE_HOST: &str = "www.ahousedividedgame.com";
 
 /// True if `url` is the exact HTTPS online origin. Anything else
 /// (in-page navigation or a clicked link) gets kicked out to the system
 /// browser instead of being followed inside the app.
+#[cfg(desktop)]
 fn is_online_origin(url: &Url) -> bool {
   url.scheme() == "https" && url.host_str() == Some(ONLINE_HOST)
 }
@@ -36,6 +39,7 @@ fn is_online_origin(url: &Url) -> bool {
 ///   system browser. This is what stops remote content from spawning a new
 ///   capability-bearing window.
 #[tauri::command]
+#[cfg(desktop)]
 fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
   if let Some(existing) = app.get_webview_window("online") {
     existing.set_focus().map_err(|e| e.to_string())?;
@@ -88,16 +92,30 @@ fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
   Ok(())
 }
 
+#[tauri::command]
+#[cfg(mobile)]
+fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
+  app
+    .opener()
+    .open_url(ONLINE_URL, None::<&str>)
+    .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
+  let builder = tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
-    .plugin(tauri_plugin_opener::init())
+    .plugin(tauri_plugin_opener::init());
+
+  #[cfg(desktop)]
+  let builder = builder
     // Restores/persists window size + position per label (main and online
     // alike) across app restarts. Runs entirely on the Rust side via window
     // events; grants no capability to any webview.
-    .plugin(tauri_plugin_window_state::Builder::default().build())
+    .plugin(tauri_plugin_window_state::Builder::default().build());
+
+  builder
     .invoke_handler(tauri::generate_handler![open_online_window])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

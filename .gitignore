@@ -11,3 +11,10 @@ src-tauri/target/
 src-tauri/gen/
 **/src-tauri/target/
 **/src-tauri/gen/
+!apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/gen/*
+!apps/desktop/src-tauri/gen/android/
+!apps/desktop/src-tauri/gen/android/**
+apps/desktop/src-tauri/icons/ios/
+apps/desktop/src-tauri/icons/Square*Logo.png
+apps/desktop/src-tauri/icons/StoreLogo.png

@@ -84,7 +84,7 @@ The rule that keeps modes safe: **a mode is who the player is, never how the wor
 ## Security doctrine (binding)
 
 1. **Singleplayer is fully local.** No server process, no listeners, no network requests from SP surfaces. The engine is a library in the app process; turns cost the player's CPU and nothing else.
-2. **The online mode is a webview onto https://www.ahousedividedgame.com in a dedicated window.** Remote content never gets Tauri IPC, never gets capabilities. Do not grant fs, dialog, or shell to the online window. Never enable remote-domain IPC access.
+2. **The online mode is a webview onto https://www.ahousedividedgame.com in a dedicated desktop window.** On mobile it opens in the system browser, outside the SP webview. Remote content never gets Tauri IPC or capabilities. Do not grant fs, dialog, or shell to the online window. Never enable remote-domain IPC access.
 3. **Capabilities are minimal and per-window.** The SP window holds dialog open/save, read/write access to dialog-picked files, and only the filesystem operations required for managed slots under `$APPDATA/saves/**` (read, write, atomic rename, create/list, stat, and delete). No other persistent filesystem path is in scope.
 4. **Saves are inert data.** Loading validates format and schema version and fails hard; no code or paths execute from a save file.
 
