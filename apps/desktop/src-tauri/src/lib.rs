@@ -4,16 +4,13 @@ use tauri_plugin_opener::OpenerExt;
 /// Multiplayer viewer target. The online window is a plain webview onto this
 /// origin and nothing else; see docs/FRAMEWORK.md "Security doctrine" #2.
 const ONLINE_URL: &str = "https://www.ahousedividedgame.com";
-const ONLINE_HOST: &str = "ahousedividedgame.com";
+const ONLINE_HOST: &str = "www.ahousedividedgame.com";
 
-/// True if `url` is the online origin or a subdomain of it. Anything else
+/// True if `url` is the exact HTTPS online origin. Anything else
 /// (in-page navigation or a clicked link) gets kicked out to the system
 /// browser instead of being followed inside the app.
 fn is_online_origin(url: &Url) -> bool {
-  match url.host_str() {
-    Some(host) => host == ONLINE_HOST || host.ends_with(&format!(".{ONLINE_HOST}")),
-    None => false,
-  }
+  url.scheme() == "https" && url.host_str() == Some(ONLINE_HOST)
 }
 
 /// Opens (or focuses) the multiplayer window.
@@ -30,8 +27,8 @@ fn is_online_origin(url: &Url) -> bool {
 ///   folder / WKWebView default store / WebKitGTK profile), which survives
 ///   app restarts by default. This is the Tauri default; nothing extra is
 ///   configured to get it.
-/// - External links: `on_navigation` only allows staying on `ahousedividedgame.com`
-///   (and subdomains); anything else denies the in-app navigation and opens the
+/// - External links: `on_navigation` only allows staying on the exact HTTPS
+///   `www.ahousedividedgame.com` origin; anything else denies the in-app navigation and opens the
 ///   system browser via `tauri_plugin_opener`, called directly from Rust (no IPC
 ///   round-trip through the online webview).
 /// - `window.open()` / `target="_blank"`: `on_new_window` always denies creating
@@ -104,4 +101,25 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![open_online_window])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+  use super::is_online_origin;
+  use tauri::Url;
+
+  #[test]
+  fn online_navigation_stays_in_app_only_for_the_exact_https_origin() {
+    let allowed: Url = "https://www.ahousedividedgame.com/play".parse().unwrap();
+    let http: Url = "http://www.ahousedividedgame.com/play".parse().unwrap();
+    let apex: Url = "https://ahousedividedgame.com/play".parse().unwrap();
+    let subdomain: Url = "https://accounts.ahousedividedgame.com/".parse().unwrap();
+    let unrelated: Url = "https://example.com/".parse().unwrap();
+
+    assert!(is_online_origin(&allowed));
+    assert!(!is_online_origin(&http));
+    assert!(!is_online_origin(&apex));
+    assert!(!is_online_origin(&subdomain));
+    assert!(!is_online_origin(&unrelated));
+  }
 }

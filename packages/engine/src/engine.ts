@@ -8,13 +8,19 @@ import type { WorldState } from "./types.js";
  * from and written back to world.meta, so save/load mid-campaign does not
  * change outcomes.
  */
-export function advanceTurn(world: WorldState): TurnReport {
+export interface AdvanceTurnOptions {
+  /** Adapter-provided monotonic clock for profiling. Omit for deterministic reports. */
+  now?: () => number;
+}
+
+export function advanceTurn(world: WorldState, options: AdvanceTurnOptions = {}): TurnReport {
   const rng = rngFromState(world.meta.rng);
   const phaseTimings = [];
   for (const phase of TURN_PHASES) {
-    const startedAt = performance.now();
+    const startedAt = options.now?.();
     phase.run(world, rng);
-    phaseTimings.push({ name: phase.name, ms: performance.now() - startedAt });
+    const ms = startedAt === undefined ? 0 : options.now!() - startedAt;
+    phaseTimings.push({ name: phase.name, ms });
   }
   world.meta.rng = rng.state();
   return { turn: world.meta.turn, date: world.meta.date, phaseTimings };

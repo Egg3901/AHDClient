@@ -4,22 +4,21 @@ import { deserializeSave } from "../save.js";
 
 describe("save migration v17 -> v28 (W12 banking)", () => {
   it("backfills player.savings/savingsHolder, bankLoans, depositInsurance, and centralBank.externalBroadMoney on a pre-banking save", () => {
-    const v17World: Record<string, unknown> = {
-      meta: { schemaVersion: 17, seed: "mig-bank-seed", rng: [1, 2, 3, 4], turn: 12, date: "1953-03-24", era: "1953" },
-      countries: {
-        US: { id: "US", name: "United States", playable: true, economy: { gdp: 387000, growthRate: 0.046, inflationRate: 0.0075, unemploymentRate: 0.029, outputGap: 0 } },
-        UK: { id: "UK", name: "United Kingdom", playable: true, economy: { gdp: 40336, growthRate: 0.04, inflationRate: 0.03, unemploymentRate: 0.018, outputGap: 0 } },
-      },
-      player: { name: "Tester", countryId: "US", cash: 10000 },
-      news: [],
-      // Pre-populate centralBanks directly rather than relying on an
-      // unrelated earlier wave's own migration block to create it — this
-      // test exercises ONLY the v26->v28 banking block, not the v<17
-      // central-bank-seeding migration (see centralBank.test.ts for that).
-      centralBanks: {
-        US: { countryId: "US", primeRate: 2.5, chairMode: "npp", chairAlignment: null, chairInfamy: 0, resolveStreak: 0, lastRateChangeTurn: null, chairTermExpiresAtTurn: 192, interestRateHistory: [], chairAppointedBy: null },
-      },
-    };
+    const v17World = structuredClone(
+      createWorld({ seed: "mig-bank-seed", playerName: "Tester", countryId: "US", era: "1953" }),
+    ) as unknown as Record<string, unknown>;
+    (v17World["meta"] as Record<string, unknown>)["schemaVersion"] = 17;
+    const player = v17World["player"] as Record<string, unknown>;
+    delete player["savings"];
+    delete player["savingsHolder"];
+    delete v17World["bankLoans"];
+    delete v17World["depositInsurance"];
+    for (const bank of Object.values(v17World["centralBanks"] as Record<string, Record<string, unknown>>)) {
+      delete bank["externalBroadMoney"];
+    }
+    for (const corporation of Object.values(v17World["corporations"] as Record<string, Record<string, unknown>>)) {
+      delete corporation["bankCharter"];
+    }
     const raw = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 17, savedAt: "2026-01-01T00:00:00Z", world: v17World });
     const loaded = deserializeSave(raw);
 

@@ -498,6 +498,23 @@ describe("determinism", () => {
 
 // ── Chained migration + schema ─────────────────────────────────────────
 describe("schema migration v30 -> v31 (chained, resolver note in save.ts)", () => {
+  it("assigns a deterministic id to a legacy bond that has none", () => {
+    const world = createWorld(OPTS);
+    const save = JSON.parse(
+      serializeSave(world, "2026-09-01T00:00:00.000Z"),
+    ) as { schemaVersion: number; world: Record<string, unknown> };
+    save.schemaVersion = 30;
+    (save.world["meta"] as Record<string, unknown>)["schemaVersion"] = 30;
+    save.world["bonds"] = { "legacy-slot": {} };
+    const raw = JSON.stringify(save);
+
+    const first = deserializeSave(raw);
+    const second = deserializeSave(raw);
+
+    expect(first.bonds["legacy-slot"]?.id).toBe("bond-migrated-legacy-slot");
+    expect(JSON.stringify(first)).toBe(JSON.stringify(second));
+  });
+
   it("old save without bonds migrates to v31 with bonds present", () => {
     const world = createWorld(OPTS);
     const raw = JSON.parse(serializeSave(world, "2026-09-01T00:00:00.000Z")) as { schemaVersion: number; world: Record<string, unknown> };

@@ -1391,7 +1391,7 @@ export function App() {
   };
 
   const handleSavesLoad = (loaded: WorldState) => {
-    setWorld(loaded);
+    setWorld(game.resumeGame(loaded));
     setIsDirty(false);
     setLauncherError(null);
     setSavesError(null);
@@ -1404,6 +1404,7 @@ export function App() {
   };
 
   const handleExitToLauncher = () => {
+    game.endGame();
     setWorld(null);
     setIsDirty(false);
     setScreen("launcher");

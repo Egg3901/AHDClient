@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { listEras, listPlayableCountries } from "@rotunda/engine";
-import { runQa, runQaForCountry, FULL_QA_OPTIONS, QUICK_QA_OPTIONS } from "./qa.js";
+import { invariantReportsPass, passesQaGate, runQa, runQaForCountry, FULL_QA_OPTIONS, QUICK_QA_OPTIONS } from "./qa.js";
 
 // Keep turn counts tiny — this exercises the real engine (no mocks, per
 // FRAMEWORK.md determinism doctrine: no reason to fake it, and a real short
@@ -9,7 +9,7 @@ import { runQa, runQaForCountry, FULL_QA_OPTIONS, QUICK_QA_OPTIONS } from "./qa.
 // exercised for shape only, never run to completion in a unit test.
 
 describe("runQaForCountry", () => {
-  it("passes every check for a short US 1953 run", () => {
+  it("reports every check without passing a short run whose elections are unresolved", () => {
     const r = runQaForCountry("1953", "US", "United States", { turns: 20, checkpointInterval: 10, seedPrefix: "test" });
     expect(r.era).toBe("1953");
     expect(r.countryId).toBe("US");
@@ -17,11 +17,13 @@ describe("runQaForCountry", () => {
     expect(r.invariantOk).toBe(true);
     expect(r.economyBandViolations).toEqual([]);
     expect(r.seatSumViolations).toEqual([]);
-    expect(r.electionsOk).toBe(true);
+    expect(r.electionsSeen).toBeGreaterThan(0);
+    expect(r.electionsResolved).toBe(0);
+    expect(r.electionsOk).toBe(false);
     expect(r.governmentApplicable).toBe(false); // US has no parliamentary formation
     expect(r.politicianPopulationOk).toBe(true);
     expect(r.treasuryBoundsOk).toBe(true);
-    expect(r.ok).toBe(true);
+    expect(r.ok).toBe(false);
   });
 
   it("is deterministic: two identical calls (same seed derivation) agree on final state shape", () => {
@@ -46,6 +48,37 @@ describe("runQaForCountry", () => {
     const r = runQaForCountry("1953", "RU", "Russia", { turns: 1, checkpointInterval: 1, seedPrefix: "test-ru-t0" });
     expect(r.invariantReports[0]!.turn).toBe(0);
     expect(r.economyBandViolations.some((v) => v.turn === 0)).toBe(false);
+    expect(r.electionsSeen).toBeGreaterThan(0);
+    expect(r.electionsResolved).toBe(0);
+    expect(r.electionsOk).toBe(false);
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe("passesQaGate", () => {
+  const passingChecks = {
+    determinismOk: true,
+    invariantOk: true,
+    economyBandsOk: true,
+    seatSumOk: true,
+    electionsOk: true,
+    governmentApplicable: true,
+    governmentFormed: true,
+    politicianPopulationOk: true,
+    treasuryBoundsOk: true,
+  };
+
+  it("requires an applicable parliamentary government to be formed", () => {
+    expect(passesQaGate({ ...passingChecks, governmentFormed: false })).toBe(false);
+    expect(passesQaGate({ ...passingChecks, governmentApplicable: false, governmentFormed: false })).toBe(true);
+  });
+});
+
+describe("invariantReportsPass", () => {
+  it("does not treat amber invariant findings as clean", () => {
+    expect(invariantReportsPass([
+      { turn: 100, status: "amber", checksRun: 1, findings: [] },
+    ])).toBe(false);
   });
 });
 

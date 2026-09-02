@@ -69,7 +69,7 @@ export function moveSavingsHolder(world: WorldState, holder: string): SavingsAct
     const ceiling = bank.bankCharter.depositCeiling;
     const projected = bank.bankCharter.totalDeposits + player.savings;
     if (projected > ceiling) {
-      return { ok: false, error: `${bank.tickerSymbol}'s deposit capacity is full (ceiling ${ceiling.toLocaleString()})` };
+      return { ok: false, error: `${bank.tickerSymbol}'s deposit capacity is full (ceiling ${ceiling})` };
     }
   }
   player.savingsHolder = holder;

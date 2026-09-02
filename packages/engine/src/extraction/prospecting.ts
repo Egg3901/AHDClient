@@ -91,7 +91,7 @@ export function resolveProspectsForTurn(
     }
 
     const headline = success
-      ? `Survey struck ${survey.resource} in ${survey.regionId}: +${capacityGained.toLocaleString()} capacity.`
+      ? `Survey struck ${survey.resource} in ${survey.regionId}: +${capacityGained} capacity.`
       : `Survey for ${survey.resource} in ${survey.regionId} came up dry.`;
     world.news.push({ turn, date: world.meta.date, headline });
   }

@@ -872,7 +872,7 @@ function executeActionInner(
       if (corp.publicFloat < shares) {
         actor.actions += cost;
         if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
-        return { ok: false, error: `Only ${corp.publicFloat.toLocaleString()} shares available in ${corp.tickerSymbol}'s public float` };
+        return { ok: false, error: `Only ${corp.publicFloat} shares available in ${corp.tickerSymbol}'s public float` };
       }
       if ((player.cash ?? 0) < notional) {
         actor.actions += cost;
@@ -1124,7 +1124,7 @@ function executeActionInner(
         if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
         return { ok: false, error: res.error };
       }
-      return { ok: true, message: `Survey launched: ${res.surveyId} (cost ${res.costAnchor.toLocaleString()})` };
+      return { ok: true, message: `Survey launched: ${res.surveyId} (cost ${res.costAnchor})` };
     }
     const share = params.share;
     const royaltyRatePerTurn = params.royaltyRatePerTurn;
@@ -1170,7 +1170,7 @@ function executeActionInner(
       if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
       return { ok: false, error: res.error };
     }
-    return { ok: true, message: actionId === "depositSavings" ? `Deposited ${amount.toLocaleString()} to savings` : `Withdrew ${amount.toLocaleString()} from savings` };
+    return { ok: true, message: actionId === "depositSavings" ? `Deposited ${amount} to savings` : `Withdrew ${amount} from savings` };
   }
   if (actionId === "moveSavings") {
     if (found.kind !== "player") {
@@ -1209,7 +1209,7 @@ function executeActionInner(
       if (actor.actionCounts) actor.actionCounts[actionId] = Math.max(0, (actor.actionCounts[actionId] ?? 1) - 1);
       return { ok: false, error: res.error };
     }
-    return { ok: true, message: `Wired ${amount.toLocaleString()} to ${res.recipientName}` };
+    return { ok: true, message: `Wired ${amount} to ${res.recipientName}` };
   }
 
   return { ok: false, error: `No effect for ${actionId}` };

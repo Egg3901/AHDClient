@@ -361,15 +361,10 @@ describe("corporation long-run sanity", () => {
 // ── Migration v17 -> v19 ─────────────────────────────────────────────
 describe("save migration v17 -> v19", () => {
   it("seeds corporations and corpRevenueSnapshots for a pre-corp save", () => {
-    const v17World: Record<string, unknown> = {
-      meta: { schemaVersion: 17, seed: "mig-corp-seed", rng: [1, 2, 3, 4], turn: 12, date: "1953-03-24", era: "1953" },
-      countries: {
-        US: { id: "US", name: "United States", playable: true, economy: { gdp: 387000, growthRate: 0.046, inflationRate: 0.0075, unemploymentRate: 0.029, outputGap: 0 } },
-        UK: { id: "UK", name: "United Kingdom", playable: true, economy: { gdp: 40336, growthRate: 0.04, inflationRate: 0.03, unemploymentRate: 0.018, outputGap: 0 } },
-      },
-      player: { name: "Tester", countryId: "US", cash: 10000 },
-      news: [],
-    };
+    const v17World = structuredClone(createWorld({ ...OPTS, seed: "mig-corp-seed" })) as unknown as Record<string, unknown>;
+    (v17World["meta"] as Record<string, unknown>)["schemaVersion"] = 17;
+    delete v17World["corporations"];
+    delete v17World["corpRevenueSnapshots"];
     const raw = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 17, savedAt: "2026-01-01T00:00:00Z", world: v17World });
     const loaded = deserializeSave(raw);
     expect(loaded.meta.schemaVersion).toBe(SCHEMA_VERSION);

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createWorld, SCHEMA_VERSION } from "../world.js";
 import { advanceTurn } from "../engine.js";
 import { deserializeSave, serializeSave } from "../save.js";
@@ -14,6 +14,23 @@ function samePoliticianCountry(world: ReturnType<typeof createWorld>): string {
 }
 
 describe("wireTransfer", () => {
+  it("does not use host-locale formatting in persisted news", () => {
+    const w = createWorld(OPTS);
+    const targetId = samePoliticianCountry(w);
+    w.player.cash = 5000;
+    const localeFormatter = vi.spyOn(Number.prototype, "toLocaleString").mockImplementation(() => {
+      throw new Error("host locale accessed");
+    });
+
+    try {
+      const result = wireTransfer(w, targetId, 1000);
+      expect(result.ok).toBe(true);
+      expect(w.news.at(-1)?.headline).toContain("1000");
+    } finally {
+      localeFormatter.mockRestore();
+    }
+  });
+
   it("moves cash 1:1 to a same-country politician and logs news, per the wire route's core transfer", () => {
     const w = createWorld(OPTS);
     const targetId = samePoliticianCountry(w);

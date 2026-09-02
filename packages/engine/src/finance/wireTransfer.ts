@@ -55,7 +55,7 @@ export function wireTransfer(world: WorldState, targetPoliticianId: string, amou
   const quotaUsed = windowFresh ? player.wireQuotaUsedAnchor : 0;
   if (quotaUsed + amount > DAILY_WIRE_CAP_ANCHOR) {
     const remaining = Math.max(0, DAILY_WIRE_CAP_ANCHOR - quotaUsed);
-    return { ok: false, error: `Daily wire limit reached. ${remaining.toLocaleString()} remaining in your quota.` };
+    return { ok: false, error: `Daily wire limit reached. ${remaining} remaining in your quota.` };
   }
 
   if (windowFresh) {
@@ -70,7 +70,7 @@ export function wireTransfer(world: WorldState, targetPoliticianId: string, amou
   world.news.push({
     turn,
     date: world.meta.date,
-    headline: `You wire ${amount.toLocaleString()} to ${target.name}.`,
+    headline: `You wire ${amount} to ${target.name}.`,
   });
   return { ok: true, recipientName: target.name };
 }

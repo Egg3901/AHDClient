@@ -43,6 +43,78 @@ export function serializeSave(world: WorldState, savedAt: string): string {
   return JSON.stringify(save);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function assertSaveWorldRoot(value: unknown): asserts value is WorldState {
+  if (!isRecord(value) || !isRecord(value["meta"]) || !isRecord(value["countries"])) {
+    throw new Error("Not a valid save file: invalid world state");
+  }
+}
+
+const REQUIRED_WORLD_ARRAYS = [
+  "politicians", "elections", "referendums", "impeachments", "charters", "caucuses",
+  "endorsements", "extractionContracts", "prospectingSurveys", "achievementsEarned",
+  "statePartyElections", "nationalPartyElections", "nationalCommitteeElections", "coalitions",
+  "cabinetMembers", "cabinetNominations", "supremeCourtSeats", "scotusNominations", "docketCases",
+  "ukJudicialReviewCases", "activeWorldModifiers", "crises", "playerEventLog", "governorAddresses",
+  "governorOrders", "bills", "committees", "enactedLaws", "stateBills", "news", "bankLoans",
+  "vitalSignsHistory", "ministerialOrders", "conflicts", "settlements",
+] as const;
+
+const REQUIRED_WORLD_RECORDS = [
+  "countries", "parties", "legislatures", "executives", "commodityPrices", "stateResourceCapacities",
+  "regions", "partyRegions", "electoratePools", "regionTurnouts", "partyPressures", "candidateSupports",
+  "stateDemographics", "baselineDemographics", "demographicCategories", "census", "laborForces", "budgets",
+  "regionalBudgets", "nppRelationships", "nppSponsorLastTurn", "centralBanks", "corporations",
+  "corpRevenueSnapshots", "campaigns", "governments", "worldEventLedger", "governors", "depositInsurance",
+  "unions", "bonds", "exchangeRates", "nationalMetrics", "economicModels", "commodityPriceHistory",
+  "commandEconomy", "capitalStock", "capitalGrowth", "unownedSectors", "history", "policyLedger",
+  "enactmentGates", "currencyUnions", "coldWarTension", "nuclearPrograms", "alignments", "internationalOrgs",
+] as const;
+
+function assertCurrentWorldState(world: WorldState): void {
+  const value = world as unknown as Record<string, unknown>;
+  const meta = value["meta"] as Record<string, unknown>;
+  const player = value["player"];
+
+  if (
+    meta["schemaVersion"] !== SCHEMA_VERSION ||
+    typeof meta["seed"] !== "string" ||
+    !Array.isArray(meta["rng"]) ||
+    meta["rng"].length !== 4 ||
+    !meta["rng"].every((part) => Number.isInteger(part)) ||
+    !Number.isInteger(meta["turn"]) ||
+    (meta["turn"] as number) < 0 ||
+    typeof meta["date"] !== "string" ||
+    typeof meta["era"] !== "string" ||
+    typeof meta["lastEra"] !== "string" ||
+    typeof meta["cheatsUsed"] !== "boolean" ||
+    !isRecord(player) ||
+    typeof player["name"] !== "string" ||
+    typeof player["countryId"] !== "string"
+  ) {
+    throw new Error("Not a valid save file: invalid world state");
+  }
+
+  for (const field of REQUIRED_WORLD_ARRAYS) {
+    if (!Array.isArray(value[field])) {
+      throw new Error(`Not a valid save file: invalid world state field ${field}`);
+    }
+  }
+  for (const field of REQUIRED_WORLD_RECORDS) {
+    if (!isRecord(value[field])) {
+      throw new Error(`Not a valid save file: invalid world state field ${field}`);
+    }
+  }
+  for (const field of ["ledgerPreForexSnapshot", "economicVitalSigns"] as const) {
+    if (value[field] !== null && !isRecord(value[field])) {
+      throw new Error(`Not a valid save file: invalid world state field ${field}`);
+    }
+  }
+}
+
 export function deserializeSave(raw: string): WorldState {
   let parsed: unknown;
   try {
@@ -57,6 +129,10 @@ export function deserializeSave(raw: string): WorldState {
     throw new Error("Not a valid save file: wrong format marker");
   }
   const save = parsed as SaveFile;
+  if (!Number.isInteger(save.schemaVersion) || save.schemaVersion < 1) {
+    throw new Error("Not a valid save file: invalid schema version");
+  }
+  assertSaveWorldRoot(save.world);
   if (save.schemaVersion > SCHEMA_VERSION) {
     throw new Error(
       `Save is from a newer version (schema ${save.schemaVersion} > ${SCHEMA_VERSION}); update the game to load it`,
@@ -1303,8 +1379,8 @@ export function deserializeSave(raw: string): WorldState {
       w["bonds"] = {};
     } else {
       const bonds = w["bonds"] as Record<string, Record<string, unknown>>;
-      for (const b of Object.values(bonds)) {
-        if (typeof b["id"] !== "string") b["id"] = String(b["id"] ?? `bond-migrated-${Math.random().toString(36).slice(2)}`);
+      for (const [bondKey, b] of Object.entries(bonds)) {
+        if (typeof b["id"] !== "string") b["id"] = String(b["id"] ?? `bond-migrated-${bondKey}`);
         if (typeof b["issuerType"] !== "string") b["issuerType"] = "sovereign";
         if (typeof b["countryId"] !== "string") b["countryId"] = "US";
         if (typeof b["issuerName"] !== "string") b["issuerName"] = b["countryId"] as string;
@@ -1873,5 +1949,6 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 41;
   }
+  assertCurrentWorldState(save.world);
   return save.world;
 }

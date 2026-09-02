@@ -17,6 +17,8 @@ let world: WorldState | null = null;
 
 export interface GameApi {
   newGame(options: NewWorldOptions): Promise<WorldState>;
+  resumeGame(loadedWorld: WorldState): WorldState;
+  endGame(): void;
   advanceTurn(): Promise<{ report: TurnReport; world: WorldState }>;
   getState(): Promise<WorldState | null>;
   getStateSync(): WorldState | null;
@@ -35,9 +37,18 @@ export const game: GameApi = {
     return world;
   },
 
+  resumeGame(loadedWorld: WorldState): WorldState {
+    world = loadedWorld;
+    return world;
+  },
+
+  endGame(): void {
+    world = null;
+  },
+
   async advanceTurn(): Promise<{ report: TurnReport; world: WorldState }> {
     if (!world) throw new Error("No game in progress");
-    const report = advanceTurn(world);
+    const report = advanceTurn(world, { now: () => performance.now() });
     return { report, world };
   },
 
@@ -78,8 +89,7 @@ export const game: GameApi = {
     });
     if (!selected || Array.isArray(selected)) return null;
     const raw = await readTextFile(selected);
-    world = deserializeSave(raw);
-    return world;
+    return game.resumeGame(deserializeSave(raw));
   },
 };
 

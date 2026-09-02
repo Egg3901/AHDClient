@@ -158,10 +158,14 @@ export function formatQaReport(results: QaCountryResult[]): string {
       );
     }
     if (!r.electionsOk) {
-      lines.push(`  elections: 0 elections seen for ${r.countryId} over ${r.turns} turns`);
+      lines.push(`  elections: ${r.electionsResolved} elections resolved (${r.electionsSeen} seen) for ${r.countryId} over ${r.turns} turns`);
     }
-    if (r.governmentStuckPending) {
-      lines.push(`  government: stuck pending past pmVacancyDeadlineTurn`);
+    if (r.governmentApplicable && !r.governmentFormed) {
+      lines.push(
+        r.governmentStuckPending
+          ? "  government: stuck pending past pmVacancyDeadlineTurn"
+          : "  government: not formed",
+      );
     }
     if (!r.politicianPopulationOk) {
       lines.push(

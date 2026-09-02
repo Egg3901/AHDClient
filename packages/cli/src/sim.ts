@@ -254,7 +254,7 @@ async function commandBench(opts: Record<string, string | boolean>): Promise<voi
   const timings: Map<string, number[]> = new Map();
   const start = performance.now();
   for (let i = 0; i < turns; i++) {
-    const report = advanceTurn(world);
+    const report = advanceTurn(world, { now: () => performance.now() });
     for (const pt of report.phaseTimings) {
       let arr = timings.get(pt.name);
       if (!arr) {

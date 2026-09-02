@@ -225,4 +225,21 @@ describe("formatQaReport", () => {
     expect(out).toContain("growthRate=5");
     expect(out).toContain("sovietOfTheUnion");
   });
+
+  it("explains unresolved elections and an unformed applicable government", () => {
+    const out = formatQaReport([
+      makeQaResult({
+        countryId: "UK",
+        ok: false,
+        electionsSeen: 4,
+        electionsResolved: 0,
+        electionsOk: false,
+        governmentApplicable: true,
+        governmentFormed: false,
+      }),
+    ]);
+
+    expect(out).toContain("0 elections resolved (4 seen)");
+    expect(out).toContain("government: not formed");
+  });
 });

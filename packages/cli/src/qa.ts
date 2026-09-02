@@ -89,6 +89,35 @@ export interface QaCountryResult {
   ok: boolean;
 }
 
+export interface QaGateChecks {
+  determinismOk: boolean;
+  invariantOk: boolean;
+  economyBandsOk: boolean;
+  seatSumOk: boolean;
+  electionsOk: boolean;
+  governmentApplicable: boolean;
+  governmentFormed: boolean;
+  politicianPopulationOk: boolean;
+  treasuryBoundsOk: boolean;
+}
+
+export function passesQaGate(checks: QaGateChecks): boolean {
+  return (
+    checks.determinismOk &&
+    checks.invariantOk &&
+    checks.economyBandsOk &&
+    checks.seatSumOk &&
+    checks.electionsOk &&
+    (!checks.governmentApplicable || checks.governmentFormed) &&
+    checks.politicianPopulationOk &&
+    checks.treasuryBoundsOk
+  );
+}
+
+export function invariantReportsPass(reports: InvariantReport[]): boolean {
+  return reports.every((report) => report.status === "green");
+}
+
 /** Percent-scale engine clamp bounds converted to the fraction scale CountryEconomy stores. */
 function economyBands(): Record<string, [number, number]> {
   return {
@@ -186,15 +215,14 @@ export function runQaForCountry(era: string, countryId: string, countryName: str
   const determinismOk = cmp.equal;
 
   const world = a.world;
-  const invariantOk = a.reports.every((r) => r.status !== "red");
+  const invariantOk = invariantReportsPass(a.reports);
 
-  // Elections: how many races this country has ever seen, and how many
-  // resolved — a genuine liveness check (a broken election wiring would
-  // seat zero races over 40 in-game years).
+  // Elections must complete, not merely be seeded. A broken resolver can
+  // create races forever while seating nobody.
   const countryElections = world.elections.filter((e) => e.countryId === countryId);
   const electionsSeen = countryElections.length;
   const electionsResolved = countryElections.filter((e) => e.status === "resolved").length;
-  const electionsOk = electionsSeen > 0;
+  const electionsOk = electionsResolved > 0;
 
   // Government formation (UK/RU/DD only; US has no parliamentary formation).
   const chamberKey = GOVERNMENT_CHAMBER_BY_COUNTRY[countryId];
@@ -242,15 +270,17 @@ export function runQaForCountry(era: string, countryId: string, countryName: str
   const seatSumOk = a.seatSumViolations.length === 0;
   const economyBandsOk = a.bandViolations.length === 0;
 
-  const ok =
-    determinismOk &&
-    invariantOk &&
-    economyBandsOk &&
-    seatSumOk &&
-    electionsOk &&
-    !governmentStuckPending &&
-    politicianPopulationOk &&
-    treasuryBoundsOk;
+  const ok = passesQaGate({
+    determinismOk,
+    invariantOk,
+    economyBandsOk,
+    seatSumOk,
+    electionsOk,
+    governmentApplicable,
+    governmentFormed,
+    politicianPopulationOk,
+    treasuryBoundsOk,
+  });
 
   return {
     era,

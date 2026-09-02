@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { advanceTurn } from "./engine.js";
 import { deserializeSave, serializeSave } from "./save.js";
 import { createWorld, listEras, listPlayableCountries, SCHEMA_VERSION } from "./world.js";
@@ -67,6 +67,20 @@ describe("calendar", () => {
 });
 
 describe("advanceTurn", () => {
+  it("does not read a platform clock during a normal deterministic turn", () => {
+    const world = createWorld(OPTS);
+    const now = vi.spyOn(performance, "now").mockImplementation(() => {
+      throw new Error("platform clock accessed");
+    });
+
+    try {
+      const report = advanceTurn(world);
+      expect(report.phaseTimings.every((phase) => phase.ms === 0)).toBe(true);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it("produces identical worlds for identical seeds", () => {
     const a = createWorld(OPTS);
     const b = createWorld(OPTS);
@@ -214,6 +228,49 @@ describe("advanceTurn", () => {
 });
 
 describe("save", () => {
+  it("rejects a save whose schema version is not an integer", () => {
+    const raw = JSON.stringify({
+      format: "ahdsolo-save",
+      schemaVersion: "41",
+      savedAt: "2026-01-01T00:00:00Z",
+      world: {},
+    });
+
+    expect(() => deserializeSave(raw)).toThrow("schema version");
+  });
+
+  it("rejects a current-version save without a valid world state", () => {
+    const raw = JSON.stringify({
+      format: "ahdsolo-save",
+      schemaVersion: SCHEMA_VERSION,
+      savedAt: "2026-01-01T00:00:00Z",
+      world: {},
+    });
+
+    expect(() => deserializeSave(raw)).toThrow("world state");
+  });
+
+  it("rejects invalid required fields in a current-version world", () => {
+    const valid = JSON.parse(
+      serializeSave(createWorld(OPTS), "2026-01-01T00:00:00Z"),
+    ) as Record<string, unknown>;
+    const corruptions: Array<(save: Record<string, unknown>) => void> = [
+      (save) => { delete (save["world"] as Record<string, unknown>)["player"]; },
+      (save) => { (save["world"] as Record<string, unknown>)["news"] = {}; },
+      (save) => { (save["world"] as Record<string, unknown>)["parties"] = []; },
+      (save) => {
+        const meta = (save["world"] as Record<string, Record<string, unknown>>)["meta"]!;
+        meta["turn"] = "zero";
+      },
+    ];
+
+    for (const corrupt of corruptions) {
+      const save = structuredClone(valid);
+      corrupt(save);
+      expect(() => deserializeSave(JSON.stringify(save))).toThrow("world state");
+    }
+  });
+
   it("rejects garbage and future schema versions", () => {
     expect(() => deserializeSave("not json")).toThrow("unparseable");
     expect(() => deserializeSave('{"format":"other"}')).toThrow("format marker");
