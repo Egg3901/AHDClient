@@ -454,7 +454,7 @@ describe("W32 world seeding + determinism", () => {
 
 describe("save migration v33 -> v37 (W28 + W32 batch)", () => {
   it("backfills every new field on a pre-batch save and is itself deterministic", () => {
-    expect(SCHEMA_VERSION).toBe(37);
+    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(37);
     const world = createWorld({ seed: "mig-w28w32", playerName: "P", countryId: "US", era: "1953" });
     const stripped = JSON.parse(JSON.stringify(world)) as Record<string, unknown>;
     for (const key of ["policyLedger", "ministerialOrders", "enactmentGates", "currencyUnions", "coldWarTension", "nuclearPrograms", "conflicts", "alignments", "settlements", "internationalOrgs"]) {

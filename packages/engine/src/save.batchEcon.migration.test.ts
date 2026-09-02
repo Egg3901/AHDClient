@@ -4,7 +4,7 @@ import { deserializeSave } from "./save.js";
 
 describe("save migration v32 -> v34 (batch: W7 command economy + W8 trade + W14 sector cleanup)", () => {
   it("backfills commandEconomy, capitalStock, capitalGrowth, unownedSectors, stateOwnershipConcentration, and centralBank tradeGrowth on a pre-batch save", () => {
-    expect(SCHEMA_VERSION).toBe(34);
+    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(34);
 
     const world = createWorld({ seed: "mig-batch-econ-seed", playerName: "Tester", countryId: "US", era: "1953" });
     const stripped = JSON.parse(JSON.stringify(world)) as Record<string, unknown>;

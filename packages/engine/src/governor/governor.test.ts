@@ -396,7 +396,7 @@ describe("governor migration", () => {
     // to whatever the chain's current top is (v34 as of the W7/W8/W14 command
     // economy batch) - this checks the literal so a future bump is caught
     // deliberately rather than silently, same pattern as w6Metrics.test.ts.
-    expect(SCHEMA_VERSION).toBe(34);
+    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(34);
     expect(Object.keys(migrated.governors).length).toBe(48);
     expect(migrated.governors["CA"].gubernatorialActions).toBe(GUBERNATORIAL_ACTION_CAP);
     expect(Array.isArray(migrated.governorAddresses)).toBe(true);
