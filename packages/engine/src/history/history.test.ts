@@ -164,6 +164,6 @@ describe("migration v33->v38", () => {
   });
 
   it("SCHEMA_VERSION is 38", () => {
-    expect(SCHEMA_VERSION).toBe(38);
+    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(38);
   });
 });

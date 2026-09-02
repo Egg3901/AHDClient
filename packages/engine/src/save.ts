@@ -1601,41 +1601,6 @@ export function deserializeSave(raw: string): WorldState {
   if (save.schemaVersion < 36) {
     save.world.meta.schemaVersion = 36;
   }
-  // v36 -> v37: pre-allocated for parallel wave (holds v37) — no fields
-  // added by this wave. Same stub pattern as v33->v34 above.
-  if (save.schemaVersion < 37) {
-    save.world.meta.schemaVersion = 37;
-  }
-  // v37 -> v38: W41 WorldHistory (macro, primeRate, partyStrength,
-  // playerWealth, moneySupply bounded ring buffers — see history/types.ts
-  // file doc). Pre-allocated v38 for this wave; main (this worktree) is
-  // v33; parallel waves hold v29, v35, v36, v37 (see the stub chain above
-  // and world.ts SCHEMA_VERSION file doc). This is the latest migration,
-  // jumping from latest known (v33) to v38 via the v34/v35/v36/v37 stubs.
-  // RESOLVER NOTE: on merge, chain in strict ascending order and confirm no
-  // other wave introduces a field named `history`.
-  //
-  // Seeds empty history (no retroactive backfill — a save has no record of
-  // its own past turns' macro/rate/PS/wealth/money values beyond what is
-  // already on WorldState today, so there is nothing truthful to backfill;
-  // recording starts fresh from the next advanceTurn, exactly like
-  // vitalSignsHistory and CentralBank.interestRateHistory both start empty
-  // on migration rather than inventing history). No RNG consumed — seeding
-  // is deterministic.
-  if (save.schemaVersion < 38) {
-    const w = save.world as unknown as Record<string, unknown>;
-    const history = w["history"] as Record<string, unknown> | undefined;
-    if (typeof history !== "object" || history === null || Array.isArray(history)) {
-      w["history"] = { macro: {}, primeRate: {}, partyStrength: {}, playerWealth: [], moneySupply: {} };
-    } else {
-      if (typeof history["macro"] !== "object" || history["macro"] === null || Array.isArray(history["macro"])) history["macro"] = {};
-      if (typeof history["primeRate"] !== "object" || history["primeRate"] === null || Array.isArray(history["primeRate"])) history["primeRate"] = {};
-      if (typeof history["partyStrength"] !== "object" || history["partyStrength"] === null || Array.isArray(history["partyStrength"])) history["partyStrength"] = {};
-      if (!Array.isArray(history["playerWealth"])) history["playerWealth"] = [];
-      if (typeof history["moneySupply"] !== "object" || history["moneySupply"] === null || Array.isArray(history["moneySupply"])) history["moneySupply"] = {};
-    }
-    save.world.meta.schemaVersion = 38;
-  }
   // v33 -> v37: W28 (enactment depth) + W32 (cold war / world politics)
   // batch. Pre-allocated v37 for this batch; parallel waves hold v35 and
   // v36 (in-flight elsewhere, not yet on this branch's history) — this is a
@@ -1718,6 +1683,36 @@ export function deserializeSave(raw: string): WorldState {
     }
 
     save.world.meta.schemaVersion = 37;
+  }
+  // v37 -> v38: W41 WorldHistory (macro, primeRate, partyStrength,
+  // playerWealth, moneySupply bounded ring buffers — see history/types.ts
+  // file doc). Pre-allocated v38 for this wave; main (this worktree) is
+  // v33; parallel waves hold v29, v35, v36, v37 (see the stub chain above
+  // and world.ts SCHEMA_VERSION file doc). This is the latest migration,
+  // jumping from latest known (v33) to v38 via the v34/v35/v36/v37 stubs.
+  // RESOLVER NOTE: on merge, chain in strict ascending order and confirm no
+  // other wave introduces a field named `history`.
+  //
+  // Seeds empty history (no retroactive backfill — a save has no record of
+  // its own past turns' macro/rate/PS/wealth/money values beyond what is
+  // already on WorldState today, so there is nothing truthful to backfill;
+  // recording starts fresh from the next advanceTurn, exactly like
+  // vitalSignsHistory and CentralBank.interestRateHistory both start empty
+  // on migration rather than inventing history). No RNG consumed — seeding
+  // is deterministic.
+  if (save.schemaVersion < 38) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const history = w["history"] as Record<string, unknown> | undefined;
+    if (typeof history !== "object" || history === null || Array.isArray(history)) {
+      w["history"] = { macro: {}, primeRate: {}, partyStrength: {}, playerWealth: [], moneySupply: {} };
+    } else {
+      if (typeof history["macro"] !== "object" || history["macro"] === null || Array.isArray(history["macro"])) history["macro"] = {};
+      if (typeof history["primeRate"] !== "object" || history["primeRate"] === null || Array.isArray(history["primeRate"])) history["primeRate"] = {};
+      if (typeof history["partyStrength"] !== "object" || history["partyStrength"] === null || Array.isArray(history["partyStrength"])) history["partyStrength"] = {};
+      if (!Array.isArray(history["playerWealth"])) history["playerWealth"] = [];
+      if (typeof history["moneySupply"] !== "object" || history["moneySupply"] === null || Array.isArray(history["moneySupply"])) history["moneySupply"] = {};
+    }
+    save.world.meta.schemaVersion = 38;
   }
   // v33 -> v39: M1 (Lane 12 Head of State mode) player.hosPartyId. Pre-
   // allocated v39 (see world.ts SCHEMA_VERSION resolver note) — this batch's
