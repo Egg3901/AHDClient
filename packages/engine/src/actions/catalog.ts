@@ -51,7 +51,14 @@ export type ActionId =
   | "crisisBailout"
   | "crisisStimulus"
   | "crisisRespond"
-  | "crisisMonitor";
+  | "crisisMonitor"
+  // M1 (Lane 12 Head of State mode) economic-direction levers: HoS-only,
+  // call existing budget pure functions (budget/spending.ts, budget/revenue.ts),
+  // never new phase logic. See actions/execute.ts for the mode gate.
+  | "adjustBudgetSpending"
+  | "adjustTaxRate"
+  | "setSubsidyRate"
+  | "commandEconomyDirective";
 
 // Costs mirror mainline's dynamic tier functions but collapsed to neutral
 // goldens for solo's simpler state (no per-state GDP tier). Cited.
@@ -543,6 +550,65 @@ export const ACTION_CATALOG: Record<ActionId, ActionCatalogEntry> = {
     fundCost: 0,
     systems: ["crisis"],
     status: "available",
+  },
+  // ── M1 economic-direction levers (Lane 12 Head of State mode) ─────
+  // HoS-only (execute.ts gates on player.mode === "hos"); each real lever
+  // below calls an existing pure budget function (budget/spending.ts
+  // calculateBudgetSpending, budget/revenue.ts calculateBudgetRevenue) —
+  // no new phase logic, mirrors the crisis actions' pattern of a costed
+  // action wrapping an existing calculation. Unported levers stay
+  // "unavailable" with a named blocker so the HoS UI can gray them out
+  // honestly instead of pretending the dial exists.
+  adjustBudgetSpending: {
+    id: "adjustBudgetSpending",
+    name: "Direct Spending",
+    description: "Set a federal budget spending category to a new absolute value; recomputes budget.spending and surplus via calculateBudgetSpending. HoS mode only — country-level fiscal authority, not a party action. Cost 3 AP.",
+    baseCost: 3,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["budget"],
+    status: "available",
+  },
+  adjustTaxRate: {
+    id: "adjustTaxRate",
+    name: "Set Tax Rate",
+    description: "Set a federal tax rate (0-100%); recomputes budget.revenue and surplus via calculateBudgetRevenue. HoS mode only. Cost 3 AP.",
+    baseCost: 3,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["budget"],
+    status: "available",
+  },
+  // PORT-STUB: subsidyBudget.ts calculateSubsidyCost is wired to sector
+  // revenues that do not exist yet in this branch (corporation/sector
+  // subsidy costing is still 0 by construction — see that file's doc).
+  // Listed (not omitted) so the HoS Economic Direction console can render
+  // an honest grayed-out row naming the real blocker instead of hiding the
+  // lever the roadmap promises.
+  setSubsidyRate: {
+    id: "setSubsidyRate",
+    name: "Set Subsidy Rate",
+    description: "Sector subsidy dial. Blocked: subsidyBudget.ts calculateSubsidyCost has no live sector/corporation revenue input yet (PORT-STUB, always resolves to 0).",
+    baseCost: 3,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["budget/subsidies"],
+    status: "unavailable",
+    blockingSystem: "corporation/sector subsidies (subsidyBudget.ts PORT-STUB)",
+  },
+  // PORT-STUB: commandEconomy/* (W7) has not merged into this branch as of
+  // this wave (batch-econ, schema v34, still on its own worktree) — no
+  // mutable command-economy state exists here to call into yet.
+  commandEconomyDirective: {
+    id: "commandEconomyDirective",
+    name: "Command Economy Directive",
+    description: "State-directed production/allocation dial. Blocked: W7 command economy has not merged into this branch yet — no commandEconomy module exists to call.",
+    baseCost: 3,
+    cooldown: 0,
+    fundCost: 0,
+    systems: ["commandEconomy"],
+    status: "unavailable",
+    blockingSystem: "commandEconomy (W7, not yet merged)",
   },
 };
 

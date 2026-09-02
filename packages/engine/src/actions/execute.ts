@@ -16,6 +16,8 @@ import * as Endorsement from "../endorsement.js";
 import * as Candidacy from "../elections/candidacy.js";
 import * as Coalition from "../intraparty/coalitions.js";
 import { getLaw } from "../legislation/catalog.js";
+import { calculateBudgetSpending } from "../budget/spending.js";
+import { calculateBudgetRevenue } from "../budget/revenue.js";
 
 export type ExecuteActionParams = {
   regionId?: string;
@@ -54,6 +56,12 @@ export type ExecuteActionParams = {
   // W13 bonds
   bondId?: string;
   units?: number;
+  // M1 economic-direction levers (Lane 12 Head of State mode)
+  budgetCountryId?: string;
+  budgetCategory?: string;
+  budgetAmount?: number;
+  taxField?: "incomeTax" | "domesticCorporateTax" | "foreignCorporateTax" | "payrollTax" | "tariffs" | "salesTax";
+  taxRate?: number;
 };
 
 export type ExecuteActionResult =
@@ -67,7 +75,72 @@ function findActor(world: WorldState, actorId: string): { kind: "player" | "poli
   return null;
 }
 
+/**
+ * M1 (Lane 12 Head of State mode): action ids where an existing party
+ * action's "must be a member of this party" gate should accept the bound
+ * ruling party (player.hosPartyId) in place of personal membership
+ * (player.partyId) when the player holds no personal membership. Ports the
+ * FRAMEWORK.md rule "a mode is who the player is, never how the world
+ * works" onto the action layer: HoS grants the player the surfaces
+ * party-leadership NPCs already operate (organize/pressure/endorse/caucus/
+ * intra-party ballots/coalitions) plus government bill sponsorship, without
+ * requiring a separate "join your own government's party" step. Deliberately
+ * excludes joinParty/leaveParty/foundParty: those mutate real membership
+ * bookkeeping (party.memberCount, cooldown fields) that the player was never
+ * counted into, so they stay gated on genuine partyId either way.
+ */
+const HOS_PARTY_BYPASS_ACTIONS: ReadonlySet<string> = new Set([
+  "organize",
+  "pressureBoost",
+  "investInfluence",
+  "endorse",
+  "createCaucus",
+  "joinCaucus",
+  "leaveCaucus",
+  "contestPartyLeadership",
+  "votePartyLeadership",
+  "contestCommittee",
+  "voteCommittee",
+  "createCoalition",
+  "joinCoalition",
+  "initiateCoalitionDisband",
+  "voteCoalitionDisband",
+  "sponsorBill",
+  "repealLaw",
+]);
+
+/**
+ * Public entry point. Applies the M1 HoS party-bypass (see
+ * HOS_PARTY_BYPASS_ACTIONS doc) as a temporary substitution around the real
+ * dispatch in executeActionInner, then reverts it — this is the ONLY place
+ * `player.mode` is read outside executeActionInner's own two pre-existing
+ * seat-bypass checks (sponsorBill/repealLaw), and it lives in the action
+ * layer, never a phase.
+ */
 export function executeAction(
+  world: WorldState,
+  actorId: string,
+  actionId: string,
+  params: ExecuteActionParams = {},
+): ExecuteActionResult {
+  const player = world.player as unknown as { mode: string; partyId: string | null; hosPartyId: string | null };
+  const bypass =
+    actorId === "player" &&
+    player.mode === "hos" &&
+    !player.partyId &&
+    !!player.hosPartyId &&
+    HOS_PARTY_BYPASS_ACTIONS.has(actionId);
+  if (!bypass) return executeActionInner(world, actorId, actionId, params);
+  const original = player.partyId;
+  player.partyId = player.hosPartyId;
+  try {
+    return executeActionInner(world, actorId, actionId, params);
+  } finally {
+    player.partyId = original;
+  }
+}
+
+function executeActionInner(
   world: WorldState,
   actorId: string,
   actionId: string,
@@ -940,6 +1013,56 @@ export function executeAction(
       crisis.playerResponse = "monitor";
       return { ok: true, message: "Monitoring crisis: no action taken." };
     }
+  }
+
+  // ── M1 economic-direction levers (Lane 12 Head of State mode) ─────
+  // Country-level fiscal authority, not a party action: gated on
+  // player.mode directly (like sponsorBill/repealLaw above), not the
+  // HOS_PARTY_BYPASS_ACTIONS party-membership swap. Each mutates budget
+  // state then recomputes through the SAME pure functions budget/phases.ts
+  // uses (calculateBudgetSpending / calculateBudgetRevenue), so the
+  // surplus invariant (budget/invariants.ts) stays exact — no new phase
+  // logic, just an action-layer call into the existing pure calculators.
+  if (actionId === "adjustBudgetSpending" || actionId === "adjustTaxRate") {
+    if (found.kind !== "player") return { ok: false, error: "Only the player directs the budget" };
+    const player = world.player as unknown as { mode: string };
+    if (player.mode !== "hos") {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "Economic direction levers require Head of State mode" };
+    }
+    const countryId = params.budgetCountryId ?? world.player.countryId;
+    const budget = world.budgets[countryId];
+    if (!budget) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: `No budget for country: ${countryId}` };
+    }
+    if (actionId === "adjustBudgetSpending") {
+      const category = params.budgetCategory;
+      const amount = params.budgetAmount;
+      if (!category || amount === undefined || !Number.isFinite(amount) || amount < 0) {
+        actor.actions += cost;
+        if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+        return { ok: false, error: "adjustBudgetSpending requires budgetCategory and a non-negative finite budgetAmount" };
+      }
+      const byCategory = { ...budget.spending.byCategory, [category]: amount };
+      budget.spending = calculateBudgetSpending(byCategory, budget.spending.stateGrants, budget.debt.principal, budget.debt.interestRate);
+      budget.surplus = budget.revenue.total - budget.spending.total;
+      return { ok: true, message: `Set ${category} spending to ${amount} for ${countryId}.` };
+    }
+    // adjustTaxRate
+    const field = params.taxField;
+    const rate = params.taxRate;
+    if (!field || rate === undefined || !Number.isFinite(rate) || rate < 0 || rate > 100) {
+      actor.actions += cost;
+      if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
+      return { ok: false, error: "adjustTaxRate requires taxField and taxRate in [0,100]" };
+    }
+    budget.taxRates = { ...budget.taxRates, [field]: rate };
+    budget.revenue = calculateBudgetRevenue(budget.taxRates, budget.taxBases, budget.revenue.other);
+    budget.surplus = budget.revenue.total - budget.spending.total;
+    return { ok: true, message: `Set ${field} to ${rate}% for ${countryId}.` };
   }
 
   return { ok: false, error: `No effect for ${actionId}` };

@@ -178,7 +178,14 @@ export function ActionsHub({ world, onWorld, onToast }: Props) {
                 const enoughAp = (world.player.actions ?? 0) >= apCost;
                 const enoughFunds = fundCost === 0 || (world.player.funds ?? 0) >= fundCost;
                 const needsRegion = entry.id === "canvass" || entry.id === "organize" || entry.id === "pressureBoost";
-                const pid = world.player.partyId;
+                // M1 (Lane 12 Head of State mode): actions/execute.ts's HoS party-
+                // bypass treats hosPartyId as the effective party for these same
+                // action ids when the player holds no personal partyId — mirror
+                // that here so the UI hint matches what executeAction will actually
+                // do, instead of showing "Requires party membership" for an action
+                // that will succeed.
+                const effectivePid = world.player.partyId ?? (world.player.mode === "hos" ? world.player.hosPartyId : null);
+                const pid = effectivePid;
                 const caucusId = world.player.caucusId;
                 const membershipIssue = (() => {
                   if (entry.id === "organize" || entry.id === "pressureBoost") {
@@ -203,7 +210,9 @@ export function ActionsHub({ world, onWorld, onToast }: Props) {
                   if (entry.id === "endorse") {
                     if (!pid) return "Requires party membership to endorse";
                   }
-                  if (entry.id === "leaveParty" && !pid) return "Not in a party";
+                  // leaveParty always operates on genuine partyId, not the HoS bypass
+                  // (execute.ts excludes it) — check the real field here, not effectivePid.
+                  if (entry.id === "leaveParty" && !world.player.partyId) return "Not in a party";
                   return null;
                 })();
                 const eligibilityIssue = !unavailable && !onCooldown

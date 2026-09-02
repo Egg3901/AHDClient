@@ -605,10 +605,28 @@ export interface PlayerCharacter {
   legislativeSeat: { chamberKey: string; countryId: string } | null;
   /**
    * Mode (career vs head of state). Career (default): player is a politician;
-   * HoS: player is government. HoS mode later grants government sponsorship as
-   * noted in the brief; this field gates sponsorship bypass per mode rule.
+   * HoS: player is government. HoS mode grants government sponsorship (see
+   * sponsorBill/repealLaw gates in actions/execute.ts) and the party-action
+   * surfaces of `hosPartyId` without requiring personal membership (M1, see
+   * hosPartyId doc below). FRAMEWORK.md "Play modes (binding)": mode gates
+   * only at the action layer, never inside a phase.
    */
   mode: "career" | "hos";
+  /**
+   * M1 (Lane 12 Head of State mode): the country's ruling party, bound at
+   * world creation when mode is "hos". Null in career mode always; null in
+   * HoS mode only if the chosen country's t0 legislature is hung (see
+   * world.ts rulingPartyIdForCountry — deterministic seat-math on the
+   * seeded chamber composition, the same computeFormation government/
+   * formation.ts uses for the real government-formation phase; computed
+   * once at creation, never recomputed by a phase). Action-layer gates
+   * (actions/execute.ts) treat this as the player's effective party for
+   * party-action surfaces (organize, endorse, intra-party ballots,
+   * coalitions, bill sponsorship) when the player holds no personal
+   * partyId, so the player can act as the ruling party's leadership
+   * without a separate "join your own government's party" step.
+   */
+  hosPartyId: string | null;
   /**
    * W12: personal savings balance, local currency. Ports the single-currency
    * projection of Character.currencyBalances.savings (mainline is

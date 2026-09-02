@@ -191,6 +191,39 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
   flex-direction: column;
   gap: 12px;
 }
+.hos-nav-btn {
+  border-color: #c9a227;
+  color: #c9a227;
+}
+.nw-mode-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.nw-mode-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+.nw-mode-option:hover { border-color: var(--accent); }
+.nw-mode-selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.nw-ruling-party {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: -4px;
+}
 .nw-editor-head { margin-top: 4px; }
 .nw-table-wrap {
   overflow-x: auto;

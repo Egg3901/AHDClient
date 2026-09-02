@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { TurnReport, WorldState } from "@rotunda/engine";
-import { listEras, listPlayableCountries } from "@rotunda/engine";
+import { listEras, listPlayableCountries, rulingPartyForCountry } from "@rotunda/engine";
 import { game } from "./game.js";
 import { Launcher } from "./launcher/Launcher.js";
 import { createWorldWithOverrides, listCountries } from "./worldSetup.js";
@@ -34,6 +34,8 @@ import { CorporationsScreen } from "./corporations/Corporations.js";
 import "./corporations/corporations.css";
 import { CampaignsScreen } from "./campaigns/Campaigns.js";
 import "./campaigns/campaigns.css";
+import { HeadOfStateScreen } from "./hos/HeadOfState.js";
+import "./hos/hos.css";
 
 const ONLINE_URL = "https://www.ahousedividedgame.com";
 
@@ -146,6 +148,20 @@ function NewWorldScreen({
   const [countryId, setCountryId] = useState<string>(() => playable[0]?.id ?? "US");
   const [seed, setSeed] = useState(() => randomSeed());
   const [name, setName] = useState("Player");
+  // M2 (Lane 12 Head of State mode): career is the default per FRAMEWORK.md
+  // "Play modes (binding)". HoS binds to countryId's seeded ruling party at
+  // creation (engine side, world.ts rulingPartyIdForCountry); this preview
+  // uses the same pure function so the picker can show it before a world
+  // exists.
+  const [mode, setMode] = useState<"career" | "hos">("career");
+  const rulingParty = useMemo(() => {
+    if (mode !== "hos" || !countryId) return null;
+    try {
+      return rulingPartyForCountry(era, countryId);
+    } catch {
+      return null;
+    }
+  }, [mode, era, countryId]);
   const [startingCash, setStartingCash] = useState("10000");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [rows, setRows] = useState<EditorRow[]>(() => {
@@ -340,7 +356,7 @@ function NewWorldScreen({
       if (Object.keys(countries).length > 0) overrides.countries = countries;
 
       const world = await createWorldWithOverrides(
-        { seed: seed.trim(), playerName: name.trim(), countryId, era },
+        { seed: seed.trim(), playerName: name.trim(), countryId, era, mode },
         overrides,
       );
       onCreated(world);
@@ -364,9 +380,33 @@ function NewWorldScreen({
 
         <div className="panel new-world-panel">
           <section className="nw-section">
+            <h2>Mode</h2>
+            <div className="nw-mode-picker" role="radiogroup" aria-label="Play mode">
+              <button
+                type="button"
+                className={mode === "career" ? "nw-mode-option nw-mode-selected" : "nw-mode-option"}
+                aria-pressed={mode === "career"}
+                onClick={() => setMode("career")}
+              >
+                <strong>Career</strong>
+                <span className="muted small">Climb the existing systems as a politician: run for office, join a party, sponsor bills once you hold a seat.</span>
+              </button>
+              <button
+                type="button"
+                className={mode === "hos" ? "nw-mode-option nw-mode-selected" : "nw-mode-option"}
+                aria-pressed={mode === "hos"}
+                onClick={() => setMode("hos")}
+              >
+                <strong>Head of State</strong>
+                <span className="muted small">Govern as your chosen country's ruling party: legislative agenda, economic direction, war and foreign policy from turn one.</span>
+              </button>
+            </div>
+          </section>
+
+          <section className="nw-section">
             <h2>Identity</h2>
             <label>
-              Character name
+              {mode === "hos" ? "Leader name" : "Character name"}
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Player" />
             </label>
           </section>
@@ -393,6 +433,13 @@ function NewWorldScreen({
                 ))}
               </select>
             </label>
+            {mode === "hos" && (
+              <div className="nw-ruling-party muted small" role="note">
+                {rulingParty
+                  ? `You will govern as the ${rulingParty.name} (${rulingParty.abbreviation}), ${countryLabel}'s seeded ruling party.`
+                  : `No seeded ruling-party data for ${countryLabel} yet — Head of State mode still works, but government-only action surfaces won't unlock.`}
+              </div>
+            )}
             <label>
               World seed
               <div className="row seed-row">
@@ -498,7 +545,7 @@ function NewWorldScreen({
           </section>
 
           <div className="nw-summary muted small">
-            {eraLabel} · {countryLabel} · seed {seed.trim() || "—"} · {modifiedCount} {modifiedCount === 1 ? "country" : "countries"} modified
+            {mode === "hos" ? "Head of State" : "Career"} · {eraLabel} · {countryLabel} · seed {seed.trim() || "—"} · {modifiedCount} {modifiedCount === 1 ? "country" : "countries"} modified
             {cashModified ? " · cash modified" : ""}
           </div>
 
@@ -1036,6 +1083,7 @@ function Dashboard({
   const [electionsOpen, setElectionsOpen] = useState(false);
   const [corpsOpen, setCorpsOpen] = useState(false);
   const [campaignsOpen, setCampaignsOpen] = useState(false);
+  const [hosOpen, setHosOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const advance = async () => {
@@ -1108,6 +1156,25 @@ function Dashboard({
     return <WorldMapScreen world={world} onBack={() => setWorldOpen(false)} />;
   }
 
+  if (hosOpen) {
+    return (
+      <HeadOfStateScreen
+        world={world}
+        onWorld={(w) => onWorld(w)}
+        onToast={(msg) => setToast(msg)}
+        onBack={() => setHosOpen(false)}
+        onOpenLegislative={() => {
+          setHosOpen(false);
+          setCongressOpen(true);
+        }}
+        onOpenEconomy={() => {
+          setHosOpen(false);
+          setEcoOpen(true);
+        }}
+      />
+    );
+  }
+
   if (govOpen) {
     return (
       <GovernmentScreen
@@ -1178,6 +1245,11 @@ function Dashboard({
           {cheatsUsed && <span className="cheats-tag">CHEATS ACTIVE</span>}
         </div>
         <div className="row">
+          {world.player.mode === "hos" && (
+            <button className="secondary small-btn hos-nav-btn" onClick={() => setHosOpen(true)}>
+              HEAD OF STATE
+            </button>
+          )}
           <button className="secondary small-btn" onClick={() => setCharacterOpen(true)}>
             CHARACTER
           </button>

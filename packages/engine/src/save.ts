@@ -1719,5 +1719,24 @@ export function deserializeSave(raw: string): WorldState {
 
     save.world.meta.schemaVersion = 37;
   }
+  // v33 -> v39: M1 (Lane 12 Head of State mode) player.hosPartyId. Pre-
+  // allocated v39 (see world.ts SCHEMA_VERSION resolver note) — this batch's
+  // branch point is v33, and v34-v38 are reserved for other in-flight
+  // batches merging independently before this one. Guarding on `< 39` rather
+  // than chaining through 34-38 is safe here because this block only adds
+  // player.hosPartyId (new) and re-defends player.mode (already added at
+  // v12, just re-checked): neither field is touched by any other batch's
+  // migration, so this block composes cleanly regardless of merge order.
+  if (save.schemaVersion < 39) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const player = w["player"] as Record<string, unknown> | undefined;
+    if (player && typeof player === "object") {
+      if (player["mode"] !== "hos" && player["mode"] !== "career") player["mode"] = "career";
+      if (player["hosPartyId"] !== null && typeof player["hosPartyId"] !== "string") {
+        player["hosPartyId"] = null;
+      }
+    }
+    save.world.meta.schemaVersion = 39;
+  }
   return save.world;
 }

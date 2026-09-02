@@ -1,0 +1,125 @@
+/* M3 (Lane 12 Head of State mode) hub. Base tokens (--bg/--panel/--border/
+   --text) inherit from app.css — the whole shell is already dark; this adds
+   a distinct accent so the HoS hub reads as its own seat-of-power space
+   rather than another dashboard screen. */
+.hos-hub {
+  --hos-accent: #c9a227;
+  min-height: 100vh;
+  background: #08080a;
+  color: var(--text);
+  padding: 20px;
+}
+
+.hos-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--hos-accent);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.hos-header h1 {
+  margin: 0 0 4px 0;
+  letter-spacing: 0.04em;
+}
+
+.hos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.hos-console {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--hos-accent);
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hos-console h2 {
+  margin: 0;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--hos-accent);
+}
+
+.hos-subhead {
+  margin: 10px 0 2px 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.hos-bill-list, .hos-crisis-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hos-bill-list li {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+
+.hos-bill-title {
+  font-size: 13px;
+}
+
+.hos-lever-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hos-lever-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hos-lever-name {
+  flex: 1;
+  min-width: 120px;
+  font-size: 13px;
+}
+
+.hos-lever-input {
+  width: 110px;
+}
+
+.hos-lever-unavailable {
+  opacity: 0.55;
+}
+
+.hos-crisis-row {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hos-crisis-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.error-text.small {
+  font-size: 11px;
+}

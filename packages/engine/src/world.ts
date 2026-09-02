@@ -65,7 +65,20 @@ import { seedInternationalOrgs } from "./internationalOrgs/seed.js";
 // the v35/v36 waves will need to split that block into a proper
 // v33->v34->35->36->37 chain depending on merge order, same pattern as every
 // prior multi-wave resolver note in save.ts (see v16->v17, v27->v28, etc.).
-export const SCHEMA_VERSION = 38;
+import { computeFormation } from "./government/formation.js";
+import { GOVERNMENT_CHAMBER_BY_COUNTRY } from "./government/constants.js";
+
+// Pre-allocated v39 for M1 (Lane 12 Head of State mode). This branch point
+// is v33 (W6 metrics); v34-v38 are reserved for other in-flight batches
+// (econ/elections/govdepth/history/ui1 worktrees) landing independently on
+// `main` before this one merges. Resolver note, mirrors the v30->v33
+// precedent this file already documents: the save.ts migration chain below
+// only ever asserts `schemaVersion < 39` and fills M1's own new fields
+// (player.mode already existed since v12; player.hosPartyId is new here),
+// so it is safe to apply on top of whatever v34-v38 migrations add — no
+// renumbering needed as long as v34-v38 land with ascending versions
+// between v33 and this v39 before the final merge.
+export const SCHEMA_VERSION = 39;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -136,6 +149,14 @@ export interface NewWorldOptions {
    */
   era?: string;
   overrides?: WorldOverrides;
+  /**
+   * M1 (Lane 12): play mode, chosen at world creation. Career (default): the
+   * player is a politician climbing the existing systems. HoS: the player is
+   * bound to `countryId`'s seeded ruling party (see rulingPartyIdForCountry)
+   * and gains that party's action surfaces at the action layer — never a
+   * change to turn/phase logic (FRAMEWORK.md "Play modes (binding)").
+   */
+  mode?: "career" | "hos";
 }
 
 export function listEras(): EraInfo[] {
@@ -161,6 +182,71 @@ export function listCountries(era: string): { id: string; name: string; playable
     playable: c.playable,
     economy: { ...c.economy, outputGap: 0 },
   }));
+}
+
+/**
+ * M1 (Lane 12): the ruling party for a country at world t0, for HoS binding.
+ * Pure function of authored seed data (chamber seat composition), not RNG or
+ * a live WorldState — the per-party seat COUNTS a content pack authors are
+ * fixed data (only which individual NPC sits which seat is RNG-assigned by
+ * createPoliticiansForWorld), so this is callable before a world exists (the
+ * M2 country picker needs it) and gives the identical answer createWorld
+ * binds into player.hosPartyId.
+ *
+ * Reuses computeFormation (government/formation.ts), the same pure seat-math
+ * the real government-formation phase runs on turn 1 for UK/RU/DD — this is
+ * a direct call to that shared helper at creation time, not a duplicate
+ * implementation and not a phase change. Chamber choice mirrors the rest of
+ * the codebase's convention for "the government-forming chamber": UK/RU/DD
+ * use GOVERNMENT_CHAMBER_BY_COUNTRY's real chamber (commons/sovietOfTheUnion/
+ * volkskammer, same as government/phases.ts); everyone else defaults to
+ * "house" (same fallback actions/execute.ts's sponsorBill already uses for
+ * origin chamber), then falls further back to the first elected chamber if
+ * even that key is absent. Falls back to the single largest party by seats
+ * (deterministic tie-break by id) when the resolved chamber is hung
+ * (computeFormation returns no governingPartyId).
+ *
+ * Known content gap (not an M1 bug): the 1953/1960 packs seed UK's "commons"
+ * composition.seatsByParty as {} (all-vacancy placeholder — Lane 10 W39
+ * territory, not ported yet), so this returns null for countryId "UK" today.
+ * A null hosPartyId degrades HoS mode to career-equivalent gating (the
+ * action-layer bypass in execute.ts requires a truthy hosPartyId) rather
+ * than inventing seat data this codebase has not authored anywhere else.
+ */
+export function rulingPartyIdForCountry(era: string, countryId: string): string | null {
+  const pack = getPackByEra(era);
+  if (!pack) throw new Error(`Unknown era: ${era}`);
+  const leg = (pack.legislatures ?? []).find((l) => l.countryId === countryId);
+  if (!leg || leg.chambers.length === 0) return null;
+  const preferredKey = GOVERNMENT_CHAMBER_BY_COUNTRY[countryId] ?? "house";
+  const chamber = leg.chambers.find((c) => c.key === preferredKey && c.elected)
+    ?? leg.chambers.find((c) => c.elected)
+    ?? leg.chambers[0]!;
+  const outcome = computeFormation(chamber.composition.seatsByParty, chamber.seats);
+  if (outcome.governingPartyId) return outcome.governingPartyId;
+  const entries = Object.entries(chamber.composition.seatsByParty).filter(([, seats]) => seats > 0);
+  if (entries.length === 0) return null;
+  entries.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return entries[0]![0];
+}
+
+/**
+ * M2 (Lane 12 creation flow): rulingPartyIdForCountry plus the party's
+ * display name/abbreviation, for the New World screen's HoS variant to show
+ * "you would govern as {name}" before a world (and its `world.parties`
+ * record) exists. Returns null under the same conditions
+ * rulingPartyIdForCountry does (no legislature data), or if the resolved
+ * party id has no matching PartySeed (should not happen for authored packs;
+ * defensive only).
+ */
+export function rulingPartyForCountry(era: string, countryId: string): { id: string; name: string; abbreviation: string } | null {
+  const partyId = rulingPartyIdForCountry(era, countryId);
+  if (!partyId) return null;
+  const pack = getPackByEra(era);
+  if (!pack) throw new Error(`Unknown era: ${era}`);
+  const party = (pack.parties ?? []).find((p) => p.id === partyId);
+  if (!party) return null;
+  return { id: party.id, name: party.name, abbreviation: party.abbreviation };
 }
 
 export function createWorld(options: NewWorldOptions): WorldState {
@@ -581,7 +667,9 @@ export function createWorld(options: NewWorldOptions): WorldState {
       purgeRejoinBlocks: [],
       caucusId: null,
       legislativeSeat: null,
-      mode: "career",
+      mode: options.mode === "hos" ? "hos" : "career",
+      // M1: bound once, here, at creation — never recomputed by a phase.
+      hosPartyId: options.mode === "hos" ? rulingPartyIdForCountry(era, options.countryId) : null,
       savings: 0,
       savingsHolder: "centralBank",
     },
