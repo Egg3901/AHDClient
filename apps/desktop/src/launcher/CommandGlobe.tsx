@@ -8,22 +8,19 @@ export interface EraTheme {
 }
 
 // Four real mainline era presets (1953-default/1979-default/1991-default/
-// 2019-default — see packages/content/src/packs/index.ts). Palettes are
-// period-flavored CRT/terminal tones, not sourced from mainline (mainline
-// has no UI theme data to port): 1953 phosphor green (unchanged), 1979
-// amber (analog/CRT era), 1991 cyan (early digital/LCD era), 2019 a
-// cooler modern default distinct from the retro three.
+// 2019-default, see packages/content/src/packs/index.ts). These restrained
+// print colors distinguish eras without turning the launcher into a terminal.
 const ERA_THEMES: Record<string, EraTheme> = {
-  "1953": { phosphor: "#2af57f", dim: "42,245,127", label: "LOCAL WORLD / 1953" },
-  "1979": { phosphor: "#ffb347", dim: "255,179,71", label: "LOCAL WORLD / 1979" },
-  "1991": { phosphor: "#33d6ff", dim: "51,214,255", label: "LOCAL WORLD / 1991" },
-  "2019": { phosphor: "#c9d6ff", dim: "201,214,255", label: "LOCAL WORLD / 2019" },
+  "1953": { phosphor: "#173f69", dim: "23,63,105", label: "World map · 1953" },
+  "1979": { phosphor: "#9a6030", dim: "154,96,48", label: "World map · 1979" },
+  "1991": { phosphor: "#526b7d", dim: "82,107,125", label: "World map · 1991" },
+  "2019": { phosphor: "#8e2942", dim: "142,41,66", label: "World map · 2019" },
 };
 
 const DEFAULT_THEME: EraTheme = ERA_THEMES["1953"]!;
 
 export function themeForEra(eraId: string): EraTheme {
-  return ERA_THEMES[eraId] ?? { ...DEFAULT_THEME, label: `LOCAL WORLD / ${eraId}` };
+  return ERA_THEMES[eraId] ?? { ...DEFAULT_THEME, label: `World map · ${eraId}` };
 }
 
 const CAPITALS: readonly { name: string; lat: number; lon: number }[] = [
@@ -79,10 +76,10 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
       ctx!.beginPath();
       ctx!.arc(cx, cy, R + S * 0.055, 0, Math.PI * 2);
       ctx!.clip();
-      ctx!.fillStyle = "#0a0e12";
+      ctx!.fillStyle = "#eee8dc";
       ctx!.fillRect(0, 0, S, S);
 
-      ctx!.strokeStyle = `rgba(${era.dim},0.13)`;
+      ctx!.strokeStyle = `rgba(${era.dim},0.18)`;
       ctx!.lineWidth = 1;
       for (let p = -60; p <= 60; p += 30) {
         const lat = p * DEG;
@@ -125,14 +122,14 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
         const z3 = cosLat * Math.cos(lon);
         if (z3 < 0.02) continue;
         ctx!.fillStyle = era.phosphor;
-        ctx!.globalAlpha = 0.16 + z3 * 0.7;
+        ctx!.globalAlpha = 0.24 + z3 * 0.58;
         ctx!.beginPath();
         ctx!.arc(cx + R * x3, cy - R * y3, 0.9 + z3 * 1.15, 0, Math.PI * 2);
         ctx!.fill();
       }
       ctx!.globalAlpha = 1;
 
-      ctx!.font = "600 9px ui-monospace, Menlo, Consolas, monospace";
+      ctx!.font = "600 9px Georgia, 'Times New Roman', serif";
       for (const c of CAPITALS) {
         const lon = c.lon * DEG + rot;
         const lat = c.lat * DEG;
@@ -148,21 +145,18 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
         ctx!.beginPath();
         ctx!.arc(x, y, 2.2, 0, Math.PI * 2);
         ctx!.fill();
-        ctx!.fillStyle = `rgba(${era.dim},0.85)`;
+        ctx!.fillStyle = `rgba(${era.dim},0.78)`;
         ctx!.fillText(c.name, x + 7, y + 3);
         ctx!.globalAlpha = 1;
       }
 
-      const vg = ctx!.createRadialGradient(cx, cy, R * 0.35, cx, cy, R * 1.08);
+      const vg = ctx!.createRadialGradient(cx, cy, R * 0.45, cx, cy, R * 1.08);
       vg.addColorStop(0, "rgba(0,0,0,0)");
-      vg.addColorStop(1, "rgba(0,0,0,0.55)");
+      vg.addColorStop(1, `rgba(${era.dim},0.1)`);
       ctx!.fillStyle = vg;
       ctx!.fillRect(0, 0, S, S);
 
-      ctx!.fillStyle = "rgba(0,0,0,0.14)";
-      for (let y = 0; y < S; y += 3) ctx!.fillRect(0, y, S, 1);
-
-      ctx!.strokeStyle = `rgba(${era.dim},0.4)`;
+      ctx!.strokeStyle = `rgba(${era.dim},0.48)`;
       ctx!.lineWidth = 1.4;
       ctx!.beginPath();
       ctx!.arc(cx, cy, R, 0, Math.PI * 2);
@@ -177,7 +171,7 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
       }
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
-      if (!reduceMotion) rot += dt * 0.16;
+      if (!reduceMotion) rot += dt * 0.035;
       drawFrame();
       if (!reduceMotion) {
         raf = requestAnimationFrame(frame);
@@ -227,7 +221,7 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
         {live ? (
           <>
             <span className="launcher-globe-dot live" aria-hidden="true" />
-            MULTIPLAYER
+            Online world
           </>
         ) : (
           <>

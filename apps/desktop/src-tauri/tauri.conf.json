@@ -17,7 +17,7 @@
         "title": "A House Divided: Solo",
         "width": 1280,
         "height": 800,
-        "backgroundColor": "#0a0a0a",
+        "backgroundColor": "#f4efe5",
         "resizable": true,
         "center": true
       }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { listEras, listPlayableCountries } from "@rotunda/engine";
+import ahdLogo from "../assets/ahd-logo.png";
 import { CommandGlobe, themeForEra } from "./CommandGlobe.js";
-import { StreakField } from "./StreakField.js";
 import "./launcher.css";
 
 type Mode = "sp" | "mp";
@@ -53,35 +53,16 @@ export function Launcher({
 
   return (
     <main className="launcher-scope" data-mode={mode}>
-      <StreakField />
       <div className="launcher-pattern" aria-hidden="true" />
-
-      <div className="launcher-corner launcher-corner-left" aria-hidden="true">
-        RTD / CLIENT 0.9.0
-      </div>
-      <div className="launcher-corner launcher-corner-right" aria-hidden="true">
-        LOCAL-FIRST SIMULATION
-      </div>
 
       <section className="launcher-stage" aria-labelledby="launcher-title">
         <header className="launcher-mast">
-          <svg viewBox="0 0 184 146" aria-hidden="true">
-            <g stroke="currentColor" strokeWidth="3" fill="none">
-              <path d="M 14 100 A 78 78 0 0 1 170 100" />
-              <path d="M 36 100 A 56 56 0 0 1 148 100" className="launcher-mast-muted" />
-              <line x1="92" y1="0" x2="92" y2="22" />
-              <line x1="0" y1="100" x2="184" y2="100" />
-              {[32, 62, 92, 122, 152].map((x) => (
-                <line key={x} x1={x} y1="100" x2={x} y2="130" className="launcher-mast-muted" />
-              ))}
-              <line x1="14" y1="130" x2="170" y2="130" />
-              <line x1="14" y1="143" x2="86" y2="143" className="launcher-mast-red" />
-              <line x1="98" y1="143" x2="170" y2="143" className="launcher-mast-blue" />
-            </g>
-          </svg>
-          <p className="launcher-kicker">Political strategy simulation</p>
-          <h1 id="launcher-title">A HOUSE DIVIDED</h1>
-          <p className="launcher-subtitle">ROTUNDA CLIENT</p>
+          <img className="launcher-logo" src={ahdLogo} alt="" />
+          <div className="launcher-lockup">
+            <p className="launcher-edition">Rotunda client</p>
+            <h1 id="launcher-title">A House Divided</h1>
+            <p className="launcher-subtitle">A historical political simulation</p>
+          </div>
         </header>
 
         <div className="launcher-console">
@@ -92,7 +73,6 @@ export function Launcher({
               onClick={() => setMode("sp")}
               aria-pressed={mode === "sp"}
             >
-              <span className="launcher-toggle-mark" aria-hidden="true">01</span>
               Singleplayer
             </button>
             <button
@@ -100,7 +80,6 @@ export function Launcher({
               onClick={() => setMode("mp")}
               aria-pressed={mode === "mp"}
             >
-              <span className="launcher-toggle-mark" aria-hidden="true">02</span>
               Multiplayer
             </button>
           </div>
@@ -116,15 +95,15 @@ export function Launcher({
             <div className="launcher-online-summary" aria-live="polite">
               <span className="launcher-live-dot" aria-hidden="true" />
               <span>
-                <strong>Persistent online world</strong>
-                <small>Account session continues in-app on Android</small>
+                <strong>Continue in the online world</strong>
+                <small>Your account and session stay together in the app.</small>
               </span>
             </div>
           ) : (
             <div className="launcher-era-panel">
               <div className="launcher-panel-label">
-                <span>Select a starting era</span>
-                <span>{eras.length} available</span>
+                <span>Choose a starting era</span>
+                <span>{eras.length} eras</span>
               </div>
               <div className="launcher-era-row">
                 {eras.map((era) => {
@@ -150,8 +129,8 @@ export function Launcher({
               </div>
               <dl className="launcher-era-facts" aria-live="polite">
                 <div><dt>Period</dt><dd>{selectedEra ? eraSubtitle(selectedEra.id, selectedEra.label) : "Unknown"}</dd></div>
-                <div><dt>Start</dt><dd>{selectedEra?.startDate ?? "Unknown"}</dd></div>
-                <div><dt>Nations</dt><dd>{playableCountries} playable</dd></div>
+                <div><dt>Begins</dt><dd>{selectedEra?.startDate ?? "Unknown"}</dd></div>
+                <div><dt>Countries</dt><dd>{playableCountries} playable</dd></div>
               </dl>
             </div>
           )}
@@ -165,7 +144,7 @@ export function Launcher({
                   Enter multiplayer <span aria-hidden="true">&#8599;</span>
                 </button>
                 <p className="launcher-caption">
-                  Isolated desktop window <span aria-hidden="true">/</span> in-app on Android
+                  Opens separately on desktop. Stays in the app on Android.
                 </p>
               </>
             ) : (
@@ -174,10 +153,10 @@ export function Launcher({
                   className="launcher-btn launcher-btn-primary"
                   onClick={() => onNewWorld(eraId)}
                 >
-                  New world <span aria-hidden="true">&#8594;</span>
+                  Start a new world <span aria-hidden="true">&#8594;</span>
                 </button>
                 <button className="launcher-btn launcher-btn-secondary" onClick={onLoad}>
-                  Load save
+                  Load a save
                 </button>
               </>
             )}
@@ -186,8 +165,8 @@ export function Launcher({
       </section>
 
       <footer className="launcher-footer">
-        <span>POLYFORM NC 1.0.0</span>
-        <span>Singleplayer data remains on this device</span>
+        <span>Rotunda 0.9.0</span>
+        <span>Singleplayer saves stay on this device</span>
       </footer>
     </main>
   );

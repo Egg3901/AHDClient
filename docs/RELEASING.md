@@ -76,20 +76,16 @@ builds and retains the ARM64 debug APK without signing secrets.
 
 ## Icon generation
 
-Source of truth: `apps/desktop/src-tauri/icon-source.svg` (a square,
-monochrome crop of the dome mark from `docs/assets/banner.svg`, on the
-`#0a0a0a` dark background) and its 1024x1024 raster,
-`apps/desktop/src-tauri/icon-source-1024.png`.
+Source of truth: `apps/desktop/src/assets/ahd-logo.png`, the canonical
+red-and-navy Liberty Bell used by the live game and existing client. The A
+House Divided name and logo remain Lakeside Games trademarks as noted in the
+repository license.
 
 To regenerate the full icon set after changing the source:
 
 ```bash
-# render the SVG at high resolution (requires librsvg2-bin: apt-get install librsvg2-bin)
-rsvg-convert -w 1024 -h 1024 apps/desktop/src-tauri/icon-source.svg \
-  -o apps/desktop/src-tauri/icon-source-1024.png
-
 cd apps/desktop
-npx tauri icon src-tauri/icon-source-1024.png
+npx tauri icon src/assets/ahd-logo.png
 ```
 
 The `tauri icon` command generates icons for every platform. This repo commits

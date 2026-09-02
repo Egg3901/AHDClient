@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,6 +45,7 @@ describe("desktop security configuration", () => {
 describe("desktop platform configuration", () => {
   it("builds native bundles on Linux, Windows, and macOS runners", () => {
     expect(tauriConfig.bundle.targets).toBe("all");
+    expect(tauriConfig.app.windows[0]?.backgroundColor).toBe("#f4efe5");
 
     const sourceDirectory = dirname(fileURLToPath(import.meta.url));
     const workflow = readFileSync(join(sourceDirectory, "../../../.github/workflows/release-desktop.yml"), "utf8");
@@ -98,13 +100,16 @@ describe("desktop platform configuration", () => {
     const sourceDirectory = dirname(fileURLToPath(import.meta.url));
     const launcher = readFileSync(join(sourceDirectory, "launcher/Launcher.tsx"), "utf8");
     const globe = readFileSync(join(sourceDirectory, "launcher/CommandGlobe.tsx"), "utf8");
-    const streaks = readFileSync(join(sourceDirectory, "launcher/StreakField.tsx"), "utf8");
+    const logo = readFileSync(join(sourceDirectory, "assets/ahd-logo.png"));
     expect(launcher).not.toContain("fetch(");
-    expect(launcher).toContain('import { StreakField } from "./StreakField.js";');
-    expect(launcher).toContain("<StreakField />");
+    expect(launcher).toContain('import ahdLogo from "../assets/ahd-logo.png";');
+    expect(launcher).toContain('className="launcher-logo" src={ahdLogo} alt=""');
+    expect(launcher).not.toContain("StreakField");
+    expect(createHash("sha256").update(logo).digest("hex")).toBe(
+      "1a7fe54f33c781d6b7741277a20a9e800ca5525a0fbea790a7109c3e119f66a9",
+    );
     expect(globe).toContain('window.addEventListener("resize", handleResize);');
     expect(globe).toContain('window.removeEventListener("resize", handleResize);');
-    expect(streaks).toContain('window.matchMedia("(prefers-reduced-motion: reduce)")');
-    expect(streaks).toContain('window.removeEventListener("resize", resize);');
+    expect(globe).not.toContain('fillStyle = "#0a0e12"');
   });
 });
