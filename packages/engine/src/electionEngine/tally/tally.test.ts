@@ -36,6 +36,8 @@ import type {
   TallyStateInput,
 } from "./types.js";
 
+const FIXED_NOW = new Date("2024-01-01T00:00:00Z");
+
 function makeElection(overrides: Partial<TallyElectionInput> = {}): TallyElectionInput {
   const now = new Date("2024-01-01T00:00:00Z");
   return {
@@ -138,10 +140,18 @@ function makeCategory(): DemographicCategory {
 // ─── initElectionVoteTally ───────────────────────────────────────────────
 
 describe("initElectionVoteTally", () => {
+  it("rejects initialization without a caller-supplied deterministic timestamp", () => {
+    expect(() => initElectionVoteTally({
+      electionId: "e1",
+      candidates: [],
+      state: "PA",
+    })).toThrow("deterministic timestamp");
+  });
+
   it("creates zeroed tally document for each candidate", () => {
     const c1 = makeCandidate({ _id: "c1", characterName: "Alice", party: "democrat" });
     const c2 = makeCandidate({ _id: "c2", characterName: "Bob", party: "republican" });
-    const { tally } = initElectionVoteTally({ electionId: "e1", candidates: [c1, c2], state: "PA" });
+    const { tally } = initElectionVoteTally({ electionId: "e1", candidates: [c1, c2], state: "PA", now: FIXED_NOW });
     expect(tally.electionId).toBe("e1");
     expect(tally.totalVotes["c1"]).toBe(0);
     expect(tally.totalVotes["c2"]).toBe(0);
@@ -155,12 +165,12 @@ describe("initElectionVoteTally", () => {
   it("includes primaryResults when provided", () => {
     const c = makeCandidate();
     const primaryResults = { byParty: { democrat: [{ candidateId: "x", won: true }] }, recordedAt: new Date() };
-    const { tally } = initElectionVoteTally({ electionId: "e1", candidates: [c], state: "PA", primaryResults });
+    const { tally } = initElectionVoteTally({ electionId: "e1", candidates: [c], state: "PA", primaryResults, now: FIXED_NOW });
     expect(tally.primaryResults).toEqual(primaryResults);
   });
 
   it("works with empty candidate list", () => {
-    const { tally } = initElectionVoteTally({ electionId: "e1", candidates: [], state: "NY" });
+    const { tally } = initElectionVoteTally({ electionId: "e1", candidates: [], state: "NY", now: FIXED_NOW });
     expect(tally.totalVotes).toEqual({});
     expect(tally.candidateNames).toEqual({});
   });
@@ -173,6 +183,7 @@ describe("initElectionVoteTally", () => {
       state: "PA",
       existingId: "oldId",
       existingPrimaryVotes: { foo: 1 },
+      now: FIXED_NOW,
     });
     expect(tally._id).toBe("oldId");
     expect(tally.primaryVotes).toEqual({ foo: 1 });

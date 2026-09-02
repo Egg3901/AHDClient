@@ -30,4 +30,13 @@ describe("desktop game session", () => {
 
     await expect(game.advanceTurn()).rejects.toThrow("No game in progress");
   });
+
+  it("routes cheats through the engine-owned mutation API", async () => {
+    const world = await game.newGame(OPTS);
+
+    game.applyCheat({ kind: "setPlayerCash", amount: 4321 });
+
+    expect(world.player.cash).toBe(4321);
+    expect(world.meta.cheatsUsed).toBe(true);
+  });
 });

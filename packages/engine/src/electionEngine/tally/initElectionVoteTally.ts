@@ -21,7 +21,10 @@ import type {
 export function initElectionVoteTally(
   input: InitElectionVoteTallyInput,
 ): InitElectionVoteTallyResult {
-  const now = input.now ?? new Date();
+  if (!(input.now instanceof Date)) {
+    throw new Error("initElectionVoteTally requires a deterministic timestamp");
+  }
+  const now = input.now;
 
   const totalVotes: Record<string, number> = {};
   const candidateNames: Record<string, string> = {};

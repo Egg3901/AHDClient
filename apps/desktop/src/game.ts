@@ -1,5 +1,6 @@
 import {
   advanceTurn,
+  applyCheat as engineApplyCheat,
   createWorld,
   deserializeSave,
   serializeSave,
@@ -9,6 +10,7 @@ import {
   type WorldState,
   type ExecuteActionParams,
   type ExecuteActionResult,
+  type CheatOp,
 } from "@rotunda/engine";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -22,7 +24,7 @@ export interface GameApi {
   advanceTurn(): Promise<{ report: TurnReport; world: WorldState }>;
   getState(): Promise<WorldState | null>;
   getStateSync(): WorldState | null;
-  mutate(fn: (world: WorldState) => void): void;
+  applyCheat(op: CheatOp): void;
   executeAction(actionId: string, params?: ExecuteActionParams): ExecuteActionResult;
   save(): Promise<{ saved: boolean; path?: string }>;
   load(): Promise<WorldState | null>;
@@ -60,9 +62,9 @@ export const game: GameApi = {
     return world;
   },
 
-  mutate(fn: (world: WorldState) => void): void {
+  applyCheat(op: CheatOp): void {
     if (!world) throw new Error("No game in progress");
-    fn(world);
+    engineApplyCheat(world, op);
   },
 
   executeAction(actionId: string, params: ExecuteActionParams = {}): ExecuteActionResult {

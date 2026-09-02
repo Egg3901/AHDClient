@@ -80,7 +80,7 @@ export interface ResolveNominationParams {
   nationalVotes?: Record<string, number>;
   partyGroupFavorabilityByKey?: Map<string, number>;
   ruleset: Pick<PresidentialRuleset, "conventionEnabled">;
-  now?: Date;
+  now: Date;
 }
 
 /**
@@ -91,6 +91,9 @@ export interface ResolveNominationParams {
 export function resolveNominationForParty(
   params: ResolveNominationParams
 ): NominationResolutionResult | null {
+  if (!(params.now instanceof Date)) {
+    throw new Error("resolveNominationForParty requires a deterministic timestamp");
+  }
   const {
     partyCandidates,
     partyDelegates,
@@ -101,7 +104,7 @@ export function resolveNominationForParty(
     nationalVotes = {},
     partyGroupFavorabilityByKey,
     ruleset,
-    now = new Date(),
+    now,
   } = params;
 
   const candidateIds = partyCandidates.map((c) => c.candidateId);

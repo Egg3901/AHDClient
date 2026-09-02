@@ -8,10 +8,21 @@ import { resolveNominationForParty } from "./conventionResolution.js";
 const LEFT = { charEP: -5, charSP: -5, party: "democrat" };
 const RIGHT = { charEP: 5, charSP: 5, party: "democrat" };
 const CENTRE = { charEP: 0, charSP: 0, party: "democrat" };
+const NOW = new Date("2026-01-01T00:00:00Z");
 
 const enrichedFor = (rows: Array<{ candidateId: string } & typeof LEFT>) => rows;
 
 describe("resolveNominationForParty", () => {
+  it("rejects resolution without a caller-supplied deterministic timestamp", () => {
+    expect(() => resolveNominationForParty({
+      partyCandidates: [{ candidateId: "a" }],
+      partyDelegates: { a: 2000 },
+      family: "dem",
+      enriched: enrichedFor([{ candidateId: "a", ...LEFT }]),
+      ruleset: { conventionEnabled: true },
+    })).toThrow("deterministic timestamp");
+  });
+
   it("nominates a first-ballot delegate majority holder (no convention)", () => {
     // Dem majority threshold is ~1990; 2000 clears it outright.
     const res = resolveNominationForParty({
@@ -23,6 +34,7 @@ describe("resolveNominationForParty", () => {
         { candidateId: "b", ...RIGHT },
       ]),
       ruleset: { conventionEnabled: true },
+      now: NOW,
     });
     expect(res).not.toBeNull();
     expect(res!.mode).toBe("delegate_majority");
@@ -43,6 +55,7 @@ describe("resolveNominationForParty", () => {
         { candidateId: "c", ...LEFT }, // identical to b -> its delegates flow to b
       ]),
       ruleset: { conventionEnabled: true },
+      now: NOW,
     });
     expect(res!.mode).toBe("convention");
     expect(res!.winnerCandidateId).toBe("b");
@@ -63,6 +76,7 @@ describe("resolveNominationForParty", () => {
         { candidateId: "c", ...LEFT },
       ]),
       ruleset: { conventionEnabled: true },
+      now: NOW,
     });
     // c (identical to b) is dropped first; all 800 of its delegates flow to b.
     expect(res!.ballots![1].tallies.b).toBe(1650);
@@ -83,6 +97,7 @@ describe("resolveNominationForParty", () => {
         { candidateId: "c", ...CENTRE },
       ]),
       ruleset: { conventionEnabled: true },
+      now: NOW,
     };
 
     const withoutEndorsement = resolveNominationForParty(base);
@@ -125,6 +140,7 @@ describe("resolveNominationForParty", () => {
         { candidateId: "c", ...LEFT },
       ]),
       ruleset: { conventionEnabled: false },
+      now: NOW,
     });
     expect(res).toBeNull();
   });
@@ -139,6 +155,7 @@ describe("resolveNominationForParty", () => {
         { candidateId: "b", ...RIGHT },
       ]),
       ruleset: { conventionEnabled: false },
+      now: NOW,
     });
     expect(res!.mode).toBe("delegate_majority");
     expect(res!.winnerCandidateId).toBe("a");

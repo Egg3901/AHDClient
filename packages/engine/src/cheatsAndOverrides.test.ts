@@ -175,6 +175,53 @@ describe("applyCheat", () => {
     expect(last2.date).toBe(dateAfter);
   });
 
+  it("supports every desktop cheat without a client-side state mutation", () => {
+    const world = createWorld(OPTS);
+    const politician = world.politicians[0]!;
+    const party = world.parties[politician.partyId]!;
+    world.elections.push({
+      id: "test-election",
+      electionType: "house",
+      countryId: "US",
+      cycle: 1,
+      status: "active",
+      startTurn: 0,
+      primaryEndTurn: 1,
+      endTurn: 10,
+      totalSeats: 1,
+      chamberKey: "house",
+      candidates: [],
+      tally: {},
+    });
+
+    applyCheat(world, { kind: "addNews", headline: "  Test headline  ", category: "Election" });
+    expect(world.news.at(-1)?.headline).toBe("[Election] Test headline");
+
+    applyCheat(world, { kind: "forceResolveElection", electionId: "test-election" });
+    expect(world.elections.at(-1)?.endTurn).toBe(world.meta.turn);
+
+    applyCheat(world, { kind: "setPoliticianField", politicianId: politician.id, field: "favorability", value: 72 });
+    applyCheat(world, { kind: "setPoliticianField", politicianId: politician.id, field: "ideologyEconomic", value: -2 });
+    expect(politician.favorability).toBe(72);
+    expect(politician.ideology.economic).toBe(-2);
+
+    applyCheat(world, { kind: "setPartyField", partyId: party.id, field: "organization", value: 64 });
+    expect(party.organization).toBe(64);
+    expect(world.meta.cheatsUsed).toBe(true);
+  });
+
+  it("rejects invalid desktop-only cheats before changing state", () => {
+    const world = createWorld(OPTS);
+    const politician = world.politicians[0]!;
+    const party = world.parties[politician.partyId]!;
+
+    expect(() => applyCheat(world, { kind: "addNews", headline: "news", category: "bad/category" })).toThrow(/category/i);
+    expect(() => applyCheat(world, { kind: "forceResolveElection", electionId: "missing" })).toThrow(/election/i);
+    expect(() => applyCheat(world, { kind: "setPoliticianField", politicianId: politician.id, field: "favorability", value: 101 })).toThrow(/favorability/i);
+    expect(() => applyCheat(world, { kind: "setPartyField", partyId: party.id, field: "organization", value: -1 })).toThrow(/organization/i);
+    expect(world.meta.cheatsUsed).toBe(false);
+  });
+
   it("validation: finite values and bounds", () => {
     const world = createWorld(OPTS);
     expect(() => applyCheat(world, { kind: "setPlayerCash", amount: Infinity } as unknown as { kind: "setPlayerCash"; amount: number })).toThrow(/finite/i);

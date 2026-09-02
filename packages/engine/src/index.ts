@@ -17,6 +17,8 @@ export * from "./support/index.js";
 export * from "./actions/catalog.js";
 export * from "./actions/execute.js";
 export * from "./actions/fundGeneration.js";
+export { getCatalog, getLaw } from "./legislation/catalog.js";
+export type { Bill, Committee } from "./legislation/types.js";
 export * from "./membership.js";
 export * from "./caucus.js";
 export * from "./endorsement.js";

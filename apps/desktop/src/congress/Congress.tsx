@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import type { WorldState, Party } from "@rotunda/engine";
-import { getLaw, getCatalog } from "@rotunda/engine/src/legislation/catalog.js";
-import type { Bill, Committee } from "@rotunda/engine/src/legislation/types.js";
+import { getLaw, getCatalog } from "@rotunda/engine";
+import type { WorldState, Party, Bill, Committee } from "@rotunda/engine";
 import { game } from "../game.js";
 import "./congress.css";
 

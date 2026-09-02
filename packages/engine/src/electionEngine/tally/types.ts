@@ -238,7 +238,7 @@ export interface InitElectionVoteTallyInput {
   primaryResults?: unknown;
   existingPrimaryVotes?: unknown;
   existingId?: string;
-  now?: Date;
+  now: Date;
   rng?: WorldRng;
 }
 

@@ -212,6 +212,7 @@ export function applyPresidentialResolution(world: WorldState, rec: ElectionReco
       houseOfficials,
       senateOfficials,
       frozenChamber: null,
+      capturedAt: new Date(`${world.meta.date}T00:00:00Z`),
     });
     contingentResult = resolveContingentElection({
       electionId: rec.id,

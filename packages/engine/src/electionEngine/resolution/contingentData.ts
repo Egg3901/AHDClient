@@ -112,6 +112,7 @@ export interface LoadContingentDataInput {
   houseOfficials: ElectedOfficialInput[];
   senateOfficials: ElectedOfficialInput[];
   frozenChamber?: ChamberSnapshot | null;
+  capturedAt: Date;
 }
 
 export interface LoadContingentDataResult {
@@ -144,7 +145,7 @@ function chamberSnapshotFromChamberData(
 }
 
 export function loadContingentElectionDataPlain(input: LoadContingentDataInput): LoadContingentDataResult {
-  const { countryId, candidates, electoralVotesByCandidate, characters, npps, partyMap, houseOfficials, senateOfficials, frozenChamber } = input;
+  const { countryId, candidates, electoralVotesByCandidate, characters, npps, partyMap, houseOfficials, senateOfficials, frozenChamber, capturedAt } = input;
   const eligiblePresidentIds = new Set(getTopContingentPresidentCandidates(electoralVotesByCandidate, 3));
   const runningMateByPresidentId: Record<string, string | undefined> = {};
   for (const c of candidates) {
@@ -240,7 +241,6 @@ export function loadContingentElectionDataPlain(input: LoadContingentDataInput):
     if (vpId && eligibleVpIds.has(vpId)) evByEligibleId[vpId] = electoralVotesByCandidate[presId] ?? 0;
   }
 
-  const capturedAt = new Date();
   return {
     presidentCandidates,
     vicePresidentCandidates,
