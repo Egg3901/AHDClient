@@ -7,6 +7,7 @@ import {
   type ElectionPlan,
 } from "../electionEngine/resolution/electionSpawning.js";
 import type { CycleAnchorContext } from "../electionEngine/resolution/cycleAnchorContext.js";
+import { eraToPreset, getStartingYearForPreset } from "../electionEngine/resolution/constants.js";
 import {
   resolveGeneralElectionPure,
   type CandidateInput,
@@ -29,10 +30,20 @@ import { applyPresidentialResolution } from "./presidentialResolution.js";
  *   invariants hold by construction.
  */
 
+/**
+ * Was hardcoded to always return the 1953-default preset regardless of the
+ * world's actual era (a leftover from before 1979/1991/2019 packs existed).
+ * A 1979/1991/2019 world now correctly gets its own preset's real-election-
+ * year anchors (see cycleAnchorContext.ts CANONICAL_REAL_ELECTION_YEARS_BY_PRESET)
+ * instead of silently running on 1953's. Solo has no pre-iteration/founding
+ * phase concept, so those two fields stay their identity defaults for every
+ * era.
+ */
 export function cycleContextForWorld(world: WorldState): CycleAnchorContext {
+  const preset = eraToPreset(world.meta.era);
   return {
-    startingYear: 1953,
-    preset: "1953-default",
+    startingYear: getStartingYearForPreset(preset),
+    preset,
     preIterationTurns: 0,
     preIterationActive: false,
   } as CycleAnchorContext;

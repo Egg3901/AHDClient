@@ -1779,5 +1779,29 @@ export function deserializeSave(raw: string): WorldState {
     }
     save.world.meta.schemaVersion = 39;
   }
+  // v39 -> v40: era-truth batch. Removed the fabricated "1960" content pack
+  // (invented era, interpolation-derived numbers — see packs/index.ts and
+  // calendar.ts for the writeup) and added real 1979/1991/2019 packs ported
+  // from mainline's actual preset data.
+  //
+  // Adds `meta.legacyEra` (WorldState shape change, hence the bump): true
+  // for any save whose `meta.era` is not one of the four real shipped pack
+  // ids ("1953"/"1979"/"1991"/"2019") — in practice this can currently only
+  // be "1960", the fabricated era, for saves created before this fix.
+  // `false`/absent for every real-pack era. This is a pure backfill (no RNG
+  // consumed, no other field touched); calendar.ts's `nextEraForDate` keeps
+  // such a save's era label stable and correctly promotes it forward once
+  // the in-game calendar reaches the next real era, instead of regressing
+  // it back to "1953" or crashing on an unknown pack lookup.
+  if (save.schemaVersion < 40) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const meta = w["meta"] as Record<string, unknown> | undefined;
+    const era = typeof meta?.["era"] === "string" ? (meta["era"] as string) : "1953";
+    const REAL_PACK_ERAS = new Set(["1953", "1979", "1991", "2019"]);
+    if (meta && typeof meta["legacyEra"] !== "boolean") {
+      meta["legacyEra"] = !REAL_PACK_ERAS.has(era);
+    }
+    save.world.meta.schemaVersion = 40;
+  }
   return save.world;
 }

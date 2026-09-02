@@ -42,11 +42,16 @@ describe("INITIAL_RATES_1953 table vs mainline", () => {
 });
 
 describe("Bretton Woods peg regime", () => {
-  it("1953 and 1960 are pegged, modern floats", () => {
+  it("1953 is pegged (Bretton Woods), 1979/1991/2019 float (post-1971 Nixon Shock)", () => {
     expect(regimeForEra("1953")).toBe("pegged"); // Bretton Woods managed peg
+    expect(regimeForEra("1979")).toBe("floating");
+    expect(regimeForEra("1991")).toBe("floating");
+    expect(regimeForEra("2019")).toBe("floating");
+  });
+
+  it("legacy fabricated '1960' era (old-save-only, no pack) still resolves pegged — pre-1971", () => {
     expect(regimeForEra("1960")).toBe("pegged");
     expect(regimeForEra("1975")).toBe("floating");
-    expect(regimeForEra("2019")).toBe("floating");
   });
 
   it("peg band is 1% (BW), float guardrail 50%", () => {

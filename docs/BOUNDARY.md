@@ -17,7 +17,7 @@ This document defines the boundary between ROTUNDA (this repo, private) and main
 
 - Country ids: mainline uppercase `CountryId` values, exactly.
 - Party ideology: mainline's economic/social axes on -5..5.
-- Era ids: strings keyed to mainline presets ("1953", "1960").
+- Era ids: strings keyed to mainline's real preset registry (`presetSelector.ts` `EraId`). Shipped packs: "1953", "1979", "1991", "2019" (mainline's 1953-default/1979-default/1991-default/2019-default). "1960" was never a mainline preset — it shipped here as a fabricated, interpolation-derived pack and has been removed; see `packages/content/src/packs` provenance headers.
 - Save format marker `ahdsolo-save` is this repo's wire format and is independent of project naming.
 - License: PolyForm Noncommercial 1.0.0 on both sides, which is what makes code flow legal and frictionless.
 

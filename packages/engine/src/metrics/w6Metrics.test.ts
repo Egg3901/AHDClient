@@ -197,7 +197,10 @@ describe("migration v32->v33", () => {
     expect(migrated.economicVitalSigns).toBeDefined();
     expect(migrated.vitalSignsHistory).toBeDefined();
   });
-  it("SCHEMA_VERSION is 34", () => {
-    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(33);
+  it("SCHEMA_VERSION has reached at least this wave's v34 (W6 metrics fields)", () => {
+    // W6 landed at v34; SCHEMA_VERSION has since moved on (era-truth batch,
+    // v40) — this pins the floor this wave's migration needs, not the
+    // literal current top-of-chain number.
+    expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(34);
   });
 });

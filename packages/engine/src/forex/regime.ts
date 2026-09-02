@@ -3,11 +3,12 @@
  *
  * Mainline models 1953 as a managed-peg world (Bretton Woods: USD-pegged par
  * values, ±1% bands, adjustable only by IMF consent). The peg is the defining
- * 1953 mechanic — a 1953 world must NOT float like a modern one. Later eras
- * (1960 packs approach the 1971 Nixon Shock suspension) would graduate to a
- * float, but this wave's pack set is 1953 and 1960, both still pre-float in
- * mainline's era span (see monetaryEra.ts: 1953 anchors hold until 1971,
- * monetary/brettonWoods.ts BW_EARLIEST_EXIT_YEAR 1968).
+ * 1953 mechanic — a 1953 world must NOT float like a modern one. Bretton
+ * Woods collapsed with the 1971 Nixon Shock, so the 1979/1991/2019 packs
+ * (all >= 1971) float — the generic numeric-year fallback below already
+ * handles this correctly with no per-preset entry needed (see
+ * monetaryEra.ts: 1953 anchors hold until 1971, monetary/brettonWoods.ts
+ * BW_EARLIEST_EXIT_YEAR 1968).
  *
  * Port decision (cited):
  *  - Regime is derived from world.meta.era (the seed preset era), not from
@@ -16,10 +17,10 @@
  *    seeded Bretton Woods par for life; graduation flows through monetary
  *    baselines, not a re-anchoring of FX. Era crossing (eraCrossing.ts) does
  *    not re-seed FX.
- *  - 1953 era => pegged (managed). 1960 era => still pegged (1960 < 1971).
- *    Any era >=1971 would be floating — not yet exercised, but the function
- *    returns it correctly if a future pack ships it. This matches brettonWoods.ts
- *    stepGoldCover/shouldSuspendConvertibility which only arms after 1968.
+ *  - 1953 era => pegged (managed). The legacy fabricated "1960" era (only
+ *    reachable on an old save — see packs/index.ts and calendar.ts) also
+ *    stays pegged via the same numeric-year fallback (1960 < 1971). Any era
+ *    >= 1971 is floating, which is what 1979/1991/2019 all resolve to.
  *  - Hard peg target is baseRate (the seeded parity). Intervention is not
  *    modelled as tradable reserves (no CB reserve book yet — W3 is prime-rate
  *    only, no forexRevenue/reserveBalance), so the peg holds by clamping rather
@@ -37,10 +38,13 @@ export type FxRegime = "pegged" | "floating";
  * Pure and era-deterministic; no RNG.
  */
 export function regimeForEra(era: string): FxRegime {
-  // Bretton Woods peg holds until 1971 (Nixon Shock). Both shipped eras
-  // (1953, 1960) map to pegged. Unknown/future eras float.
+  // Bretton Woods peg holds until 1971 (Nixon Shock). "1953" is explicit;
+  // "1960" is kept only because it can still appear as a legacy era on an
+  // old save (see calendar.ts) and 1960 genuinely predates the 1971
+  // collapse. Every other era, including the shipped 1979/1991/2019 packs,
+  // resolves through the numeric-year fallback below (1979/1991/2019 are
+  // all >= 1971, so they float — no per-preset entry needed).
   if (era === "1953" || era === "1960") return "pegged";
-  // Numeric year check for forward compat: "1968", "1971" etc.
   const y = Number.parseInt(era, 10);
   if (Number.isFinite(y) && y < 1971) return "pegged";
   return "floating";

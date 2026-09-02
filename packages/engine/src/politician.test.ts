@@ -4,7 +4,7 @@ import { deserializeSave, serializeSave } from "./save.js";
 import { isNameFromCountryPool } from "./npp/nameGenerator.js";
 
 const OPTS_1953_US = { seed: "politician-seed", playerName: "Tester", countryId: "US", era: "1953" } as const;
-const OPTS_1960_DD = { seed: "politician-seed", playerName: "Tester", countryId: "DD", era: "1960" } as const;
+const OPTS_1979_DD = { seed: "politician-seed", playerName: "Tester", countryId: "DD", era: "1979" } as const;
 
 describe("politician generation", () => {
   it("is deterministic: identical options give identical casts", () => {
@@ -17,7 +17,7 @@ describe("politician generation", () => {
   });
 
   it("politician count per chamber equals allocated seats", () => {
-    for (const era of ["1953", "1960"] as const) {
+    for (const era of ["1953", "1979"] as const) {
       const world = createWorld({ seed: "seat-count", playerName: "P", countryId: "US", era });
       // group politicians by country:chamber
       const byChamber = new Map<string, number>();
@@ -202,12 +202,12 @@ describe("politician generation", () => {
   });
 
   it("deterministic across eras and countries", () => {
-    const a = createWorld(OPTS_1960_DD);
-    const b = createWorld(OPTS_1960_DD);
+    const a = createWorld(OPTS_1979_DD);
+    const b = createWorld(OPTS_1979_DD);
     expect(JSON.stringify(a.politicians)).toBe(JSON.stringify(b.politicians));
     // same seed across eras still deterministic per era
-    const c = createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1960" });
-    const d = createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1960" });
+    const c = createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1979" });
+    const d = createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1979" });
     expect(JSON.stringify(c.politicians)).toBe(JSON.stringify(d.politicians));
   });
 });

@@ -4,6 +4,10 @@ import { deserializeSave } from "./save.js";
 
 describe("save migration v32 -> v34 (batch: W7 command economy + W8 trade + W14 sector cleanup)", () => {
   it("backfills commandEconomy, capitalStock, capitalGrowth, unownedSectors, stateOwnershipConcentration, and centralBank tradeGrowth on a pre-batch save", () => {
+    // This wave's batch (W7/W8/W14) landed at v34; SCHEMA_VERSION has since
+    // moved on (era-truth batch, v40) — the migration CHAIN this test
+    // exercises (v32 -> v34's fields, still present at any later version)
+    // is what matters, not the literal current top-of-chain number.
     expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(34);
 
     const world = createWorld({ seed: "mig-batch-econ-seed", playerName: "Tester", countryId: "US", era: "1953" });

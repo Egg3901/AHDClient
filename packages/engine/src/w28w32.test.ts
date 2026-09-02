@@ -464,7 +464,7 @@ describe("save migration v33 -> v37 (W28 + W32 batch)", () => {
     const raw = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 33, savedAt: "2026-01-01T00:00:00Z", world: stripped });
 
     const loaded = deserializeSave(raw);
-    expect(loaded.meta.schemaVersion).toBe(39);
+    expect(loaded.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(loaded.policyLedger).toEqual({});
     expect(loaded.ministerialOrders).toEqual([]);
     expect(loaded.enactmentGates).toEqual({ debtCeilingCrisis: {} });

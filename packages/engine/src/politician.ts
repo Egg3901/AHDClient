@@ -154,9 +154,11 @@ export interface PoliticianGenerationContext {
  * ignored. Appointed chambers (elected === false) produce no politicians.
  *
  * Note: subnational elected chambers (US stateSenate, UK regionalCouncil,
- * RU republicSupremeSoviet, DD landAssembly) have no allocated seats in the
- * 1953/1960 packs (all vacancies), so they naturally stay empty; appointed
- * uppers (UK lords, DD staatsrat) are skipped by the elected check regardless.
+ * RU republicSupremeSoviet, DD landAssembly) have no allocated seats in any
+ * shipped pack (1953 carries them as all-vacant; the 1979/1991/2019 packs
+ * don't model that third chamber at all — see their provenance headers), so
+ * they naturally stay empty; appointed uppers (UK lords, DD staatsrat) are
+ * skipped by the elected check regardless.
  */
 export function createPoliticiansForWorld(
   rng: WorldRng,

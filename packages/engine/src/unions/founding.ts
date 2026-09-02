@@ -31,8 +31,14 @@ import {
  * Where no historical entry existed for a pair, the table entry is absent and
  * genericUnionName is used (preferred over inventing a fake historical union).
  *
- * Extracted for 1953 only; other eras fall back to generic since the worktree
- * currently only ships the 1953 pack for playable countries.
+ * Extracted for 1953 only. The 1979/1991/2019 packs reuse this same table
+ * (and SECTOR_WEIGHTS_1953 below) rather than mainline's own
+ * sectorSeedWeights{1979,1991,2019}.ts / UNION_NAMES_BY_ERA entries for
+ * those eras — porting union sector weights and historical names per era is
+ * a genuine, documented gap deferred to a future wave, not something this
+ * fix invents. Any pair with no historical entry (including every pair in
+ * every non-1953 era right now) falls back to genericUnionName, never a
+ * fabricated historical name.
  */
 const HISTORICAL_1953: Record<string, Partial<Record<CorporationType, string>>> = {
   US: {

@@ -152,8 +152,9 @@ export function roundSavingsAmount(amount: number, currency: string): number {
 // exist in mainline: DE shares ECB, SCO/WAL share UK (sterlingized). IE's Central
 // Bank of Ireland is sovereign (IEP) and maps to itself, even though EU eurozone
 // display uses gameState.eurozoneEnabled. Era note: ECB sharedBankId is present in
-// mainline even for 1953/1960 presets; the era gate controls display and policy
-// union, not bank identity, so solo keeps DE→ECB in all eras.
+// mainline even for presets that predate the ECB's real founding (1953-default,
+// 1979-default); the era gate controls display and policy union, not bank
+// identity, so solo keeps DE→ECB in all eras.
 export function getBankId(countryId: string): string {
   if (countryId === "DE") return "ECB";
   if (countryId === "SCO" || countryId === "WAL") return "UK";

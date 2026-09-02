@@ -9,7 +9,7 @@ const OPTS = { seed: "cheat-test", playerName: "Tester", countryId: "US", era: "
 // -- listCountries --
 describe("listCountries", () => {
   it("returns full pack roster with default economy anchors", () => {
-    for (const era of ["1953", "1960"] as const) {
+    for (const era of ["1953", "1979"] as const) {
       const list = listCountries(era);
       expect(list.length).toBeGreaterThanOrEqual(10);
       const us = list.find((c) => c.id === "US")!;

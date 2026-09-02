@@ -1,5 +1,7 @@
-// Explicit ISO numeric (world-atlas) -> ROTUNDA uppercase country id mapping for the 27.
-// Built for 1953 and 1960 packs (27 countries). Covers modern border handling:
+// Explicit ISO numeric (world-atlas) -> ROTUNDA uppercase country id mapping.
+// Built for the 1953 pack's 27-country roster (the largest of the four
+// shipped packs — 1979 ships 18, 1991 ships 13, 2019 ships 8; every id used
+// by the smaller packs is a subset of this map). Covers modern border handling:
 // - DE geometry (276) maps to DE only; DD has no separate polygon (unified Germany).
 //   Tint unified Germany by DE economy; badge DD in side panel (rectangle-free).
 // - CS (Czechoslovakia) maps to both 203 Czechia and 703 Slovakia.

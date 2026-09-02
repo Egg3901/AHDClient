@@ -176,6 +176,39 @@ td:not(:first-child), th:not(:first-child) { text-align: right; }
 }
 .nw-section:first-of-type { border-top: none; padding-top: 0; }
 .nw-section h2 { margin: 0; }
+
+/* era chips (creation screen — mirrors launcher-era-chip) */
+.nw-era-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.nw-era-chip {
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  padding: 8px 14px;
+  color: var(--muted);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nw-era-chip .swatch {
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.nw-era-chip-date { font-size: 10px; }
+.nw-era-chip.active {
+  border-color: currentColor;
+  color: var(--ink);
+}
 .seed-row { width: 100%; }
 .seed-input { flex: 1; }
 .nw-advanced-toggle {

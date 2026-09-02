@@ -3,6 +3,7 @@ import type { TurnReport, WorldState } from "@rotunda/engine";
 import { listEras, listPlayableCountries, rulingPartyForCountry } from "@rotunda/engine";
 import { game } from "./game.js";
 import { Launcher } from "./launcher/Launcher.js";
+import { themeForEra } from "./launcher/CommandGlobe.js";
 import { createWorldWithOverrides, listCountries } from "./worldSetup.js";
 import type { WorldOverrides, CountryEconomyOverride } from "./worldSetup.js";
 import { applyCheat, describeCheat } from "./cheats.js";
@@ -398,13 +399,31 @@ function NewWorldScreen({
             <h2>World</h2>
             <label>
               Era
-              <select value={era} onChange={(e) => setEra(e.target.value)}>
-                {eras.map((er) => (
-                  <option key={er.id} value={er.id}>
-                    {er.label} - {er.startDate}
-                  </option>
-                ))}
-              </select>
+              <div className="nw-era-row" role="radiogroup" aria-label="Era">
+                {eras.map((er) => {
+                  const active = er.id === era;
+                  const theme = themeForEra(er.id);
+                  return (
+                    <button
+                      key={er.id}
+                      type="button"
+                      className={`nw-era-chip${active ? " active" : ""}`}
+                      onClick={() => setEra(er.id)}
+                      aria-pressed={active}
+                      role="radio"
+                      aria-checked={active}
+                    >
+                      <span
+                        className="swatch"
+                        style={{ background: active ? theme.phosphor : undefined }}
+                        aria-hidden="true"
+                      />
+                      <span className="nw-era-chip-label">{er.label}</span>
+                      <span className="nw-era-chip-date muted">{er.startDate}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </label>
             <label>
               Playable country

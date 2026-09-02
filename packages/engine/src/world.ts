@@ -87,7 +87,12 @@ import { seedStateResourceCapacities } from "./extraction/founding.js";
 // migration below for the full resolver note on merge-order splitting
 // (latest ->36 chain preserves every wave; no renumbering needed beyond
 // verifying ascending order v33->v34->v35->v36).
-export const SCHEMA_VERSION = 39;
+// v40: era-truth batch — removed the fabricated "1960" content pack, added
+// real 1979/1991/2019 packs, added meta.legacyEra. Pre-allocated ahead of
+// v34 (this branch's base) to leave room for parallel waves at v35-v39; see
+// save.ts's v34->v40 migration chain (stubs for v35-v39, real logic at v40)
+// for the resolver note.
+export const SCHEMA_VERSION = 40;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {

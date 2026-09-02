@@ -7,7 +7,7 @@ export { serializeSave, deserializeSave } from "./save.js";
 export type { SaveFile } from "./save.js";
 export { rngFromSeed, rngFromState } from "./rng.js";
 export type { WorldRng, RngState } from "./rng.js";
-export { dateForTurn, eraForDate, addDaysIso, START_DATE, DAYS_PER_TURN } from "./calendar.js";
+export { dateForTurn, eraForDate, nextEraForDate, addDaysIso, START_DATE, DAYS_PER_TURN } from "./calendar.js";
 export type { TurnPhase, TurnReport, PhaseTiming } from "./phases/types.js";
 export * from "./npp/nameGenerator.js";
 export * from "./npp/nameEra.js";

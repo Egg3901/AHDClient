@@ -90,30 +90,38 @@ export const COMMODITY_BASE_PRICES: Record<CommodityType, number> = {
 
 // ── Era scaling ──────────────────────────────────────────────────────────
 // Source: src/lib/constants/sectorSeedEra.ts getEraNominalScale / getEraCommodityBasePrice.
-// The 1953 world is denominated in 1953 dollars (US seed GDP $387B vs $27T in 2019
-// = ~0.01433 scale). A uniform deflation of all base prices moves the whole
-// price LEVEL to the era basis without inventing per-commodity history.
-// Modern eras (1960+, 1979, 1991, 2019) without an entry return scale 1.
+// Mainline's own US_NATIONAL_SEED_GDP_BY_ERA-equivalent (sectorSeedEra.ts
+// US_NATIONAL_SEED_GDP_BY_ERA) ALSO only has 1953 and 2019 entries — mainline
+// itself explicitly leaves 1979/1991 "byte-identical [to modern]... pending
+// its own measurement pass" (eraMoneyScale.test.ts). So scale=1 (no
+// deflation) for 1979/1991 below is not a Rotunda gap, it's a faithful port
+// of mainline's own documented choice. 1953 is denominated in 1953 dollars
+// (US seed GDP $387B vs $27T in 2019 = ~0.01433 scale); a uniform deflation
+// of all base prices moves the whole price LEVEL to the era basis without
+// inventing per-commodity history. The legacy fabricated "1960" era (see
+// packs/index.ts) is gone; any preset without an explicit entry here
+// (including a legacy "1960" save) falls back to the 1953 scale via the `??`
+// below, same as it always has.
 
 export const US_NATIONAL_SEED_GDP_BY_ERA: Record<string, number> = {
   "1953": 387_000_000_000,
   "2019": 27_000_000_000_000,
-  // 1960 is interpolated from 1953 GDP compounded at 1953 growth (~3.765%)
-  // for 7 years via pack, but monetary scale is still anchored to 1953
-  // nominal level (no authored 1960 GDP anchor in mainline presetSelector).
-  // Use 1953 scale for 1960 as well — both within the 1953-era regime.
-  "1960": 387_000_000_000,
 };
+
+/**
+ * Presets that share the 1953 nominal scale rather than the modern (scale=1)
+ * default: 1953 itself, and the legacy fabricated "1960" era (only reachable
+ * on an old save via calendar.ts's `nextEraForDate` — see packs/index.ts).
+ * Every other preset, including 1979 and 1991, is scale=1 — matching
+ * mainline's own choice (see file header).
+ */
+const LEGACY_1953_SCALE_ERAS = new Set(["1953", "1960"]);
 
 export function getEraNominalScale(preset?: string): number {
   const modern = US_NATIONAL_SEED_GDP_BY_ERA["2019"];
   if (!preset || !modern) return 1;
-  // Map era aliases: "1960" shares 1953 scale (pre-1979 regime)
-  const gdp = US_NATIONAL_SEED_GDP_BY_ERA[preset] ?? US_NATIONAL_SEED_GDP_BY_ERA["1953"];
-  if (preset !== "1953" && preset !== "1960" && preset !== "2019") {
-    // For any non-anchored preset, return 1 (modern) — strict no-op.
-    if (!US_NATIONAL_SEED_GDP_BY_ERA[preset]) return 1;
-  }
+  if (!LEGACY_1953_SCALE_ERAS.has(preset)) return 1;
+  const gdp = US_NATIONAL_SEED_GDP_BY_ERA["1953"];
   if (!gdp) return 1;
   return gdp / modern;
 }

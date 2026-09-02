@@ -14,7 +14,7 @@ import {
 import { settleContractsForTurn } from "./contractSettlement.js";
 
 const OPTS_1953 = { seed: "golden-seed-42", playerName: "Tester", countryId: "US", era: "1953" } as const;
-const OPTS_1960 = { seed: "golden-seed-42", playerName: "Tester", countryId: "US", era: "1960" } as const;
+const OPTS_1979 = { seed: "golden-seed-42", playerName: "Tester", countryId: "US", era: "1979" } as const;
 
 describe("commodity era scaling", () => {
   it("seeds 1953 commodities at era-scaled base prices (base == global at turn 0)", () => {
@@ -41,12 +41,20 @@ describe("commodity era scaling", () => {
     }
   });
 
-  it("seeds 1960 commodities at era-scaled prices (same regime as 1953)", () => {
-    const w = createWorld(OPTS_1960);
+  it("seeds 1979 commodities at modern (unscaled) prices — mainline itself leaves 1979/1991 scale=1", () => {
+    const w = createWorld(OPTS_1979);
     expect(Object.keys(w.commodityPrices)).toHaveLength(COMMODITY_TYPES.length);
-    // 1960 shares 1953 nominal regime (no authored 1960 GDP anchor in EraId map)
     expect(w.commodityPrices["steel"]!.basePrice).toBe(w.commodityPrices["steel"]!.globalPrice);
-    expect(w.commodityPrices["oil"]!.basePrice).toBeCloseTo(getEraCommodityBasePrice(80, "1960"), 2);
+    expect(w.commodityPrices["oil"]!.basePrice).toBeCloseTo(80, 2);
+    expect(getEraCommodityBasePrice(80, "1979")).toBeCloseTo(80, 2);
+  });
+
+  it("the legacy fabricated '1960' era (old-save-only, no pack) still resolves the 1953 scale via getEraCommodityBasePrice", () => {
+    // "1960" can never reach createWorld any more (no pack), but the pure
+    // pricing function still needs to answer sensibly for a legacy save's
+    // meta.era value, same nominal regime as 1953.
+    expect(() => createWorld({ ...OPTS_1979, era: "1960" })).toThrow(/Unknown era/i);
+    expect(getEraCommodityBasePrice(80, "1960")).toBeCloseTo(getEraCommodityBasePrice(80, "1953"), 2);
   });
 
   it("all EXTRACTABLE_RESOURCES are subset of COMMODITY_TYPES", () => {

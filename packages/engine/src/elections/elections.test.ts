@@ -3,6 +3,7 @@ import { advanceTurn } from "../engine.js";
 import { createWorld, SCHEMA_VERSION } from "../world.js";
 import { deserializeSave, serializeSave } from "../save.js";
 import { executeAction } from "../actions/execute.js";
+import { cycleContextForWorld } from "./orchestration.js";
 
 const OPTS = { seed: "elections-test", playerName: "Tester", countryId: "US", era: "1953" } as const;
 
@@ -107,5 +108,22 @@ describe("election orchestration (W21c)", () => {
     const w = createWorld(OPTS);
     for (let i = 0; i < 900; i++) advanceTurn(w);
     expect(w.elections.filter((e) => e.status === "resolved").length).toBeLessThanOrEqual(400);
+  });
+
+  it("cycleContextForWorld flows the world's own era, not a hardcoded 1953-default (fixes a real bug)", () => {
+    // Was: always {startingYear: 1953, preset: "1953-default"} regardless of
+    // world.meta.era — a 1979/1991/2019 world silently ran its canonical
+    // election-cycle anchors on 1953's real-election-year table.
+    const w1953 = createWorld({ seed: "ctx", playerName: "P", countryId: "US", era: "1953" });
+    expect(cycleContextForWorld(w1953)).toMatchObject({ startingYear: 1953, preset: "1953-default" });
+
+    const w1979 = createWorld({ seed: "ctx", playerName: "P", countryId: "US", era: "1979" });
+    expect(cycleContextForWorld(w1979)).toMatchObject({ startingYear: 1979, preset: "1979-default" });
+
+    const w1991 = createWorld({ seed: "ctx", playerName: "P", countryId: "US", era: "1991" });
+    expect(cycleContextForWorld(w1991)).toMatchObject({ startingYear: 1991, preset: "1991-default" });
+
+    const w2019 = createWorld({ seed: "ctx", playerName: "P", countryId: "US", era: "2019" });
+    expect(cycleContextForWorld(w2019)).toMatchObject({ startingYear: 2019, preset: "2019-default" });
   });
 });

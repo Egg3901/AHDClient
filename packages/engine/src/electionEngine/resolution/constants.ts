@@ -23,6 +23,26 @@ export const SEED_PRESET_IDS = [
   "2023-default",
 ] as const;
 
+/**
+ * Map a Rotunda content-pack era id ("1953"/"1979"/"1991"/"2019", the bare
+ * year strings `packages/content/src/packs` ships) to the mainline preset id
+ * this resolution layer keys everything on ("1953-default" etc). The two
+ * naming conventions coexist in this codebase: content packs use bare years
+ * (matching mainline's `EraId`), this ported election-resolution layer uses
+ * mainline's `ResetPresetId` (`<year>-default`). Falls back to
+ * `DEFAULT_SEED_PRESET` for anything unrecognized, including the legacy
+ * fabricated "1960" era (see packages/content/src/packs/index.ts) — a
+ * pre-fix save carrying that era gets the same modern election-cycle
+ * anchors an unseeded/unknown era always fell back to, not a crash.
+ */
+export function eraToPreset(era: string): string {
+  if (era === "1953") return "1953-default";
+  if (era === "1979") return "1979-default";
+  if (era === "1991") return "1991-default";
+  if (era === "2019") return "2019-default";
+  return DEFAULT_SEED_PRESET;
+}
+
 export function getStartingYearForPreset(presetId: string): number {
   if (presetId === "1953-default") return 1953;
   if (presetId === "1979-default") return 1979;

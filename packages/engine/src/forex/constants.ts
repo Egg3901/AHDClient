@@ -52,6 +52,91 @@ export const INITIAL_RATES_1953: Readonly<Record<string, CurrencyPerAnchor>> = {
   YU: 16.667,
 };
 
+/**
+ * 1979 initial rates — verbatim from mainline currencies.ts INITIAL_RATES_1979.
+ * No values invented. Used by packages/content/src/packs/1979.ts's GDP
+ * conversion and by seedExchangeRates for a 1979-era world.
+ */
+export const INITIAL_RATES_1979: Readonly<Record<string, CurrencyPerAnchor>> = {
+  US: 1.0,
+  UK: 0.47,
+  JP: 219.0,
+  DE: 0.936,
+  IE: 0.47,
+  BR: 5.0,
+  CN: 1.55,
+  NG: 0.6,
+  RU: 2.22,
+  DD: 2.22,
+  FR: 4.2,
+  IT: 833.0,
+  ES: 67.0,
+  SE: 4.29,
+  TR: 34.5,
+  GR: 37.0,
+  AT: 13.4,
+  FI: 3.9,
+};
+
+/**
+ * 1991 initial rates — verbatim from mainline currencies.ts INITIAL_RATES_1991.
+ * No values invented. RU/DD entries are mainline's own placeholders (mirrors
+ * the 1979 rate; those countries are "not enabled in 1991" per mainline's
+ * comment — see packs/1991.ts, which correctly omits RU/DD from the pack
+ * entirely, so these two keys are never actually looked up for a 1991 world).
+ */
+export const INITIAL_RATES_1991: Readonly<Record<string, CurrencyPerAnchor>> = {
+  US: 1.0,
+  UK: 0.57,
+  JP: 134.5,
+  DE: 0.85,
+  IE: 0.85,
+  BR: 5.0,
+  CN: 5.32,
+  NG: 9.9,
+  RU: 2.22,
+  DD: 2.22,
+  FR: 4.2,
+  IT: 833,
+  ES: 67,
+  SE: 4.29,
+  TR: 34.5,
+  GR: 37.0,
+  AT: 13.4,
+  FI: 3.9,
+};
+
+/**
+ * 2019 (base/modern) initial rates — verbatim from mainline currencies.ts
+ * base INITIAL_RATES table, restricted to the 8 countries packs/2019.ts
+ * actually ships (mainline's base table also carries 1979-inherited
+ * placeholders for countries not forex-active in the modern era; those are
+ * not reproduced here since this pack doesn't ship those countries at all).
+ */
+export const INITIAL_RATES_2019: Readonly<Record<string, CurrencyPerAnchor>> = {
+  US: 1.0,
+  UK: 0.75,
+  JP: 106.0,
+  DE: 0.92,
+  IE: 0.92,
+  BR: 5.0,
+  CN: 7.2,
+  NG: 1550,
+};
+
+/**
+ * Era-keyed lookup mirroring mainline's `getInitialRates(preset)`. Falls
+ * back to the 1953 table for the legacy fabricated "1960" era (only
+ * reachable on an old save — see calendar.ts) and for any unrecognized era,
+ * same as the pre-existing single-table behavior this replaces.
+ */
+export function getInitialRatesForEra(era: string): Readonly<Record<string, CurrencyPerAnchor>> {
+  if (era === "1979") return INITIAL_RATES_1979;
+  if (era === "1991") return INITIAL_RATES_1991;
+  if (era === "2019") return INITIAL_RATES_2019;
+  return INITIAL_RATES_1953;
+}
+
 // --- Rate dynamics — verbatim from currencies.ts ---
 /** Source: currencies.ts DRIFT_SPEED */
 export const DRIFT_SPEED = 0.05;

@@ -45,10 +45,24 @@ describe("calendar", () => {
     expect(dateForTurn(52)).toBe("1954-01-05");
   });
 
-  it("crosses era thresholds by year", () => {
-    expect(eraForDate("1959-12-29")).toBe("1953");
-    expect(eraForDate("1960-01-05")).toBe("1960");
-    expect(eraForDate("1976-01-06")).toBe("1976");
+  it("crosses era thresholds by year, driven by the real shipped pack registry", () => {
+    expect(eraForDate("1978-12-31")).toBe("1953");
+    expect(eraForDate("1979-01-01")).toBe("1979");
+    expect(eraForDate("1990-12-31")).toBe("1979");
+    expect(eraForDate("1991-01-01")).toBe("1991");
+    expect(eraForDate("2018-12-31")).toBe("1991");
+    expect(eraForDate("2019-01-01")).toBe("2019");
+    expect(eraForDate("2040-01-01")).toBe("2019");
+  });
+
+  it("never resolves to a fabricated era ('1960'/'1968'/'1976' were invented, no pack backs them)", () => {
+    for (const date of ["1960-01-05", "1968-01-01", "1976-01-06"]) {
+      const era = eraForDate(date);
+      expect(era).not.toBe("1960");
+      expect(era).not.toBe("1968");
+      expect(era).not.toBe("1976");
+      expect(era).toBe("1953");
+    }
   });
 });
 
@@ -184,10 +198,14 @@ describe("advanceTurn", () => {
     ]);
   });
 
-  it("fires an era transition news item at 1960", () => {
+  it("fires an era transition news item crossing into 1979 (real pack, not the fabricated 1960)", () => {
     const world = createWorld(OPTS);
-    while (world.meta.era === "1953") advanceTurn(world);
-    expect(world.meta.era).toBe("1960");
+    // Fast-forward the clock to just before the 1979 threshold instead of
+    // advancing ~1,350 real turns from 1953.
+    world.meta.date = "1978-12-30";
+    advanceTurn(world);
+    expect(world.meta.era).toBe("1979");
+    expect(world.meta.era).not.toBe("1960");
     expect(world.news.some((n) => n.headline.includes("new era"))).toBe(true);
   });
 });
@@ -254,6 +272,49 @@ describe("save", () => {
     expect(migrated.executives).toEqual({});
     expect(migrated.impeachments).toEqual([]);
   });
+
+  it("v39 -> v40: a legacy save with meta.era === '1960' (the deleted, fabricated pack) still loads and is tagged legacy", () => {
+    const world = createWorld(OPTS); // 1953, real pack
+    const legacy = structuredClone(world) as unknown as Record<string, unknown>;
+    const meta = legacy["meta"] as Record<string, unknown>;
+    meta["schemaVersion"] = 39;
+    meta["era"] = "1960";
+    meta["date"] = "1965-06-15"; // mid-legacy-era date, well before the real 1979 pack
+    delete meta["legacyEra"];
+
+    const raw = JSON.stringify({
+      format: "ahdsolo-save",
+      schemaVersion: 39,
+      savedAt: "2026-01-01T00:00:00Z",
+      world: legacy,
+    });
+    const migrated = deserializeSave(raw);
+
+    expect(migrated.meta.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(migrated.meta.era).toBe("1960"); // migration retags, does not rewrite the era
+    expect(migrated.meta.legacyEra).toBe(true);
+
+    // A save on a REAL pack era (1953) is explicitly tagged not-legacy, not
+    // merely left undefined by accident.
+    const real = structuredClone(world) as unknown as Record<string, unknown>;
+    const realMeta = real["meta"] as Record<string, unknown>;
+    realMeta["schemaVersion"] = 39;
+    delete realMeta["legacyEra"];
+    const rawReal = JSON.stringify({ format: "ahdsolo-save", schemaVersion: 39, savedAt: "2026-01-01T00:00:00Z", world: real });
+    const migratedReal = deserializeSave(rawReal);
+    expect(migratedReal.meta.legacyEra).toBe(false);
+  });
+
+  it("nextEraForDate: a legacy 1960-era save advances forward into the real 1979 pack once its calendar reaches it, never regresses to 1953", async () => {
+    const { nextEraForDate } = await import("./calendar.js");
+    // Still inside the legacy 1960 window: label holds.
+    expect(nextEraForDate("1970-01-01", "1960")).toBe("1960");
+    // Crosses into the real 1979 pack: promotes forward.
+    expect(nextEraForDate("1979-01-01", "1960")).toBe("1979");
+    expect(nextEraForDate("1991-06-01", "1960")).toBe("1991");
+    // A normal (real-pack) era behaves exactly like eraForDate.
+    expect(nextEraForDate("1970-01-01", "1953")).toBe("1953");
+  });
 });
 
 describe("seed packs integration", () => {
@@ -263,11 +324,16 @@ describe("seed packs integration", () => {
     }
   });
 
-  it("listEras returns shipped eras sorted by startDate", () => {
+  it("listEras returns the four real mainline eras sorted by startDate, no fabricated ones", () => {
     const eras = listEras();
-    expect(eras.map((e) => e.id)).toEqual(["1953", "1960"]);
+    expect(eras.map((e) => e.id)).toEqual(["1953", "1979", "1991", "2019"]);
     expect(eras[0]!.startDate).toBe("1953-01-06");
-    expect(eras[1]!.startDate).toBe("1960-01-05");
+    expect(eras[1]!.startDate).toBe("1979-01-01");
+    expect(eras[2]!.startDate).toBe("1991-01-01");
+    expect(eras[3]!.startDate).toBe("2019-01-01");
+    for (const bad of ["1960", "1968", "1976"]) {
+      expect(eras.map((e) => e.id)).not.toContain(bad);
+    }
   });
 
   it("listPlayableCountries returns playable subset per era", () => {
@@ -290,8 +356,10 @@ describe("seed packs integration", () => {
         expect(a.meta.era).toBe(era.id);
         expect(a.meta.date).toBe(era.startDate);
         expect(a.player.countryId).toBe(country.id);
-        // world contains all countries from pack
-        expect(Object.keys(a.countries).length).toBeGreaterThanOrEqual(10);
+        // world contains all countries from pack. Smallest real pack (2019)
+        // ships 8 countries — mainline's own base NATIONAL_BUDGET_SEED_CONFIGS
+        // table has no more than that (see packs/2019.ts provenance header).
+        expect(Object.keys(a.countries).length).toBeGreaterThanOrEqual(8);
       }
     }
   });
@@ -313,14 +381,15 @@ describe("seed packs integration", () => {
     expect(() => listPlayableCountries("2099")).toThrow(/Unknown era/i);
   });
 
-  it("1960 world is deterministic and distinct from 1953", () => {
+  it("1979 world is deterministic and distinct from 1953 (1960 is not a creatable era at all)", () => {
     const w1953 = createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1953" });
-    const w1960 = createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1960" });
-    expect(w1953.meta.date).not.toBe(w1960.meta.date);
-    expect(w1953.countries["US"]!.economy.gdp).not.toBe(w1960.countries["US"]!.economy.gdp);
+    const w1979 = createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1979" });
+    expect(w1953.meta.date).not.toBe(w1979.meta.date);
+    expect(w1953.countries["US"]!.economy.gdp).not.toBe(w1979.countries["US"]!.economy.gdp);
     // same era repeated is identical
-    const w1960b = createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1960" });
-    expect(JSON.stringify(w1960)).toBe(JSON.stringify(w1960b));
+    const w1979b = createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1979" });
+    expect(JSON.stringify(w1979)).toBe(JSON.stringify(w1979b));
+    expect(() => createWorld({ seed: "same", playerName: "P", countryId: "US", era: "1960" })).toThrow(/Unknown era/i);
   });
 });
 

@@ -7,9 +7,17 @@ export interface EraTheme {
   label: string;
 }
 
+// Four real mainline era presets (1953-default/1979-default/1991-default/
+// 2019-default — see packages/content/src/packs/index.ts). Palettes are
+// period-flavored CRT/terminal tones, not sourced from mainline (mainline
+// has no UI theme data to port): 1953 phosphor green (unchanged), 1979
+// amber (analog/CRT era), 1991 cyan (early digital/LCD era), 2019 a
+// cooler modern default distinct from the retro three.
 const ERA_THEMES: Record<string, EraTheme> = {
   "1953": { phosphor: "#2af57f", dim: "42,245,127", label: "COMMAND / 1953" },
-  "1960": { phosphor: "#ffb347", dim: "255,179,71", label: "COMMAND / 1960" },
+  "1979": { phosphor: "#ffb347", dim: "255,179,71", label: "COMMAND / 1979" },
+  "1991": { phosphor: "#33d6ff", dim: "51,214,255", label: "COMMAND / 1991" },
+  "2019": { phosphor: "#c9d6ff", dim: "201,214,255", label: "COMMAND / 2019" },
 };
 
 const DEFAULT_THEME: EraTheme = ERA_THEMES["1953"]!;

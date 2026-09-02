@@ -63,12 +63,30 @@ describe("validatePack", () => {
     for (const id of playable) expect(partyCountries.has(id)).toBe(true);
   });
 
-  it("1960 pack parties match 1953 party count and ids (no invented 1960 roster)", async () => {
-    const { pack1960 } = await import("./packs/index.js");
-    expect(pack1960.parties?.length).toBe(pack1953.parties?.length);
-    const ids53 = new Set(pack1953.parties!.map((p) => p.id));
-    const ids60 = new Set(pack1960.parties!.map((p) => p.id));
-    expect(ids60).toEqual(ids53);
+  it("registry is exactly the four real mainline presets, no fabricated eras", async () => {
+    const { PACKS } = await import("./packs/index.js");
+    const ids = PACKS.map((p) => p.era.id).sort();
+    expect(ids).toEqual(["1953", "1979", "1991", "2019"]);
+    for (const bad of ["1960", "1968", "1976"]) {
+      expect(ids).not.toContain(bad);
+    }
+  });
+
+  it("1979 pack keeps the same COLD_WAR_PLAYER roster as 1953 (US/UK/RU/DD)", async () => {
+    const { pack1979 } = await import("./packs/index.js");
+    const playable = pack1979.countries.filter((c) => c.playable).map((c) => c.id).sort();
+    expect(playable).toEqual(["DD", "RU", "UK", "US"]);
+  });
+
+  it("1991 and 2019 packs contract to POST_COLD_WAR_PLAYER (US/UK only) — no RU/DD entities", async () => {
+    const { pack1991, pack2019 } = await import("./packs/index.js");
+    for (const pack of [pack1991, pack2019]) {
+      const ids = new Set(pack.countries.map((c) => c.id));
+      expect(ids.has("RU")).toBe(false);
+      expect(ids.has("DD")).toBe(false);
+      const playable = pack.countries.filter((c) => c.playable).map((c) => c.id).sort();
+      expect(playable).toEqual(["UK", "US"]);
+    }
   });
 
   it("every chamber composition sums to chamber seats", () => {

@@ -542,12 +542,27 @@ export interface WorldMeta {
   date: string;
   era: EraId;
   cheatsUsed: boolean;
+  /**
+   * True when `era` is not backed by any shipped content pack (currently
+   * only the removed, fabricated "1960" era can produce this — see
+   * calendar.ts's `LEGACY_ERA_START_DATES`). Backfilled by the schema v40
+   * migration for pre-existing saves; `createWorld` never sets it, since a
+   * new world's era always resolves through `getPackByEra`. UI surfaces
+   * can use this to label such a save "(legacy)" rather than silently
+   * presenting a fabricated era as if it were real content.
+   */
+  legacyEra?: boolean;
 }
 
 /**
- * Era id sourced from seed packs, not a hardcoded union.
- * Historical values include "1953", "1960", "1968", "1976";
- * new eras come from shipped packs.
+ * Era id sourced from seed packs, not a hardcoded union. The four shipped
+ * packs are "1953", "1979", "1991", "2019" (see packages/content/src/packs)
+ * — the real mainline era presets (1953-default/1979-default/1991-default/
+ * 2019-default). "1960" was a fabricated era (invented, never a mainline
+ * preset) and has been removed; it can still appear as a legacy value on
+ * `WorldMeta.era` for saves created before the fix (see calendar.ts
+ * `nextEraForDate` and save.ts's schema v40 migration), but no pack exists
+ * for it and no new world can be created in it.
  */
 export type EraId = string;
 
