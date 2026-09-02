@@ -152,6 +152,11 @@ export const MULTI_SEAT_TYPES: ReadonlySet<string> = new Set([
   "supremeSovietDeputy", "nationalitiesDeputy", "republicSupremeSoviet",
   "volkskammerDeputy", "landAssembly",
   "sejm", "chamberOfThePeople", "nationalAssembly", "grandNationalAssembly", "federalAssembly", "supremeSoviet",
+  // Rotunda-native snap variants (government/constants.ts
+  // SNAP_ELECTION_TYPE_BY_CHAMBER); mainline only has snap_commons/bundestag/shugiin.
+  "snap_supremeSovietDeputy",
+  "snap_nationalitiesDeputy",
+  "snap_volkskammerDeputy",
 ]);
 
 // ─── Bloc list ────────────────────────────────────────────────────────────

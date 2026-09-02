@@ -13,28 +13,11 @@
 
 import type { EnrichedCandidate } from "../types.js";
 
-const MULTI_SEAT_TYPES = new Set<string>([
-  "house",
-  "stateSenate",
-  "commons",
-  "snap_commons",
-  "regionalCouncil",
-  "landtag",
-  "peoplesCongress",
-  "dail",
-  "seanad",
-  "localCouncil",
-  "assembleeNationale",
-  "cameraDeputati",
-  "congresoDiputados",
-  "riksdag",
-  "milletMeclisi",
-  "nationalrat",
-  "eduskunta",
-  "vouli",
-  "volkskammerDeputy",
-  "landAssembly",
-]);
+// Shared with resolution/seatAllocation.ts: the two gates must agree or a
+// race is multi-seat at resolution but single-seat in the live tally
+// projection (this file previously carried a stale copy missing the soviet
+// and snap types).
+import { MULTI_SEAT_TYPES } from "../resolution/constants.js";
 
 function getMultiSeatMinShare(
   electionType: string,

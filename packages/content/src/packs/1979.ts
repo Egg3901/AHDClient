@@ -1,4 +1,8 @@
 import type { SeedPack } from "../types.js";
+import { usStates1979 } from "./usStates1979.js";
+import { ukRegions1979 } from "./ukRegions1979.js";
+import { ruRegions1979 } from "./ruRegions1979.js";
+import { ddRegions1979 } from "./ddRegions1979.js";
 
 /**
  * Ported from mainline AHDGame ("1979-default" preset) — real authored
@@ -172,6 +176,9 @@ export const pack1979: SeedPack = {
       economy: { gdp: 38_333, growthRate: 0.055, inflationRate: 0.118, unemploymentRate: 0.03 },
     },
   ],
+  // State layer (regions, apportionment, registration) generated from mainline's
+  // per-era bundles by scripts/generateStateLayer.ts; see each file's header.
+  states: [...usStates1979, ...ukRegions1979, ...ruRegions1979, ...ddRegions1979],
   parties: [
     { id: "US_DEM", name: "Democratic Party", countryId: "US", abbreviation: "DEM", color: "#3B82F6", economicPosition: -2, socialPosition: -2 },
     { id: "US_REP", name: "Republican Party", countryId: "US", abbreviation: "REP", color: "#EF4444", economicPosition: 2, socialPosition: 2 },
@@ -224,6 +231,17 @@ export const pack1979: SeedPack = {
           description: "435 representatives, two-year terms. All revenue bills originate here.",
           composition: { seatsByParty: {}, vacancies: 435 },
         },
+        {
+          // Subnational chamber (W40); seats = sum of per-region senateSeats in usStates1979.ts
+          // (same convention as the 1953 pack, see its regionalCouncil W40 fix note).
+          key: "stateSenate",
+          name: "State Senate",
+          shortName: "State Senate",
+          seats: 1970,
+          elected: true,
+          description: "Each state's elected legislature, which sets state law and budgets.",
+          composition: { seatsByParty: {}, vacancies: 1970 },
+        },
       ],
     },
     {
@@ -251,6 +269,17 @@ export const pack1979: SeedPack = {
           elected: true,
           description: "650 elected MPs from single-member constituencies. The primary legislative chamber.",
           composition: { seatsByParty: {}, vacancies: 650 },
+        },
+        {
+          // Subnational chamber (W40); seats = sum of per-region senateSeats in ukRegions1979.ts
+          // (same convention as the 1953 pack, see its regionalCouncil W40 fix note).
+          key: "regionalCouncil",
+          name: "Regional Council",
+          shortName: "Regional Council",
+          seats: 578,
+          elected: true,
+          description: "Elected regional councillors representing UK nations and regions on staggered five-year terms.",
+          composition: { seatsByParty: {}, vacancies: 578 },
         },
       ],
     },
@@ -285,6 +314,17 @@ export const pack1979: SeedPack = {
           description: "559 deputies elected by population to the Supreme Soviet of the USSR; four-year terms, single-list elections under the Communist Party.",
           composition: { seatsByParty: {}, vacancies: 559 },
         },
+        {
+          // Subnational chamber (W40); seats = sum of per-region senateSeats in ruRegions1979.ts
+          // (same convention as the 1953 pack, see its regionalCouncil W40 fix note).
+          key: "republicSupremeSoviet",
+          name: "Republic Supreme Soviet",
+          shortName: "Republic Soviet",
+          seats: 4587,
+          elected: true,
+          description: "The Supreme Soviets of the union republics and the regional Soviets of People's Deputies - the legislative arm of each republic government. Four-year terms.",
+          composition: { seatsByParty: {}, vacancies: 4587 },
+        },
       ],
     },
     {
@@ -314,6 +354,17 @@ export const pack1979: SeedPack = {
           elected: true,
           description: "500 deputies of the Volkskammer elected on the single National Front list, led by the ruling SED.",
           composition: { seatsByParty: { DD_SED: 290, DD_CDU: 52, DD_LDPD: 52, DD_NDPD: 52, DD_DBD: 54 }, vacancies: 0 },
+        },
+        {
+          // Subnational chamber (W40); seats = sum of per-region senateSeats in ddRegions1979.ts
+          // (same convention as the 1953 pack, see its regionalCouncil W40 fix note).
+          key: "landAssembly",
+          name: "Landtag",
+          shortName: "Landtag",
+          seats: 80,
+          elected: true,
+          description: "The Landtage of the GDR's eastern Laender - the legislative arm of each Land government under the SED First Secretary. Four-year terms on the Volkskammer cycle.",
+          composition: { seatsByParty: {}, vacancies: 80 },
         },
       ],
     },

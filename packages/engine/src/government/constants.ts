@@ -100,8 +100,12 @@ export const BASE_ELECTION_TYPE_BY_CHAMBER: Record<string, string> = {
  */
 export const SNAP_ELECTION_TYPE_BY_CHAMBER: Record<string, string> = {
   commons: "snap_commons",
-  sovietOfTheUnion: "snap_sovietOfTheUnion",
-  volkskammer: "snap_volkskammer",
+  // Named snap_<base election type>, the same convention as snap_commons
+  // (commons -> "commons"), so the multi-seat gates in electionEngine
+  // recognise them: a vacant one-party chamber otherwise resolved as a
+  // single-winner race and seated 1 of 559 deputies (QA sweep, 1979 RU).
+  sovietOfTheUnion: "snap_supremeSovietDeputy",
+  volkskammer: "snap_volkskammerDeputy",
 };
 
 /**

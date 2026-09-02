@@ -319,10 +319,14 @@ export const pack1953: SeedPack = {
           key: "stateSenate",
           name: "State Senate",
           shortName: "State Senate",
-          seats: 1972,
+          // 1925 = sum of usStates1953.ts per-state senateSeats over the 48 seeded
+          // states (AK/HI are territories in 1953). Was 1972, the 50-state sum, which
+          // left 47 seats no per-state race could ever fill (permanent phantom
+          // vacancies; same defect class as the regionalCouncil W40 fix below).
+          seats: 1925,
           elected: true,
           description: "Each state's elected legislature, which sets state law and budgets.",
-          composition: { seatsByParty: {}, vacancies: 1972 },
+          composition: { seatsByParty: {}, vacancies: 1925 },
         },
       ],
     },
@@ -390,10 +394,13 @@ export const pack1953: SeedPack = {
           key: "republicSupremeSoviet",
           name: "Republic Supreme Soviet",
           shortName: "Republic Soviet",
-          seats: 5000,
+          // 4587 = sum of ruRegions1953.ts per-region senateSeats (regional Supreme
+          // Soviets). Was a round 5000 that no per-region race could fill (413
+          // permanent phantom vacancies); see the stateSenate note above.
+          seats: 4587,
           elected: true,
           description: "The Supreme Soviets of the union republics and the regional Soviets of People's Deputies - the legislative arm of each republic government. Four-year terms.",
-          composition: { seatsByParty: {}, vacancies: 5000 },
+          composition: { seatsByParty: {}, vacancies: 4587 },
         },
       ],
     },

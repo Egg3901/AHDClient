@@ -1,4 +1,6 @@
 import type { SeedPack } from "../types.js";
+import { usStates2019 } from "./usStates2019.js";
+import { ukRegions2019 } from "./ukRegions2019.js";
 
 /**
  * Ported from mainline AHDGame ("2019-default" preset) — real authored
@@ -106,6 +108,9 @@ export const pack2019: SeedPack = {
       economy: { gdp: 92_903, growthRate: 0.022, inflationRate: 0.114, unemploymentRate: 0.233 },
     },
   ],
+  // State layer (regions, apportionment, registration) generated from mainline's
+  // per-era bundles by scripts/generateStateLayer.ts; see each file's header.
+  states: [...usStates2019, ...ukRegions2019],
   parties: [
     { id: "US_DEM", name: "Democratic Party", countryId: "US", abbreviation: "DEM", color: "#3B82F6", economicPosition: -2, socialPosition: -2 },
     { id: "US_REP", name: "Republican Party", countryId: "US", abbreviation: "REP", color: "#EF4444", economicPosition: 2, socialPosition: 2 },
@@ -150,6 +155,17 @@ export const pack2019: SeedPack = {
           description: "435 representatives, two-year terms. All revenue bills originate here.",
           composition: { seatsByParty: { US_DEM: 231, US_REP: 201 }, vacancies: 3 },
         },
+        {
+          // Subnational chamber (W40); seats = sum of per-region senateSeats in usStates2019.ts
+          // (same convention as the 1953 pack, see its regionalCouncil W40 fix note).
+          key: "stateSenate",
+          name: "State Senate",
+          shortName: "State Senate",
+          seats: 1972,
+          elected: true,
+          description: "Each state's elected legislature, which sets state law and budgets.",
+          composition: { seatsByParty: {}, vacancies: 1972 },
+        },
       ],
     },
     {
@@ -183,6 +199,17 @@ export const pack2019: SeedPack = {
             seatsByParty: { UK_CON: 352, UK_LAB: 203, UK_SNP: 47, UK_LD: 14, UK_DUP: 8, UK_SF: 7, UK_PC: 4, UK_GRN: 1 },
             vacancies: 14,
           },
+        },
+        {
+          // Subnational chamber (W40); seats = sum of per-region senateSeats in ukRegions2019.ts
+          // (same convention as the 1953 pack, see its regionalCouncil W40 fix note).
+          key: "regionalCouncil",
+          name: "Regional Council",
+          shortName: "Regional Council",
+          seats: 578,
+          elected: true,
+          description: "Elected regional councillors representing UK nations and regions on staggered five-year terms.",
+          composition: { seatsByParty: {}, vacancies: 578 },
         },
       ],
     },

@@ -4,10 +4,18 @@ import type { WorldState } from "./types.js";
 import { getPackByEra, PACKS_BY_DATE } from "@rotunda/content";
 import { createPoliticiansForWorld } from "./politician.js";
 import { CATEGORIES_BY_COUNTRY_1953 } from "./demographics/categories.js";
-import { US_STATE_DEMOGRAPHICS_1953 } from "./demographics/usStateDemographics1953.js";
+import { US_STATE_DEMOGRAPHICS_1953, type StateDemographicsSeed } from "./demographics/usStateDemographics1953.js";
 import { UK_DEMOGRAPHICS_1953 } from "./demographics/ukDemographics1953.js";
 import { RU_DEMOGRAPHICS_1953 } from "./demographics/ruDemographics1953.js";
 import { DD_DEMOGRAPHICS_1953 } from "./demographics/ddDemographics1953.js";
+import { US_STATE_DEMOGRAPHICS_1979 } from "./demographics/usStateDemographics1979.js";
+import { US_STATE_DEMOGRAPHICS_1991 } from "./demographics/usStateDemographics1991.js";
+import { US_STATE_DEMOGRAPHICS_2019 } from "./demographics/usStateDemographics2019.js";
+import { UK_DEMOGRAPHICS_1979 } from "./demographics/ukDemographics1979.js";
+import { UK_DEMOGRAPHICS_1991 } from "./demographics/ukDemographics1991.js";
+import { UK_DEMOGRAPHICS_2019 } from "./demographics/ukDemographics2019.js";
+import { RU_DEMOGRAPHICS_1979 } from "./demographics/ruDemographics1979.js";
+import { DD_DEMOGRAPHICS_1979 } from "./demographics/ddDemographics1979.js";
 import {
   COMMODITY_BASE_PRICES,
   COMMODITY_TYPES,
@@ -1005,18 +1013,23 @@ function seedDemographics(
   const baselineDemographics: WorldState["baselineDemographics"] = {};
   const laborForces: WorldState["laborForces"] = {};
 
-  const is1953 = pack.era.id === "1953";
-  const usSeeds: typeof US_STATE_DEMOGRAPHICS_1953 | null = is1953 ? US_STATE_DEMOGRAPHICS_1953 : null;
-  const ukSeeds: typeof UK_DEMOGRAPHICS_1953 | null = is1953 ? UK_DEMOGRAPHICS_1953 : null;
-  const ruSeeds: typeof RU_DEMOGRAPHICS_1953 | null = is1953 ? RU_DEMOGRAPHICS_1953 : null;
-  const ddSeeds: typeof DD_DEMOGRAPHICS_1953 | null = is1953 ? DD_DEMOGRAPHICS_1953 : null;
-  const usMap = new Map<string, (typeof US_STATE_DEMOGRAPHICS_1953)[number]>();
+  // Per-era Layer-1 demographics, generated from mainline's own per-preset
+  // bundles (scripts/generateStateLayer.ts). Eras without a bundle for a
+  // country (RU/DD after 1991: they no longer exist) fall to the nationwide
+  // demographics fallback below, exactly as before this table existed.
+  const eraId = pack.era.id;
+  const pick = <T>(table: Record<string, T>): T | null => table[eraId] ?? null;
+  const usSeeds: StateDemographicsSeed[] | null = pick({ "1953": US_STATE_DEMOGRAPHICS_1953, "1979": US_STATE_DEMOGRAPHICS_1979, "1991": US_STATE_DEMOGRAPHICS_1991, "2019": US_STATE_DEMOGRAPHICS_2019 });
+  const ukSeeds: StateDemographicsSeed[] | null = pick({ "1953": UK_DEMOGRAPHICS_1953, "1979": UK_DEMOGRAPHICS_1979, "1991": UK_DEMOGRAPHICS_1991, "2019": UK_DEMOGRAPHICS_2019 });
+  const ruSeeds: StateDemographicsSeed[] | null = pick({ "1953": RU_DEMOGRAPHICS_1953, "1979": RU_DEMOGRAPHICS_1979 });
+  const ddSeeds: StateDemographicsSeed[] | null = pick({ "1953": DD_DEMOGRAPHICS_1953, "1979": DD_DEMOGRAPHICS_1979 });
+  const usMap = new Map<string, StateDemographicsSeed>();
   if (usSeeds) for (const s of usSeeds) usMap.set(s.stateId, s);
-  const ukMap = new Map<string, (typeof UK_DEMOGRAPHICS_1953)[number]>();
+  const ukMap = new Map<string, StateDemographicsSeed>();
   if (ukSeeds) for (const s of ukSeeds) ukMap.set(s.stateId, s);
-  const ruMap = new Map<string, (typeof RU_DEMOGRAPHICS_1953)[number]>();
+  const ruMap = new Map<string, StateDemographicsSeed>();
   if (ruSeeds) for (const s of ruSeeds) ruMap.set(s.stateId, s);
-  const ddMap = new Map<string, (typeof DD_DEMOGRAPHICS_1953)[number]>();
+  const ddMap = new Map<string, StateDemographicsSeed>();
   if (ddSeeds) for (const s of ddSeeds) ddMap.set(s.stateId, s);
 
   const nowIso = `${_startDate}T00:00:00.000Z`;

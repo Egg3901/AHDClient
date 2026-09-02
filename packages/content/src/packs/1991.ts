@@ -1,4 +1,6 @@
 import type { SeedPack } from "../types.js";
+import { usStates1991 } from "./usStates1991.js";
+import { ukRegions1991 } from "./ukRegions1991.js";
 
 /**
  * Ported from mainline AHDGame ("1991-default" preset) — real authored 1991
@@ -124,6 +126,9 @@ export const pack1991: SeedPack = {
       economy: { gdp: 200_000, growthRate: 0.009, inflationRate: 0.66, unemploymentRate: 0.08 },
     },
   ],
+  // State layer (regions, apportionment, registration) generated from mainline's
+  // per-era bundles by scripts/generateStateLayer.ts; see each file's header.
+  states: [...usStates1991, ...ukRegions1991],
   parties: [
     { id: "US_DEM", name: "Democratic Party", countryId: "US", abbreviation: "DEM", color: "#3B82F6", economicPosition: -2, socialPosition: -2 },
     { id: "US_REP", name: "Republican Party", countryId: "US", abbreviation: "REP", color: "#EF4444", economicPosition: 2, socialPosition: 2 },
@@ -169,6 +174,17 @@ export const pack1991: SeedPack = {
           description: "435 representatives, two-year terms. All revenue bills originate here.",
           composition: { seatsByParty: { US_DEM: 268, US_REP: 166 }, vacancies: 1 },
         },
+        {
+          // Subnational chamber (W40); seats = sum of per-region senateSeats in usStates1991.ts
+          // (same convention as the 1953 pack, see its regionalCouncil W40 fix note).
+          key: "stateSenate",
+          name: "State Senate",
+          shortName: "State Senate",
+          seats: 1972,
+          elected: true,
+          description: "Each state's elected legislature, which sets state law and budgets.",
+          composition: { seatsByParty: {}, vacancies: 1972 },
+        },
       ],
     },
     {
@@ -204,6 +220,17 @@ export const pack1991: SeedPack = {
             seatsByParty: { UK_CON: 336, UK_LAB: 271, UK_LD: 20, UK_UUP: 9, UK_PC: 4, UK_SNP: 3, UK_DUP: 3 },
             vacancies: 5,
           },
+        },
+        {
+          // Subnational chamber (W40); seats = sum of per-region senateSeats in ukRegions1991.ts
+          // (same convention as the 1953 pack, see its regionalCouncil W40 fix note).
+          key: "regionalCouncil",
+          name: "Regional Council",
+          shortName: "Regional Council",
+          seats: 578,
+          elected: true,
+          description: "Elected regional councillors representing UK nations and regions on staggered five-year terms.",
+          composition: { seatsByParty: {}, vacancies: 578 },
         },
       ],
     },

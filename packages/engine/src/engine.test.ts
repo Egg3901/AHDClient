@@ -513,13 +513,13 @@ describe("political structures", () => {
     expect(volks.vacancies).toBe(0);
   });
 
-  it("US stateSenate is vacant 1972 with citation (no invented 1953 composition)", () => {
+  it("US stateSenate is vacant 1925 with citation (no invented 1953 composition)", () => {
     const world = createWorld({ seed: "x", playerName: "P", countryId: "US", era: "1953" });
     const stateSenate = world.legislatures["US"]!.chambers.find((c) => c.key === "stateSenate")!;
     // No mainline 1953 composition exists for state legislatures; leave vacant.
-    // Total 1972 matches sum of per-state senateSeats.
-    expect(stateSenate.seats).toBe(1972);
-    expect(stateSenate.composition.vacancies).toBe(1972);
+    // Total 1925 = sum of per-state senateSeats over the 48 seeded states (AK/HI territories); 1972 is the 50-state sum.
+    expect(stateSenate.seats).toBe(1925);
+    expect(stateSenate.composition.vacancies).toBe(1925);
     expect(Object.keys(stateSenate.composition.seatsByParty).length).toBe(0);
   });
 });
@@ -534,7 +534,7 @@ describe("W38 US states layer", () => {
     expect(Object.keys(world.regions).length).toBe(80); // 48 US +12 UK +14 RU +6 DD
   });
 
-  it("apportionment sums to 435 and per-state senate sum to 1925 (50-state chamber is 1972)", () => {
+  it("apportionment sums to 435 and per-state senate sum to 1925 (50-state sum is 1972)", () => {
     const world = createWorld({ seed: "s", playerName: "P", countryId: "US", era: "1953" });
     const usRegions = Object.values(world.regions).filter((r) => r.countryId === "US");
     const houseSum = usRegions.reduce((a, r) => a + (r.houseSeats ?? 0), 0);

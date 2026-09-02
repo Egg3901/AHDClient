@@ -229,11 +229,11 @@ describe("validatePack", () => {
   it("state legislatures: stateSenate chamber is vacant with citation (no invented 1953 composition)", () => {
     const usLeg = pack1953.legislatures!.find((l) => l.countryId === "US")!;
     const stateSenate = usLeg.chambers.find((c) => c.key === "stateSenate")!;
-    // 1972 is the 50-state total (STATE_SENATE_SEATS sum). 1953 pack has 48 contiguous states
+    // 1972 is the 50-state total (STATE_SENATE_SEATS sum); the chamber is sized to the seeded 48-state sum. 1953 pack has 48 contiguous states
     // (AK 20 + HI 25 absent; plus NY 61 vs modern 63 delta). Per-state sum for 1953 is 1925.
     // No mainline 1953 composition exists, so it stays vacant. Source: historicalSeats.ts has no US_STATE_SENATE_1953 roster; only US_HOUSE/SENATE/GOVERNOR for 1953.
-    expect(stateSenate.seats).toBe(1972);
-    expect(stateSenate.composition.vacancies).toBe(1972);
+    expect(stateSenate.seats).toBe(1925);
+    expect(stateSenate.composition.vacancies).toBe(1925);
     expect(Object.keys(stateSenate.composition.seatsByParty).length).toBe(0);
     // Sum of per-state senateSeats for 1953 US 48 states is 1925
     const sum = pack1953.states!.filter((s) => s.countryId === "US").reduce((a, s) => a + s.senateSeats, 0);
@@ -274,5 +274,59 @@ describe("validatePack", () => {
     expect(cen.registration.parties.find((p) => p.abbr === "CPSU")!.reg).toBe(98);
     const beo = pack1953.states!.find((s) => s.id === "BEO")!;
     expect(beo.registration.parties.find((p) => p.abbr === "SED")!.reg).toBe(66);
+  });
+});
+
+describe("state layer (regions, apportionment) per pack", () => {
+  // Regression guard for the 2026-09-02 QA-sweep finding: the 1979/1991/2019
+  // packs shipped with no US state layer (3 placeholder regions), so no
+  // per-state House/Senate/governor race could ever spawn and a 1979 US
+  // Congress stayed empty forever; 1991/2019 only looked healthy because they
+  // seeded Congress from a historical table and then froze it. Every playable
+  // country in every pack must carry regions whose apportionment sums match
+  // the chamber seat counts the election orchestration spawns against.
+  const seatsOf = (pack: SeedPack, country: string, key: string): number | undefined =>
+    pack.legislatures?.find((l) => l.countryId === country)?.chambers.find((c) => c.key === key)?.seats;
+  const sum = (xs: Array<{ houseSeats: number; senateSeats: number }>, k: "houseSeats" | "senateSeats") => xs.reduce((a, s) => a + s[k], 0);
+
+  it("every playable country has regions with per-region apportionment", () => {
+    for (const pack of PACKS) {
+      for (const c of pack.countries.filter((x) => x.playable)) {
+        const regions = (pack.states ?? []).filter((s) => s.countryId === c.id);
+        expect(regions.length, `${pack.era.id} ${c.id} regions`).toBeGreaterThan(0);
+        for (const r of regions) expect(r.registration.parties.length, `${pack.era.id} ${r.id} registration`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("US: 50 states, no DC, House apportionment sums to the House chamber, state-senate sums to the stateSenate chamber", () => {
+    for (const pack of PACKS) {
+      const us = (pack.states ?? []).filter((s) => s.countryId === "US");
+      if (pack.era.id === "1953") expect(us.length).toBe(48); // AK/HI territories
+      else expect(us.length, pack.era.id).toBe(50);
+      expect(us.some((s) => s.id === "DC"), `${pack.era.id} DC`).toBe(false);
+      expect(sum(us, "houseSeats"), `${pack.era.id} house`).toBe(seatsOf(pack, "US", "house"));
+      expect(sum(us, "senateSeats"), `${pack.era.id} stateSenate`).toBe(seatsOf(pack, "US", "stateSenate"));
+    }
+  });
+
+  it("UK: 12 regions whose council seats sum to the regionalCouncil chamber", () => {
+    for (const pack of PACKS) {
+      const uk = (pack.states ?? []).filter((s) => s.countryId === "UK");
+      expect(uk.length, pack.era.id).toBe(12);
+      expect(sum(uk, "senateSeats"), `${pack.era.id} regionalCouncil`).toBe(seatsOf(pack, "UK", "regionalCouncil"));
+    }
+  });
+
+  it("RU/DD (where present): region apportionment sums to the national and subnational chambers", () => {
+    for (const pack of PACKS) {
+      for (const [cid, lower, upper] of [["RU", "sovietOfTheUnion", "republicSupremeSoviet"], ["DD", "volkskammer", "landAssembly"]] as const) {
+        if (!pack.countries.some((c) => c.id === cid)) continue;
+        const rs = (pack.states ?? []).filter((s) => s.countryId === cid);
+        expect(rs.length, `${pack.era.id} ${cid}`).toBeGreaterThan(0);
+        expect(sum(rs, "houseSeats"), `${pack.era.id} ${cid} ${lower}`).toBe(seatsOf(pack, cid, lower));
+        expect(sum(rs, "senateSeats"), `${pack.era.id} ${cid} ${upper}`).toBe(seatsOf(pack, cid, upper));
+      }
+    }
   });
 });
