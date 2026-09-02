@@ -1,0 +1,7 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capability",
+  "identifier": "online",
+  "description": "Multiplayer window — deliberately empty. FRAMEWORK.md security doctrine #2/#3: the online window is a webview onto https://www.ahousedividedgame.com and must never get Tauri IPC, fs, dialog, or shell. This file exists to make the zero-grant explicit and reviewable; deleting it would have the same effect (a window with no matching capability gets no permissions), but leaving it here means a future edit can't accidentally widen the online window's surface without touching a file whose whole purpose is staying empty.",
+  "windows": ["online"],
+  "permissions": []
+}

@@ -36,39 +36,22 @@ import { CampaignsScreen } from "./campaigns/Campaigns.js";
 import "./campaigns/campaigns.css";
 import { HeadOfStateScreen } from "./hos/HeadOfState.js";
 import "./hos/hos.css";
+import { ONLINE_URL } from "./onlineTarget.js";
 
-const ONLINE_URL = "https://www.ahousedividedgame.com";
-
+// The online window is built entirely on the Rust side (src-tauri/src/lib.rs,
+// `open_online_window`) so it can be given navigation/new-window guards
+// without ever handing the remote webview a Tauri capability. See
+// docs/FRAMEWORK.md "Security doctrine" and capabilities/online.json (empty
+// permission set) plus capabilities/default.json (only "main" may invoke
+// this command). If the Tauri bridge is unavailable for any reason (e.g. a
+// bug that leaves `window.__TAURI_INTERNALS__` unset), fall back to a plain
+// system-browser open rather than leaving the button dead.
 async function openOnline(): Promise<void> {
   try {
-    const mod = await import("@tauri-apps/api/webviewWindow");
-    const WebviewWindow = (mod as unknown as { WebviewWindow: unknown }).WebviewWindow as {
-      getByLabel: (label: string) => Promise<{ setFocus: () => Promise<void> } | null>;
-      prototype: unknown;
-      new (label: string, opts: Record<string, unknown>): {
-        once: (event: string, handler: (e: unknown) => void) => void;
-      };
-    };
-    const existing = await WebviewWindow.getByLabel("online");
-    if (existing) {
-      await existing.setFocus();
-      return;
-    }
-    const win = new (WebviewWindow as unknown as new (label: string, opts: Record<string, unknown>) => { once: (e: string, h: (x: unknown) => void) => void })(
-      "online",
-      {
-        url: ONLINE_URL,
-        title: "A House Divided - Online",
-        width: 1280,
-        height: 800,
-        center: true,
-        resizable: true,
-      },
-    );
-    win.once("tauri://error", (e) => {
-      console.error("online window error", e);
-    });
-  } catch {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("open_online_window");
+  } catch (e) {
+    console.error("failed to open online window", e);
     window.open(ONLINE_URL, "_blank", "noopener");
   }
 }

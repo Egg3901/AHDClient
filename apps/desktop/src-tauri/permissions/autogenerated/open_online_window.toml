@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-online-window"
+description = "Enables the open_online_window command without any pre-configured scope."
+commands.allow = ["open_online_window"]
+
+[[permission]]
+identifier = "deny-open-online-window"
+description = "Denies the open_online_window command without any pre-configured scope."
+commands.deny = ["open_online_window"]

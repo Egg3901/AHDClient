@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2/capability",
   "identifier": "default",
-  "description": "Main window - dialog open/save, file exchange via dialog, and managed saves under $APPDATA/saves/** with crash-safe tmp rename",
+  "description": "Main window - dialog open/save, managed saves under $APPDATA/saves/** with crash-safe tmp rename, and opening the multiplayer window (Rust-side command; the online window itself gets zero capabilities, see capabilities/online.json)",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "core:webview:allow-create-webview-window",
+    "allow-open-online-window",
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
