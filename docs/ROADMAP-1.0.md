@@ -116,7 +116,7 @@ U1 government viewer (in flight) - U2 economy dashboard with charts - U3 corpora
 ## Platform lane
 
 - P1 autosave and save slots (with U13)
-- P2 packaging: tauri bundle, icons, updater plugin; linux builds on this box; windows/macOS need a runner decision (owner: enable Actions billing, make repo public at release, or build on an owned machine)
+- P2 packaging: tauri bundle and icons; Linux, Windows, and macOS unsigned validation bundles run through `.github/workflows/release-desktop.yml`; public signing, notarization, publishing, and the updater endpoint still require owner credentials and release decisions
 - P3 multiplayer viewer polish: session persistence, external link handling; ahd-client feature audit, absorption, archive
 - P4 QA gate: 40 in-game years per era via CLI without invariant breaks, determinism in verify, bench budget, manual smoke checklist on a real desktop
 - P5 release: 1.0.0 version, changelog, distribution

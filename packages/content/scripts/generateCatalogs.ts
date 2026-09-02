@@ -11,7 +11,7 @@
  *     (policyDefaults: the baseline option per tax law for a preset)
  *
  * Run FROM THE MAINLINE CHECKOUT so its `@/` alias resolves:
- *   cd /root/projects/AHDGame && npx tsx /root/projects/Rotunda/packages/content/scripts/generateCatalogs.ts
+ *   npx tsx ../Rotunda/packages/content/scripts/generateCatalogs.ts
  *
  * Mapping (same conventions the hand-ported US/UK/RU/DD entries use):
  *  - id = mainline `_id`; title/description/category(policyDomain) verbatim.
@@ -47,8 +47,7 @@ import { brLegislationTypes } from "@/lib/seeds/br/brLegislationTypes";
 import { ADAPTER_TIER1 } from "@/lib/politicalLegislation/marginAdapter";
 import { getNationalBudgetSeedConfigsForPreset } from "@/lib/seeds/reference/budgets";
 
-const OUT = "/root/projects/Rotunda/packages/engine/src/legislation";
-const DATE = new Date().toISOString().slice(0, 10);
+const OUT = path.resolve(import.meta.dirname, "../../engine/src/legislation");
 
 type Opt = { id: string; name: string; rate?: number; economic?: number; social?: number; effectDirection?: number };
 type LT = { _id: string; name: string; description?: string; policyDomain?: string; nationalOnly?: boolean; effectTargetsWeighted?: Array<{ metricCategoryId: string; metricId: string; weight: number }>; taxRateChange?: { scope: string; taxType: string }; policyOptions?: Opt[]; isPermanent?: boolean; source?: string };
@@ -70,7 +69,7 @@ function emit(c: string, types: LT[]): void {
     `import type { CatalogEntry } from "./catalog.js";`,
     "/**",
     ` * ${c} legislation catalog. Generated from mainline AHDGame — DO NOT HAND-EDIT.`,
-    ` * Generated: ${DATE} by packages/content/scripts/generateCatalogs.ts`,
+    " * Generator: packages/content/scripts/generateCatalogs.ts",
     ` * Source: src/lib/seeds/${c.toLowerCase()}/${c.toLowerCase()}LegislationTypes.ts (${types.length} types),`,
     " * src/lib/politicalLegislation/marginAdapter.ts ADAPTER_TIER1 (target mapping),",
     " * src/lib/seeds/reference/budgets.ts policyDefaults (tax baselines). See the",

@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import tauriConfig from "../src-tauri/tauri.conf.json";
 import defaultCapability from "../src-tauri/capabilities/default.json";
 import onlineCapability from "../src-tauri/capabilities/online.json";
@@ -32,5 +35,20 @@ describe("desktop security configuration", () => {
     for (const permission of filesystemPermissions) {
       expect(permission.allow?.every(({ path }) => path === "$APPDATA/saves" || path.startsWith("$APPDATA/saves/"))).toBe(true);
     }
+  });
+});
+
+describe("desktop platform configuration", () => {
+  it("builds native bundles on Linux, Windows, and macOS runners", () => {
+    expect(tauriConfig.bundle.targets).toBe("all");
+
+    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
+    const workflow = readFileSync(join(sourceDirectory, "../../../.github/workflows/release-desktop.yml"), "utf8");
+    expect(workflow).toContain("ubuntu-22.04");
+    expect(workflow).toContain("windows-latest");
+    expect(workflow).toContain("macos-latest");
+    expect(workflow).toContain("--bundles appimage,deb");
+    expect(workflow).toContain("--bundles nsis");
+    expect(workflow).toContain("--bundles dmg");
   });
 });

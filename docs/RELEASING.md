@@ -31,31 +31,23 @@ Artifacts land under `apps/desktop/src-tauri/target/release/bundle/`:
 - `appimage/A House Divided_<version>_amd64.AppImage`
 - `deb/A House Divided_<version>_amd64.deb`
 
-`tauri.conf.json` pins `bundle.targets` to `["appimage", "deb"]`. `.deb`
-dependencies (`libwebkit2gtk-4.1-0`, `libgtk-3-0`) are auto-detected by the
-bundler from the linked libraries; no manual `depends` list needed.
+`tauri.conf.json` uses the platform-native `"all"` target set. The release
+workflow narrows Linux to AppImage and deb. `.deb` dependencies
+(`libwebkit2gtk-4.1-0`, `libgtk-3-0`) are auto-detected by the bundler from
+the linked libraries; no manual `depends` list is needed.
 
-## Windows (not yet built here — runner decision needed)
+## Windows
 
-Tauri produces an NSIS `.exe` and/or `.msi` on Windows. This box is Linux and
-cannot cross-compile a Windows installer (Tauri bundling is host-platform
-only). Options for the owner to decide:
+The `desktop bundles` workflow builds an x64 NSIS installer on
+`windows-latest`. It can be run manually or by pushing a `v*` tag. Icons are
+already generated (`icons/icon.ico`); no extra icon work is needed.
 
-1. A Windows CI runner (GitHub Actions `windows-latest`) running
-   `npx tauri build` — the standard path.
-2. A dedicated Windows build machine.
+## macOS
 
-Once a runner exists, the command is the same (`npm install && npm run
-build:web --workspace apps/desktop && npx tauri build` from `apps/desktop`).
-Icons are already generated (`icons/icon.ico`); no extra icon work needed.
-
-## macOS (not yet built here — runner decision needed)
-
-Same constraint as Windows: Tauri bundles `.app` / `.dmg` only on a macOS
-host, and Apple notarization requires an Apple Developer account + signing
-identity. Needs a macOS CI runner (GitHub Actions `macos-latest`) or a Mac
-build machine, decided by the owner. `icons/icon.icns` is already generated
-and ready.
+The `desktop bundles` workflow builds DMGs for Apple Silicon and Intel on
+`macos-latest`. Unsigned workflow artifacts are suitable for build validation.
+Public distribution still needs an Apple Developer signing identity and
+notarization credentials. `icons/icon.icns` is already generated and ready.
 
 ## Icon generation
 

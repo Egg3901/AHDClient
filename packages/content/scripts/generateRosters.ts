@@ -12,7 +12,7 @@
  *   packages/engine/src/cabinet/positionsPorted.ts                       JP/DE/IE/CN cabinet position tables
  *
  * Run FROM THE MAINLINE CHECKOUT so its `@/` alias resolves:
- *   cd /root/projects/AHDGame && npx tsx /root/projects/Rotunda/packages/content/scripts/generateRosters.ts
+ *   npx tsx ../Rotunda/packages/content/scripts/generateRosters.ts
  *
  * Chamber sizing rule (same rule the content seat-sum tests enforce): a chamber
  * whose seats are contested per region is sized to the SUM of that region
@@ -62,11 +62,10 @@ import { ieDemographicCategories } from "@/lib/seeds/ie/ieDemographicCategories"
 import { cnDemographicCategories } from "@/lib/seeds/cn/cnDemographicCategories";
 import { brDemographicCategories } from "@/lib/seeds/br/brDemographicCategories";
 
-const ROTUNDA = "/root/projects/Rotunda/packages";
+const ROTUNDA = path.resolve(import.meta.dirname, "../..");
 const PACKS = path.join(ROTUNDA, "content/src/packs");
 const DEMO = path.join(ROTUNDA, "engine/src/demographics");
 const CABINET = path.join(ROTUNDA, "engine/src/cabinet");
-const DATE = new Date().toISOString().slice(0, 10);
 
 type Reg = { parties: Array<{ abbr: string; org: number; reg: number }>; independent: number; unregistered: number; unaffiliatedOrg: number };
 type RegionIn = { _id: string; countryId: string; name: string; population: number; gdp: number; houseDistricts: number; stateSenateSeats: number; region: string };
@@ -77,7 +76,7 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 const preset = (era: string) => `${era}-default`;
 
 function header(title: string, sources: string[], notes: string[] = []): string {
-  return ["/**", ` * ${title}. Generated from mainline AHDGame — DO NOT HAND-EDIT.`, ` * Generated: ${DATE} by packages/content/scripts/generateRosters.ts`, " * Sources:", ...sources.map((s) => ` * - ${s}`), ...(notes.length ? [" *", ...notes.map((n) => ` * ${n}`)] : []), " */"].join("\n");
+  return ["/**", ` * ${title}. Generated from mainline AHDGame - DO NOT HAND-EDIT.`, " * Generator: packages/content/scripts/generateRosters.ts", " * Sources:", ...sources.map((s) => ` * - ${s}`), ...(notes.length ? [" *", ...notes.map((n) => ` * ${n}`)] : []), " */"].join("\n");
 }
 const fmtReg = (r: Reg) => `{ parties: [${r.parties.map((p) => `{ abbr: "${p.abbr}", org: ${p.org}, reg: ${p.reg} }`).join(", ")}], independent: ${r.independent}, unregistered: ${r.unregistered}, unaffiliatedOrg: ${r.unaffiliatedOrg} }`;
 

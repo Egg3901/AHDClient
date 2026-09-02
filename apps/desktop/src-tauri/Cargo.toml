@@ -5,7 +5,7 @@ edition = "2021"
 description = "A House Divided: Solo - Tauri shell"
 authors = ["Lakeside Games"]
 license = "PolyForm-Noncommercial-1.0.0"
-repository = "https://github.com/Egg3901/AHDGame"
+repository = "https://github.com/Egg3901/Rotunda"
 rust-version = "1.77.2"
 
 [lib]

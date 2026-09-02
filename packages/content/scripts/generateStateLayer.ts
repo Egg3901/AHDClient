@@ -11,7 +11,7 @@
  *   packages/engine/src/demographics/ruDemographics1979.ts, ddDemographics1979.ts
  *
  * Run FROM THE MAINLINE CHECKOUT so its `@/` path alias resolves:
- *   cd /root/projects/AHDGame && npx tsx /root/projects/Rotunda/packages/content/scripts/generateStateLayer.ts
+ *   npx tsx ../Rotunda/packages/content/scripts/generateStateLayer.ts
  *
  * Mainline is read-only; this script only reads it. Every emitted file
  * carries a source header. Conventions mirror the hand-generated 1953 files
@@ -49,10 +49,9 @@ import ukRegionDemographics2019 from "@/lib/seeds/uk/ukRegionDemographics";
 import { getCountryLayer1Model } from "@/lib/seeds/international";
 import { buildModelRegionDemographics } from "@/lib/seeds/international/derive";
 
-const ROTUNDA = "/root/projects/Rotunda/packages";
+const ROTUNDA = path.resolve(import.meta.dirname, "../..");
 const PACKS = path.join(ROTUNDA, "content/src/packs");
 const DEMO = path.join(ROTUNDA, "engine/src/demographics");
-const DATE = new Date().toISOString().slice(0, 10);
 
 type Reg = { parties: Array<{ abbr: string; org: number; reg: number }>; independent: number; unregistered: number; unaffiliatedOrg: number };
 type RegionIn = { _id: string; countryId: string; name: string; population: number; gdp: number; houseDistricts: number; stateSenateSeats: number; region: string };
@@ -62,8 +61,8 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 function header(title: string, sources: string[], notes: string[] = []): string {
   return [
     "/**",
-    ` * ${title}. Generated from mainline AHDGame — DO NOT HAND-EDIT.`,
-    ` * Generated: ${DATE} by packages/content/scripts/generateStateLayer.ts`,
+    ` * ${title}. Generated from mainline AHDGame - DO NOT HAND-EDIT.`,
+    " * Generator: packages/content/scripts/generateStateLayer.ts",
     " * Sources:",
     ...sources.map((s) => ` * - ${s}`),
     ...(notes.length ? [" *", ...notes.map((n) => ` * ${n}`)] : []),

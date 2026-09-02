@@ -428,6 +428,10 @@ describe("seed packs integration", () => {
     expect(() => createWorld({ seed: "s", playerName: "P", countryId: "US", era: "2099" })).toThrow(/Unknown era/i);
   });
 
+  it("createWorld requires an explicit era", () => {
+    expect(() => createWorld({ seed: "s", playerName: "P", countryId: "US" } as never)).toThrow(/era.*required/i);
+  });
+
   it("createWorld throws on non-playable country", () => {
     // FR is non-playable (economy-preview in 1953-default)
     expect(() => createWorld({ seed: "s", playerName: "P", countryId: "FR", era: "1953" })).toThrow(/not playable/i);

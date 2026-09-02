@@ -11,14 +11,11 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const MAINLINE = "/root/projects/AHDGame";
-const DATE = new Date().toISOString().slice(0, 10);
-
 // ---------------------------------------------------------------------------
 // Raw data extracted from mainline (see provenance headers in output packs)
 // ---------------------------------------------------------------------------
 
-// From /root/projects/AHDGame/src/lib/seeds/reference/budgets.ts
+// From mainline src/lib/seeds/reference/budgets.ts
 // NATIONAL_BUDGET_SEED_CONFIGS_1953 (18 direct + 9 via makeEasternBlocBudget1953)
 // gdp in local currency (or USD where denomination = usd), see gdpDenomination.ts
 interface RawBudget {
@@ -187,7 +184,6 @@ function header(files: string[]): string {
   return `/**
  * Generated from mainline AHDGame  -  DO NOT HAND-EDIT.
  * Source files: ${files.join(", ")}
- * Generated: ${DATE}
  * See packages/content/scripts/generatePacks.ts for conversion notes.
  */`;
 }
@@ -233,6 +229,7 @@ function emitPack(
 const ORDER_1953 = Object.keys(RAW_1953); // insertion order = budget order
 const countries1953 = ORDER_1953.map((id) => {
   const r = RAW_1953[id];
+  if (!r) throw new Error(`Missing 1953 budget row for ${id}`);
   const gdpM = gdpToUsdMillions(id, r.gdp);
   const unemp = UNEMP_1953[id] ?? 2.0;
   return buildCountry(id, gdpM, r.growth, r.inflation, unemp, PLAYABLE_1953.has(id));

@@ -183,13 +183,8 @@ export interface NewWorldOptions {
   seed: string;
   playerName: string;
   countryId: string;
-  /**
-   * Era id from listEras(). Required per contract; optional at the type
-   * level only for backward compat with the pre-pack desktop shell which
-   * calls newGame without an era. When omitted, defaults to the earliest
-   * shipped era ("1953").
-   */
-  era?: string;
+  /** Era id from listEras(). */
+  era: string;
   overrides?: WorldOverrides;
   /**
    * M1 (Lane 12): play mode, chosen at world creation. Career (default): the
@@ -292,7 +287,10 @@ export function rulingPartyForCountry(era: string, countryId: string): { id: str
 }
 
 export function createWorld(options: NewWorldOptions): WorldState {
-  const era = options.era ?? PACKS_BY_DATE[0]!.era.id;
+  if (typeof options.era !== "string" || options.era.trim() === "") {
+    throw new Error("New world era is required");
+  }
+  const era = options.era;
   const pack = getPackByEra(era);
   if (!pack) throw new Error(`Unknown era: ${era}`);
 

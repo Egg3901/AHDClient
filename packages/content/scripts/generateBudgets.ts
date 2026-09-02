@@ -5,7 +5,7 @@
  * Emits packages/content/src/packs/budgets{1979,1991,2019}.ts (BudgetSeed[]).
  *
  * Run FROM THE MAINLINE CHECKOUT so its `@/` alias resolves:
- *   cd /root/projects/AHDGame && npx tsx /root/projects/Rotunda/packages/content/scripts/generateBudgets.ts
+ *   npx tsx ../Rotunda/packages/content/scripts/generateBudgets.ts
  *
  * Sources (imported directly, no transcription, no invented numbers):
  *  - src/lib/seeds/reference/budgets.ts getNationalBudgetSeedConfigsForPreset
@@ -37,8 +37,7 @@ import { ieLegislationTypes } from "@/lib/seeds/ie/ieLegislationTypes";
 import { cnLegislationTypes } from "@/lib/seeds/cn/cnLegislationTypes";
 import { brLegislationTypes } from "@/lib/seeds/br/brLegislationTypes";
 
-const OUT = "/root/projects/Rotunda/packages/content/src/packs";
-const DATE = new Date().toISOString().slice(0, 10);
+const OUT = path.resolve(import.meta.dirname, "../src/packs");
 const TAX_TYPES = ["incomeTax", "domesticCorporateTax", "foreignCorporateTax", "payrollTax", "tariffs", "salesTax"] as const;
 type TaxType = (typeof TAX_TYPES)[number];
 type Opt = { rate?: number; economic?: number; social?: number };
@@ -119,7 +118,7 @@ for (const [era, countries] of Object.entries(PLAYABLE)) {
     `import type { BudgetSeed } from "../types.js";`,
     "/**",
     ` * Authored national budgets for ${era}-default (${countries.join("/")}). Generated from mainline AHDGame — DO NOT HAND-EDIT.`,
-    ` * Generated: ${DATE} by packages/content/scripts/generateBudgets.ts (see its header for sources and the tax-rate derivation).`,
+    " * Generator: packages/content/scripts/generateBudgets.ts (see its header for sources and the tax-rate derivation).",
     " * Units: gdp / otherRevenue / debt / spending in absolute local currency; economicFactors and taxRates in percent (same as the 1953 pack).",
     " */",
     `export const BUDGETS_${era}: BudgetSeed[] = [`,
