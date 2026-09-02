@@ -1,3 +1,8 @@
+import { CATALOG_JP } from "./catalogPortedJP.js";
+import { CATALOG_DE } from "./catalogPortedDE.js";
+import { CATALOG_IE } from "./catalogPortedIE.js";
+import { CATALOG_CN } from "./catalogPortedCN.js";
+import { CATALOG_BR } from "./catalogPortedBR.js";
 /**
  * Bill catalog ported from mainline src/lib/politicalLegislation/catalog + laws.
  * Effect targets that exist in solo: economy fields (gdp, growthRate,
@@ -20,7 +25,8 @@ export interface CatalogLawLevel {
 
 export interface CatalogEntry {
   id: string;
-  countryId: "US" | "UK" | "RU" | "DD";
+  /** Country id. US/UK/RU/DD are hand-ported; JP/DE/IE/CN/BR come from catalogPorted*.ts (W61 M2). */
+  countryId: string;
   kind: "primary" | "secondary" | "tax";
   title: string;
   description: string;
@@ -270,7 +276,7 @@ const AVAILABLE: CatalogEntry[] = [
   },
 ];
 
-const STUBBED_IDS: Array<{ id: string; countryId: "US" | "UK" | "RU" | "DD"; title: string; blockingSystem: string; category: string }> = [
+const STUBBED_IDS: Array<{ id: string; countryId: string; title: string; blockingSystem: string; category: string }> = [
   // Infrastructure/embargo/tariff etc. that need unported systems
   { id: "us.economy.mobility.primary", countryId: "US", title: "Economic Opportunity and Rural Assistance Act", blockingSystem: "budget/grants", category: "economy" },
   { id: "us.defense.diplomacy.primary", countryId: "US", title: "Diplomatic Posture and Alliance Act", blockingSystem: "military/alliance", category: "defense" },
@@ -299,7 +305,12 @@ const STUBBED: CatalogEntry[] = STUBBED_IDS.map((s) => ({
   blockingSystem: s.blockingSystem,
 }));
 
-const ALL: CatalogEntry[] = [...AVAILABLE, ...STUBBED];
+// W61 M2: generated per-country catalogs (see catalogPorted*.ts headers).
+const PORTED: CatalogEntry[] = [...CATALOG_JP, ...CATALOG_DE, ...CATALOG_IE, ...CATALOG_CN, ...CATALOG_BR];
+const AVAILABLE_ALL: CatalogEntry[] = [...AVAILABLE, ...PORTED.filter((e) => e.status === "available")];
+const STUBBED_ALL: CatalogEntry[] = [...STUBBED, ...PORTED.filter((e) => e.status !== "available")];
+
+const ALL: CatalogEntry[] = [...AVAILABLE_ALL, ...STUBBED_ALL];
 
 const BY_ID = new Map<string, CatalogEntry>(ALL.map((e) => [e.id, e]));
 
@@ -322,5 +333,5 @@ export function isAvailable(id: string): boolean {
 }
 
 export const CATALOG = ALL;
-export const AVAILABLE_CATALOG = AVAILABLE;
-export const STUBBED_CATALOG = STUBBED;
+export const AVAILABLE_CATALOG = AVAILABLE_ALL;
+export const STUBBED_CATALOG = STUBBED_ALL;

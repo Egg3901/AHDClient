@@ -72,9 +72,16 @@ governors for JP/DE/CN/BR/IE; IE uachtaran nationwide race; CN president via
 partyChairSync; parliamentary cabinets from the ported JP/DE/IE/CN position
 tables; economic-model archetypes from COUNTRY_CONFIGS.seedEconomicModel.
 
-M2 (open, in dependency order):
-1. **Legislation catalogs** for JP/DE/IE/CN/BR (~300 types, mainline
-   `seeds/*/{c}LegislationTypes.ts`) into `legislation/catalog.ts`.
+M2 (in dependency order):
+1. **Legislation catalogs** for JP/DE/IE/CN/BR: SHIPPED via
+   `packages/content/scripts/generateCatalogs.ts` (257 entries: JP 63, DE 60,
+   IE 58, CN 62, BR 14). All are PORT-STUB for now: the catalog contract is that an
+   available bill carries a hand-authored immediate effect (economy /
+   partySupport), which cannot be derived without inventing numbers. 8 entries
+   have every target mapped through ADAPTER_TIER1 to a political family and
+   are blocked only on `legislation/effectDescriptor`; the rest on
+   `politicalMetrics/<legacy ids>` (the same board gap that limits US/UK). Tax entries carry their authored rate ladders;
+   the rate write is PORT-STUB in billLifecycle.ts (budget/taxRateLadder).
 2. **Authored national budgets for 1979/1991/2019** (all playable countries,
    US/UK included): mainline `getNationalBudgetSeedConfigsForPreset(preset)`
    carries every BudgetSeed field except taxRates, which resolve from the
