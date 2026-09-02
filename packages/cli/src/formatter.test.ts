@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { formatProgressTable, formatSummaryTable, formatQaReport } from "./formatter.js";
 import type { ProgressRow } from "./formatter.js";
-import type { WorldState } from "@rotunda/engine";
+import { DEFAULT_WORLD_FEATURE_FLAGS, type WorldState } from "@rotunda/engine";
 import type { QaCountryResult } from "./qa.js";
 
 function makeWorld(): WorldState {
   return {
     meta: { schemaVersion: 16, seed: "s", rng: [1, 2, 3, 4], turn: 5, date: "1953-02-10", era: "1953", lastEra: "1953", cheatsUsed: false },
+    featureFlags: { ...DEFAULT_WORLD_FEATURE_FLAGS },
     countries: {
       US: { id: "US", name: "United States", playable: true, economy: { gdp: 387000, growthRate: 0.046, inflationRate: 0.0075, unemploymentRate: 0.029, outputGap: 0.5 } },
       UK: { id: "UK", name: "United Kingdom", playable: true, economy: { gdp: 40336, growthRate: 0.04, inflationRate: 0.03, unemploymentRate: 0.018, outputGap: -0.2 } },

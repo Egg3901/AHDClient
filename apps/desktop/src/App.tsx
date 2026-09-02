@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import type { TurnReport, WorldState } from "@rotunda/engine";
-import { listEras, listPlayableCountries, rulingPartyForCountry } from "@rotunda/engine";
+import type { TurnReport, WorldFeatureFlag, WorldState } from "@rotunda/engine";
+import { listEras, listPlayableCountries, rulingPartyForCountry, WORLD_FEATURE_FLAG_DEFINITIONS } from "@rotunda/engine";
 import { game } from "./game.js";
 import { Launcher } from "./launcher/Launcher.js";
 import { themeForEra } from "./launcher/CommandGlobe.js";
 import { createWorldWithOverrides, listCountries } from "./worldSetup.js";
 import type { WorldOverrides, CountryEconomyOverride } from "./worldSetup.js";
 import { applyCheat, describeCheat } from "./cheats.js";
-import type { CheatOp } from "./cheats.js";
+import type { CheatOp, PartyNumericField, PlayerNumericField, PoliticianNumericField } from "./cheats.js";
 import { GovernmentScreen } from "./government/Government.js";
 import "./government/government.css";
 import { EconomyScreen } from "./economy/Economy.js";
@@ -592,6 +592,8 @@ function CheatPanel({
   onCheatApplied: (entry: string, advanceCount?: number) => void;
   log: string[];
 }) {
+  const [toolTab, setToolTab] = useState<"quick" | "features" | "advanced">("quick");
+  const [playerField, setPlayerField] = useState<PlayerNumericField>("cash");
   const [cashInput, setCashInput] = useState("");
   const [econCountry, setEconCountry] = useState<string>(() => Object.keys(world.countries)[0] ?? "US");
   const [econField, setEconField] = useState<"gdp" | "growthRate" | "inflationRate" | "unemploymentRate" | "outputGap">("gdp");
@@ -601,6 +603,11 @@ function CheatPanel({
   const [headline, setHeadline] = useState("");
   const [newsCategory, setNewsCategory] = useState("");
   const [cheatError, setCheatError] = useState<string | null>(null);
+  const [worldJson, setWorldJson] = useState(() => JSON.stringify(world, null, 2));
+
+  useEffect(() => {
+    if (open) setWorldJson(JSON.stringify(world, null, 2));
+  }, [open]);
 
   // Elections force resolve
   const activeElections = useMemo(() => {
@@ -652,7 +659,7 @@ function CheatPanel({
       setSelectedPoliticianId(filteredPoliticians[0]!.id);
     }
   }, [filteredPoliticians, selectedPoliticianId]);
-  const [polField, setPolField] = useState<"favorability" | "funds" | "ideologyEconomic" | "ideologySocial">("favorability");
+  const [polField, setPolField] = useState<PoliticianNumericField>("favorability");
   const [polValue, setPolValue] = useState("");
   const selectedPolitician = useMemo(() => {
     return world.politicians.find((p) => p.id === selectedPoliticianId) ?? null;
@@ -682,7 +689,7 @@ function CheatPanel({
       setSelectedPartyId(filteredParties[0]!.id);
     }
   }, [filteredParties, selectedPartyId]);
-  const [partyField, setPartyField] = useState<"treasury" | "politicalStrength" | "organization">("treasury");
+  const [partyField, setPartyField] = useState<PartyNumericField>("treasury");
   const [partyValue, setPartyValue] = useState("");
   const selectedParty = useMemo(() => {
     return world.parties[selectedPartyId] ?? null;
@@ -701,6 +708,7 @@ function CheatPanel({
       onWorld({
         ...w,
         meta: { ...w.meta },
+        featureFlags: { ...w.featureFlags },
         player: { ...w.player },
         countries: { ...w.countries },
         news: [...w.news],
@@ -714,11 +722,11 @@ function CheatPanel({
     }
   };
 
-  const handleSetCash = () => {
+  const handleSetPlayer = () => {
     setCheatError(null);
-    const amount = Number(cashInput);
+    const value = Number(cashInput);
     try {
-      const op: CheatOp = { kind: "setPlayerCash", amount };
+      const op: CheatOp = { kind: "setPlayerField", field: playerField, value };
       const result = applyCheat(op);
       void result;
       onCheatApplied(describeCheat(op));
@@ -813,27 +821,100 @@ function CheatPanel({
     }
   };
 
+  const handleFeatureFlag = (flag: WorldFeatureFlag, enabled: boolean) => {
+    setCheatError(null);
+    try {
+      const op: CheatOp = { kind: "setFeatureFlag", flag, enabled };
+      applyCheat(op);
+      onCheatApplied(describeCheat(op));
+      refreshWorld();
+    } catch (e) {
+      setCheatError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleFeatureFlagPreset = (enabled: boolean) => {
+    setCheatError(null);
+    try {
+      const flags = Object.fromEntries(
+        WORLD_FEATURE_FLAG_DEFINITIONS.map(({ key }) => [key, enabled]),
+      ) as Record<WorldFeatureFlag, boolean>;
+      const op: CheatOp = { kind: "setFeatureFlags", flags };
+      applyCheat(op);
+      onCheatApplied(`${enabled ? "enable" : "pause"} all simulation systems`);
+      refreshWorld();
+    } catch (e) {
+      setCheatError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleApplyWorldJson = () => {
+    setCheatError(null);
+    try {
+      const replaced = game.replaceWorldFromJson(worldJson);
+      onCheatApplied("replace world from Advanced JSON");
+      onWorld(replaced);
+      setWorldJson(JSON.stringify(replaced, null, 2));
+    } catch (e) {
+      setCheatError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   if (!open) return null;
 
   return (
     <div className="cheat-overlay" onClick={onClose}>
       <div className="cheat-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Cheats">
         <div className="cheat-head row spread">
-          <span className="cheat-title">CHEATS</span>
+          <div>
+            <span className="cheat-title">SINGLEPLAYER TOOLS</span>
+            <div className="muted small">Changes are validated, saved with this world, and mark cheats active.</div>
+          </div>
           <button className="secondary small-btn" onClick={onClose}>
             Close
           </button>
         </div>
 
+        <div className="cheat-tabs" role="tablist" aria-label="Singleplayer tools">
+          {(["quick", "features", "advanced"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={toolTab === tab}
+              className={toolTab === tab ? "active" : ""}
+              onClick={() => {
+                setToolTab(tab);
+                setCheatError(null);
+                if (tab === "advanced") setWorldJson(JSON.stringify(game.getStateSync() ?? world, null, 2));
+              }}
+            >
+              {tab === "quick" ? "Quick edit" : tab === "features" ? "Features" : "Advanced JSON"}
+            </button>
+          ))}
+        </div>
+
+        {toolTab === "quick" && <>
         <div className="cheat-section">
           <h3>Player</h3>
+          <select value={playerField} onChange={(e) => setPlayerField(e.target.value as PlayerNumericField)} className="cheat-input">
+            <option value="cash">personal cash, 0+</option>
+            <option value="actions">action points, integer 0+</option>
+            <option value="funds">campaign funds, 0+</option>
+            <option value="savings">savings, 0+</option>
+            <option value="donorBaseLevel">donor base, integer 0-75</option>
+            <option value="politicalInfluence">political influence, 0-100</option>
+            <option value="favorability">favorability, 0-100</option>
+            <option value="infamy">infamy, 0-100</option>
+            <option value="wireQuotaUsedAnchor">wire quota used, integer 0+</option>
+          </select>
           <div className="row">
-            <input placeholder="cash amount" value={cashInput} onChange={(e) => setCashInput(e.target.value)} className="cheat-input" />
-            <button className="secondary small-btn" onClick={handleSetCash}>
-              Set cash
+            <input placeholder="value" value={cashInput} onChange={(e) => setCashInput(e.target.value)} className="cheat-input" />
+            <button className="secondary small-btn" onClick={handleSetPlayer}>
+              Apply
             </button>
           </div>
-          <div className="muted small">Current: {world.player.cash.toLocaleString("en-US")}</div>
+          <div className="muted small">Current {playerField}: {world.player[playerField].toLocaleString("en-US")}</div>
         </div>
 
         <div className="cheat-section">
@@ -971,6 +1052,14 @@ function CheatPanel({
             <select value={polField} onChange={(e) => setPolField(e.target.value as typeof polField)}>
               <option value="favorability">favorability 0-100</option>
               <option value="funds">funds &gt;= 0</option>
+              <option value="cash">personal cash &gt;= 0</option>
+              <option value="actions">actions, integer 0+</option>
+              <option value="donorBaseLevel">donor base, integer 0-75</option>
+              <option value="politicalInfluence">political influence 0-100</option>
+              <option value="infamy">infamy 0-100</option>
+              <option value="partyInfluence">party influence 0-100</option>
+              <option value="bonusActions">bonus actions, integer 0+</option>
+              <option value="age">age 18-120</option>
               <option value="ideologyEconomic">ideologyEconomic -5..5</option>
               <option value="ideologySocial">ideologySocial -5..5</option>
             </select>
@@ -1016,6 +1105,9 @@ function CheatPanel({
               <option value="treasury">treasury &gt;= 0</option>
               <option value="politicalStrength">politicalStrength 0..1000</option>
               <option value="organization">organization 0..100</option>
+              <option value="economicPosition">economic position -5..5</option>
+              <option value="socialPosition">social position -5..5</option>
+              <option value="memberCount">member count, integer 0+</option>
             </select>
             <input placeholder="value" value={partyValue} onChange={(e) => setPartyValue(e.target.value)} className="cheat-input" style={{ maxWidth: 140 }} />
           </div>
@@ -1026,6 +1118,65 @@ function CheatPanel({
             <span className="muted small">Caps enforced inline</span>
           </div>
         </div>
+        </>}
+
+        {toolTab === "features" && (
+          <div className="feature-flag-list">
+            <div className="cheat-section feature-intro">
+              <h3>Simulation controls</h3>
+              <p className="muted small">Turn systems can be paused independently. Turning a system back on resumes it from its retained state on the next turn.</p>
+              <div className="row">
+                <button
+                  type="button"
+                  className="secondary small-btn"
+                  onClick={() => handleFeatureFlagPreset(true)}
+                >
+                  Enable all
+                </button>
+                <button
+                  type="button"
+                  className="secondary small-btn"
+                  onClick={() => handleFeatureFlagPreset(false)}
+                >
+                  Pause all
+                </button>
+              </div>
+            </div>
+            <div className="feature-flag-grid">
+              {WORLD_FEATURE_FLAG_DEFINITIONS.map(({ key, label, description }) => (
+                <label className="feature-flag-card" key={key}>
+                  <input
+                    type="checkbox"
+                    checked={world.featureFlags[key]}
+                    onChange={(event) => handleFeatureFlag(key, event.target.checked)}
+                  />
+                  <span>
+                    <strong>{label}</strong>
+                    <small>{description}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {toolTab === "advanced" && (
+          <div className="cheat-section advanced-world-editor">
+            <h3>Complete world state</h3>
+            <p className="muted small">Edit any persisted world field. Applying runs the same schema validation used when loading a save. Keep a save backup before structural edits.</p>
+            <textarea
+              className="world-json-editor"
+              value={worldJson}
+              onChange={(event) => setWorldJson(event.target.value)}
+              spellCheck={false}
+              aria-label="World state JSON"
+            />
+            <div className="row">
+              <button type="button" onClick={handleApplyWorldJson}>Validate and apply</button>
+              <button type="button" className="secondary" onClick={() => setWorldJson(JSON.stringify(game.getStateSync() ?? world, null, 2))}>Reset draft</button>
+            </div>
+          </div>
+        )}
 
         {cheatError && (
           <div className="cheat-error" role="alert">
@@ -1073,7 +1224,6 @@ function Dashboard({
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [cheatOpen, setCheatOpen] = useState(false);
-  const [cheatsUsed, setCheatsUsed] = useState(false);
   const [cheatLog, setCheatLog] = useState<string[]>([]);
   const [govOpen, setGovOpen] = useState(false);
   const [ecoOpen, setEcoOpen] = useState(false);
@@ -1082,6 +1232,8 @@ function Dashboard({
   const [partiesOpen, setPartiesOpen] = useState(false);
   const [characterOpen, setCharacterOpen] = useState(false);
   const [newsOpen, setNewsOpen] = useState(false);
+  const cheatsUsed = world.meta.cheatsUsed;
+  const pausedFeatureCount = Object.values(world.featureFlags).filter((enabled) => !enabled).length;
   const [congressOpen, setCongressOpen] = useState(false);
   const [electionsOpen, setElectionsOpen] = useState(false);
   const [corpsOpen, setCorpsOpen] = useState(false);
@@ -1115,7 +1267,6 @@ function Dashboard({
   };
 
   const handleCheatApplied = (entry: string, advanceCount?: number) => {
-    setCheatsUsed(true);
     const ts = new Date().toLocaleTimeString("en-GB", { hour12: false });
     setCheatLog((prev) => [...prev, `[${ts}] ${entry}`]);
     if (advanceCount !== undefined && advanceCount > 0) {
@@ -1246,6 +1397,7 @@ function Dashboard({
             <strong>Turn {world.meta.turn}</strong> · {world.meta.date} · era {world.meta.era}
           </div>
           {cheatsUsed && <span className="cheats-tag">CHEATS ACTIVE</span>}
+          {pausedFeatureCount > 0 && <span className="cheats-tag">{pausedFeatureCount} SYSTEMS PAUSED</span>}
         </div>
         <div className="row">
           {world.player.mode === "hos" && (
@@ -1287,7 +1439,7 @@ function Dashboard({
             NEWS
           </button>
           <button className="secondary small-btn cheat-toggle" onClick={() => setCheatOpen((v) => !v)}>
-            CHEATS
+            TOOLS
           </button>
           <button onClick={() => void advance()} disabled={busy}>
             {busy ? "Processing" : "End turn"}

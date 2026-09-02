@@ -6,7 +6,7 @@ Working method: numbered waves. One wave = one muse brief (or an inline pass by 
 
 ## Progress ledger (done)
 
-Engine core (turn pipeline, RNG, saves) - four real seed packs - 21 playable era/country combinations across 11 unique countries - macro economy (output gap, Okun, Phillips) - political skeleton (parties, legislatures, real compositions) - NPC name generation - sim CLI (run/determinism/bench/QA) - launcher with era command globe - granular creation flow - cheat panel + engine cheat API - schema v41 with chained migrations. The 2026-09-02 audit ran all 1,512 repository tests green; test count is evidence for that tree, not a release-readiness claim.
+Engine core (turn pipeline, RNG, saves) - four real seed packs - 21 playable era/country combinations across 11 unique countries - macro economy (output gap, Okun, Phillips) - political skeleton (parties, legislatures, real compositions) - NPC name generation - sim CLI (run/determinism/bench/QA) - launcher with era command globe - granular creation flow - singleplayer tools with quick edits, typed simulation flags, and validated complete-world editing - schema v42 with chained migrations. The 2026-09-02 audit ran all 1,512 repository tests green before the schema v42 work; test count is evidence for that tree, not a release-readiness claim.
 
 ## Lane 1: economy core (engine)
 
@@ -111,7 +111,7 @@ activityLogging (server telemetry), auditAnomalyScan / suspiciousDetection / fin
 
 ## UI lane (desktop, trails its engine wave)
 
-U1 government viewer (in flight) - U2 economy dashboard with charts - U3 corporation management - U4 banking and portfolio - U5 elections center and results night - U6 congress/bills - U7 party screens - U8 campaign screen - U9 world map/globe screen (region geojsons, same source as mainline) - U10 character and actions hub - U11 events and news feed - U12 history charts - U13 saves: slots, autosave, crash-safe writes - U14 cheat panel extensions (force election, spawn event, edit politician)
+U1 government viewer (in flight) - U2 economy dashboard with charts - U3 corporation management - U4 banking and portfolio - U5 elections center and results night - U6 congress/bills - U7 party screens - U8 campaign screen - U9 world map/globe screen (region geojsons, same source as mainline) - U10 character and actions hub - U11 events and news feed - U12 history charts - U13 saves: slots, autosave, crash-safe writes - U14 singleplayer tools (quick world edits, feature flags, validated complete-world JSON)
 
 ## Platform lane
 

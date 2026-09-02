@@ -1,24 +1,47 @@
 import type { WorldState } from "./types.js";
 import { advanceTurn } from "./engine.js";
 import { OUTPUT_GAP_BOUND } from "./economy/macroConstants.js";
+import { isWorldFeatureFlag } from "./featureFlags.js";
+import type { WorldFeatureFlag } from "./featureFlags.js";
+import type { WorldFeatureFlags } from "./featureFlags.js";
+
+export type PlayerNumericField = "cash" | "actions" | "funds" | "donorBaseLevel" | "politicalInfluence" | "favorability" | "infamy" | "savings" | "wireQuotaUsedAnchor";
+export type PoliticianNumericField = "favorability" | "funds" | "cash" | "actions" | "donorBaseLevel" | "politicalInfluence" | "infamy" | "partyInfluence" | "bonusActions" | "age" | "ideologyEconomic" | "ideologySocial";
+export type PartyNumericField = "treasury" | "politicalStrength" | "organization" | "economicPosition" | "socialPosition" | "memberCount";
 
 export type CheatOp =
   | { kind: "setPlayerCash"; amount: number }
+  | { kind: "setPlayerField"; field: PlayerNumericField; value: number }
   | { kind: "setCountryEconomy"; countryId: string; field: "gdp" | "growthRate" | "inflationRate" | "unemploymentRate" | "outputGap"; value: number }
   | { kind: "advanceTurns"; count: number }
   | { kind: "addNews"; headline: string; category?: string }
   | { kind: "forceResolveElection"; electionId: string }
-  | { kind: "setPoliticianField"; politicianId: string; field: "favorability" | "funds" | "ideologyEconomic" | "ideologySocial"; value: number }
-  | { kind: "setPartyField"; partyId: string; field: "treasury" | "politicalStrength" | "organization"; value: number };
+  | { kind: "setPoliticianField"; politicianId: string; field: PoliticianNumericField; value: number }
+  | { kind: "setPartyField"; partyId: string; field: PartyNumericField; value: number }
+  | { kind: "setFeatureFlag"; flag: WorldFeatureFlag; enabled: boolean }
+  | { kind: "setFeatureFlags"; flags: Partial<WorldFeatureFlags> };
 
 const ALLOWED_ECONOMY_FIELDS = new Set(["gdp", "growthRate", "inflationRate", "unemploymentRate", "outputGap"]);
-const ALLOWED_POLITICIAN_FIELDS = new Set(["favorability", "funds", "ideologyEconomic", "ideologySocial"]);
-const ALLOWED_PARTY_FIELDS = new Set(["treasury", "politicalStrength", "organization"]);
+const ALLOWED_PLAYER_FIELDS = new Set(["cash", "actions", "funds", "donorBaseLevel", "politicalInfluence", "favorability", "infamy", "savings", "wireQuotaUsedAnchor"]);
+const ALLOWED_POLITICIAN_FIELDS = new Set(["favorability", "funds", "cash", "actions", "donorBaseLevel", "politicalInfluence", "infamy", "partyInfluence", "bonusActions", "age", "ideologyEconomic", "ideologySocial"]);
+const ALLOWED_PARTY_FIELDS = new Set(["treasury", "politicalStrength", "organization", "economicPosition", "socialPosition", "memberCount"]);
 
 function requireFinite(value: unknown, label: string): asserts value is number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`${label} must be a finite number, got ${String(value)}`);
   }
+}
+
+function requireRange(value: number, label: string, min: number, max: number): void {
+  if (value < min || value > max) throw new Error(`${label} must be in [${min},${max}], got ${String(value)}`);
+}
+
+function requireNonNegative(value: number, label: string): void {
+  if (value < 0) throw new Error(`${label} must be >= 0, got ${String(value)}`);
+}
+
+function requireInteger(value: number, label: string): void {
+  if (!Number.isInteger(value)) throw new Error(`${label} must be an integer, got ${String(value)}`);
 }
 
 export function applyCheat(world: WorldState, op: CheatOp): void {
@@ -31,6 +54,24 @@ export function applyCheat(world: WorldState, op: CheatOp): void {
       requireFinite(op.amount, "setPlayerCash amount");
       if (op.amount < 0) throw new Error(`setPlayerCash amount must be >= 0, got ${String(op.amount)}`);
       world.player.cash = op.amount;
+      world.meta.cheatsUsed = true;
+      return;
+    }
+    case "setPlayerField": {
+      if (!ALLOWED_PLAYER_FIELDS.has(op.field)) throw new Error(`Invalid setPlayerField field: ${String(op.field)}`);
+      requireFinite(op.value, `setPlayerField ${op.field}`);
+      if (op.field === "politicalInfluence" || op.field === "favorability" || op.field === "infamy") {
+        requireRange(op.value, op.field, 0, 100);
+      } else if (op.field === "donorBaseLevel") {
+        requireInteger(op.value, op.field);
+        requireRange(op.value, op.field, 0, 75);
+      } else if (op.field === "actions" || op.field === "wireQuotaUsedAnchor") {
+        requireInteger(op.value, op.field);
+        requireNonNegative(op.value, op.field);
+      } else {
+        requireNonNegative(op.value, op.field);
+      }
+      (world.player as unknown as Record<string, number>)[op.field] = op.value;
       world.meta.cheatsUsed = true;
       return;
     }
@@ -104,17 +145,29 @@ export function applyCheat(world: WorldState, op: CheatOp): void {
       if (!politician) throw new Error(`Unknown politician: ${op.politicianId}`);
       if (!ALLOWED_POLITICIAN_FIELDS.has(op.field)) throw new Error(`Invalid setPoliticianField field: ${String(op.field)}`);
       requireFinite(op.value, "setPoliticianField value");
-      if (op.field === "favorability") {
-        if (op.value < 0 || op.value > 100) throw new Error(`favorability must be in [0,100], got ${String(op.value)}`);
-        politician.favorability = op.value;
-      } else if (op.field === "funds") {
-        if (op.value < 0) throw new Error(`funds must be >= 0, got ${String(op.value)}`);
-        politician.funds = op.value;
+      if (op.field === "favorability" || op.field === "politicalInfluence" || op.field === "infamy" || op.field === "partyInfluence") {
+        requireRange(op.value, op.field, 0, 100);
+        politician[op.field] = op.value;
+      } else if (op.field === "funds" || op.field === "cash") {
+        requireNonNegative(op.value, op.field);
+        politician[op.field] = op.value;
+      } else if (op.field === "actions" || op.field === "bonusActions") {
+        requireInteger(op.value, op.field);
+        requireNonNegative(op.value, op.field);
+        politician[op.field] = op.value;
+      } else if (op.field === "donorBaseLevel") {
+        requireInteger(op.value, op.field);
+        requireRange(op.value, op.field, 0, 75);
+        politician.donorBaseLevel = op.value;
+      } else if (op.field === "age") {
+        requireInteger(op.value, op.field);
+        requireRange(op.value, op.field, 18, 120);
+        politician.age = op.value;
       } else if (op.field === "ideologyEconomic") {
-        if (op.value < -5 || op.value > 5) throw new Error(`ideologyEconomic must be in [-5,5], got ${String(op.value)}`);
+        requireRange(op.value, op.field, -5, 5);
         politician.ideology.economic = op.value;
       } else {
-        if (op.value < -5 || op.value > 5) throw new Error(`ideologySocial must be in [-5,5], got ${String(op.value)}`);
+        requireRange(op.value, op.field, -5, 5);
         politician.ideology.social = op.value;
       }
       world.meta.cheatsUsed = true;
@@ -129,14 +182,47 @@ export function applyCheat(world: WorldState, op: CheatOp): void {
       if (!ALLOWED_PARTY_FIELDS.has(op.field)) throw new Error(`Invalid setPartyField field: ${String(op.field)}`);
       requireFinite(op.value, "setPartyField value");
       if (op.field === "treasury") {
-        if (op.value < 0) throw new Error(`treasury must be >= 0, got ${String(op.value)}`);
+        requireNonNegative(op.value, op.field);
         party.treasury = op.value;
       } else if (op.field === "politicalStrength") {
-        if (op.value < 0 || op.value > 1000) throw new Error(`politicalStrength must be in [0,1000], got ${String(op.value)}`);
+        requireRange(op.value, op.field, 0, 1000);
         party.politicalStrength = op.value;
-      } else {
-        if (op.value < 0 || op.value > 100) throw new Error(`organization must be in [0,100], got ${String(op.value)}`);
+      } else if (op.field === "organization") {
+        requireRange(op.value, op.field, 0, 100);
         party.organization = op.value;
+      } else if (op.field === "memberCount") {
+        requireInteger(op.value, op.field);
+        requireNonNegative(op.value, op.field);
+        party.memberCount = op.value;
+      } else if (op.field === "economicPosition") {
+        requireRange(op.value, op.field, -5, 5);
+        party.economicPosition = op.value;
+      } else {
+        requireRange(op.value, op.field, -5, 5);
+        party.socialPosition = op.value;
+      }
+      world.meta.cheatsUsed = true;
+      return;
+    }
+    case "setFeatureFlag": {
+      if (!isWorldFeatureFlag(op.flag)) throw new Error(`Unknown feature flag: ${String(op.flag)}`);
+      if (typeof op.enabled !== "boolean") throw new Error(`Feature flag ${op.flag} must be boolean`);
+      world.featureFlags[op.flag] = op.enabled;
+      world.meta.cheatsUsed = true;
+      return;
+    }
+    case "setFeatureFlags": {
+      if (typeof op.flags !== "object" || op.flags === null || Array.isArray(op.flags)) {
+        throw new Error("Feature flags must be an object");
+      }
+      const updates = Object.entries(op.flags);
+      if (updates.length === 0) throw new Error("Feature flags update must not be empty");
+      for (const [flag, enabled] of updates) {
+        if (!isWorldFeatureFlag(flag)) throw new Error(`Unknown feature flag: ${flag}`);
+        if (typeof enabled !== "boolean") throw new Error(`Feature flag ${flag} must be boolean`);
+      }
+      for (const [flag, enabled] of updates) {
+        world.featureFlags[flag as WorldFeatureFlag] = enabled as boolean;
       }
       world.meta.cheatsUsed = true;
       return;

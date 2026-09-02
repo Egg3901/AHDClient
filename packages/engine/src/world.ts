@@ -96,6 +96,8 @@ import { GOVERNMENT_CHAMBER_BY_COUNTRY, GOVERNOR_COUNTRIES } from "./government/
 // renumbering needed as long as v34-v38 land with ascending versions
 // between v33 and this v39 before the final merge.
 import { seedStateResourceCapacities } from "./extraction/founding.js";
+import { resolveWorldFeatureFlags } from "./featureFlags.js";
+import type { WorldFeatureFlags } from "./featureFlags.js";
 
 // Pre-allocated v36 for the W11 (extraction/prospecting) + W35 (player wealth,
 // international wires, achievements) batch. Main is v33 as of this wave's
@@ -120,7 +122,7 @@ import { seedStateResourceCapacities } from "./extraction/founding.js";
 // save.ts's v34->v40 migration chain (stubs for v35-v39, real logic at v40)
 // for the resolver note.
 // v41: tax-rate ladder (budget.taxRatePhaseIn, bill.selectedRate); see save.ts.
-export const SCHEMA_VERSION = 41;
+export const SCHEMA_VERSION = 42;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -186,6 +188,8 @@ export interface NewWorldOptions {
   /** Era id from listEras(). */
   era: string;
   overrides?: WorldOverrides;
+  /** Optional singleplayer simulation controls. Unspecified controls default on. */
+  featureFlags?: Partial<WorldFeatureFlags>;
   /**
    * M1 (Lane 12): play mode, chosen at world creation. Career (default): the
    * player is a politician climbing the existing systems. HoS: the player is
@@ -643,6 +647,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
       lastEra: pack.era.id,
       cheatsUsed: false,
     },
+    featureFlags: resolveWorldFeatureFlags(options.featureFlags),
     countries,
     parties,
     legislatures,

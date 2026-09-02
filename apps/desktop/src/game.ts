@@ -5,6 +5,7 @@ import {
   deserializeSave,
   serializeSave,
   executeAction as engineExecuteAction,
+  SCHEMA_VERSION,
   type NewWorldOptions,
   type TurnReport,
   type WorldState,
@@ -25,6 +26,7 @@ export interface GameApi {
   getState(): Promise<WorldState | null>;
   getStateSync(): WorldState | null;
   applyCheat(op: CheatOp): void;
+  replaceWorldFromJson(raw: string): WorldState;
   executeAction(actionId: string, params?: ExecuteActionParams): ExecuteActionResult;
   save(): Promise<{ saved: boolean; path?: string }>;
   load(): Promise<WorldState | null>;
@@ -65,6 +67,24 @@ export const game: GameApi = {
   applyCheat(op: CheatOp): void {
     if (!world) throw new Error("No game in progress");
     engineApplyCheat(world, op);
+  },
+
+  replaceWorldFromJson(raw: string): WorldState {
+    let candidate: unknown;
+    try {
+      candidate = JSON.parse(raw);
+    } catch {
+      throw new Error("World JSON is not valid JSON");
+    }
+    const validated = deserializeSave(JSON.stringify({
+      format: "ahdsolo-save",
+      schemaVersion: SCHEMA_VERSION,
+      savedAt: new Date().toISOString(),
+      world: candidate,
+    }));
+    validated.meta.cheatsUsed = true;
+    world = validated;
+    return validated;
   },
 
   executeAction(actionId: string, params: ExecuteActionParams = {}): ExecuteActionResult {

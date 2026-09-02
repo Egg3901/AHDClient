@@ -39,4 +39,17 @@ describe("desktop game session", () => {
     expect(world.player.cash).toBe(4321);
     expect(world.meta.cheatsUsed).toBe(true);
   });
+
+  it("replaces an edited world only after save-schema validation", async () => {
+    const world = await game.newGame(OPTS);
+    const candidate = JSON.stringify({ ...world, player: { ...world.player, cash: 7654 } });
+
+    const replaced = game.replaceWorldFromJson(candidate);
+
+    expect(replaced.player.cash).toBe(7654);
+    expect(replaced.meta.cheatsUsed).toBe(true);
+    expect(game.getStateSync()).toBe(replaced);
+    expect(() => game.replaceWorldFromJson("{}")).toThrow(/valid save|world state/i);
+    expect(game.getStateSync()).toBe(replaced);
+  });
 });

@@ -14,6 +14,7 @@ import type { ColdWarTensionState, NuclearProgramState } from "./coldWar/types.j
 import type { Conflict, Settlement } from "./wars/types.js";
 import type { AlignmentRecord } from "./alignment/types.js";
 import type { InternationalOrgState } from "./internationalOrgs/types.js";
+import type { WorldFeatureFlags } from "./featureFlags.js";
 
 /**
  * The entire game world is one serializable document. No database: the world
@@ -27,6 +28,8 @@ import type { InternationalOrgState } from "./internationalOrgs/types.js";
 
 export interface WorldState {
   meta: WorldMeta;
+  /** Player-owned switches for deterministic singleplayer simulation families. */
+  featureFlags: WorldFeatureFlags;
   countries: Record<string, Country>;
   /** The human player. Solo has exactly one; everyone else is an NPC. */
   player: PlayerCharacter;

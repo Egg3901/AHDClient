@@ -37,7 +37,7 @@ function deserializeSave(raw: string): WorldState
 
 Era ids are strings sourced from seed packs, not a hardcoded union. `createWorld` throws on unknown era or non-playable country.
 
-## Engine contract (v2 additions): custom creation and cheats
+## Engine contract: custom creation and singleplayer tools
 
 Singleplayer worlds are the player's property: world creation is granular and an explicit cheat surface exists. Both are engine-validated mutations, never raw UI pokes at state.
 
@@ -62,15 +62,22 @@ function listCountries(era: string): {
 
 type CheatOp =
   | { kind: "setPlayerCash"; amount: number }
+  | { kind: "setPlayerField"; field: PlayerNumericField; value: number }
   | { kind: "setCountryEconomy"; countryId: string;
       field: "gdp" | "growthRate" | "inflationRate" | "unemploymentRate" | "outputGap";
       value: number }
   | { kind: "advanceTurns"; count: number }
   | { kind: "addNews"; headline: string }
+  | { kind: "setPoliticianField"; politicianId: string; field: PoliticianNumericField; value: number }
+  | { kind: "setPartyField"; partyId: string; field: PartyNumericField; value: number }
+  | { kind: "setFeatureFlag"; flag: WorldFeatureFlag; enabled: boolean }
+  | { kind: "setFeatureFlags"; flags: Partial<WorldFeatureFlags> }
 function applyCheat(world: WorldState, op: CheatOp): void   // validates, throws on bad input
 ```
 
-Cheats are singleplayer-only UI; the panel must never render in multiplayer mode. Cheat mutations are ordinary world changes: saves made afterward are ordinary saves. A `meta.cheatsUsed` flag is set by `applyCheat` (schema bump owned by the engine wave that implements it).
+Singleplayer tools must never render in multiplayer mode. The quick editor routes through `applyCheat`; the complete JSON editor routes through the current save-schema validator before replacing the active world. Successful changes set `meta.cheatsUsed` and persist normally.
+
+`WorldState.featureFlags` contains the typed, player-owned simulation controls defined by `WORLD_FEATURE_FLAG_DEFINITIONS`. All default on. Each switch gates a documented family of turn phases; core calendar, action refresh, era crossing, history recording, and news maintenance always run to preserve world invariants. Disabled phases consume no RNG, so identical worlds plus identical flag changes remain deterministic. Schema v42 migrates old saves to the all-on defaults.
 
 ## Play modes (binding)
 

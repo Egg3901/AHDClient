@@ -1,4 +1,5 @@
 import { EXTERNAL_BROAD_MONEY_GDP_SHARE, SCHEMA_VERSION } from "./world.js";
+import { isWorldFeatureFlag, resolveWorldFeatureFlags, WORLD_FEATURE_FLAG_DEFINITIONS } from "./featureFlags.js";
 import { TENSION_BASELINE } from "./coldWar/constants.js";
 import { NUCLEAR_CAPABLE } from "./coldWar/nuclear.js";
 import { normalizeShares } from "./alignment/alignment.js";
@@ -64,7 +65,7 @@ const REQUIRED_WORLD_ARRAYS = [
 ] as const;
 
 const REQUIRED_WORLD_RECORDS = [
-  "countries", "parties", "legislatures", "executives", "commodityPrices", "stateResourceCapacities",
+  "featureFlags", "countries", "parties", "legislatures", "executives", "commodityPrices", "stateResourceCapacities",
   "regions", "partyRegions", "electoratePools", "regionTurnouts", "partyPressures", "candidateSupports",
   "stateDemographics", "baselineDemographics", "demographicCategories", "census", "laborForces", "budgets",
   "regionalBudgets", "nppRelationships", "nppSponsorLastTurn", "centralBanks", "corporations",
@@ -106,6 +107,15 @@ function assertCurrentWorldState(world: WorldState): void {
   for (const field of REQUIRED_WORLD_RECORDS) {
     if (!isRecord(value[field])) {
       throw new Error(`Not a valid save file: invalid world state field ${field}`);
+    }
+  }
+  const featureFlags = value["featureFlags"] as Record<string, unknown>;
+  if (Object.keys(featureFlags).some((key) => !isWorldFeatureFlag(key))) {
+    throw new Error("Not a valid save file: unknown feature flag");
+  }
+  for (const { key } of WORLD_FEATURE_FLAG_DEFINITIONS) {
+    if (typeof featureFlags[key] !== "boolean") {
+      throw new Error(`Not a valid save file: invalid feature flag ${key}`);
     }
   }
   for (const field of ["ledgerPreForexSnapshot", "economicVitalSigns"] as const) {
@@ -1948,6 +1958,14 @@ export function deserializeSave(raw: string): WorldState {
       }
     }
     save.world.meta.schemaVersion = 41;
+  }
+  // v41 -> v42: player-owned singleplayer simulation controls. Existing
+  // saves retain the complete historical pipeline because every flag defaults
+  // on. Unknown or malformed keys are discarded during migration.
+  if (save.schemaVersion < 42) {
+    const w = save.world as unknown as Record<string, unknown>;
+    w["featureFlags"] = resolveWorldFeatureFlags();
+    save.world.meta.schemaVersion = 42;
   }
   assertCurrentWorldState(save.world);
   return save.world;

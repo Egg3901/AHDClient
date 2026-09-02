@@ -3,6 +3,9 @@ import { advanceTurn } from "./engine.js";
 import { createWorld, listCountries, SCHEMA_VERSION } from "./world.js";
 import { deserializeSave, serializeSave } from "./save.js";
 import { applyCheat } from "./cheats.js";
+import { DEFAULT_WORLD_FEATURE_FLAGS } from "./featureFlags.js";
+import { featureFlagForPhase } from "./featureFlags.js";
+import { TURN_PHASES } from "./phases/registry.js";
 
 const OPTS = { seed: "cheat-test", playerName: "Tester", countryId: "US", era: "1953" } as const;
 
@@ -117,6 +120,63 @@ describe("overrides application", () => {
 
 // -- cheats --
 describe("applyCheat", () => {
+  it("explicitly classifies every turn phase as switchable or core", () => {
+    const core = new Set(["advanceCalendar", "actionRefresh", "eraCrossing", "recordWorldHistory", "newsMaintenance"]);
+    const unclassified = TURN_PHASES
+      .map((phase) => phase.name)
+      .filter((name) => featureFlagForPhase(name) === null && !core.has(name));
+    expect(unclassified).toEqual([]);
+  });
+
+  it("changes persisted feature flags through the engine mutation boundary", () => {
+    const world = createWorld(OPTS);
+    expect(world.featureFlags).toEqual(DEFAULT_WORLD_FEATURE_FLAGS);
+
+    applyCheat(world, { kind: "setFeatureFlag", flag: "elections", enabled: false });
+
+    expect(world.featureFlags.elections).toBe(false);
+    expect(world.meta.cheatsUsed).toBe(true);
+    const restored = deserializeSave(serializeSave(world, "2026-01-01T00:00:00Z"));
+    expect(restored.featureFlags.elections).toBe(false);
+  });
+
+  it("rejects unknown feature flags without changing the world", () => {
+    const world = createWorld(OPTS);
+    expect(() => applyCheat(world, {
+      kind: "setFeatureFlag",
+      flag: "inventedFlag",
+      enabled: false,
+    } as never)).toThrow(/feature flag/i);
+    expect(world.meta.cheatsUsed).toBe(false);
+  });
+
+  it("applies feature flag presets atomically", () => {
+    const world = createWorld(OPTS);
+    applyCheat(world, { kind: "setFeatureFlags", flags: { elections: false, events: false, conflicts: false } });
+    expect(world.featureFlags.elections).toBe(false);
+    expect(world.featureFlags.events).toBe(false);
+    expect(world.featureFlags.conflicts).toBe(false);
+
+    const before = { ...world.featureFlags };
+    expect(() => applyCheat(world, {
+      kind: "setFeatureFlags",
+      flags: { elections: true, inventedFlag: false },
+    } as never)).toThrow(/feature flag/i);
+    expect(world.featureFlags).toEqual(before);
+  });
+
+  it("skips disabled simulation families while leaving core time active", () => {
+    const world = createWorld(OPTS);
+    applyCheat(world, { kind: "setFeatureFlag", flag: "elections", enabled: false });
+
+    const report = advanceTurn(world);
+
+    expect(world.meta.turn).toBe(1);
+    expect(report.phaseTimings.map((phase) => phase.name)).not.toContain("voteAccumulation");
+    expect(report.phaseTimings.map((phase) => phase.name)).not.toContain("electionResolution");
+    expect(report.phaseTimings.map((phase) => phase.name)).toContain("advanceCalendar");
+  });
+
   it("setPlayerCash mutates and sets cheatsUsed", () => {
     const world = createWorld(OPTS);
     expect(world.meta.cheatsUsed).toBe(false);
@@ -202,11 +262,22 @@ describe("applyCheat", () => {
 
     applyCheat(world, { kind: "setPoliticianField", politicianId: politician.id, field: "favorability", value: 72 });
     applyCheat(world, { kind: "setPoliticianField", politicianId: politician.id, field: "ideologyEconomic", value: -2 });
+    applyCheat(world, { kind: "setPoliticianField", politicianId: politician.id, field: "actions", value: 99 });
+    applyCheat(world, { kind: "setPoliticianField", politicianId: politician.id, field: "cash", value: 1234 });
     expect(politician.favorability).toBe(72);
     expect(politician.ideology.economic).toBe(-2);
+    expect(politician.actions).toBe(99);
+    expect(politician.cash).toBe(1234);
 
     applyCheat(world, { kind: "setPartyField", partyId: party.id, field: "organization", value: 64 });
+    applyCheat(world, { kind: "setPartyField", partyId: party.id, field: "economicPosition", value: 3 });
     expect(party.organization).toBe(64);
+    expect(party.economicPosition).toBe(3);
+
+    applyCheat(world, { kind: "setPlayerField", field: "actions", value: 88 });
+    applyCheat(world, { kind: "setPlayerField", field: "favorability", value: 91 });
+    expect(world.player.actions).toBe(88);
+    expect(world.player.favorability).toBe(91);
     expect(world.meta.cheatsUsed).toBe(true);
   });
 
@@ -219,6 +290,8 @@ describe("applyCheat", () => {
     expect(() => applyCheat(world, { kind: "forceResolveElection", electionId: "missing" })).toThrow(/election/i);
     expect(() => applyCheat(world, { kind: "setPoliticianField", politicianId: politician.id, field: "favorability", value: 101 })).toThrow(/favorability/i);
     expect(() => applyCheat(world, { kind: "setPartyField", partyId: party.id, field: "organization", value: -1 })).toThrow(/organization/i);
+    expect(() => applyCheat(world, { kind: "setPlayerField", field: "politicalInfluence", value: 101 })).toThrow(/politicalInfluence/i);
+    expect(() => applyCheat(world, { kind: "setPoliticianField", politicianId: politician.id, field: "age", value: 17 })).toThrow(/age/i);
     expect(world.meta.cheatsUsed).toBe(false);
   });
 
@@ -262,6 +335,22 @@ describe("applyCheat", () => {
 
 // -- migrations --
 describe("save migration v4 -> v5", () => {
+  it("migrates v41 saves to all-on simulation controls", () => {
+    const world = createWorld(OPTS);
+    const legacy = JSON.parse(serializeSave(world, "2026-01-01T00:00:00Z")) as {
+      schemaVersion: number;
+      world: Record<string, unknown> & { meta: Record<string, unknown> };
+    };
+    legacy.schemaVersion = 41;
+    legacy.world.meta["schemaVersion"] = 41;
+    delete legacy.world["featureFlags"];
+
+    const migrated = deserializeSave(JSON.stringify(legacy));
+
+    expect(migrated.featureFlags).toEqual(DEFAULT_WORLD_FEATURE_FLAGS);
+    expect(migrated.meta.schemaVersion).toBe(SCHEMA_VERSION);
+  });
+
   it("migrates v4 save missing cheatsUsed to false", () => {
     const world = createWorld(OPTS);
     const rawV4 = JSON.stringify({
