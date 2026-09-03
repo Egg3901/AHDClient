@@ -4,6 +4,7 @@ import {
   DEFAULT_WORLD_FEATURE_FLAGS,
   listEras,
   listPlayableCountries,
+  listRegions,
   rulingPartyForCountry,
   WORLD_FEATURE_FLAG_DEFINITIONS,
 } from "@ahdclient/engine";
@@ -21,6 +22,7 @@ import type { SaveSlotMeta } from "./saves.js";
 import { CharacterPanel } from "./character/CharacterPanel.js";
 import "./character/character.css";
 import { GameShell } from "./gameShell/GameShell.js";
+import { helpTargetForRoute } from "./gameShell/helpTargets.js";
 import { LocalCountryOverviewSource } from "./country/localSource.js";
 import type { CountryOverviewModel } from "./country/model.js";
 import { ONLINE_URL } from "./onlineTarget.js";
@@ -41,6 +43,21 @@ async function openOnline(): Promise<void> {
   } catch (e) {
     console.error("failed to open online window", e);
     window.open(ONLINE_URL, "_blank", "noopener");
+  }
+}
+
+async function openHelp(routeId: string): Promise<void> {
+  const target = helpTargetForRoute(routeId);
+  if (target === undefined) {
+    console.error(`unknown Help destination: ${routeId}`);
+    return;
+  }
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("open_help_destination", { routeId });
+  } catch (error) {
+    console.error(`failed to open Help destination ${routeId}`, error);
+    window.open(target.url, "_blank", "noopener");
   }
 }
 
@@ -121,6 +138,14 @@ export function NewWorldScreen({
     }
   }, [era]);
   const [countryId, setCountryId] = useState<string>(() => playable[0]?.id ?? "US");
+  const homeRegions = useMemo(() => {
+    try {
+      return listRegions(era, countryId);
+    } catch {
+      return [];
+    }
+  }, [countryId, era]);
+  const [homeRegionId, setHomeRegionId] = useState("");
   const [seed, setSeed] = useState(() => randomSeed());
   const [name, setName] = useState("Player");
   // M2 (Lane 12 Head of State mode): career is the default per FRAMEWORK.md
@@ -172,6 +197,12 @@ export function NewWorldScreen({
       if (first) setCountryId(first.id);
     }
   }, [playable, countryId]);
+
+  useEffect(() => {
+    if (!homeRegions.some((region) => region.id === homeRegionId)) {
+      setHomeRegionId(homeRegions[0]?.id ?? "");
+    }
+  }, [homeRegionId, homeRegions]);
 
   useEffect(() => {
     try {
@@ -228,7 +259,7 @@ export function NewWorldScreen({
   const totalModified = modifiedCount + (cashModified ? 1 : 0) + pausedFeatureCount;
 
   const hasInvalid = useMemo(() => {
-    if (!seed.trim() || !name.trim() || !countryId) return true;
+    if (!seed.trim() || !name.trim() || !countryId || (homeRegions.length > 0 && !homeRegionId)) return true;
     if (!isValidCash(startingCash)) return true;
     for (const r of rows) {
       if (!isValidGdp(r.gdpStr) || !isValidSignedPercent(r.growthStr) || !isValidInflationPercent(r.inflationStr) || !isValidPercent(r.unemploymentStr)) {
@@ -236,7 +267,7 @@ export function NewWorldScreen({
       }
     }
     return false;
-  }, [rows, startingCash, seed, name, countryId]);
+  }, [rows, startingCash, seed, name, countryId, homeRegionId, homeRegions.length]);
 
   const handleRandomize = () => setSeed(randomSeed());
 
@@ -296,6 +327,10 @@ export function NewWorldScreen({
       setError("Pick a country.");
       return;
     }
+    if (homeRegions.length > 0 && !homeRegionId) {
+      setError("Pick a home state or region.");
+      return;
+    }
     if (!isValidCash(startingCash)) {
       setError("Correct highlighted fields before creating. Starting cash must be a finite number >= 0.");
       return;
@@ -346,6 +381,7 @@ export function NewWorldScreen({
           seed: seed.trim(),
           playerName: name.trim(),
           countryId,
+          ...(homeRegionId ? { homeRegionId } : {}),
           era,
           mode,
           featureFlags,
@@ -451,6 +487,21 @@ export function NewWorldScreen({
                 ))}
               </select>
             </label>
+            {homeRegions.length > 0 && (
+              <label>
+                Home state or region
+                <select
+                  value={homeRegionId}
+                  onChange={(event) => setHomeRegionId(event.target.value)}
+                >
+                  {homeRegions.map((region) => (
+                    <option key={region.id} value={region.id}>
+                      {region.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {mode === "hos" && (
               <div className="nw-ruling-party muted small" role="note">
                 {rulingParty
@@ -1451,7 +1502,7 @@ function Dashboard({
         onOpenCharacter={() => setCharacterOpen(true)}
         onWorld={onWorld}
         onToast={(msg) => setToast(msg)}
-        onOpenOnline={() => void openOnline()}
+        onOpenHelp={(routeId) => void openHelp(routeId)}
         cheatsUsed={cheatsUsed}
         pausedFeatureCount={pausedFeatureCount}
         statusFooter={lastReportSummary}

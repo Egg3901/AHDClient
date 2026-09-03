@@ -117,10 +117,9 @@ export interface NavSection {
   requiresCapabilities: Capability[];
   requiresCondition?: NavCondition;
   /**
-   * Play modes where this section appears. All five top-level sections ship
-   * in local mode; `requiresCapabilities`/`requiresCondition` above gate the
-   * multiplayer game only (local mode waives the account-bound section
-   * gate, destination rules still apply).
+   * Play modes where this section can appear. Local mode waives only the
+   * account capability; character capabilities and live-data conditions are
+   * enforced in both modes.
    */
   availableIn: readonly PlayMode[];
   /** Pinned entries rendered above groups (home links, personal links). */

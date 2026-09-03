@@ -27,6 +27,7 @@ export type RouteTargetKind =
   | "hos"
   | "news"
   | "countryDetail"
+  | "governorOffice"
   | "switchView"
   | "summary"
   | "multiplayerOnly"
@@ -58,6 +59,7 @@ const SCREEN_ROUTES: Record<string, RouteTargetKind> = {
   "nation.government.legislature": "congress",
   "nation.government.executive": "government",
   "nation.economy.economy": "economy",
+  "state.office": "governorOffice",
   // World section.
   "world.my-corporation": "corporations",
   "world.nations": "worldMap",

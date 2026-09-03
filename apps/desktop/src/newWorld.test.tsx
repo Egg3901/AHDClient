@@ -79,9 +79,32 @@ describe("new world setup", () => {
     expect(createWorldMock.mock.calls[0]?.[0]).toMatchObject({
       era: "1991",
       countryId: "BR",
+      homeRegionId: expect.any(String),
       mode: "hos",
     });
     expect(onCreated).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the player choose a home state or region for State navigation", async () => {
+    const user = userEvent.setup();
+    render(
+      <NewWorldScreen
+        initialEra="1991"
+        onBack={vi.fn()}
+        onCreated={vi.fn()}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText("Playable country"), "BR");
+    const homeRegion = await screen.findByLabelText("Home state or region");
+    await user.selectOptions(homeRegion, "SUDESTE");
+    await user.click(screen.getByRole("button", { name: "Create world" }));
+
+    await waitFor(() => expect(createWorldMock).toHaveBeenCalledTimes(1));
+    expect(createWorldMock.mock.calls[0]?.[0]).toMatchObject({
+      countryId: "BR",
+      homeRegionId: "SUDESTE",
+    });
   });
 
   it("passes feature flag changes into world creation", async () => {

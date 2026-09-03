@@ -79,7 +79,9 @@ export function isSectionVisible(
   const section = manifest.sections.find((s) => s.id === sectionId);
   if (!section) return false;
   if (!section.availableIn.includes(viewer.playMode)) return false;
-  if (viewer.playMode === "local") return true;
+  if (viewer.playMode === "local") {
+    return meetsLocalGate(section.requiresCapabilities, section.requiresCondition, viewer);
+  }
   return meetsGate(section.requiresCapabilities, section.requiresCondition, viewer);
 }
 
