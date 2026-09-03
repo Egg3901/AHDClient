@@ -18,15 +18,25 @@ jobs:
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             args: --bundles appimage,deb
+            artifact: ahdclient-linux-x86_64
+            paths: |
+              apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+              apps/desktop/src-tauri/target/release/bundle/deb/*.deb
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
             args: --bundles nsis
+            artifact: ahdclient-windows-x86_64
+            paths: apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
           - platform: macos-latest
             target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin --bundles dmg
+            artifact: ahdclient-macos-aarch64
+            paths: apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
           - platform: macos-latest
             target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin --bundles dmg
+            artifact: ahdclient-macos-x86_64
+            paths: apps/desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
 
     runs-on: ${{ matrix.platform }}
 
@@ -63,5 +73,9 @@ jobs:
         with:
           projectPath: apps/desktop
           args: ${{ matrix.args }}
-          uploadWorkflowArtifacts: true
-          workflowArtifactNamePattern: ahdclient-[platform]-[arch]-[bundle]
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.paths }}
+          if-no-files-found: error

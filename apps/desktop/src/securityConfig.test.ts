@@ -68,6 +68,10 @@ describe("desktop platform configuration", () => {
     expect(workflow).toContain("--bundles appimage,deb");
     expect(workflow).toContain("--bundles nsis");
     expect(workflow).toContain("--bundles dmg");
+    expect(workflow).toContain("actions/upload-artifact@v4");
+    expect(workflow).toContain("ahdclient-windows-x86_64");
+    expect(workflow).toContain("bundle/nsis/*.exe");
+    expect(workflow).not.toContain("uploadWorkflowArtifacts");
   });
 
   it("tests the desktop Rust target before merge", () => {
