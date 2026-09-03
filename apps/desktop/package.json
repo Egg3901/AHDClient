@@ -11,6 +11,7 @@
     "android:build:apk": "tauri android build --apk",
     "android:build:aab": "tauri android build --aab",
     "dev": "tauri dev",
+    "prototype:country": "vite --host 127.0.0.1",
     "build": "tauri build",
     "build:web": "vite build",
     "build:preview": "vite build --base ./",
