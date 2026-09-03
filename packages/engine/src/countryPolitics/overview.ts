@@ -37,7 +37,6 @@ import {
 } from "./constants.js";
 import type {
   ApprovalSample,
-  ChamberOfficers,
   CountryPoliticalOverview,
   RegimeClassification,
 } from "./types.js";
@@ -123,7 +122,7 @@ function economyOf(world: WorldState, countryId: string): {
 /** Surplus/GDP as a fraction; 0 when no budget (macro-only country). */
 function surplusRatio(world: WorldState, countryId: string): number {
   const budget = world.budgets?.[countryId];
-  const gdp = world.countries[countryId]?.economy.gdp;
+  const gdp = budget?.gdp;
   if (!budget || !isFiniteNumber(budget.surplus) || !isFiniteNumber(gdp) || gdp <= 0) return 0;
   return budget.surplus / gdp;
 }
@@ -244,54 +243,6 @@ export function unrestTargetFor(world: WorldState, countryId: string): number {
   return round1(clamp01(target));
 }
 
-/**
- * Expected officers for one chamber from current seat-holders. Structural
- * placeholder, not constitutional law: the presiding officer (speaker) is
- * the most senior (lowest-id) politician of the largest holder party and
- * the majority leader the next of the same party, so a change in chamber
- * control flips the offices. Nulls when the chamber seats nobody (all
- * vacant — e.g. UK commons in the shipped packs, an authored content gap,
- * not a value to invent).
- */
-export function expectedOfficersForChamber(
-  world: WorldState,
-  countryId: string,
-  chamberKey: string,
-): ChamberOfficers {
-  const holders = world.politicians
-    .filter((p) => p.countryId === countryId && p.chamberKey === chamberKey)
-    .sort((a, b) => a.id.localeCompare(b.id));
-  if (holders.length === 0) {
-    return { chamberKey, speakerId: null, speakerPartyId: null, majorityLeaderId: null, majorityLeaderPartyId: null };
-  }
-  const byParty = new Map<string, typeof holders>();
-  for (const h of holders) {
-    const list = byParty.get(h.partyId) ?? [];
-    list.push(h);
-    byParty.set(h.partyId, list);
-  }
-  const ranked = [...byParty.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
-  const [partyId, members] = ranked[0]!;
-  const speaker = members[0]!;
-  const leader = members.find((m) => m.id !== speaker.id) ?? null;
-  return {
-    chamberKey,
-    speakerId: speaker.id,
-    speakerPartyId: partyId,
-    majorityLeaderId: leader ? leader.id : null,
-    majorityLeaderPartyId: leader ? partyId : null,
-  };
-}
-
-function officersEqual(a: ChamberOfficers, b: ChamberOfficers): boolean {
-  return (
-    a.speakerId === b.speakerId &&
-    a.speakerPartyId === b.speakerPartyId &&
-    a.majorityLeaderId === b.majorityLeaderId &&
-    a.majorityLeaderPartyId === b.majorityLeaderPartyId
-  );
-}
-
 function moveToward(current: number, target: number): number {
   const delta = target - current;
   const step = Math.max(-MOOD_MAX_DELTA_PER_TURN, Math.min(MOOD_MAX_DELTA_PER_TURN, delta));
@@ -318,15 +269,10 @@ export function seedCountryOverview(world: WorldState, countryId: string): Count
       governmentType: "National government",
       legitimacy: DEFAULT_LEGITIMACY,
       unrest: DEFAULT_UNREST,
-      officersByChamber: {},
       updatedTurn: world.meta.turn,
     };
   }
   const approval = approvalTargetFor(world, countryId);
-  const officersByChamber: Record<string, ChamberOfficers> = {};
-  for (const chamber of world.legislatures[countryId]?.chambers ?? []) {
-    officersByChamber[chamber.key] = expectedOfficersForChamber(world, countryId, chamber.key);
-  }
   return {
     countryId,
     approval,
@@ -335,7 +281,6 @@ export function seedCountryOverview(world: WorldState, countryId: string): Count
     governmentType: governmentTypeFor(world, countryId),
     legitimacy: legitimacyTargetFor(world, countryId),
     unrest: unrestTargetFor(world, countryId),
-    officersByChamber,
     updatedTurn: world.meta.turn,
   };
 }
@@ -353,10 +298,8 @@ export function seedCountryPolitics(world: WorldState): Record<string, CountryPo
 
 /**
  * Per-turn update: ease approval/legitimacy/unrest toward their live
- * targets and reconcile officers, regime, and government type with the
- * current composition. RNG-free. Covers chambers that appear after seed
- * (officersByChamber gains keys) and drops none (a removed chamber keeps
- * its last officers — the record is history, not a live seat).
+ * targets and reconcile regime and government type with current state.
+ * RNG-free.
  */
 export function updateCountryPolitics(world: WorldState): void {
   const ids = Object.values(world.countries)
@@ -395,14 +338,6 @@ export function updateCountryPolitics(world: WorldState): void {
     if (unrest !== overview.unrest) {
       overview.unrest = unrest;
       changed = true;
-    }
-    for (const chamber of world.legislatures[id]?.chambers ?? []) {
-      const expected = expectedOfficersForChamber(world, id, chamber.key);
-      const current = overview.officersByChamber[chamber.key];
-      if (!current || !officersEqual(current, expected)) {
-        overview.officersByChamber[chamber.key] = expected;
-        changed = true;
-      }
     }
     const regime = classifyRegime(world, id);
     if (regime !== overview.regime) {

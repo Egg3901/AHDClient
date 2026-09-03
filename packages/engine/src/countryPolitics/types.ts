@@ -17,15 +17,6 @@ export type RegimeClassification =
   | "one-party"
   | "national-government";
 
-/** Presiding + majority officers for one chamber, by politician id. Null = vacant office. */
-export interface ChamberOfficers {
-  chamberKey: string;
-  speakerId: string | null;
-  speakerPartyId: string | null;
-  majorityLeaderId: string | null;
-  majorityLeaderPartyId: string | null;
-}
-
 export interface ApprovalSample {
   turn: number;
   approval: number;
@@ -44,8 +35,6 @@ export interface CountryPoliticalOverview {
   legitimacy: number;
   /** Civil unrest 0-100 (1-decimal). */
   unrest: number;
-  /** Keyed by chamber key; covers every chamber of the country's legislature. */
-  officersByChamber: Record<string, ChamberOfficers>;
   /** Last turn any field above changed. */
   updatedTurn: number;
 }

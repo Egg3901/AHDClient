@@ -1,6 +1,6 @@
 export { advanceTurn } from "./engine.js";
 export type { AdvanceTurnOptions } from "./engine.js";
-export { createWorld, listEras, listPlayableCountries, listCountries, rulingPartyIdForCountry, rulingPartyForCountry, SCHEMA_VERSION } from "./world.js";
+export { createWorld, listEras, listPlayableCountries, listRegions, listCountries, rulingPartyIdForCountry, rulingPartyForCountry, SCHEMA_VERSION } from "./world.js";
 export type { NewWorldOptions, EraInfo, PlayableCountryInfo, WorldOverrides, CountryEconomyOverride } from "./world.js";
 export { applyCheat } from "./cheats.js";
 export type { CheatOp, PartyNumericField, PlayerNumericField, PoliticianNumericField } from "./cheats.js";
@@ -26,7 +26,7 @@ export * from "./actions/catalog.js";
 export * from "./actions/execute.js";
 export * from "./actions/fundGeneration.js";
 export { getCatalog, getLaw } from "./legislation/catalog.js";
-export type { Bill, Committee } from "./legislation/types.js";
+export type { Bill, Committee, EnactedLaw } from "./legislation/types.js";
 export * from "./membership.js";
 export * from "./caucus.js";
 export * from "./endorsement.js";
@@ -60,4 +60,8 @@ export {
   OUTPUT_GAP_BOUND,
 } from "./economy/macroConstants.js";
 export { GOVERNMENT_CHAMBER_BY_COUNTRY } from "./government/constants.js";
+export { EXTRACTABLE_RESOURCES } from "./commodity/constants.js";
+export type { ExtractableResource } from "./commodity/constants.js";
 export * from "./countryPolitics/index.js";
+export * from "./governor/constants.js";
+export * from "./governor/powers.js";

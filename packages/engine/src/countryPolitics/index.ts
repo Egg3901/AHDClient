@@ -1,13 +1,11 @@
 export type {
   ApprovalSample,
-  ChamberOfficers,
   CountryPoliticalOverview,
   RegimeClassification,
 } from "./types.js";
 export {
   approvalTargetFor,
   classifyRegime,
-  expectedOfficersForChamber,
   governmentTypeFor,
   legitimacyTargetFor,
   seedCountryOverview,

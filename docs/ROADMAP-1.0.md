@@ -8,7 +8,7 @@ Working method: numbered waves. One wave = one muse brief (or an inline pass by 
 
 ## Progress ledger (done)
 
-Engine core (turn pipeline, RNG, saves) - four real seed packs - 21 playable era/country combinations across 11 unique countries - macro economy (output gap, Okun, Phillips) - political skeleton (parties, legislatures, real compositions) - NPC name generation - sim CLI (run/determinism/bench/QA) - launcher with era command globe and latest-save continuation - granular creation flow, including pre-turn simulation controls - singleplayer tools with quick edits, typed simulation flags, and validated complete-world editing - persistent multiplayer-parity navigation and country overview - schema v43 with chained migrations.
+Engine core (turn pipeline, RNG, saves) - four real seed packs - 21 playable era/country combinations across 11 unique countries - macro economy (output gap, Okun, Phillips) - political skeleton (parties, legislatures, real compositions) - NPC name generation - sim CLI (run/determinism/bench/QA) - launcher with era command globe and latest-save continuation - granular creation flow, including home-region identity and pre-turn simulation controls - singleplayer tools with quick edits, typed simulation flags, and validated complete-world editing - a persistent multiplayer-shaped navigation shell and local country overview - schema v43 with chained migrations. A matching route in the shell does not claim its multiplayer mechanic exists locally; unavailable mechanics remain named on their route.
 
 ## Lane 1: economy core (engine)
 

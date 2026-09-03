@@ -189,6 +189,8 @@ export interface NewWorldOptions {
   seed: string;
   playerName: string;
   countryId: string;
+  /** Home state or region used by the State navigation cluster. */
+  homeRegionId?: string;
   /** Era id from listEras(). */
   era: string;
   overrides?: WorldOverrides;
@@ -216,6 +218,18 @@ export function listPlayableCountries(era: string): PlayableCountryInfo[] {
   const pack = getPackByEra(era);
   if (!pack) throw new Error(`Unknown era: ${era}`);
   return pack.countries.filter((c) => c.playable).map((c) => ({ id: c.id, name: c.name }));
+}
+
+export function listRegions(
+  era: string,
+  countryId: string,
+): Array<{ id: string; name: string }> {
+  const pack = getPackByEra(era);
+  if (!pack) throw new Error(`Unknown era: ${era}`);
+  return (pack.states ?? [])
+    .filter((state) => state.countryId === countryId)
+    .map((state) => ({ id: state.id, name: state.name }))
+    .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 export function listCountries(era: string): { id: string; name: string; playable: boolean; economy: WorldState["countries"][string]["economy"] }[] {
@@ -470,6 +484,13 @@ export function createWorld(options: NewWorldOptions): WorldState {
 
   const { regions, electoratePools, regionTurnouts, partyRegions, partyPressures, candidateSupports } =
     seedSupport(pack, parties, politicians);
+  const homeRegions = Object.values(regions)
+    .filter((region) => region.countryId === options.countryId)
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const homeRegionId = options.homeRegionId ?? homeRegions[0]?.id ?? null;
+  if (homeRegionId !== null && regions[homeRegionId]?.countryId !== options.countryId) {
+    throw new Error(`Unknown home region: ${homeRegionId} for country ${options.countryId}`);
+  }
 
   // Seed committees to the depth billLifecycle requires (not live gating)
   const bills: WorldState["bills"] = [];
@@ -724,6 +745,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     player: {
       name: options.playerName,
       countryId: options.countryId,
+      homeRegionId,
       cash: playerCashOverride !== undefined ? playerCashOverride : 10_000,
       actions: 25,
       funds: 0,

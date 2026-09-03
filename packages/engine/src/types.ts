@@ -620,6 +620,8 @@ export interface PurgeRejoinBlock {
 export interface PlayerCharacter {
   name: string;
   countryId: string;
+  /** Home state or region for the State navigation cluster. Null on migrated saves that never chose one. */
+  homeRegionId?: string | null;
   cash: number;
   /**
    * Action points mirroring mainline Character.actions refresh cadence.

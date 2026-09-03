@@ -191,10 +191,12 @@ describe("LocalCountryOverviewSource", () => {
     expect(model.nationalAxes.social).toBe(0);
   });
 
-  it("backs approval, regime, and officers for seeded countries: no gaps", async () => {
+  it("backs approval and regime while keeping chamber leadership honest", async () => {
     const model = await new LocalCountryOverviewSource(world()).load("US");
 
-    expect(model.unavailable).toEqual([]);
+    expect(model.unavailable.map((record) => record.category)).toEqual([
+      "chamberLeadership",
+    ]);
     expect(model.approval).not.toBeNull();
     expect(model.approval!.value).toBeGreaterThanOrEqual(0);
     expect(model.approval!.value).toBeLessThanOrEqual(100);
@@ -210,14 +212,7 @@ describe("LocalCountryOverviewSource", () => {
     expect(model.legitimacy).toBeLessThanOrEqual(100);
     expect(model.unrest).toBeGreaterThanOrEqual(0);
     expect(model.unrest).toBeLessThanOrEqual(100);
-    expect(model.chamberOfficers.map((o) => o.chamberKey).sort()).toEqual(
-      model.legislature.chambers.map((c) => c.key).sort(),
-    );
-    for (const officers of model.chamberOfficers) {
-      expect(officers.chamberName.length).toBeGreaterThan(0);
-      expect("speakerName" in officers).toBe(true);
-      expect("majorityLeaderName" in officers).toBe(true);
-    }
+    expect(model.chamberOfficers).toEqual([]);
   });
 
   it("lists gaps only when no political overview is seeded", async () => {

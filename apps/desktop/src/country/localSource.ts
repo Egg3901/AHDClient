@@ -4,7 +4,6 @@ import type {
   MissingRecord,
   NationalAxes,
   OverviewChamber,
-  OverviewChamberOfficer,
   OverviewEconomicModel,
   OverviewGovernment,
   OverviewLeader,
@@ -69,8 +68,9 @@ function clampAxis(value: number): number {
 
 /**
  * Gaps that remain only when no countryPolitics record is seeded
- * (non-playable countries). Playable countries back approval, regime,
- * and chamber officers from live engine state, so no gap is listed.
+ * (non-playable countries). Playable countries back approval and regime
+ * from live engine state. Chamber leadership remains an explicit gap because
+ * the engine stores composition, not actual office assignments.
  * Ceremonial head of state is never listed: the engine models the
  * executive only and no separate ceremonial office applies. Parliamentary
  * formation is never listed either: presidential systems have no
@@ -78,17 +78,19 @@ function clampAxis(value: number): number {
  * directly.
  */
 function engineGaps(politicsSeeded: boolean): MissingRecord[] {
-  if (politicsSeeded) return [];
-  return [
-    {
-      category: "nationalApproval",
-      detail: "National approval / popular support for the government",
-      engineGap:
-        "No countryPolitics record is seeded for this country (non-playable)",
-    },
+  const gaps: MissingRecord[] = [
     {
       category: "chamberLeadership",
       detail: "Chamber leadership offices (speaker, majority leader)",
+      engineGap:
+        "The engine stores chamber composition but not actual chamber leadership; no officeholder is inferred from party control",
+    },
+  ];
+  if (politicsSeeded) return gaps;
+  gaps.push(
+    {
+      category: "nationalApproval",
+      detail: "National approval / popular support for the government",
       engineGap:
         "No countryPolitics record is seeded for this country (non-playable)",
     },
@@ -98,7 +100,8 @@ function engineGaps(politicsSeeded: boolean): MissingRecord[] {
       engineGap:
         "No countryPolitics record is seeded for this country (non-playable)",
     },
-  ];
+  );
+  return gaps;
 }
 
 function politicianName(world: WorldState, id: string | null): string | null {
@@ -139,38 +142,6 @@ function leadersFor(world: WorldState, countryId: string): OverviewLeader[] {
     leaders.push({ office: "Executive", name: null, party: null });
   }
   return leaders;
-}
-
-/**
- * Chamber officers from the countryPolitics record, resolved to live
- * roster names. A null holder is a vacant office (chamber seats nobody),
- * not a gap. Chambers with no officer entry report all offices vacant.
- */
-function chamberOfficersFor(
-  world: WorldState,
-  countryId: string,
-): OverviewChamberOfficer[] {
-  const legislature = world.legislatures[countryId];
-  if (legislature === undefined) return [];
-  const officersByChamber =
-    world.countryPolitics[countryId]?.officersByChamber ?? {};
-  return legislature.chambers.map((chamber) => {
-    const officers = officersByChamber[chamber.key];
-    return {
-      chamberKey: chamber.key,
-      chamberName: chamber.name,
-      speakerName: politicianName(world, officers?.speakerId ?? null),
-      speakerParty: partyLabel(world, officers?.speakerPartyId ?? null),
-      majorityLeaderName: politicianName(
-        world,
-        officers?.majorityLeaderId ?? null,
-      ),
-      majorityLeaderParty: partyLabel(
-        world,
-        officers?.majorityLeaderPartyId ?? null,
-      ),
-    };
-  });
 }
 
 function legislatureFor(
@@ -492,7 +463,7 @@ export class LocalCountryOverviewSource implements CountryOverviewSource {
         party: playerParty,
       },
       leaders: leadersFor(world, countryId),
-      chamberOfficers: chamberOfficersFor(world, countryId),
+      chamberOfficers: [],
       approval:
         politics === null
           ? null

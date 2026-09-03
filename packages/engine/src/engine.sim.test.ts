@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { advanceTurn } from "./engine.js";
 import { deserializeSave, serializeSave } from "./save.js";
-import { createWorld, listEras, listPlayableCountries, SCHEMA_VERSION } from "./world.js";
+import { createWorld, listEras, listPlayableCountries, listRegions, SCHEMA_VERSION } from "./world.js";
 import { rngFromSeed, rngFromState } from "./rng.js";
 import { dateForTurn, eraForDate } from "./calendar.js";
 import { PACKS } from "@ahdclient/content";
@@ -406,6 +406,16 @@ describe("seed packs integration", () => {
     }
   });
 
+  it("lists selectable home regions for every playable start", () => {
+    for (const era of listEras()) {
+      for (const country of listPlayableCountries(era.id)) {
+        const regions = listRegions(era.id, country.id);
+        expect(regions.length, `${era.id}/${country.id}`).toBeGreaterThan(0);
+        expect(new Set(regions.map((region) => region.id)).size).toBe(regions.length);
+      }
+    }
+  });
+
   it("createWorld succeeds for every era and playable country and is deterministic", () => {
     for (const era of listEras()) {
       const playable = listPlayableCountries(era.id);
@@ -417,6 +427,8 @@ describe("seed packs integration", () => {
         expect(a.meta.era).toBe(era.id);
         expect(a.meta.date).toBe(era.startDate);
         expect(a.player.countryId).toBe(country.id);
+        expect(a.player.homeRegionId, `${era.id}/${country.id}`).toBeTruthy();
+        expect(a.regions[a.player.homeRegionId!]?.countryId).toBe(country.id);
         // world contains all countries from pack. Smallest real pack (2019)
         // ships 8 countries — mainline's own base NATIONAL_BUDGET_SEED_CONFIGS
         // table has no more than that (see packs/2019.ts provenance header).
@@ -440,6 +452,18 @@ describe("seed packs integration", () => {
 
   it("createWorld throws on unknown country", () => {
     expect(() => createWorld({ seed: "s", playerName: "P", countryId: "zz", era: "1953" })).toThrow(/Unknown country/i);
+  });
+
+  it("rejects a home region outside the selected country", () => {
+    expect(() =>
+      createWorld({
+        seed: "s",
+        playerName: "P",
+        countryId: "US",
+        homeRegionId: "LON",
+        era: "1953",
+      }),
+    ).toThrow(/Unknown home region/i);
   });
 
   it("listPlayableCountries throws on unknown era", () => {

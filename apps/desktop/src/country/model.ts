@@ -88,8 +88,8 @@ export interface OverviewRegime {
 }
 
 /**
- * Presiding + majority officers for one chamber. Null names/parties mean
- * the office is vacant (chamber seats nobody), not unknown.
+ * Presiding + majority officers for one chamber. This stays empty until the
+ * engine stores real assignments; party control is not an officeholder.
  */
 export interface OverviewChamberOfficer {
   chamberKey: string;
@@ -302,7 +302,7 @@ export interface CountryOverviewModel {
   registration: OverviewRegistration;
   player: OverviewPlayer;
   leaders: OverviewLeader[];
-  /** Chamber presiding/majority officers; empty when no chamber seats any. */
+  /** Chamber officers; empty until the engine stores real assignments. */
   chamberOfficers: OverviewChamberOfficer[];
   /** Null when no political overview is seeded (non-playable countries). */
   approval: OverviewApproval | null;

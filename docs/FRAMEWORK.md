@@ -79,7 +79,7 @@ Singleplayer tools must never render in multiplayer mode. The quick editor route
 
 `WorldState.featureFlags` contains the typed, player-owned simulation controls defined by `WORLD_FEATURE_FLAG_DEFINITIONS`. All default on. Each switch gates a documented family of turn phases; core calendar, action refresh, era crossing, history recording, and news maintenance always run to preserve world invariants. Disabled phases consume no RNG, so identical worlds plus identical flag changes remain deterministic. Schema v42 migrates old saves to the all-on defaults.
 
-Schema v43 adds `WorldState.countryPolitics`, a deterministic local overview record for each playable country. It persists national approval history, regime classification, legitimacy, unrest, and chamber officers. The `countryPolitics` turn phase derives changes from live world state without drawing RNG. The v42 to v43 migration seeds the record from the loaded save and never fabricates an executive or historical samples from before the migration turn.
+Schema v43 adds `WorldState.countryPolitics`, a deterministic local overview record for each playable country, and `player.homeRegionId` for the State navigation cluster. It persists national approval history, regime classification, legitimacy, and unrest. The `countryPolitics` turn phase derives changes from live world state without drawing RNG. The v42 to v43 migration seeds the overview from the loaded save and sets the absent home-region identity to `null`; the Character panel lets the player select it. Migration never fabricates an executive, chamber officeholder, or historical samples from before the migration turn.
 
 ## Singleplayer UI contract
 

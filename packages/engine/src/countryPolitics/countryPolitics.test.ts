@@ -42,26 +42,6 @@ describe("countryPolitics seed", () => {
     expect(world.countryPolitics["DD"]!.regime).toBe("one-party");
   });
 
-  it("seeds chamber officers from the largest holder party, vacant where nobody sits", () => {
-    const world = createWorld(OPTS);
-    // 1953 house: REP 221 > DEM 213, so both offices come from the REP roster.
-    const house = world.countryPolitics["US"]!.officersByChamber["house"]!;
-    expect(house.speakerId).not.toBeNull();
-    expect(house.speakerPartyId).toBe("US_REP");
-    expect(house.majorityLeaderId).not.toBeNull();
-    expect(house.majorityLeaderId).not.toBe(house.speakerId);
-    expect(house.majorityLeaderPartyId).toBe("US_REP");
-    for (const holderId of [house.speakerId!, house.majorityLeaderId!]) {
-      const holder = world.politicians.find((p) => p.id === holderId)!;
-      expect(holder.countryId).toBe("US");
-      expect(holder.chamberKey).toBe("house");
-    }
-    // UK commons ships all-vacant (authored content gap): honest nulls, no invented leaders.
-    const commons = world.countryPolitics["UK"]!.officersByChamber["commons"]!;
-    expect(commons.speakerId).toBeNull();
-    expect(commons.majorityLeaderId).toBeNull();
-  });
-
   it("does not create an executive merely to populate the overview", () => {
     const world = createWorld(OPTS);
     expect(world.executives["US"]).toBeUndefined();
@@ -98,6 +78,19 @@ describe("countryPolitics turn evolution", () => {
     expect(world.countryPolitics["US"]!.approval).toBeLessThan(before);
   });
 
+  it("uses the absolute-currency budget GDP when calculating fiscal approval", () => {
+    const world = createWorld(OPTS);
+    const economy = world.countries["US"]!.economy;
+    economy.growthRate = 0.025;
+    economy.unemploymentRate = 0.05;
+    economy.inflationRate = 0.02;
+    const budget = world.budgets["US"]!;
+    budget.surplus = budget.gdp * 0.1;
+    expect(approvalTargetFor(world, "US")).toBe(52);
+    budget.surplus = budget.gdp * -0.1;
+    expect(approvalTargetFor(world, "US")).toBe(47);
+  });
+
   it("appends one approval sample per turn through the full pipeline", () => {
     const world = createWorld(OPTS);
     advanceTurn(world);
@@ -107,32 +100,6 @@ describe("countryPolitics turn evolution", () => {
     expect(world.countryPolitics["US"]!.updatedTurn).toBe(2);
   });
 
-  it("reconciles officers when chamber control flips", () => {
-    const world = createWorld(OPTS);
-    // Flip the house: every holder becomes DEM.
-    for (const p of world.politicians) {
-      if (p.countryId === "US" && p.chamberKey === "house") p.partyId = "US_DEM";
-    }
-    world.legislatures["US"]!.chambers.find((c) => c.key === "house")!.composition = {
-      seatsByParty: { US_DEM: 434 },
-      vacancies: 1,
-    };
-    updateCountryPolitics(world);
-    const house = world.countryPolitics["US"]!.officersByChamber["house"]!;
-    expect(house.speakerPartyId).toBe("US_DEM");
-    expect(house.majorityLeaderPartyId).toBe("US_DEM");
-  });
-
-  it("vacates officers when a chamber empties", () => {
-    const world = createWorld(OPTS);
-    world.politicians = world.politicians.filter(
-      (p) => !(p.countryId === "US" && p.chamberKey === "senate"),
-    );
-    updateCountryPolitics(world);
-    const senate = world.countryPolitics["US"]!.officersByChamber["senate"]!;
-    expect(senate.speakerId).toBeNull();
-    expect(senate.majorityLeaderId).toBeNull();
-  });
 });
 
 describe("countryPolitics determinism", () => {
@@ -158,11 +125,13 @@ describe("countryPolitics save migration (v43)", () => {
       world: Record<string, unknown> & { meta: { schemaVersion: number } };
     };
     delete raw.world["countryPolitics"];
+    delete (raw.world["player"] as Record<string, unknown>)["homeRegionId"];
     raw.schemaVersion = 42;
     raw.world.meta.schemaVersion = 42;
     const migrated = deserializeSave(JSON.stringify(raw));
     expect(migrated.meta.schemaVersion).toBe(SCHEMA_VERSION);
     expect(migrated.meta.schemaVersion).toBe(43);
+    expect(migrated.player.homeRegionId).toBeNull();
     const overview = migrated.countryPolitics["US"]!;
     expect(overview.approvalHistory).toEqual([{ turn: 0, approval: overview.approval }]);
     expect(overview.regime).toBe("presidential-republic");
