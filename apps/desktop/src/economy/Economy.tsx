@@ -41,11 +41,14 @@ function formatTreasury(v: unknown): string {
 export function EconomyScreen({
   world,
   onBack,
+  countryId,
 }: {
   world: WorldState;
   onBack: () => void;
+  countryId?: string;
 }) {
-  const playerCountryId = safeStr(world.player?.countryId, Object.keys(world.countries ?? {})[0] ?? "US");
+  const homeCountryId = safeStr(world.player?.countryId, Object.keys(world.countries ?? {})[0] ?? "US");
+  const playerCountryId = countryId ?? homeCountryId;
   const countries = world.countries as Record<string, unknown> | undefined;
   const playerRaw = (countries?.[playerCountryId] ?? null) as Record<string, unknown> | null;
   const playerEcon = (playerRaw?.economy ?? {}) as Record<string, unknown>;
@@ -308,10 +311,10 @@ export function EconomyScreen({
                 </thead>
                 <tbody>
                   {sorted.map((r) => (
-                    <tr key={r.id} className={r.id === playerCountryId ? "is-player" : undefined}>
+                    <tr key={r.id} className={r.id === homeCountryId ? "is-player" : undefined}>
                       <td>
                         {r.name}
-                        {r.id === playerCountryId && <span className="muted small" style={{ marginLeft: 6 }}>you</span>}
+                        {r.id === homeCountryId && <span className="muted small" style={{ marginLeft: 6 }}>you</span>}
                       </td>
                       <td>{formatGdp(r.gdp)}</td>
                       <td>{formatPct(r.growthRate)}</td>

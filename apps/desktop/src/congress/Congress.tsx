@@ -9,6 +9,7 @@ type Props = {
   onWorld: (w: WorldState) => void;
   onToast: (msg: string) => void;
   onBack: () => void;
+  initialCountryId?: string;
 };
 
 function safeStr(v: unknown, fallback: string): string {
@@ -140,9 +141,9 @@ function effectsPreview(catalogId: string | undefined): ReturnType<typeof getLaw
   try { return getLaw(catalogId); } catch { return null; }
 }
 
-export function CongressScreen({ world, onWorld, onToast, onBack }: Props) {
+export function CongressScreen({ world, onWorld, onToast, onBack, initialCountryId }: Props) {
   const playerCountryId = safeStr((world as unknown as Record<string, unknown>)?.["player"] ? (world.player as unknown as Record<string, unknown>)["countryId"] as string : "", Object.keys((world as unknown as Record<string, unknown>)["countries"] as Record<string, unknown> ?? {})[0] ?? "US");
-  const displayCountryId = playerCountryId;
+  const displayCountryId = initialCountryId ?? playerCountryId;
   const turn = safeNum((world as unknown as Record<string, unknown>)?.["meta"] ? (world.meta as unknown as Record<string, unknown>)["turn"] as number : 0, 0);
   const date = safeStr((world as unknown as Record<string, unknown>)?.["meta"] ? (world.meta as unknown as Record<string, unknown>)["date"] as string : "", "");
 

@@ -14,36 +14,15 @@ import { createWorldWithOverrides, listCountries } from "./worldSetup.js";
 import type { WorldOverrides, CountryEconomyOverride } from "./worldSetup.js";
 import { applyCheat, describeCheat } from "./cheats.js";
 import type { CheatOp, PartyNumericField, PlayerNumericField, PoliticianNumericField } from "./cheats.js";
-import { GovernmentScreen } from "./government/Government.js";
-import "./government/government.css";
-import { EconomyScreen } from "./economy/Economy.js";
-import "./economy/economy.css";
-import { MarketsScreen } from "./markets/Markets.js";
-import "./markets/markets.css";
-import { WorldMapScreen } from "./worldMap/WorldMap.js";
-import "./worldMap/worldMap.css";
-import { PartiesScreen } from "./parties/Parties.js";
-import "./parties/parties.css";
 import { SavesScreen } from "./saves/SavesScreen.js";
 import "./saves/saves.css";
 import { listSlots, loadFromSlot, maybeAutosave, QUICK_SAVE_SLOT, saveToSlot } from "./saves.js";
 import type { SaveSlotMeta } from "./saves.js";
 import { CharacterPanel } from "./character/CharacterPanel.js";
 import "./character/character.css";
-import { ActionsHub } from "./actions/ActionsHub.js";
-import "./actions/actions.css";
-import { NewsScreen, NewsWidget } from "./news/NewsFeed.js";
-import "./news/news.css";
-import { CongressScreen } from "./congress/Congress.js";
-import "./congress/congress.css";
-import { ElectionsScreen } from "./elections/Elections.js";
-import "./elections/elections.css";
-import { CorporationsScreen } from "./corporations/Corporations.js";
-import "./corporations/corporations.css";
-import { CampaignsScreen } from "./campaigns/Campaigns.js";
-import "./campaigns/campaigns.css";
-import { HeadOfStateScreen } from "./hos/HeadOfState.js";
-import "./hos/hos.css";
+import { GameShell } from "./gameShell/GameShell.js";
+import { LocalCountryOverviewSource } from "./country/localSource.js";
+import type { CountryOverviewModel } from "./country/model.js";
 import { ONLINE_URL } from "./onlineTarget.js";
 
 // Desktop builds create the online window in Rust so it can be given
@@ -1306,20 +1285,15 @@ function Dashboard({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [cheatOpen, setCheatOpen] = useState(false);
   const [cheatLog, setCheatLog] = useState<string[]>([]);
-  const [govOpen, setGovOpen] = useState(false);
-  const [ecoOpen, setEcoOpen] = useState(false);
-  const [marketsOpen, setMarketsOpen] = useState(false);
-  const [worldOpen, setWorldOpen] = useState(false);
-  const [partiesOpen, setPartiesOpen] = useState(false);
+  // Persistent shell navigation: one route id replaces the old per-screen
+  // booleans so the top navigation stays visible on every screen.
+  const [route, setRoute] = useState("nation.home");
+  const [viewedCountryId, setViewedCountryId] = useState(world.player.countryId);
+  const [overviewModel, setOverviewModel] = useState<CountryOverviewModel | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
   const [characterOpen, setCharacterOpen] = useState(false);
-  const [newsOpen, setNewsOpen] = useState(false);
   const cheatsUsed = world.meta.cheatsUsed;
   const pausedFeatureCount = Object.values(world.featureFlags).filter((enabled) => !enabled).length;
-  const [congressOpen, setCongressOpen] = useState(false);
-  const [electionsOpen, setElectionsOpen] = useState(false);
-  const [corpsOpen, setCorpsOpen] = useState(false);
-  const [campaignsOpen, setCampaignsOpen] = useState(false);
-  const [hosOpen, setHosOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
 
@@ -1422,155 +1396,66 @@ function Dashboard({
     return () => clearTimeout(t);
   }, [toast]);
 
-  if (worldOpen) {
-    return <WorldMapScreen world={world} onBack={() => setWorldOpen(false)} />;
-  }
+  // Home-nation overview loads through the local source: the live world
+  // is projected on-device, never fetched.
+  useEffect(() => {
+    if (world.countries[viewedCountryId] === undefined) {
+      setViewedCountryId(world.player.countryId);
+      return;
+    }
+    let cancelled = false;
+    setOverviewModel(null);
+    setOverviewError(null);
+    const source = new LocalCountryOverviewSource(world);
+    void source
+      .load(viewedCountryId)
+      .then((model) => {
+        if (!cancelled) setOverviewModel(model);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setOverviewError(error instanceof Error ? error.message : String(error));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [route, world, world.meta.turn, viewedCountryId]);
 
-  if (hosOpen) {
-    return (
-      <HeadOfStateScreen
-        world={world}
-        onWorld={(w) => onWorld(w)}
-        onToast={(msg) => setToast(msg)}
-        onBack={() => setHosOpen(false)}
-        onOpenLegislative={() => {
-          setHosOpen(false);
-          setCongressOpen(true);
-        }}
-        onOpenEconomy={() => {
-          setHosOpen(false);
-          setEcoOpen(true);
-        }}
-      />
-    );
-  }
+  const handleSelectCountry = (countryId: string) => {
+    setViewedCountryId(countryId);
+    setRoute("nation.home");
+  };
 
-  if (govOpen) {
-    return (
-      <GovernmentScreen
-        world={world}
-        onBack={() => setGovOpen(false)}
-        initialCountryId={world.player.countryId}
-      />
-    );
-  }
-
-  if (partiesOpen) {
-    return <PartiesScreen world={world} onBack={() => setPartiesOpen(false)} initialCountryId={world.player.countryId} />;
-  }
-
-  if (ecoOpen) {
-    return <EconomyScreen world={world} onBack={() => setEcoOpen(false)} />;
-  }
-
-  if (marketsOpen) {
-    return <MarketsScreen world={world} onWorld={(w) => onWorld(w)} onBack={() => setMarketsOpen(false)} />;
-  }
-
-  if (newsOpen) {
-    return <NewsScreen news={world.news} onBack={() => setNewsOpen(false)} worldTurn={world.meta.turn} worldDate={world.meta.date} />;
-  }
-
-  if (congressOpen) {
-    return (
-      <CongressScreen
-        world={world}
-        onWorld={(w) => onWorld(w)}
-        onToast={(msg) => setToast(msg)}
-        onBack={() => setCongressOpen(false)}
-      />
-    );
-  }
-
-  if (electionsOpen) {
-    return (
-      <ElectionsScreen
-        world={world}
-        onWorld={(w) => onWorld(w)}
-        onToast={(msg) => setToast(msg)}
-        onBack={() => setElectionsOpen(false)}
-        onOpenCharacter={() => {
-          setElectionsOpen(false);
-          setCharacterOpen(true);
-        }}
-      />
-    );
-  }
-
-  if (corpsOpen) {
-    return <CorporationsScreen world={world} onBack={() => setCorpsOpen(false)} />;
-  }
-
-  if (campaignsOpen) {
-    return <CampaignsScreen world={world} onBack={() => setCampaignsOpen(false)} />;
-  }
+  const lastReportSummary = lastReport
+    ? `Last turn: ${lastReport.phaseTimings.map((p) => `${p.name} ${p.ms.toFixed(1)}ms`).join(" · ")}`
+    : undefined;
 
   return (
     <div className="dashboard">
-      <header className="row spread dashboard-header">
-        <div className="row" style={{ gap: 12 }}>
-          <div>
-            <strong>Turn {world.meta.turn}</strong> · {world.meta.date} · era {world.meta.era}
-          </div>
-          {cheatsUsed && <span className="cheats-tag">CHEATS ACTIVE</span>}
-          {pausedFeatureCount > 0 && <span className="cheats-tag">{pausedFeatureCount} SYSTEMS PAUSED</span>}
-        </div>
-        <div className="row">
-          {world.player.mode === "hos" && (
-            <button className="secondary small-btn hos-nav-btn" onClick={() => setHosOpen(true)}>
-              HEAD OF STATE
-            </button>
-          )}
-          <button className="secondary small-btn" onClick={() => setCharacterOpen(true)}>
-            CHARACTER
-          </button>
-          <button className="secondary small-btn" onClick={() => setWorldOpen(true)}>
-            WORLD
-          </button>
-          <button className="secondary small-btn" onClick={() => setGovOpen(true)}>
-            GOVERNMENT
-          </button>
-          <button className="secondary small-btn" onClick={() => setPartiesOpen(true)}>
-            PARTIES
-          </button>
-          <button className="secondary small-btn" onClick={() => setEcoOpen(true)}>
-            ECONOMY
-          </button>
-          <button className="secondary small-btn" onClick={() => setMarketsOpen(true)}>
-            MARKETS
-          </button>
-          <button className="secondary small-btn" onClick={() => setCongressOpen(true)}>
-            CONGRESS
-          </button>
-          <button className="secondary small-btn" onClick={() => setElectionsOpen(true)}>
-            ELECTIONS
-          </button>
-          <button className="secondary small-btn" onClick={() => setCorpsOpen(true)}>
-            CORPORATIONS
-          </button>
-          <button className="secondary small-btn" onClick={() => setCampaignsOpen(true)}>
-            CAMPAIGNS
-          </button>
-          <button className="secondary small-btn" onClick={() => setNewsOpen(true)}>
-            NEWS
-          </button>
-          <button className="secondary small-btn cheat-toggle" onClick={() => setCheatOpen((v) => !v)}>
-            TOOLS
-          </button>
-          <button onClick={() => void advance()} disabled={busy}>
-            {busy ? "Processing" : "End turn"}
-          </button>
-          <button className="secondary" onClick={() => void quickSave()} disabled={saveBusy || busy} title="Quick save (Ctrl/Cmd+S)">
-            {saveBusy ? "Saving" : "Quick save"}
-          </button>
-          <button className="secondary" onClick={onOpenSaves} disabled={saveBusy || busy}>
-            Save manager
-          </button>
-          <button className="secondary" onClick={handleExit}>
-            Back to launcher
-          </button>
-        </div>
-      </header>
+      <GameShell
+        world={world}
+        routeId={route}
+        viewedCountryId={viewedCountryId}
+        overviewModel={overviewModel}
+        overviewError={overviewError}
+        onNavigate={setRoute}
+        onSelectCountry={handleSelectCountry}
+        onAdvance={() => void advance()}
+        advanceBusy={busy}
+        onQuickSave={() => void quickSave()}
+        saveBusy={saveBusy}
+        onOpenSaves={onOpenSaves}
+        onExit={handleExit}
+        onOpenCheats={() => setCheatOpen((v) => !v)}
+        onOpenCharacter={() => setCharacterOpen(true)}
+        onWorld={onWorld}
+        onToast={(msg) => setToast(msg)}
+        onOpenOnline={() => void openOnline()}
+        cheatsUsed={cheatsUsed}
+        pausedFeatureCount={pausedFeatureCount}
+        statusFooter={lastReportSummary}
+      />
 
       <CheatPanel
         open={cheatOpen}
@@ -1608,21 +1493,6 @@ function Dashboard({
         </div>
       )}
 
-      <NewsWidget news={world.news} onOpen={() => setNewsOpen(true)} />
-
-      <div className="panel">
-        <ActionsHub
-          world={world}
-          onWorld={(w) => onWorld(w)}
-          onToast={(msg) => setToast(msg)}
-        />
-      </div>
-
-      {lastReport && (
-        <div className="panel muted small">
-          Last turn: {lastReport.phaseTimings.map((p) => `${p.name} ${p.ms.toFixed(1)}ms`).join(" · ")}
-        </div>
-      )}
     </div>
   );
 }

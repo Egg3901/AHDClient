@@ -9,6 +9,7 @@ type Props = {
   onToast?: (msg: string) => void;
   onBack: () => void;
   onOpenCharacter?: () => void;
+  initialCountryId?: string;
 };
 
 function safeStr(v: unknown, fallback: string): string {
@@ -68,12 +69,13 @@ function groupOrder(key: string): number {
   return 2;
 }
 
-export function ElectionsScreen({ world, onWorld, onToast, onBack, onOpenCharacter }: Props) {
+export function ElectionsScreen({ world, onWorld, onToast, onBack, onOpenCharacter, initialCountryId }: Props) {
   const meta = (world as unknown as Record<string, unknown>)["meta"] as Record<string, unknown> | undefined;
   const turn = safeNum(meta?.["turn"] as unknown, 0);
   const date = safeStr(meta?.["date"] as unknown, "");
   const player = (world as unknown as Record<string, unknown>)["player"] as Record<string, unknown> | undefined;
   const playerCountryId = safeStr(player?.["countryId"] as unknown, "");
+  const displayCountryId = initialCountryId ?? playerCountryId;
   const rawElections = safeArray<ElectionRecord>((world as unknown as Record<string, unknown>)["elections"] as unknown);
   const parties = ((world as unknown as Record<string, unknown>)["parties"] as Record<string, { name?: string; abbreviation?: string; color?: string }> | undefined) ?? {};
   const sortedPartyIds = useMemo(() => Object.keys(parties).sort(), [parties]);
@@ -89,9 +91,9 @@ export function ElectionsScreen({ world, onWorld, onToast, onBack, onOpenCharact
   const countryRaces = useMemo(() => {
     return rawElections.filter((r) => {
       const cid = safeStr((r as unknown as Record<string, unknown>)["countryId"] as unknown, "");
-      return cid === playerCountryId;
+      return cid === displayCountryId;
     });
-  }, [rawElections, playerCountryId]);
+  }, [rawElections, displayCountryId]);
 
   const upcomingActive = useMemo(() => {
     return countryRaces.filter((r) => {
@@ -196,7 +198,7 @@ export function ElectionsScreen({ world, onWorld, onToast, onBack, onOpenCharact
     }
   }
 
-  const countryName = safeStr(((world as unknown as Record<string, unknown>)["countries"] as Record<string, { name?: string }> | undefined)?.[playerCountryId]?.name as unknown, playerCountryId);
+  const countryName = safeStr(((world as unknown as Record<string, unknown>)["countries"] as Record<string, { name?: string }> | undefined)?.[displayCountryId]?.name as unknown, displayCountryId);
 
   return (
     <div className="elections-screen">
@@ -205,7 +207,7 @@ export function ElectionsScreen({ world, onWorld, onToast, onBack, onOpenCharact
           <div className="row" style={{ gap: 12 }}>
             <h1 className="elections-title">ELECTIONS</h1>
             <span className="muted small elections-subtitle">
-              {countryName} ({playerCountryId}) · Turn {turn} {date ? `· ${date}` : ""}
+              {countryName} ({displayCountryId}) · Turn {turn} {date ? `· ${date}` : ""}
             </span>
           </div>
           <div className="row">

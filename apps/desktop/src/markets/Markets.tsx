@@ -50,14 +50,17 @@ export function MarketsScreen({
   world,
   onWorld,
   onBack,
+  countryId,
 }: {
   world: WorldState;
   onWorld: (w: WorldState) => void;
   onBack: () => void;
+  countryId?: string;
 }) {
-  const playerCountryId = safeStr((world as unknown as Record<string, unknown>).player
+  const homeCountryId = safeStr((world as unknown as Record<string, unknown>).player
     ? ((world.player as unknown as Record<string, unknown>)["countryId"] as unknown)
     : undefined, Object.keys((world.countries as Record<string, unknown>) ?? {})[0] ?? "US");
+  const playerCountryId = countryId ?? homeCountryId;
   const countries = (world.countries as Record<string, unknown> | undefined) ?? {};
   const playerCountryName = safeStr((countries[playerCountryId] as Record<string, unknown> | undefined)?.["name"], playerCountryId);
   const turn = safeNum((world.meta as unknown as Record<string, unknown>)?.["turn"], 0);
