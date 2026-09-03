@@ -1,8 +1,4 @@
 import {
-  deliverGovernorAddress,
-  issueGovernorOrder,
-} from "../../../../packages/engine/src/governor/powers.js";
-import {
   ADDRESS_ACTION_COST,
   ADDRESS_BODY_MAX_LENGTH,
   ADDRESS_COOLDOWN_TURNS,
@@ -16,7 +12,9 @@ import {
   EXEC_ORDER_DURATION_TURNS,
   EXEC_ORDER_SLOT_CAP,
   GUBERNATORIAL_ACTION_CAP,
-} from "../../../../packages/engine/src/governor/constants.js";
+  deliverGovernorAddress,
+  issueGovernorOrder,
+} from "@ahdclient/engine";
 import type { GovernorOfficeActions } from "./GovernorOfficeScreen.js";
 
 export const localGovernorOfficeActions: GovernorOfficeActions = {

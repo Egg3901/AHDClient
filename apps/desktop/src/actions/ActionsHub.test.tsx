@@ -27,6 +27,8 @@ describe("ActionsHub", () => {
       "fundraise",
       "campaign",
       "advertise",
+      "poll",
+      "pollLarge",
       "buildDonorBase",
       "convertCash",
       "rest",
@@ -59,7 +61,7 @@ describe("ActionsHub", () => {
     const view = render(
       <ActionsHub world={world} onWorld={vi.fn()} onToast={vi.fn()} />,
     );
-    const safeIds = new Set([
+    const executableIds = new Set([
       "fundraise",
       "campaign",
       "advertise",
@@ -74,7 +76,10 @@ describe("ActionsHub", () => {
     for (const button of view.container.querySelectorAll("button")) {
       const actionId = button.closest<HTMLElement>("[data-action-id]")?.dataset.actionId;
       expect(actionId, button.textContent ?? "action button").toBeDefined();
-      expect(safeIds.has(actionId!), `${actionId}: ${button.textContent}`).toBe(true);
+      if (!executableIds.has(actionId!)) {
+        expect(new Set(["poll", "pollLarge"]).has(actionId!), `${actionId}: ${button.textContent}`).toBe(true);
+        expect(button.disabled, `${actionId}: ${button.textContent}`).toBe(true);
+      }
     }
   });
 });

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { getLaw, getCatalog } from "@ahdclient/engine";
-import type { WorldState, Party, Bill, Committee } from "@ahdclient/engine";
+import type { WorldState, Party, Bill, Committee, EnactedLaw } from "@ahdclient/engine";
 import { game } from "../game.js";
 import "./congress.css";
 
@@ -199,6 +199,14 @@ export function CongressScreen({ world, onWorld, onToast, onBack, initialCountry
     return hist.slice(0, 20);
   }, [bills, displayCountryId]);
 
+  const activeLaws = useMemo(
+    () =>
+      (world.enactedLaws as EnactedLaw[])
+        .filter((law) => law.countryId === displayCountryId && law.repealedAtTurn === undefined)
+        .sort((left, right) => right.enactedAtTurn - left.enactedAtTurn),
+    [displayCountryId, world.enactedLaws],
+  );
+
   const [selectedChamberKey, setSelectedChamberKey] = useState<string>(() => {
     if (playerSeat && electedChambers.some((c) => c.key === playerSeat.chamberKey)) return playerSeat.chamberKey;
     return electedChambers[0]?.key ?? "";
@@ -228,6 +236,7 @@ export function CongressScreen({ world, onWorld, onToast, onBack, initialCountry
   const [sponsorError, setSponsorError] = useState<string | null>(null);
   const [sponsorBusy, setSponsorBusy] = useState<string | null>(null);
   const [voteError, setVoteError] = useState<string | null>(null);
+  const [procedureError, setProcedureError] = useState<string | null>(null);
 
   const catalogEntries = useMemo(() => {
     try {
@@ -251,6 +260,7 @@ export function CongressScreen({ world, onWorld, onToast, onBack, initialCountry
         charters: [...w.charters],
         news: [...w.news],
         bills: [...(w.bills as unknown as Bill[])],
+        enactedLaws: [...w.enactedLaws],
         committees: [...(w.committees as Committee[])],
       } as WorldState);
     }
@@ -284,6 +294,17 @@ export function CongressScreen({ world, onWorld, onToast, onBack, initialCountry
     }
   }
 
+  function handleProcedure(actionId: "repealLaw" | "invokeFilibuster", params: Record<string, unknown>) {
+    setProcedureError(null);
+    const result = game.executeAction(actionId, params);
+    if (result.ok) {
+      onToast(result.message);
+      refreshWorld();
+    } else {
+      setProcedureError(result.error);
+    }
+  }
+
   const canVoteOnSelected = (() => {
     if (!selectedBill || !playerSeat) return false;
     const status = safeStr((selectedBill as unknown as Record<string, unknown>)["status"] as string, "");
@@ -308,6 +329,17 @@ export function CongressScreen({ world, onWorld, onToast, onBack, initialCountry
     const m = (selectedBill as unknown as Record<string, unknown>)["votes"] as Record<string, string> | undefined;
     return m?.["player"] ?? null;
   })();
+
+  const canFilibusterOnSelected = (() => {
+    if (!selectedBill || !playerSeat) return false;
+    if (playerSeat.countryId !== displayCountryId || playerSeat.chamberKey !== "senate") return false;
+    const status = selectedBill.status;
+    return selectedBill.currentChamber === "senate" && (status === "active" || status === "active_other");
+  })();
+
+  const playerAlreadyFilibustered = selectedBill?.filibusterInvocations.some(
+    (invocation) => invocation.characterId === "player",
+  ) ?? false;
 
   return (
     <div className="congress-screen">
@@ -436,6 +468,41 @@ export function CongressScreen({ world, onWorld, onToast, onBack, initialCountry
                 })}
               </div>
             )}
+          </section>
+
+          <section className="panel congress-section">
+            <h2>Enacted laws · {activeLaws.length}</h2>
+            {activeLaws.length === 0 ? (
+              <div className="congress-empty"><p className="muted small">No active enacted laws for this country.</p></div>
+            ) : (
+              <div className="congress-history-list">
+                {activeLaws.map((law) => {
+                  const entry = effectsPreview(law.id);
+                  const canRepeal = playerMode === "hos" || (playerSeat?.countryId === displayCountryId);
+                  return (
+                    <div key={`${law.countryId}:${law.id}`} className="congress-history-card enacted">
+                      <div className="row spread" style={{ alignItems: "flex-start", gap: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{entry?.title ?? law.id}</span>
+                        <span className="congress-badge" style={{ color: "#2af57f", borderColor: "#1a3a2a" }}>law</span>
+                      </div>
+                      <div className="muted small">Level {law.level} · enacted T{law.enactedAtTurn}</div>
+                      <div className="row spread" style={{ alignItems: "center", marginTop: 6 }}>
+                        <span className="muted small">Repeal proposal: 4 AP</span>
+                        <button
+                          className="secondary small-btn"
+                          disabled={!canRepeal}
+                          title={canRepeal ? `Propose repeal of ${law.id}` : "A legislative seat or Head of State authority is required"}
+                          onClick={() => handleProcedure("repealLaw", { catalogId: law.id })}
+                        >
+                          Propose repeal
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {procedureError && <div className="congress-inline-error" role="alert">{procedureError}</div>}
           </section>
 
           <section className="panel congress-section">
@@ -721,6 +788,20 @@ export function CongressScreen({ world, onWorld, onToast, onBack, initialCountry
                       ))}
                     </div>
                     {voteError && <div className="congress-inline-error" role="alert">{voteError}</div>}
+                  </div>
+                )}
+                {selectedBill.currentChamber === "senate" && (selectedBill.status === "active" || selectedBill.status === "active_other") && (
+                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div className="muted small">Senate procedure: a filibuster raises passage to three fifths of votes cast. Cost: 2 AP.</div>
+                    <button
+                      className="secondary small-btn"
+                      disabled={!canFilibusterOnSelected || playerAlreadyFilibustered}
+                      title={!canFilibusterOnSelected ? "A Senate seat in this country is required" : playerAlreadyFilibustered ? "You already invoked a filibuster on this bill" : "Invoke filibuster"}
+                      onClick={() => handleProcedure("invokeFilibuster", { billId: selectedBill.id })}
+                    >
+                      {playerAlreadyFilibustered ? "Filibuster invoked" : "Invoke filibuster"}
+                    </button>
+                    {procedureError && <div className="congress-inline-error" role="alert">{procedureError}</div>}
                   </div>
                 )}
               </div>

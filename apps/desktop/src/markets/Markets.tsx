@@ -173,6 +173,27 @@ export function MarketsScreen({
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [rowSuccess, setRowSuccess] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [financeAmount, setFinanceAmount] = useState("");
+  const [holderDraft, setHolderDraft] = useState(savingsHolder);
+  const [wireRecipientId, setWireRecipientId] = useState("");
+  const [financeError, setFinanceError] = useState<string | null>(null);
+  const [financeSuccess, setFinanceSuccess] = useState<string | null>(null);
+  const [bondUnits, setBondUnits] = useState<Record<string, string>>({});
+  const [bondErrors, setBondErrors] = useState<Record<string, string>>({});
+  const [bondSuccess, setBondSuccess] = useState<Record<string, string>>({});
+
+  const tradableBonds = useMemo(
+    () => Object.values(world.bonds)
+      .filter((bond) => bond.countryId === playerCountryId && !bond.matured)
+      .sort((left, right) => left.maturityTurn - right.maturityTurn || left.id.localeCompare(right.id)),
+    [playerCountryId, world.bonds],
+  );
+  const wireRecipients = useMemo(
+    () => world.politicians
+      .filter((politician) => politician.countryId === homeCountryId)
+      .sort((left, right) => left.name.localeCompare(right.name)),
+    [homeCountryId, world.politicians],
+  );
 
   const refreshWorld = () => {
     const w = game.getStateSync();
@@ -183,11 +204,62 @@ export function MarketsScreen({
         player: { ...w.player },
         countries: { ...w.countries },
         corporations: { ...(w as unknown as Record<string, unknown>)["corporations"] as Record<string, unknown> },
+        bonds: { ...w.bonds },
+        politicians: [...w.politicians],
         bankLoans: [...((w as unknown as Record<string, unknown>)["bankLoans"] as unknown[])],
         depositInsurance: { ...((w as unknown as Record<string, unknown>)["depositInsurance"] as Record<string, unknown>) },
         news: [...w.news],
       } as WorldState);
     }
+  };
+
+  const runFinanceAction = (
+    actionId: "depositSavings" | "withdrawSavings" | "moveSavings" | "wireTransfer",
+  ) => {
+    setFinanceError(null);
+    setFinanceSuccess(null);
+    const params: Record<string, unknown> = {};
+    if (actionId === "moveSavings") {
+      params["holder"] = holderDraft;
+    } else {
+      const amount = Number(financeAmount);
+      if (!Number.isFinite(amount) || amount <= 0 || (actionId === "wireTransfer" && !Number.isInteger(amount))) {
+        setFinanceError(actionId === "wireTransfer" ? "Enter a positive whole-number wire amount." : "Enter a positive amount.");
+        return;
+      }
+      params["amount"] = amount;
+      if (actionId === "wireTransfer") {
+        if (!wireRecipientId) {
+          setFinanceError("Choose a wire recipient.");
+          return;
+        }
+        params["targetPoliticianId"] = wireRecipientId;
+      }
+    }
+    const result = game.executeAction(actionId, params);
+    if (!result.ok) {
+      setFinanceError(result.error);
+      return;
+    }
+    setFinanceSuccess(result.message);
+    refreshWorld();
+  };
+
+  const handleBondTrade = (bondId: string, actionId: "buyBond" | "sellBond") => {
+    setBondErrors((current) => ({ ...current, [bondId]: "" }));
+    setBondSuccess((current) => ({ ...current, [bondId]: "" }));
+    const units = Number((bondUnits[bondId] ?? "").trim());
+    if (!Number.isInteger(units) || units <= 0) {
+      setBondErrors((current) => ({ ...current, [bondId]: "Enter a positive whole number of units." }));
+      return;
+    }
+    const result = game.executeAction(actionId, { bondId, units });
+    if (!result.ok) {
+      setBondErrors((current) => ({ ...current, [bondId]: result.error }));
+      return;
+    }
+    setBondSuccess((current) => ({ ...current, [bondId]: result.message }));
+    refreshWorld();
   };
 
   const handleTrade = (corpId: string, kind: "buyShares" | "sellShares") => {
@@ -462,6 +534,69 @@ export function MarketsScreen({
           )}
         </section>
 
+        <section className="panel markets-section">
+          <div className="row spread" style={{ marginBottom: 8 }}>
+            <h2 style={{ margin: 0 }}>Sovereign bonds · {playerCountryName}</h2>
+            <span className="muted small markets-note">Cash-settled at live market price</span>
+          </div>
+          {tradableBonds.length === 0 ? (
+            <p className="muted small">No outstanding sovereign bonds for this nation.</p>
+          ) : (
+            <div className="markets-table-wrap">
+              <table className="markets-table">
+                <thead>
+                  <tr>
+                    <th>Bond</th>
+                    <th>Coupon</th>
+                    <th>Price per unit</th>
+                    <th>Matures</th>
+                    <th>Your units</th>
+                    <th>Public float</th>
+                    <th>Trade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tradableBonds.map((bond) => {
+                    const held = bond.holders.find((holder) => holder.holderId === "player")?.units ?? 0;
+                    const unitPrice = bond.faceValue * bond.marketPrice;
+                    return (
+                      <tr key={bond.id}>
+                        <td className="markets-corp-cell">
+                          <span className="markets-ticker">{bond.issuerName}</span>
+                          <span className="muted small markets-corp-id">{bond.id}</span>
+                        </td>
+                        <td className="markets-num">{(bond.couponRate * 100).toFixed(2)}%</td>
+                        <td className="markets-num">{bond.currencyCode} {formatCash(unitPrice)}</td>
+                        <td className="markets-num">Turn {bond.maturityTurn}</td>
+                        <td className="markets-num">{formatShares(held)}</td>
+                        <td className="markets-num">{formatShares(bond.publicFloat)}</td>
+                        <td className="markets-trade-cell">
+                          <div className="markets-trade-row">
+                            <input
+                              className="markets-shares-input"
+                              aria-label={`Units for ${bond.id}`}
+                              inputMode="numeric"
+                              placeholder="units"
+                              value={bondUnits[bond.id] ?? ""}
+                              onChange={(event) => setBondUnits((current) => ({ ...current, [bond.id]: event.target.value }))}
+                            />
+                            <div className="markets-trade-actions">
+                              <button className="secondary small-btn" onClick={() => handleBondTrade(bond.id, "buyBond")}>Buy</button>
+                              <button className="secondary small-btn" onClick={() => handleBondTrade(bond.id, "sellBond")}>Sell</button>
+                            </div>
+                          </div>
+                          {bondErrors[bond.id] && <div className="error-text small" role="alert">{bondErrors[bond.id]}</div>}
+                          {bondSuccess[bond.id] && <div className="small" role="status">{bondSuccess[bond.id]}</div>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
         <div className="markets-bottom-grid">
           <section className="panel markets-section">
             <h2>Savings</h2>
@@ -482,10 +617,42 @@ export function MarketsScreen({
                     : `Held at chartered bank ${bankHolderLabel(savingsHolder)} — earns interest via bankingTurn.`}
                 </span>
               </div>
-              <div className="markets-note-box muted small">
-                Read-only: no action exists yet to move savings holder. world.player.savingsHolder is stored on WorldState but there is no
-                {" "}
-                <code>moveSavings</code> / <code>transferSavings</code> action wired to game.executeAction in this build. Future wave will add the holder-move flow; bankingTurn and bankSolvencyTurn already honor the pointer.
+              <div className="markets-finance-controls">
+                <label className="markets-control-label">
+                  Amount
+                  <input
+                    inputMode="decimal"
+                    value={financeAmount}
+                    onChange={(event) => setFinanceAmount(event.target.value)}
+                    placeholder="amount"
+                  />
+                </label>
+                <div className="markets-control-actions">
+                  <button className="secondary small-btn" onClick={() => runFinanceAction("depositSavings")}>Deposit</button>
+                  <button className="secondary small-btn" onClick={() => runFinanceAction("withdrawSavings")}>Withdraw</button>
+                </div>
+                <label className="markets-control-label">
+                  Savings institution
+                  <select value={holderDraft} onChange={(event) => setHolderDraft(event.target.value)}>
+                    <option value="centralBank">Central bank</option>
+                    {charteredBanks
+                      .filter((bank) => safeStr(bank.charter["status"], "active") === "active")
+                      .map((bank) => <option key={bank.corpId} value={bank.corpId}>{bank.ticker} ({bank.countryId})</option>)}
+                  </select>
+                </label>
+                <button className="secondary small-btn" onClick={() => runFinanceAction("moveSavings")}>Move savings</button>
+                <label className="markets-control-label">
+                  Wire recipient
+                  <select value={wireRecipientId} onChange={(event) => setWireRecipientId(event.target.value)}>
+                    <option value="">Choose politician</option>
+                    {wireRecipients.map((politician) => (
+                      <option key={politician.id} value={politician.id}>{politician.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <button className="secondary small-btn" onClick={() => runFinanceAction("wireTransfer")}>Send wire</button>
+                {financeError && <div className="error-text small" role="alert">{financeError}</div>}
+                {financeSuccess && <div className="small" role="status">{financeSuccess}</div>}
               </div>
             </div>
           </section>

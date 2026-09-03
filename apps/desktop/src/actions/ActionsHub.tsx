@@ -19,6 +19,8 @@ const HUB_ACTION_IDS: ReadonlySet<ActionCatalogEntry["id"]> = new Set([
   "fundraise",
   "campaign",
   "advertise",
+  "poll",
+  "pollLarge",
   "buildDonorBase",
   "convertCash",
   "rest",
