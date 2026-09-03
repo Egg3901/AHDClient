@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
-const read = (path) => readFileSync(resolve(root, path), "utf8");
+// Git for Windows can check text files out with CRLF. Normalize once so every
+// metadata expression behaves identically on the release matrix.
+const read = (path) => readFileSync(resolve(root, path), "utf8").replace(/\r\n/g, "\n");
 const json = (path) => JSON.parse(read(path));
 
 const rootPackage = json("package.json");
