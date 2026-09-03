@@ -1,6 +1,6 @@
 # AHDClient 1.0 roadmap
 
-1.0.1 was the first official AHDClient release. The current 1.0.2 maintenance release fixes desktop multiplayer startup and singleplayer world creation while retaining local play for all four shipped eras, granular creation and editing, reliable local saves, desktop bundles, and an Android build. The source release is versioned and reproducible. Public signing, store submission, notarization, and updater publication remain owner-operated distribution work because they require private credentials and live endpoints.
+1.0.1 was the first official AHDClient release. The current 1.0.3 release brings the multiplayer-shaped navigation and grounded local gameplay controls to singleplayer while retaining local play for all four shipped eras, granular creation and editing, reliable local saves, desktop bundles, and an Android build. The source release is versioned and reproducible. Public signing, store submission, notarization, and updater publication remain owner-operated distribution work because they require private credentials and live endpoints.
 
 Mainline parity remains a continuing content and simulation goal, not a license to hide incomplete mechanics. Systems that are not implemented must stay explicitly unavailable with a named blocker. The supported 1.0 surface may not silently skip a turn phase; each phase is implemented, deliberately not applicable to local singleplayer, or recorded as a visible PORT-STUB.
 

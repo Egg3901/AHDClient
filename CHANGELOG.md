@@ -2,6 +2,29 @@
 
 All notable AHDClient changes are recorded here.
 
+## [1.0.3] - 2026-09-03
+
+### Added
+
+- Replaced the sparse singleplayer dashboard with a multiplayer-shaped navigation shell covering all 58 stable destinations, including matching Nation, State, World, and Help grouping and ordering.
+- Added player-scoped home-region identity for new and migrated worlds, with State navigation that remains anchored to the character instead of the currently viewed country.
+- Added functional local controls for Governor addresses and executive orders, party endorsements and internal elections, coalition management, cabinet nominations, extraction, sovereign bonds, savings, wire transfers, law repeal, and Senate filibusters.
+- Added a live country overview and grounded local summaries for destinations that do not need a dedicated screen.
+
+### Fixed
+
+- Stopped failed actions from consuming action points, campaign funds, cooldowns, or action counters.
+- Removed fabricated chamber officeholders and corrected the fiscal approval calculation to use budget GDP in matching currency units.
+- Corrected personal navigation so My Party, My Election, Cabinet Office, and State destinations follow the player character, including Head of State party binding.
+- Routed the Wiki and other Help destinations through allowlisted native handlers while preserving Android in-app navigation for game-hosted pages.
+- Kept unavailable mechanics visible with named blockers instead of presenting incomplete action controls.
+
+### Quality assurance
+
+- Added route smoke coverage across every playable era and country, all 58 destinations, and a no-network assertion for local navigation.
+- Added interaction tests for Governor, party operations, Congress procedure, Head of State, markets, character migration recovery, and safe action execution.
+- Verified the fast and full repository suites, the production web build, and the Tauri Rust checks before release packaging.
+
 ## [1.0.2] - 2026-09-03
 
 ### Fixed
