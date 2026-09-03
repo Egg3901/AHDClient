@@ -1,0 +1,35 @@
+name: verify Rust
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/src-tauri/**"
+  pull_request:
+    paths:
+      - "apps/desktop/src-tauri/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - name: Prepare Tauri test frontend
+        run: mkdir -p apps/desktop/dist && touch apps/desktop/dist/index.html
+      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml

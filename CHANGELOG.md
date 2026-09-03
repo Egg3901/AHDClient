@@ -22,7 +22,7 @@ All notable AHDClient changes are recorded here.
 - Aligned the client palette and repository presentation with the current A House Divided visual system while retaining AHDClient's restrained launcher layout.
 - Rebranded the application, package scopes, platform identifiers, build artifacts, documentation, and GitHub repository from its former codename to AHDClient.
 - Changed the repository from PolyForm Noncommercial to proprietary source-available terms and marked every workspace package private and unlicensed for registry publication.
-- Split multi-turn simulation proofs from the blocking CI gate. The fast gate retains more than 800 bounded tests, including a deterministic turn and save smoke test; the full suite remains available through `npm run verify:full`.
+- Split multi-turn simulation proofs from the blocking CI gate. The fast gate retains more than 800 bounded tests, including a deterministic turn and save smoke test; the full suite remains available through `npm run verify:full`. Rust validation runs only when Tauri source changes.
 
 ## [1.0.0] - 2026-09-02
 

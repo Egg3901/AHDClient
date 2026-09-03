@@ -74,11 +74,13 @@ describe("desktop platform configuration", () => {
     expect(workflow).not.toContain("uploadWorkflowArtifacts");
   });
 
-  it("tests the desktop Rust target before merge", () => {
+  it("tests the desktop Rust target when Tauri source changes", () => {
     const sourceDirectory = dirname(fileURLToPath(import.meta.url));
-    const workflow = readFileSync(join(sourceDirectory, "../../../.github/workflows/verify.yml"), "utf8");
+    const workflow = readFileSync(join(sourceDirectory, "../../../.github/workflows/verify-rust.yml"), "utf8");
     expect(workflow).toContain("libwebkit2gtk-4.1-dev");
     expect(workflow).toContain("dtolnay/rust-toolchain@stable");
+    expect(workflow).toContain('"apps/desktop/src-tauri/**"');
+    expect(workflow).toContain("touch apps/desktop/dist/index.html");
     expect(workflow).toContain("cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml");
   });
 
