@@ -19,14 +19,14 @@ import type { ElectionRecord } from "./types.js";
  * districting apply: DC is not a US state (no House seats, no electors
  * before 1961) and is absent from `world.regions` entirely; AK/HI are
  * absent too (territories until 1959, per that same source comment).
- * Rotunda also has no congressional-district entities at all — house races
+ * AHDClient also has no congressional-district entities at all — house races
  * are single per-state multi-seat contests (see `tallyAdapter.ts`
  * `stateSliceFor` / orchestration.ts's `state: r.id` house spec) — so the
  * ME/NE split has no structural home here even independent of the era gate.
  * This module therefore computes EV directly from each US region's live
  * `houseSeats` (+2 senators, no DC/ME-NE special-casing), which is simpler
  * than importing the ported-but-unwired apportionment.ts helpers and, for
- * every state Rotunda actually models, produces byte-identical output to
+ * every state AHDClient actually models, produces byte-identical output to
  * them: sum 435 house seats + 2×48 senators = 531 electoral votes,
  * majority = floor(531/2)+1 = 266.
  */

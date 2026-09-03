@@ -4,7 +4,7 @@ import type {
   PrimeRateHistoryPoint,
   PartyStrengthHistoryPoint,
   PlayerWealthHistoryPoint,
-} from "@rotunda/engine";
+} from "@ahdclient/engine";
 
 /**
  * U12: thin selectors over the engine's WorldHistory (W41,

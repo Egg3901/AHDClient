@@ -5,7 +5,7 @@ import type { Politician, WorldState } from "../types.js";
  * Impeachment vote bars and the per-bloc auto-vote heuristic — ported from
  * `src/lib/impeachment/impeachmentTally.ts` (bars) and
  * `src/lib/impeachment/autoVoteNpps.ts` (`nppImpeachmentVote`,
- * `nppStanceCloseness`), verbatim math. Adapted to Rotunda's flat
+ * `nppStanceCloseness`), verbatim math. Adapted to AHDClient's flat
  * `Politician` model: mainline distinguishes player-backed Characters from
  * AI-run NPPs; solo has one seat-holder shape (`Politician`) plus the
  * separate `player` document, so "NPP" below just means "any non-player

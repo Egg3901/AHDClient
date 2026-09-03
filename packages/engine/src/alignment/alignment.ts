@@ -6,7 +6,7 @@
  * A crisis marks a nation as unusually movable for its window rather than
  * running an auction — it lifts a per-nation movement cap while it runs.
  * That mechanic (the movement-cap system itself) is PORT-STUB — B14, no
- * per-nation movement-cap/play system exists in Rotunda; this module ports
+ * per-nation movement-cap/play system exists in AHDClient; this module ports
  * the pure contest-scoring math it depends on.
  */
 import type { AlignmentPoleId, AlignmentShares } from "./types.js";

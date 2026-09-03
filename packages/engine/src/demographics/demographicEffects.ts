@@ -97,7 +97,7 @@ function clamp(value: number, min: number, max: number): number {
  * Sum every active policyLedger entry's catalog demographicEffects[] onto
  * the (groupId, target) pairs they touch, for one country. Faithful to
  * computeShiftsByTarget's per-policy loop (demographicEffects.ts:212-264),
- * with Rotunda's simplifications named inline (B01: strength = effectDirection,
+ * with AHDClient's simplifications named inline (B01: strength = effectDirection,
  * not a graduated -3..3 "economic" ladder; B04: permanent/durable-baseline
  * effects are skipped, not silently treated as temporary).
  */

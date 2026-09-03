@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { WorldState, Party } from "@rotunda/engine";
+import type { WorldState, Party } from "@ahdclient/engine";
 import { HistoryChart } from "./HistoryChart.js";
 import type { HistoryChartSeries } from "./HistoryChart.js";
 import { HISTORY_RANGES, macroSeries, primeRateSeries, partyStrengthSeries, playerWealthSeries } from "./history.js";
@@ -96,7 +96,7 @@ export function EconomyScreen({
     const p = party as unknown as Record<string, unknown>;
     const id = safeStr(p["id"], "");
     const points = partyStrengthSeries(world, id, range).map((pt) => ({ turn: pt.turn, value: pt.politicalStrength }));
-    return { id, label: safeStr(p["abbreviation"], id), color: safeStr(p["color"], "#ededed"), points };
+    return { id, label: safeStr(p["abbreviation"], id), color: safeStr(p["color"], "#e8e8ee"), points };
   });
 
   // Player net worth history.

@@ -1,4 +1,4 @@
-import type { NewsItem } from "@rotunda/engine";
+import type { NewsItem } from "@ahdclient/engine";
 
 export type NewsCategory = string;
 

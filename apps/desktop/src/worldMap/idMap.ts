@@ -1,4 +1,4 @@
-// Explicit ISO numeric (world-atlas) -> ROTUNDA uppercase country id mapping.
+// Explicit ISO numeric (world-atlas) -> AHDClient uppercase country id mapping.
 // Built for the 1953 pack's 27-country roster (the largest of the four
 // shipped packs — 1979 ships 18, 1991 ships 13, 2019 ships 8; every id used
 // by the smaller packs is a subset of this map). Covers modern border handling:

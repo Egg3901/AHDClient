@@ -55,7 +55,7 @@ describe("corporation formula goldens", () => {
     expect(calculateGrowthCost(1000, 0)).toBe(0);
   });
 
-  it("calculateGrowthCost: clamped to >=0 for negative growth (Rotunda addition, cited)", () => {
+  it("calculateGrowthCost: clamped to >=0 for negative growth (AHDClient addition, cited)", () => {
     expect(calculateGrowthCost(1000, -1)).toBe(0);
   });
 

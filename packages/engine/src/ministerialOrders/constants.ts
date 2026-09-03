@@ -6,11 +6,11 @@
  * Mainline's ministerialOrderProcessing.ts also runs a large defense/military
  * turn sub-pipeline (appropriation, deliveries, refit, nuclear production,
  * covert nuclear, battle resolution, cold-war holds, peace windows,
- * reinforcement) bundled in the same phase function. Rotunda has no unit-
+ * reinforcement) bundled in the same phase function. AHDClient has no unit-
  * level military system, so only the metric-modifier accumulation/cap logic
  * (ministerialOrderProcessing.ts lines ~77-108, 556-564) is ported here —
  * PORT-STUB, named blocker: military/unitCombat (the defense sub-pipeline
- * has no Rotunda equivalent; see coldWar/nuclear.ts for the pure nuclear-math
+ * has no AHDClient equivalent; see coldWar/nuclear.ts for the pure nuclear-math
  * slice that IS ported).
  */
 

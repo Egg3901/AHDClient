@@ -119,7 +119,7 @@ export const NPC_FOUNDER_SHARE_FRACTION = 0.51;
 // Mainline's buyPublicShares/sellPublicShares charge NO per-trade brokerage
 // fee: cost/proceeds = shares * executionPrice, full stop (confirmed by
 // reading both route handlers — the only "fee" in that code is an FX
-// conversion spread, which does not apply here since Rotunda has no
+// conversion spread, which does not apply here since AHDClient has no
 // cross-currency corp/character wallet system). "mainline's pricing/fees"
 // for W10 is therefore: price = corp.sharePrice (order-flow execution-price
 // banding is part of the PORT-STUB gap, see market/recomputeSharePrices.ts),

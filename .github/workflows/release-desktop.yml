@@ -64,4 +64,4 @@ jobs:
           projectPath: apps/desktop
           args: ${{ matrix.args }}
           uploadWorkflowArtifacts: true
-          workflowArtifactNamePattern: rotunda-[platform]-[arch]-[bundle]
+          workflowArtifactNamePattern: ahdclient-[platform]-[arch]-[bundle]

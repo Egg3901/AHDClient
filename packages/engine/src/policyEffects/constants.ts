@@ -21,7 +21,7 @@ export const UK_FEDERAL_MULTIPLIER = 1 / 12;
 
 /**
  * Per-country override map for the TICK-path federal multiplier. Mainline
- * also carries JP (1/8) and DE (1/16); neither is playable in Rotunda's 1953
+ * also carries JP (1/8) and DE (1/16); neither is playable in AHDClient's 1953
  * pack, so they are omitted here rather than invented against no content —
  * PORT-STUB: add when JP/DE become playable countries.
  * Source: formulas.ts FEDERAL_MULTIPLIER_BY_COUNTRY.

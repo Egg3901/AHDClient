@@ -46,7 +46,7 @@ export interface CatalogEntry {
    * Metric targets this law's DECAY-path effect pulls on. `higherBetter`
    * defaults true when absent — mainline's LegislationType carries an
    * authored isHigherBetter per metric (src/lib/db/types/legislation.ts);
-   * Rotunda's catalog does not carry that flag yet for every entry (PORT-STUB
+   * AHDClient's catalog does not carry that flag yet for every entry (PORT-STUB
    * B03: per-metric direction authoring), so entries needing the opposite
    * sign must set it explicitly. Consumed by policyEffects/phases.ts.
    */

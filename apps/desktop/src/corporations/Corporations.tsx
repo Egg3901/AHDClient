@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { WorldState } from "@rotunda/engine";
+import type { WorldState } from "@ahdclient/engine";
 import "./corporations.css";
 
 // Defensive helpers — pre-v19 saves have no corporations map; pre-v26 no

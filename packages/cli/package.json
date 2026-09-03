@@ -1,7 +1,8 @@
 {
-  "name": "@rotunda/cli",
+  "name": "@ahdclient/cli",
   "version": "0.1.0",
-  "license": "PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "sim": "tsx src/sim.ts",
@@ -10,8 +11,8 @@
     "verify:qa": "tsx src/sim.ts qa --quick"
   },
   "dependencies": {
-    "@rotunda/content": "*",
-    "@rotunda/engine": "*"
+    "@ahdclient/content": "*",
+    "@ahdclient/engine": "*"
   },
   "devDependencies": {
     "tsx": "^4.19.0",

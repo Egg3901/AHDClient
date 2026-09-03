@@ -81,6 +81,20 @@ describe("intraparty cycle goldens with citations", () => {
     // After 80 turns, state elections should have resolved (72 duration)
     const completed = a.statePartyElections.filter((e) => e.status === "completed");
     expect(completed.length).toBeGreaterThan(0);
+    // NPC ballots are transient tallies. Persisting every politician's vote
+    // in every regional race made mature mobile saves hundreds of MiB.
+    expect(completed.every((e) => Object.keys(e.votes).length === 0)).toBe(true);
+    expect(a.nationalPartyElections
+      .filter((e) => e.status === "completed")
+      .every((e) => Object.keys(e.votes).length === 0)).toBe(true);
+    expect(JSON.stringify(a.statePartyElections).length).toBeLessThan(1_000_000);
+
+    const legacy = completed[0]!;
+    legacy.votes["legacy-npc"] = legacy.candidateIds[0]!;
+    legacy.votes["player"] = legacy.candidateIds[0]!;
+    const restored = deserializeSave(serializeSave(a, "2026-09-02T00:00:00.000Z"));
+    const compacted = restored.statePartyElections.find((e) => e.id === legacy.id)!;
+    expect(compacted.votes).toEqual({ player: legacy.candidateIds[0] });
   });
 });
 

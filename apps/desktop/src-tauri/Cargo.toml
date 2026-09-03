@@ -1,15 +1,16 @@
 [package]
-name = "rotunda-desktop"
-version = "1.0.0"
+name = "ahdclient-desktop"
+version = "1.0.1"
 edition = "2021"
 description = "A House Divided multiplatform client shell"
 authors = ["Lakeside Games"]
-license = "PolyForm-Noncommercial-1.0.0"
-repository = "https://github.com/Egg3901/Rotunda"
+publish = false
+license-file = "../../../LICENSE.md"
+repository = "https://github.com/Egg3901/AHDClient"
 rust-version = "1.77.2"
 
 [lib]
-name = "rotunda_desktop_lib"
+name = "ahdclient_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

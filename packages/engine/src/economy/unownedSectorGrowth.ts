@@ -2,7 +2,7 @@
  * Unowned sector growth — solo port of the PRE-PLANTS branch of
  * src/lib/turn/unownedSectorGrowth.ts processUnownedSectorGrowth (the plants-
  * tier branch needs per-state CorporateSector capital stock / headroom units
- * Rotunda's single-sector-per-country Corporation model does not carry — see
+ * AHDClient's single-sector-per-country Corporation model does not carry — see
  * corporation/types.ts file doc; W9 collapsed mainline's Corporation +
  * CorporateSector into one record with no plants fields at all).
  *

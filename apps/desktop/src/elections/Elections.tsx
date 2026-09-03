@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import type { WorldState } from "@rotunda/engine";
-import type { ElectionRecord, ElectionCandidate } from "@rotunda/engine";
+import type { WorldState } from "@ahdclient/engine";
+import type { ElectionRecord, ElectionCandidate } from "@ahdclient/engine";
 import { game } from "../game.js";
 
 type Props = {

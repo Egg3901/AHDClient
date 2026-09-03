@@ -7,7 +7,7 @@
  * window once control hits a pole, auto-resolving (dictated terms, imposed
  * by whichever side holds the pole) if the window lapses — mirrors
  * mainline's peaceWindows.ts fallback-to-white-peace behavior, except
- * Rotunda's model already has a decisive winner by the time the window
+ * AHDClient's model already has a decisive winner by the time the window
  * opens (see settlement.ts file doc), so the auto-resolution is "dictated",
  * not a true white peace. No RNG: fully deterministic from GDP state, same
  * as mainline's own combat resolution (hash-seeded, not RNG).

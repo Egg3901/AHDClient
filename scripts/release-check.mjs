@@ -7,6 +7,12 @@ const json = (path) => JSON.parse(read(path));
 
 const rootPackage = json("package.json");
 const desktopPackage = json("apps/desktop/package.json");
+const workspacePackages = [
+  desktopPackage,
+  json("packages/cli/package.json"),
+  json("packages/content/package.json"),
+  json("packages/engine/package.json"),
+];
 const packageLock = json("package-lock.json");
 const tauriConfig = json("apps/desktop/src-tauri/tauri.conf.json");
 const cargoManifest = read("apps/desktop/src-tauri/Cargo.toml");
@@ -14,7 +20,7 @@ const cargoLock = read("apps/desktop/src-tauri/Cargo.lock");
 const changelog = read("CHANGELOG.md");
 
 const cargoVersion = cargoManifest.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
-const cargoLockVersion = cargoLock.match(/\[\[package\]\]\nname = "rotunda-desktop"\nversion = "([^"]+)"/)?.[1];
+const cargoLockVersion = cargoLock.match(/\[\[package\]\]\nname = "ahdclient-desktop"\nversion = "([^"]+)"/)?.[1];
 const expected = rootPackage.version;
 const versions = {
   "root package": rootPackage.version,
@@ -37,11 +43,22 @@ if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(expected)) {
 if (!changelog.includes(`## [${expected}]`)) {
   errors.push(`CHANGELOG.md has no ## [${expected}] section`);
 }
-if (tauriConfig.identifier !== "net.lakesidegames.rotunda") {
+if (tauriConfig.identifier !== "net.lakesidegames.ahdclient") {
   errors.push(`unexpected application identifier: ${tauriConfig.identifier}`);
 }
-if (tauriConfig.productName !== "A House Divided") {
+if (tauriConfig.productName !== "AHDClient") {
   errors.push(`unexpected product name: ${tauriConfig.productName}`);
+}
+if (rootPackage.license !== "UNLICENSED") {
+  errors.push(`root package license is ${rootPackage.license ?? "missing"}; expected UNLICENSED`);
+}
+for (const workspacePackage of workspacePackages) {
+  if (workspacePackage.private !== true || workspacePackage.license !== "UNLICENSED") {
+    errors.push(`${workspacePackage.name} must be private and UNLICENSED`);
+  }
+}
+if (!/^publish\s*=\s*false$/m.test(cargoManifest) || !/^license-file\s*=\s*"\.\.\/\.\.\/\.\.\/LICENSE\.md"$/m.test(cargoManifest)) {
+  errors.push("Rust crate must be unpublished and use the repository proprietary license");
 }
 
 if (errors.length > 0) {

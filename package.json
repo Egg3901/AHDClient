@@ -1,9 +1,9 @@
 {
-  "name": "rotunda",
+  "name": "ahdclient",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A House Divided client with local singleplayer and multiplayer entry points",
-  "license": "PolyForm-Noncommercial-1.0.0",
+  "license": "UNLICENSED",
   "type": "module",
   "workspaces": [
     "packages/*",

@@ -94,7 +94,7 @@ export const COMMODITY_BASE_PRICES: Record<CommodityType, number> = {
 // US_NATIONAL_SEED_GDP_BY_ERA) ALSO only has 1953 and 2019 entries — mainline
 // itself explicitly leaves 1979/1991 "byte-identical [to modern]... pending
 // its own measurement pass" (eraMoneyScale.test.ts). So scale=1 (no
-// deflation) for 1979/1991 below is not a Rotunda gap, it's a faithful port
+// deflation) for 1979/1991 below is not a AHDClient gap, it's a faithful port
 // of mainline's own documented choice. 1953 is denominated in 1953 dollars
 // (US seed GDP $387B vs $27T in 2019 = ~0.01433 scale); a uniform deflation
 // of all base prices moves the whole price LEVEL to the era basis without

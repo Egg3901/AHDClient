@@ -53,7 +53,7 @@ export interface WorldState {
   /**
    * Presidential (and other head-of-state) executive offices, keyed by
    * country id. W24 port. Vacant (absent key, or presidentId null) until a
-   * "president"-type election first resolves — Rotunda's content packs carry
+   * "president"-type election first resolves — AHDClient's content packs carry
    * no authored incumbent seed (mainline itself has the same gap on several
    * worlds per the 1953-preset audit), so a fresh world starts with no sitting
    * president, exactly like a chamber with no pre-seeded winner.
@@ -363,7 +363,7 @@ export interface WorldState {
   coldWarTension: ColdWarTensionState;
   /** Nuclear weapons programs, one per NUCLEAR_CAPABLE playable country. See coldWar/nuclear.js. Schema v37. */
   nuclearPrograms: Record<string, NuclearProgramState>;
-  /** Active/resolved conflicts. Rotunda-native settlement model — see wars/types.js file doc (B15). Schema v37. */
+  /** Active/resolved conflicts. AHDClient-native settlement model — see wars/types.js file doc (B15). Schema v37. */
   conflicts: Conflict[];
   /** Cold War bloc alignment shares per country. See alignment/types.js (B13: bipolar only). Schema v37. */
   alignments: Record<string, AlignmentRecord>;
@@ -554,7 +554,7 @@ export interface WorldMeta {
   /**
    * W33: eraCrossing guard field. Ports mainline's `lastEraCrossedYear`
    * (src/lib/turn/eraCrossing.ts) adapted from a year-modulo-10 comparison
-   * to an era-id comparison (Rotunda has no decade-bucket era model). See
+   * to an era-id comparison (AHDClient has no decade-bucket era model). See
    * phases/eraCrossing.ts for the full port rationale.
    */
   lastEra: EraId;

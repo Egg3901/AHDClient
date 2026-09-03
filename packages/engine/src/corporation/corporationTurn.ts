@@ -120,7 +120,7 @@ export function runCorporationTurn(corp: Corporation, taxRatePct: number): void 
  * deep-threshold adaptation. Reincorporation resets the corp to its founding
  * state (capital, revenue, growth) rather than removing it: mainline's full
  * dissolution returns the sector to an unowned pool and (eventually) a fresh
- * NPP corp is spawned into it by a separate admin process; Rotunda has no
+ * NPP corp is spawned into it by a separate admin process; AHDClient has no
  * unowned-pool/spawn-queue system to port that two-step pipeline, so W9
  * collapses "dissolve then eventually respawn" into one deterministic step
  * that keeps sector coverage and corp count stable across a long run — the

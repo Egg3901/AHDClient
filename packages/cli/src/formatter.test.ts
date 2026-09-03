@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatProgressTable, formatSummaryTable, formatQaReport } from "./formatter.js";
 import type { ProgressRow } from "./formatter.js";
-import { DEFAULT_WORLD_FEATURE_FLAGS, type WorldState } from "@rotunda/engine";
+import { DEFAULT_WORLD_FEATURE_FLAGS, type WorldState } from "@ahdclient/engine";
 import type { QaCountryResult } from "./qa.js";
 
 function makeWorld(): WorldState {

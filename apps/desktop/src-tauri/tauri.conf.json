@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "A House Divided",
-  "version": "1.0.0",
-  "identifier": "net.lakesidegames.rotunda",
+  "productName": "AHDClient",
+  "version": "1.0.1",
+  "identifier": "net.lakesidegames.ahdclient",
   "build": {
     "beforeDevCommand": "",
     "devUrl": "http://localhost:1420",
@@ -14,10 +14,10 @@
     "windows": [
       {
         "label": "main",
-        "title": "A House Divided: Solo",
+        "title": "AHDClient",
         "width": 1280,
         "height": 800,
-        "backgroundColor": "#f4efe5",
+        "backgroundColor": "#14141c",
         "resizable": true,
         "center": true
       }
@@ -44,8 +44,8 @@
       "icons/icon.icns"
     ],
     "category": "Utility",
-    "shortDescription": "A House Divided: Solo",
-    "longDescription": "A House Divided client with local singleplayer worlds and a secure entry to the live multiplayer game.",
+    "shortDescription": "The native A House Divided client",
+    "longDescription": "AHDClient provides local singleplayer worlds and a secure entry to the live A House Divided multiplayer game.",
     "linux": {
       "deb": {
         "depends": []

@@ -12,7 +12,7 @@
  *   packages/engine/src/cabinet/positionsPorted.ts                       JP/DE/IE/CN cabinet position tables
  *
  * Run FROM THE MAINLINE CHECKOUT so its `@/` alias resolves:
- *   npx tsx ../Rotunda/packages/content/scripts/generateRosters.ts
+ *   npx tsx ../AHDClient/packages/content/scripts/generateRosters.ts
  *
  * Chamber sizing rule (same rule the content seat-sum tests enforce): a chamber
  * whose seats are contested per region is sized to the SUM of that region
@@ -62,10 +62,10 @@ import { ieDemographicCategories } from "@/lib/seeds/ie/ieDemographicCategories"
 import { cnDemographicCategories } from "@/lib/seeds/cn/cnDemographicCategories";
 import { brDemographicCategories } from "@/lib/seeds/br/brDemographicCategories";
 
-const ROTUNDA = path.resolve(import.meta.dirname, "../..");
-const PACKS = path.join(ROTUNDA, "content/src/packs");
-const DEMO = path.join(ROTUNDA, "engine/src/demographics");
-const CABINET = path.join(ROTUNDA, "engine/src/cabinet");
+const AHDClient = path.resolve(import.meta.dirname, "../..");
+const PACKS = path.join(AHDClient, "content/src/packs");
+const DEMO = path.join(AHDClient, "engine/src/demographics");
+const CABINET = path.join(AHDClient, "engine/src/cabinet");
 
 type Reg = { parties: Array<{ abbr: string; org: number; reg: number }>; independent: number; unregistered: number; unaffiliatedOrg: number };
 type RegionIn = { _id: string; countryId: string; name: string; population: number; gdp: number; houseDistricts: number; stateSenateSeats: number; region: string };
@@ -205,7 +205,7 @@ function buildCountry(era: string, c: string, regions: RegionIn[], parties: Part
     add("sangiin", "upperChamber", sangiinTotal, true, tables.sangiin, "sangiin", `seats = sum constants/states.ts JP_SANGIIN_SEATS (per-region, two classes: class 1 ceil / class 2 floor per mainline JP_SANGIIN_2020 header)`);
     add("regionalCouncil", "subNationalChamber", sums.senate, true, tables.regionalCouncil, "regionalCouncil", `seats = sum jpRegions${era}.stateSenateSeats (per-region regionalCouncil races)`);
   } else if (c === "DE") {
-    add("bundestag", "lowerChamber", sums.house, true, tables.bundestag, "bundestag", `seats = sum deRegions${era}.houseDistricts = mainline DE_WAHLKREIS_SEATS per Land, the totalSeats mainline ensureDEElections gives each per-Land Bundestag race; config ${k.legislature.lowerChamber.seats} (AMS list seats are PORT-STUB: Rotunda allocates per-Land seats by Hamilton PR)`);
+    add("bundestag", "lowerChamber", sums.house, true, tables.bundestag, "bundestag", `seats = sum deRegions${era}.houseDistricts = mainline DE_WAHLKREIS_SEATS per Land, the totalSeats mainline ensureDEElections gives each per-Land Bundestag race; config ${k.legislature.lowerChamber.seats} (AMS list seats are PORT-STUB: AHDClient allocates per-Land seats by Hamilton PR)`);
     add("bundesrat", "upperChamber", k.legislature.upperChamber.seats, false, undefined, "bundesrat", `appointed by Land governments (mainline: no election, no seat table) -> vacant`);
     add("landtag", "subNationalChamber", sums.senate, true, tables.landtag, "landtag", `seats = sum deRegions${era}.stateSenateSeats = DE_LANDTAG_SEATS per Land`);
   } else if (c === "CN") {

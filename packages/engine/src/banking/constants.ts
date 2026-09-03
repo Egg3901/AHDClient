@@ -17,7 +17,7 @@
  * FX/anchor substitution (repo-wide pattern, cited once here): mainline sizes
  * charter capital, the deposit ceiling, and the insured cap off an era/FX
  * -anchored USD reference (getGdpAnchorRate, loadWorldEraUnitScale — see
- * src/lib/currency/gdpAnchorRate.ts). Rotunda has no FX/anchor system (see
+ * src/lib/currency/gdpAnchorRate.ts). AHDClient has no FX/anchor system (see
  * corporation/founding.ts file doc for the same substitution already made for
  * founding capital). This module follows the identical precedent: every
  * dollar-reference constant below is replaced with a multiple of the
@@ -37,7 +37,7 @@ export const TURNS_PER_YEAR = 48;
 // ── Reserve requirement ──────────────────────────────────────────────────
 /**
  * Source: src/lib/banking/reserveBounds.ts RESERVE_REQUIREMENT_HISTORICAL_DEFAULT.
- * Every Rotunda era pack shipped so far is historical (eraUnitScale > 1 in
+ * Every AHDClient era pack shipped so far is historical (eraUnitScale > 1 in
  * mainline terms), so the modern default is never selected; unlike mainline
  * this is not era-conditional yet (see file doc — no eraUnitScale in solo).
  */
@@ -155,7 +155,7 @@ export const CHARTER_CAPITAL_LIQUID_CAPITAL_FRACTION = 0.5;
  * PROVISIONAL — flagged for user review. Deposit ceiling as a multiple of
  * posted capital. Source range: capacityAllocation.ts file doc, "target
  * deposits at 50% branch share ~10-20x charter capital"; this substitutes the
- * midpoint of that stated range directly on posted capital since Rotunda has
+ * midpoint of that stated range directly on posted capital since AHDClient has
  * no branch-capacity/financial-sector-capacity chain to derive it from (see
  * file doc). Still passed through {@link equityCappedDepositCeiling} exactly
  * as mainline does, so a bank cannot anchor more than its own equity allows
@@ -168,7 +168,7 @@ export const DEPOSIT_CEILING_CAPITAL_MULTIPLE = 15;
  * charter capital. Substitute for mainline's era/FX-anchored
  * INSURED_CAP_REFERENCE_USD (insurance.ts) — see file doc. Sized so the cap
  * sits well above any plausible single-player savings balance at this wave's
- * scale (the cap practically never binds against Rotunda's single named
+ * scale (the cap practically never binds against AHDClient's single named
  * character), matching the real-world intent that deposit insurance covers
  * "ordinary" savers in full.
  */
@@ -375,7 +375,7 @@ export const CONTAGION_PANIC_TURNS = 4;
 // ── NPC bank seeding ──────────────────────────────────────────────────────
 /**
  * Deviation from mainline (cited): mainline seeds NPC_BANKS_PER_COUNTRY = 2
- * NPP-run retail banks per eligible country (npcBanks.ts). Rotunda's W9
+ * NPP-run retail banks per eligible country (npcBanks.ts). AHDClient's W9
  * corporation founding seeds exactly ONE NPC corporation per (playable
  * country, sector type) pair (corporation/founding.ts file doc), so there is
  * only one "financial" sector corp per country to charter. Solo therefore

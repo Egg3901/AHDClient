@@ -15,7 +15,7 @@ import type { ReferendumRecord } from "./types.js";
  *   polling     -> actuating | settled      PORTED (this file)
  *   actuating   -> completed | cancelled    PORT-STUB (not ported this wave)
  *
- * Why only one edge: the other three all depend on systems Rotunda does not
+ * Why only one edge: the other three all depend on systems AHDClient does not
  * have yet —
  *  - granted->campaigning and campaigning->polling need the Layer-1 cohort
  *    engine (buildReferendumCohorts/referendumYesShare,
@@ -40,7 +40,7 @@ import type { ReferendumRecord } from "./types.js";
  * REFERENDUM_PASS_THRESHOLD=50 also verbatim). The only deviation: mainline's
  * `varianceRoll` is deterministic via `seededVariance(id, turn)`, an FNV hash
  * over the record id + turn, chosen there specifically to avoid `Math.random`.
- * Rotunda's determinism doctrine routes ALL randomness through the world RNG
+ * AHDClient's determinism doctrine routes ALL randomness through the world RNG
  * instead (docs/FRAMEWORK.md) — equally deterministic (same save -> same
  * draw sequence) and consistent with every other ported phase in this
  * codebase, so this port draws `rng.next() * 2 - 1` in place of the hash.
@@ -78,7 +78,7 @@ export function runReferendumLifecycle(world: WorldState, rng: WorldRng): void {
     if (outcome.passed) {
       // actuating->completed|cancelled is PORT-STUB (see file doc): the
       // record parks in "actuating" rather than fabricating a secession
-      // outcome Rotunda has no engine for yet.
+      // outcome AHDClient has no engine for yet.
       ref.status = "actuating";
     } else {
       ref.status = "settled";

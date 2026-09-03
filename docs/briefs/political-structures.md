@@ -1,6 +1,6 @@
 # Brief: port political structures (parties and legislatures), no election logic
 
-Read `docs/FRAMEWORK.md` first. You own `packages/engine` and `packages/content`. Do not touch `apps/desktop`, `README.md`, or `docs/` beyond reading. Package scopes are `@rotunda/engine` and `@rotunda/content`. Country ids are uppercase mainline `CountryId` (`US`, `UK`, `RU`, `DD`, ...).
+Read `docs/FRAMEWORK.md` first. You own `packages/engine` and `packages/content`. Do not touch `apps/desktop`, `README.md`, or `docs/` beyond reading. Package scopes are `@ahdclient/engine` and `@ahdclient/content`. Country ids are uppercase mainline `CountryId` (`US`, `UK`, `RU`, `DD`, ...).
 
 ## Source of truth (READ-ONLY)
 

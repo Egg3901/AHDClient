@@ -17,15 +17,15 @@ import type { WorldState } from "../types.js";
  * explicitly excluded, "the Mayor of London has no devolution axis") — no
  * other country/region has this field, mainline or here.
  *
- * PORT-STUB inputs (Rotunda has no producer for these yet):
+ * PORT-STUB inputs (AHDClient has no producer for these yet):
  *  - `policy` (the seated First Minister's `DevolutionPolicy`: anti/pro/
- *    independence): Rotunda has no devolved-FM office at all (government/
+ *    independence): AHDClient has no devolved-FM office at all (government/
  *    types.ts models one national government per country, no per-region
  *    executive). Defaults to "pro" — mainline's own neutral middle stance,
  *    "Pro-Devolution: neutral on the national question" (devolution.ts:105)
  *    — so the policy and regional-approval-mandate drivers below are
  *    deliberately inert until a future wave adds a devolved-FM system.
- *  - `regionalApproval` / `nationalApproval`: Rotunda has no approval-rating
+ *  - `regionalApproval` / `nationalApproval`: AHDClient has no approval-rating
  *    system (grepped: no government/politician "approval" concept beyond
  *    per-politician `favorability`, which is not the same thing mainline
  *    means by devolved-government/PM approval). Both default to 50 (the
@@ -33,7 +33,7 @@ import type { WorldState } from "../types.js";
  *    `regionalApprovalDrift` both return exactly 0 at 50).
  * Real, live input:
  *  - `inflationPercent`: `world.countries["UK"].economy.inflationRate * 100`
- *    (Rotunda's inflationRate is a fraction, mainline's constant expects an
+ *    (AHDClient's inflationRate is a fraction, mainline's constant expects an
  *    annualised percent) — genuinely available and wired, so independence
  *    desire is NOT fully inert: it responds to real UK inflation plus the
  *    mean-reversion floor every turn, exactly as mainline computes it.
@@ -144,7 +144,7 @@ export function computeIndependenceDesireDriftSnapshot(args: {
 
 /**
  * WorldState-wired driver (solo analogue of src/lib/turn/independenceDesireDrift.ts).
- * Runs the drift for each of SCO/WAL/NIR against Rotunda's live UK inflation
+ * Runs the drift for each of SCO/WAL/NIR against AHDClient's live UK inflation
  * rate and the PORT-STUB neutral defaults documented in this file's header.
  * RNG-free (mainline's own drift compute is RNG-free too).
  */

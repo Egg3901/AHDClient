@@ -18,9 +18,9 @@
  * preserved in the helper for completeness and tested via goldens, but are
  * PORT-STUB at the phase level until bargaining lands.
  *
- * Wire note (mainline→Rotunda bridge): mainline's LABOUR_POLITICAL_CAPS feed
+ * Wire note (mainline→AHDClient bridge): mainline's LABOUR_POLITICAL_CAPS feed
  * src/lib/politicalMetrics via buildLabourRelationsPoliticalNudges → metricEngine.
- * Rotunda has no politicalMetrics/metricEngine port yet (see support/support.ts
+ * AHDClient has no politicalMetrics/metricEngine port yet (see support/support.ts
  * file doc: politicalStrength is an aggregate, not the per-metric board). W15
  * therefore PORT-STUBs the wire at the phase boundary and documents the blocker:
  *   BLOCKER: union support/pressure/org (economy.workerSecurity) effect deferred

@@ -167,7 +167,7 @@ export function electionSeriesForWorld(world: WorldState): SeriesSpec[] {
   // ensureUKRegionalCouncilElections for UK regionalCouncil,
   // ensureRegionalDelegateElections for RU republicSupremeSoviet / DD
   // landAssembly), each seeded from the same per-region seat count
-  // (`stateSenateSeats` in mainline's state docs) that Rotunda already carries
+  // (`stateSenateSeats` in mainline's state docs) that AHDClient already carries
   // as `region.senateSeats` (see usStates1953.ts / ukRegions1953.ts /
   // ruRegions1953.ts / ddRegions1953.ts header comments). electionType and
   // chamberKey both already match the content-pack chamber `key` (stateSenate
@@ -222,7 +222,7 @@ export function seatHolders(world: WorldState, rec: ElectionRecord): Politician[
  * W22 staleCandidateCleanup analogue. Source: src/lib/turn/perpetualElections.ts
  * cleanupStaleElectionCandidates (registered in
  * src/simulation/phases/turnPhaseRegistry.ts), which drops generated NPC
- * candidates who neither won nor hold anything. Rotunda's equivalent runs at every election resolution:
+ * candidates who neither won nor hold anything. AHDClient's equivalent runs at every election resolution:
  * a generated ("-CH") politician is culled when they hold no chamber seat,
  * no governorship, no executive/cabinet/court office, and are not a
  * candidate in any unresolved election. This covers BOTH losers of the race

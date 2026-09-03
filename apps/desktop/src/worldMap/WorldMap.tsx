@@ -1,5 +1,5 @@
 import { useMemo, useState, useRef } from "react";
-import type { WorldState, Party, Legislature } from "@rotunda/engine";
+import type { WorldState, Party, Legislature } from "@ahdclient/engine";
 import topoRaw from "../assets/countries-110m.json";
 import { decodeTopology, ringsToPathD } from "./topo.js";
 import { ISO_TO_COUNTRY } from "./idMap.js";
@@ -186,7 +186,7 @@ export function WorldMapScreen({ world, onBack }: { world: WorldState; onBack: (
           </div>
 
           <div className="world-legend">
-            <span style={{ color: "#ededed", fontWeight: 600 }}>{METRIC_OPTIONS.find(m=>m.value===metric)?.label}</span>
+            <span style={{ color: "#e8e8ee", fontWeight: 600 }}>{METRIC_OPTIONS.find(m=>m.value===metric)?.label}</span>
             <div className="world-legend-bar" style={{ background: `linear-gradient(to right, ${RAMP.join(", ")})` }} />
             <div className="world-legend-minmax">
               <span>{formatMetricShort(metric, domain.min)}</span>
@@ -196,7 +196,7 @@ export function WorldMapScreen({ world, onBack }: { world: WorldState; onBack: (
             <div className="world-legend-neutral">
               <span className="world-legend-swatch" style={{ background: NEUTRAL }} />
               <span>Not modeled</span>
-              <span className="world-legend-swatch" style={{ background: "transparent", borderColor: "#ededed" }} />
+              <span className="world-legend-swatch" style={{ background: "transparent", borderColor: "#e8e8ee" }} />
               <span>Player</span>
             </div>
           </div>
@@ -226,7 +226,7 @@ export function WorldMapScreen({ world, onBack }: { world: WorldState; onBack: (
         <aside className="world-side">
           {!selectedCountry ? (
             <div className="world-side-placeholder">
-              <p style={{ margin: "0 0 8px", fontWeight: 600, color: "#ededed" }}>Select a country</p>
+              <p style={{ margin: "0 0 8px", fontWeight: 600, color: "#e8e8ee" }}>Select a country</p>
               <p className="small muted" style={{ margin: 0 }}>Hover for values, click a tinted country or chip to inspect economy, parties, and legislature.</p>
               <p className="small muted" style={{ marginTop: 12 }}>Player country {playerId} outlined.</p>
             </div>
@@ -304,7 +304,7 @@ export function WorldMapScreen({ world, onBack }: { world: WorldState; onBack: (
                   <p className="small muted">No legislature data for {selectedId}.</p>
                 ) : (
                   <>
-                    <p className="small" style={{ margin: "0 0 8px", color: "#ededed" }}>{selectedLegislature.name} {selectedLegislature.bicameral ? "· bicameral" : "· unicameral"} · {selectedLegislature.chambers.length} chambers</p>
+                    <p className="small" style={{ margin: "0 0 8px", color: "#e8e8ee" }}>{selectedLegislature.name} {selectedLegislature.bicameral ? "· bicameral" : "· unicameral"} · {selectedLegislature.chambers.length} chambers</p>
                     {selectedLegislature.chambers.map((ch) => {
                       const held = Object.values(ch.composition.seatsByParty).reduce((s, v) => s + v, 0);
                       return (

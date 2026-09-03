@@ -8,14 +8,15 @@ import {
   readDir,
   remove,
 } from "@tauri-apps/plugin-fs";
-import { serializeSave, deserializeSave } from "@rotunda/engine";
-import type { WorldState } from "@rotunda/engine";
+import { serializeSave, deserializeSave } from "@ahdclient/engine";
+import type { WorldState } from "@ahdclient/engine";
 
 export const SAVES_DIR = "saves";
 export const INDEX_FILE = "saves/index.json";
 export const AUTOSAVE_A = "autosave-a";
 export const AUTOSAVE_B = "autosave-b";
 export const AUTOSAVE_SLOTS = [AUTOSAVE_A, AUTOSAVE_B] as const;
+export const QUICK_SAVE_SLOT = "quick-save";
 
 export interface SaveSlotMeta {
   slot: string;
@@ -31,6 +32,29 @@ export interface SaveSlotMeta {
 export interface SaveIndex {
   version: 1;
   slots: SaveSlotMeta[];
+}
+
+export function preferredSaveSlot(slots: SaveSlotMeta[], current: string | null): string | null {
+  if (current && slots.some(({ slot }) => slot === current)) return current;
+  return slots[0]?.slot ?? null;
+}
+
+export function filterSaveSlots(slots: SaveSlotMeta[], query: string): SaveSlotMeta[] {
+  const needle = query.trim().toLocaleLowerCase();
+  if (!needle) return slots;
+  return slots.filter((slot) => {
+    const searchable = [
+      slot.slot,
+      slot.playerName,
+      slot.country,
+      slot.era,
+      slot.date,
+      `turn ${slot.turn}`,
+      `t${slot.turn}`,
+      slot.cheatsUsed ? "cheats" : "",
+    ].join(" ").toLocaleLowerCase();
+    return searchable.includes(needle);
+  });
 }
 
 const SLOT_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
@@ -283,7 +307,7 @@ export interface AutosaveConfig {
   nextSlotIndex: 0 | 1;
 }
 
-const LS_KEY = "rotunda.autosave.config";
+const LS_KEY = "ahdclient.autosave.config";
 
 export function getAutosaveConfig(): AutosaveConfig {
   try {

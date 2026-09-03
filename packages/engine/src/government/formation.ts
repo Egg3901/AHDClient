@@ -82,7 +82,7 @@ export function computeFormation(seatsByParty: Record<string, number>, totalSeat
  *
  * Ports mainline's PM-nominator rule: the party's seated chair, falling back
  * to the vice-chair ("VC-acting-chair" rule — src/lib/db/types/party.ts:29-31,
- * checkAppointmentEligibility). Rotunda's Party type (types.ts) has no
+ * checkAppointmentEligibility). AHDClient's Party type (types.ts) has no
  * chairId/viceChairId field yet — the W20 leadership wave that would add one
  * had not merged as of this wave. PORT-STUB: feature-detect an optional
  * `chairId`/`viceChairId`/`leaderId` string field on the party record (so

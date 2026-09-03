@@ -92,7 +92,7 @@ export const ROSTER_1991_LEGISLATURES: LegislatureSeed[] = [
     bicameral: false,
     chambers: [
       {
-        // seats = sum deRegions1991.houseDistricts = mainline DE_WAHLKREIS_SEATS per Land, the totalSeats mainline ensureDEElections gives each per-Land Bundestag race; config 630 (AMS list seats are PORT-STUB: Rotunda allocates per-Land seats by Hamilton PR); table sum 672 (0 independent/unrostered -> vacancies); scaled 672 -> 305 proportionally (largest remainder)
+        // seats = sum deRegions1991.houseDistricts = mainline DE_WAHLKREIS_SEATS per Land, the totalSeats mainline ensureDEElections gives each per-Land Bundestag race; config 630 (AMS list seats are PORT-STUB: AHDClient allocates per-Land seats by Hamilton PR); table sum 672 (0 independent/unrostered -> vacancies); scaled 672 -> 305 proportionally (largest remainder)
         key: "bundestag",
         name: "Bundestag",
         shortName: "Bundestag",

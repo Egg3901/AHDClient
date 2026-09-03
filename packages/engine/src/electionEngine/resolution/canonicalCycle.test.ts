@@ -286,7 +286,7 @@ describe("canonicalTurnsForCycle", () => {
     });
   });
 
-  describe("1953-default preset anchors (W24: Rotunda's live cycleContextForWorld preset)", () => {
+  describe("1953-default preset anchors (W24: AHDClient's live cycleContextForWorld preset)", () => {
     const ctx1953 = { startingYear: 1953, preset: "1953-default" };
 
     it("US President cycle 1 = 1956 (Eisenhower re-election) = turn 192 (= (1956 − 1953 + 1) × 48)", () => {

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { WorldState } from "@rotunda/engine";
+import type { WorldState } from "@ahdclient/engine";
 import "./campaigns.css";
 
 // Defensive helpers, same convention as every other screen — WorldState.campaigns
@@ -310,7 +310,7 @@ export function CampaignsScreen({
                     Funds are local currency (frozen base rate, not live forex). Spend this turn feeds next turn's election
                     fundsByParty tally (one-turn lag by design — see campaigns/phases.ts). Upgrade $ costs and effect
                     magnitudes live in the engine's campaigns/upgradeCosts.ts table, which is not part of the public
-                    @rotunda/engine API this screen consumes, so exact costs cannot be shown here without either widening
+                    @ahdclient/engine API this screen consumes, so exact costs cannot be shown here without either widening
                     the engine's exports or duplicating the balance table in the UI (risking drift) — named honestly
                     rather than guessed.
                   </div>

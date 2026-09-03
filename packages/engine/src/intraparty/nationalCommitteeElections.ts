@@ -87,17 +87,20 @@ export function resolveCommitteeElections(world: WorldState, rng: WorldRng): num
       }
     }
     const voters = world.politicians.filter((p) => p.partyId === election.partyId);
-    // Auto-ballot gaps
+    const counts = new Map<string, number>();
+    for (const cid of election.candidateIds) counts.set(cid, 0);
+
+    // Preserve explicit player ballots and accept verbose NPC ballots from
+    // older saves, then keep newly generated NPC choices transient.
+    for (const picks of Object.values(election.votes)) {
+      for (const cid of picks) {
+        if (counts.has(cid)) counts.set(cid, (counts.get(cid) ?? 0) + 1);
+      }
+    }
     for (const voter of voters) {
       if (election.votes[voter.id] !== undefined) continue;
       if (candidatePols.length === 0) break;
       const picks = pickCommitteeCandidatesForVoter(voter, candidatePols, rng, MAX_VOTES_PER_VOTER);
-      if (picks.length > 0) election.votes[voter.id] = picks;
-    }
-    // Tally
-    const counts = new Map<string, number>();
-    for (const cid of election.candidateIds) counts.set(cid, 0);
-    for (const picks of Object.values(election.votes)) {
       for (const cid of picks) {
         if (counts.has(cid)) counts.set(cid, (counts.get(cid) ?? 0) + 1);
       }

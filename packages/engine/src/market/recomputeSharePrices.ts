@@ -23,7 +23,7 @@
  * Mainline's own recomputeSharePrices exists to fix a lag: it re-prices
  * AFTER bondTurn has applied coupon cash flows, because processCorporationTurn
  * already wrote a placeholder price before bondTurn ran (see
- * turn/corporation/recomputeSharePrices.ts file doc). Rotunda has no bond
+ * turn/corporation/recomputeSharePrices.ts file doc). AHDClient has no bond
  * system (W12/W13), so there is no post-bond lag to eliminate here — this
  * phase simply IS the (only) turn repricing step, reading the same-turn
  * corporationTurn output directly.
@@ -70,7 +70,7 @@ export const recomputeSharePricesPhase: TurnPhase = {
       const history = bank?.interestRateHistory?.map((h) => h.rate);
       // Smoothed prime rate (30% spot / 70% trailing weighted avg): mirrors
       // mainline's primeRateSmoothedByCountry discount input (recomputeSharePrices.ts
-      // "hourly turns" comment) — Rotunda's turns are the same instant-transmission
+      // "hourly turns" comment) — AHDClient's turns are the same instant-transmission
       // concern the smoothing exists for. computeEffectivePrimeRate is already
       // ported for the inflation monetary term (centralBank/constants.ts); reused
       // directly rather than re-derived.

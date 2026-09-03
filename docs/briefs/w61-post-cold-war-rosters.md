@@ -6,7 +6,7 @@ The authoritative roster is what each preset SEEDS with full political depth
 owner had open, not the newer `worldEntityManifest.ts` access gate
 (`POST_COLD_WAR_PLAYER = US/UK`), which is narrower than the seeded worlds:
 
-| Preset | Seeded roster (authoritative) | Rotunda today |
+| Preset | Seeded roster (authoritative) | AHDClient today |
 |---|---|---|
 | 1953 | US, UK, RU, DD | matches |
 | 1979 | US, UK, RU, DD | matches |
@@ -38,21 +38,21 @@ see `packages/content/scripts/generateStateLayer.ts` for the pattern.
 | Registration / org | JP, DE: `registration/registrationLanes.ts` buildAllRegistrationSeeds. IE: `seeds/ie/ieStatePartyOrgCalculations.ts` calculateIEPartyOrg(voteShare) over `ieRegionVoteShares` (pure formula; the DB wrapper only maps slugs). CN: `seeds/cn/cnStatePartyOrgCalculations.ts` getCnRegionOrg(2019) (registration mirrors organization per row, per seedCnStatePartyOrg.ts) |
 | Demographics | `seeds/international` getCountryLayer1Model({JP,DE,IE,CN}, "2019") + `international/derive.ts` buildModelRegionDemographics (same path admin/seed/seed{JP,DE,IE,CN}.ts run) |
 | Seat maps for CN | `constants/states.ts` getCnNpcSeats / getCnPeoplesCongressSeats (modern bundle for 2019) |
-| Government formation | `seeds/{jp,de,ie,cn}/*GovernmentFormation.ts` (majorityThreshold 233 / 316 / 81 / 1491 = chamber/2+1, same rule as Rotunda `computeFormation`) |
+| Government formation | `seeds/{jp,de,ie,cn}/*GovernmentFormation.ts` (majorityThreshold 233 / 316 / 81 / 1491 = chamber/2+1, same rule as AHDClient `computeFormation`) |
 | Election spawn semantics | `turn/perpetualElections.ts` ensureJPElections (shugiin per region, totalSeats = region houseDistricts), ensureJPCouncillorElections (sangiin, two classes, half seats per class per region, 6-year cycle), ensureJPRegionalCouncilElections, ensureJPGovernorElections (regional governor spawner, 8 regions, 4-year), ensureDEElections (bundestag per Land, snap_bundestag), DE landtag per Land + ministerPresident, ensureIEElections (dail per region PR-STV, totalSeats = houseDistricts), IE seanad, ensureIEUachtaranElections (nationwide head of state), ensureCNElections (npcDelegate per region, seats getCnNpcSeats), ensureCNPeoplesCongressElections, ensureCNGovernorElections |
 | Cycle anchors | already ported: `electionEngine/resolution/canonicalCycle.ts` cases shugiin, sangiin, bundestag, landtag, npcDelegate, peoplesCongress, dail, snap_shugiin, uachtaran |
 | Head of state | IE uachtaran = direct nationwide election (`elections/nationwideExecutive.ts`); CN president = `headOfStateSelection: "partyChairSync"` (tracks CCP chair); JP Emperor / DE Bundespraesident ceremonial (no office to port) |
 | Economic model | COUNTRY_CONFIGS.seedEconomicModel["2019"]: JP industrialPowerhouse, DE socialMarket, IE techInnovation, CN industrialPowerhouse (extend `metrics/economicModel.ts` archetype switch, which hardcodes US/UK/RU/DD) |
 | Legislation catalogs | `seeds/{jp,de,ie,cn}/*LegislationTypes.ts` (63 / 60 / 58 / 62 types) |
 
-## Rotunda surfaces to extend
+## AHDClient surfaces to extend
 1. **Pack `packages/content/src/packs/2019.ts`**: flip JP/DE/IE/CN `playable: true`; add legislatures (JP shugiin 465 + sangiin 248 + regionalCouncil 2679; DE bundestag 630 + bundesrat 69 (appointed, `elected: false`) + landtag 1901; IE dail 160 + seanad 60 + localCouncil (sum of region upper seats); CN npc 2980 + cppcc 2169 (`elected: false`) + peoplesCongress 4000) with 2020/2021 compositions from the seat tables; parties; `states` from a generator extension (`generateStateLayer.ts` gains jp/de/ie/cn 2019 regions + registration + demographics -> `engine/src/demographics/{jp,de,ie,cn}Demographics2019.ts`).
 2. **Election orchestration** `elections/orchestration.ts` electionSeriesForWorld: per-region specs for shugiin / sangiin (class split) / regionalCouncil / governor (JP); bundestag per Land / landtag per Land / ministerPresident as the "governor" analogue (DE); dail per region / seanad national / uachtaran nationwide (IE); npcDelegate per region / peoplesCongress per region / governor per region (CN). Seat sums must equal chamber seats (content test enforces).
-3. **Government** `government/constants.ts`: GOVERNMENT_CHAMBER_BY_COUNTRY += JP shugiin, DE bundestag, IE dail, CN npc; BASE_ELECTION_TYPE_BY_CHAMBER += shugiin, bundestag, dail, npcDelegate; SNAP_ELECTION_TYPE_BY_CHAMBER += snap_shugiin, snap_bundestag (mainline names), snap_dail, snap_npcDelegate (Rotunda-native, add to MULTI_SEAT_TYPES). Sangiin cannot be dissolved (config `snapElectionsAllowed: false`).
+3. **Government** `government/constants.ts`: GOVERNMENT_CHAMBER_BY_COUNTRY += JP shugiin, DE bundestag, IE dail, CN npc; BASE_ELECTION_TYPE_BY_CHAMBER += shugiin, bundestag, dail, npcDelegate; SNAP_ELECTION_TYPE_BY_CHAMBER += snap_shugiin, snap_bundestag (mainline names), snap_dail, snap_npcDelegate (AHDClient-native, add to MULTI_SEAT_TYPES). Sangiin cannot be dissolved (config `snapElectionsAllowed: false`).
 4. **Executives** `executive/`: PM-type heads of government already come from formation (UK path) — reuse for JP/DE/IE/CN. IE uachtaran = presidential-style nationwide race reusing the US president path with a country switch. CN president via partyChairSync = the CCP chair id. Regional executives (JP governors, DE Minister-Presidents, CN governors) reuse the governor path keyed by country.
 5. **Country gates to widen**: `legislation/catalog.ts` countryId union + STUBBED_IDS; `metrics/economicModel.ts` archetype switch; `demographics/census.ts` and `elections/seatGeography.ts` are US-only by design (House apportionment) and stay; `cabinet/phases.ts` (cabinetEligibleChamberKeys from config: JP shugiin+sangiin); `judiciary` stays US/UK.
 6. **HoS mode**: rulingPartyIdForCountry uses GOVERNMENT_CHAMBER_BY_COUNTRY, so it generalises once (3) lands.
-7. **Legislation catalogs (M2)**: port the four *LegislationTypes.ts catalogs (~240 types) via a generator into `legislation/catalog.ts` per-country sections. Blocking systems that do not exist in Rotunda get PORT-STUB entries exactly as US/UK/RU/DD do today.
+7. **Legislation catalogs (M2)**: port the four *LegislationTypes.ts catalogs (~240 types) via a generator into `legislation/catalog.ts` per-country sections. Blocking systems that do not exist in AHDClient get PORT-STUB entries exactly as US/UK/RU/DD do today.
 8. **Desktop**: `worldMap/idMap.ts` already maps JP/DE/IE/CN; launcher reads `listPlayableCountries(era)` so no UI change beyond era-themed copy.
 
 ## Milestones
@@ -87,13 +87,13 @@ M2 (in dependency order):
    `packages/content/scripts/generateBudgets.ts` (every playable country of
    each era, all BudgetSeed fields from mainline's per-preset configs; tax
    rates derived exactly as mainline deriveTaxRates does from taxPolicyIds ->
-   the law's default option). Country-specific dials beyond Rotunda's six
+   the law's default option). Country-specific dials beyond AHDClient's six
    revenue lines (DE solidarity surcharge, CN LVAT/urban/stamp, IE
    property/USC/CGT/excise) are PORT-STUB budget/extraTaxLines. The tax-rate
    ladder those budgets feed is live (schema v41: bill.selectedRate,
    budget.taxRatePhaseIn, one-point-per-turn phase-in).
 3. BR president: mainline's nationwideExecutive.ts leaves the BR race
-   unactivated, so Rotunda keeps the office vacant (PORT-STUB, named).
+   unactivated, so AHDClient keeps the office vacant (PORT-STUB, named).
 4. JP Sangiin / BR Senado class staggering (mainline simplifies too), DE AMS
    list seats (Bundestag sized to Wahlkreis seats like mainline's per-Land
    races), IE STV (Hamilton PR allocates).

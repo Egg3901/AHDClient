@@ -4,8 +4,8 @@ import { deserializeSave, serializeSave } from "./save.js";
 import { createWorld, listEras, listPlayableCountries, SCHEMA_VERSION } from "./world.js";
 import { rngFromSeed, rngFromState } from "./rng.js";
 import { dateForTurn, eraForDate } from "./calendar.js";
-import { PACKS } from "@rotunda/content";
-import { validatePack } from "@rotunda/content";
+import { PACKS } from "@ahdclient/content";
+import { validatePack } from "@ahdclient/content";
 
 const OPTS = { seed: "test-seed", playerName: "Tester", countryId: "US", era: "1953" } as const;
 
@@ -627,7 +627,7 @@ describe("W38 US states layer", () => {
 
   it("pack validation extended: 80 states (48 US +12 UK +14 RU +6 DD), apportionment 435 for US", async () => {
     // use imported pack directly
-    const { pack1953: p1953 } = await import("@rotunda/content");
+    const { pack1953: p1953 } = await import("@ahdclient/content");
     expect(p1953.states!.length).toBe(80);
     expect(p1953.states!.filter((s) => s.countryId === "US").length).toBe(48);
     expect(p1953.states!.filter((s) => s.countryId === "UK").length).toBe(12);
@@ -756,7 +756,7 @@ describe("W38 US states layer", () => {
     expect(a.partyRegions["AL:US_DEM"]!.organization).toBe(30);
     expect(a.partyRegions["AL:US_DEM"]!.registration).toBe(47);
     // Pack validation extended passes
-    const { validatePack } = await import("@rotunda/content");
+    const { validatePack } = await import("@ahdclient/content");
     expect(() => validatePack(PACKS.find((p) => p.era.id === "1953")!)).not.toThrow();
   });
 });

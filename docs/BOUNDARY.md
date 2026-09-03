@@ -1,11 +1,11 @@
 # Boundary: this repo vs mainline A House Divided
 
-This document defines the code and product boundary between ROTUNDA and mainline A House Divided (`Egg3901/AHDGame`). Both repositories are source-available; this document contains no deployment paths or private operational details.
+This document defines the code and product boundary between AHDClient and mainline A House Divided (`Egg3901/AHDGame`). Both repositories are source-available; this document contains no deployment paths or private operational details.
 
 ## What each side is
 
 - **Mainline**: the live multiplayer service. Server-authoritative, real-time turns, accounts, moderation, Mongo persistence.
-- **ROTUNDA**: the multiplatform client. Desktop provides a hardened multiplayer webview; Android keeps multiplayer in its one app webview with remote Tauri API access disabled. Both provide fully local singleplayer running its own engine. No server components, ever.
+- **AHDClient**: the multiplatform client. Desktop provides a hardened multiplayer webview; Android keeps multiplayer in its one app webview with remote Tauri API access disabled. Both provide fully local singleplayer running its own engine. No server components, ever.
 
 ## Direction of flow
 
@@ -19,7 +19,7 @@ This document defines the code and product boundary between ROTUNDA and mainline
 - Party ideology: mainline's economic/social axes on -5..5.
 - Era ids: strings keyed to mainline's real preset registry (`presetSelector.ts` `EraId`). Shipped packs: "1953", "1979", "1991", "2019" (mainline's 1953-default/1979-default/1991-default/2019-default). "1960" was never a mainline preset — it shipped here as a fabricated, interpolation-derived pack and has been removed; see `packages/content/src/packs` provenance headers.
 - Save format marker `ahdsolo-save` is this repo's wire format and is independent of project naming.
-- License: PolyForm Noncommercial 1.0.0 on both sides, which is what makes code flow legal and frictionless.
+- Ownership: both codebases are proprietary Lakeside Games products, so code and data may move between them only under the owner's authority.
 
 ## Divergences (deliberate, documented)
 

@@ -1,5 +1,5 @@
 /**
- * Legislation types for solo Rotunda.
+ * Legislation types for solo AHDClient.
  * Ports mainline Bill shape + legislation stages faithfully, simplified for
  * single-process determinism (turn-based timers, not Date).
  */

@@ -193,7 +193,7 @@ export const macroCountryTurnPhase: TurnPhase = {
       // W14: capital stock growth (gK) is now real too — see below. What
       // remains PORT-STUB is only the TFP basket (tfpBasket() in
       // potentialGrowth.ts needs rdIntensity/workforceSkill/transportEfficiency/
-      // broadbandAccess/powerGridReliability/urbanizationRate inputs Rotunda
+      // broadbandAccess/powerGridReliability/urbanizationRate inputs AHDClient
       // has no education/infrastructure/urbanization metrics for yet); `tfp`
       // stays flat at TFP_BASELINE until that basket lands.
       const regionIds = Object.values(world.regions)

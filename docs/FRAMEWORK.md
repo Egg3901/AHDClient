@@ -1,6 +1,6 @@
-# ROTUNDA framework
+# AHDClient framework
 
-Codename ROTUNDA: the multiplatform A House Divided client. One app, two modes: an entry to the live multiplayer game and fully local singleplayer worlds bootable in any era as any playable country. Desktop hosts multiplayer in an isolated webview; Android navigates the app webview so sign-in and session continuity match the existing mobile client.
+Codename AHDClient: the multiplatform A House Divided client. One app, two modes: an entry to the live multiplayer game and fully local singleplayer worlds bootable in any era as any playable country. Desktop hosts multiplayer in an isolated webview; Android navigates the app webview so sign-in and session continuity match the existing mobile client.
 
 This document is the integration contract. Parallel work streams build against it; changing a contract here requires updating this file in the same commit.
 

@@ -4,7 +4,7 @@ Read `docs/FRAMEWORK.md` first. You own `packages/content` and may make minimal 
 
 ## Source of truth (READ-ONLY)
 
-Mainline A House Divided lives at `<mainline-checkout>` (same owner, same PolyForm NC license; copying data is intended). Its audited world seed is under `<mainline-checkout>/src/lib/seeds/` (per-country directories: us, uk, de, dd, cn, su equivalents, etc.) with era logic under `<mainline-checkout>/src/lib/era/`.
+Mainline A House Divided lives at `<mainline-checkout>` (same proprietary owner; copying data is owner-authorized). Its audited world seed is under `<mainline-checkout>/src/lib/seeds/` (per-country directories: us, uk, de, dd, cn, su equivalents, etc.) with era logic under `<mainline-checkout>/src/lib/era/`.
 
 **HARD RULE: that checkout is a live production-shared tree. Never write to it, never run git commands in it, never run its npm scripts. Read files only.**
 

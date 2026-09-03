@@ -11,7 +11,7 @@
  *     (policyDefaults: the baseline option per tax law for a preset)
  *
  * Run FROM THE MAINLINE CHECKOUT so its `@/` alias resolves:
- *   npx tsx ../Rotunda/packages/content/scripts/generateCatalogs.ts
+ *   npx tsx ../AHDClient/packages/content/scripts/generateCatalogs.ts
  *
  * Mapping (same conventions the hand-ported US/UK/RU/DD entries use):
  *  - id = mainline `_id`; title/description/category(policyDomain) verbatim.

@@ -12,7 +12,7 @@ import {
   type ExecuteActionParams,
   type ExecuteActionResult,
   type CheatOp,
-} from "@rotunda/engine";
+} from "@ahdclient/engine";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
@@ -94,7 +94,7 @@ export const game: GameApi = {
 
   async save(): Promise<{ saved: boolean; path?: string }> {
     if (!world) return { saved: false };
-    const defaultPath = `rotunda-${world.meta.seed}-t${world.meta.turn}.json`;
+    const defaultPath = `ahdclient-${world.meta.seed}-t${world.meta.turn}.json`;
     const filePath = await save({
       defaultPath,
       filters: [{ name: "AHD Solo save", extensions: ["json"] }],

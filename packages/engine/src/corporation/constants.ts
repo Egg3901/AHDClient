@@ -5,7 +5,7 @@
  *  - src/lib/constants/corporations.ts (margin soft cap, growth bounds, growth
  *    cost, dividend/CEO/overhead caps, CORPORATION_TYPES)
  *  - src/lib/turn/corporation/sectorGrowthPolicy.ts (growth trend + affordability
- *    brake; command-economy plan-gravity branch NOT ported — Rotunda has no
+ *    brake; command-economy plan-gravity branch NOT ported — AHDClient has no
  *    command-economy system yet, W7 in the roadmap, not merged into this
  *    worktree)
  *  - src/lib/utils/sectorGrowth.ts (trendGrowthRate)
@@ -62,7 +62,7 @@ export const MIN_GROWTH_RATE = -2;
 export const GROWTH_TREND_STEP_PER_TURN = 0.5;
 /**
  * Source: constants/corporations.ts:827 GROWTH_RATE_TURNS_PER_YEAR = 48.
- * Identical value and semantics to Rotunda's own TURNS_PER_YEAR
+ * Identical value and semantics to AHDClient's own TURNS_PER_YEAR
  * (economy/macroConstants.ts, itself sourced from turnTime.ts), reused
  * directly rather than re-declared.
  */
@@ -96,13 +96,13 @@ export const GROWTH_BRAKE_STEP = 0.5;
  * Growth cost calibration. Source: constants/corporations.ts:346
  * GROWTH_COST_MULTIPLIER = 3.0, and the calculateDailyGrowthCost formula
  * (lines 719-740) which also multiplies by TURNS_PER_DAY = 24 (line 830).
- * That factor is NOT a turn-length unit conversion (Rotunda's turn is a week,
+ * That factor is NOT a turn-length unit conversion (AHDClient's turn is a week,
  * not an hour) — it is baked into mainline's own calibration so that
  * growthCost/revenue lands in the same range GROWTH_COST_MARGIN_SHARE compares
  * against (see the brake math above); it is ported as a flat multiplier
- * applied once per Rotunda turn.
+ * applied once per AHDClient turn.
  * rateMultiplier (prime-rate/CEO-acumen sensitivity) and dominanceGrowthMult
- * (market-share toll) are PORT-STUB neutral 1.0: Rotunda has no central-bank
+ * (market-share toll) are PORT-STUB neutral 1.0: AHDClient has no central-bank
  * prime-rate-to-corp-cost link, no CEO acumen stat, and no market-share system
  * (W10) yet.
  */
@@ -112,7 +112,7 @@ export const TURNS_PER_DAY = 24;
 /**
  * Growth investment cost charged against margin this turn, using the
  * pre-growth (current) revenue. Clamped to >=0: mainline's own formula has no
- * explicit floor, but Rotunda's growth range can go negative (MIN_GROWTH_RATE
+ * explicit floor, but AHDClient's growth range can go negative (MIN_GROWTH_RATE
  * -2), and a "negative cost" (credit) has no mainline analogue — clamped
  * defensively so a shrinking sector never gets a phantom cash injection.
  * Source: constants/corporations.ts:719-740 calculateDailyGrowthCost, with
@@ -213,12 +213,12 @@ export const CEO_ARCHETYPE_MODIFIERS: Record<CeoArchetype, CeoArchetypeModifiers
  * Persistent-insolvency grace window (turns of negative liquidCapital before
  * a reincorporation). Source: nppInsolvencyDissolution.ts:81
  * PERSISTENT_INSOLVENCY_GRACE_TURNS = 30 (kept as the literal turn count —
- * both mainline and Rotunda run this cluster at a weekly-equivalent 48
+ * both mainline and AHDClient run this cluster at a weekly-equivalent 48
  * turns/year cadence, see GROWTH_RATE_TURNS_PER_YEAR above).
  *
  * Deep-insolvency threshold: mainline's DISSOLUTION_ANCHOR_THRESHOLD
  * (nppInsolvencyDissolution.ts:76) is a fixed -1,000,000 ₳ (modern-scale
- * anchor currency), immediate no-grace trigger. Rotunda has no ₳/FX anchor
+ * anchor currency), immediate no-grace trigger. AHDClient has no ₳/FX anchor
  * system and corp scale varies enormously by country/sector/era (see
  * founding.ts), so the port uses a RELATIVE threshold: a corp that has burned
  * through more cash than its entire founding capital (liquidCapital <

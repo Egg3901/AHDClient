@@ -83,7 +83,7 @@ export const ROSTER_2019_LEGISLATURES: LegislatureSeed[] = [
     bicameral: false,
     chambers: [
       {
-        // seats = sum deRegions2019.houseDistricts = mainline DE_WAHLKREIS_SEATS per Land, the totalSeats mainline ensureDEElections gives each per-Land Bundestag race; config 630 (AMS list seats are PORT-STUB: Rotunda allocates per-Land seats by Hamilton PR); table sum 201 (0 independent/unrostered -> vacancies)
+        // seats = sum deRegions2019.houseDistricts = mainline DE_WAHLKREIS_SEATS per Land, the totalSeats mainline ensureDEElections gives each per-Land Bundestag race; config 630 (AMS list seats are PORT-STUB: AHDClient allocates per-Land seats by Hamilton PR); table sum 201 (0 independent/unrostered -> vacancies)
         key: "bundestag",
         name: "Bundestag",
         shortName: "Bundestag",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import type { WorldState } from "@rotunda/engine";
-import { deserializeSave } from "@rotunda/engine";
+import type { WorldState } from "@ahdclient/engine";
+import { deserializeSave } from "@ahdclient/engine";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import {
@@ -11,6 +11,8 @@ import {
   readSlotRaw,
   getAutosaveConfig,
   setAutosaveConfig,
+  filterSaveSlots,
+  preferredSaveSlot,
 } from "../saves.js";
 import type { SaveSlotMeta, AutosaveConfig, AutosaveInterval } from "../saves.js";
 import "./saves.css";
@@ -19,6 +21,7 @@ interface Props {
   currentWorld: WorldState | null;
   onLoad: (world: WorldState) => void;
   onClose: () => void;
+  onSaved: () => void;
   isDirty?: boolean;
 }
 
@@ -40,7 +43,7 @@ function formatSavedAt(iso: string): string {
   }
 }
 
-export function SavesScreen({ currentWorld, onLoad, onClose, isDirty }: Props): JSX.Element {
+export function SavesScreen({ currentWorld, onLoad, onClose, onSaved, isDirty }: Props): JSX.Element {
   const [slots, setSlots] = useState<SaveSlotMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState<string | null>(null);
@@ -50,6 +53,7 @@ export function SavesScreen({ currentWorld, onLoad, onClose, isDirty }: Props): 
   const [autosave, setAutosave] = useState<AutosaveConfig>(() => getAutosaveConfig());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmOverwrite, setConfirmOverwrite] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -57,17 +61,13 @@ export function SavesScreen({ currentWorld, onLoad, onClose, isDirty }: Props): 
     try {
       const list = await listSlots();
       setSlots(list);
-      if (list.length > 0 && !selected) {
-        // keep selection if still valid
-      }
-      // if selected slot no longer exists, clear it
-      if (selected && !list.some((s) => s.slot === selected)) setSelected(null);
+      setSelected((current) => preferredSaveSlot(list, current));
     } catch (e) {
       setBanner(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [selected]);
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -114,8 +114,10 @@ export function SavesScreen({ currentWorld, onLoad, onClose, isDirty }: Props): 
     setBanner(null);
     try {
       await saveToSlot(name, currentWorld);
+      setSelected(name);
       setNewName("");
       setConfirmOverwrite(null);
+      onSaved();
       await refresh();
     } catch (e) {
       setBanner(e instanceof Error ? e.message : String(e));
@@ -142,6 +144,7 @@ export function SavesScreen({ currentWorld, onLoad, onClose, isDirty }: Props): 
     try {
       await saveToSlot(selected, currentWorld);
       setConfirmOverwrite(null);
+      onSaved();
       await refresh();
     } catch (e) {
       setBanner(e instanceof Error ? e.message : String(e));
@@ -218,6 +221,7 @@ export function SavesScreen({ currentWorld, onLoad, onClose, isDirty }: Props): 
       setBusy(true);
       try {
         await saveToSlot(trimmed, world);
+        setSelected(trimmed);
         await refresh();
       } finally {
         setBusy(false);
@@ -254,6 +258,7 @@ export function SavesScreen({ currentWorld, onLoad, onClose, isDirty }: Props): 
   };
 
   const selectedMeta = selected ? slots.find((s) => s.slot === selected) ?? null : null;
+  const visibleSlots = filterSaveSlots(slots, query);
 
   return (
     <div className="saves-screen">
@@ -285,13 +290,27 @@ export function SavesScreen({ currentWorld, onLoad, onClose, isDirty }: Props): 
             </button>
           </div>
 
+          {slots.length > 0 && (
+            <label className="saves-search">
+              Search saves
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Name, player, country, era or turn"
+              />
+            </label>
+          )}
+
           {loading ? (
             <div className="muted small">Loading</div>
           ) : slots.length === 0 ? (
             <div className="muted small">No saves yet. Create one below.</div>
+          ) : visibleSlots.length === 0 ? (
+            <div className="muted small">No saves match “{query.trim()}”.</div>
           ) : (
             <ul className="saves-list">
-              {slots.map((s) => {
+              {visibleSlots.map((s) => {
                 const active = s.slot === selected;
                 const isAutosave = s.slot === "autosave-a" || s.slot === "autosave-b";
                 return (

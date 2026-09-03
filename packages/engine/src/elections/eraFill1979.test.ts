@@ -9,7 +9,7 @@ describe("1979 era fill (state layer + snap-type fix)", () => {
   it("1979 world: vacant chambers fill to capacity from per-region races (state layer + snap-type fix)", () => {
     // QA-sweep regression (2026-09-02): the 1979/1991/2019 packs shipped with no
     // US state layer, so no per-state House/Senate/governor race could spawn and
-    // a 1979 US Congress stayed empty forever; and the soviets' Rotunda-native
+    // a 1979 US Congress stayed empty forever; and the soviets' AHDClient-native
     // snap type ("snap_sovietOfTheUnion") was unknown to the multi-seat gates,
     // so a vacant 559-seat chamber resolved as a single-winner race and seated 1.
     // Mainline's 1979-default deliberately starts legislatures vacant

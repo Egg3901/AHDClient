@@ -18,7 +18,7 @@ import { ukRegions2019 } from "./ukRegions2019.js";
  *    enumeration of every `status` field in COUNTRY_CONFIGS finds exactly
  *    six "active" countries: US, UK, JP, DE, IE, CN.
  *
- *    ROTUNDA SCOPE DECISION: this pack ships US and UK as playable (matching
+ *    AHDClient SCOPE DECISION: this pack ships US and UK as playable (matching
  *    the depth already built for 1991) and keeps JP/DE/IE/CN as non-playable
  *    economy entries. Mainline marks those four player-eligible too, but
  *    giving them the same depth (parties, legislature, historical seats)

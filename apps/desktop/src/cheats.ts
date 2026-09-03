@@ -1,7 +1,7 @@
-import type { CheatOp } from "@rotunda/engine";
+import type { CheatOp } from "@ahdclient/engine";
 import { game } from "./game.js";
 
-export type { CheatOp, PartyNumericField, PlayerNumericField, PoliticianNumericField } from "@rotunda/engine";
+export type { CheatOp, PartyNumericField, PlayerNumericField, PoliticianNumericField } from "@ahdclient/engine";
 
 export function applyCheat(op: CheatOp): { elapsedMs?: number } {
   const startedAt = op.kind === "advanceTurns" ? performance.now() : undefined;

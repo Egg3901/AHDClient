@@ -32,7 +32,7 @@ type MarketizationStep = { throughYear: number; level: number };
 /**
  * Per-country marketization trajectory (1953-relevant subset only — mainline's
  * table also carries CN/PL/HU/CS/BG/RO/YU/UKR/BLR/BAL, none of which are
- * playable in Rotunda). Source: constants/commandEconomy.ts MARKETIZATION_SCHEDULE.
+ * playable in AHDClient). Source: constants/commandEconomy.ts MARKETIZATION_SCHEDULE.
  *  - RU: Soviet ruble, command through the 1991 dissolution.
  *  - DD: East Germany, command until the Oct 1990 reunification.
  */
@@ -141,7 +141,7 @@ export function driftMarketizationLevel(level: number, drift: number): number {
 // ── NPP-brain Gosbank defaults ───────────────────────────────────────────────
 // Source: constants/commandEconomy.ts NPP_DEFAULT_*. Solo has no player Gosbank
 // directive panel and no per-country commandStance (governmentFormations in
-// mainline) beyond the governingPartyId Rotunda already tracks (W23) — every
+// mainline) beyond the governingPartyId AHDClient already tracks (W23) — every
 // planned country runs on these constants except reformism, which is REAL
 // (see governmentReformismFromEconomicPosition below).
 export const NPP_DEFAULT_CREDIT_AGGRESSIVENESS = 0.55;

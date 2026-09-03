@@ -15,7 +15,7 @@
  * NPP_DEFAULT_STARTING_CAPITAL_ANCHOR = 2,000,000 modern ₳, scaled by
  * getEraNominalScale/getGdpAnchorRate) and starting revenue at 25% of the
  * local unowned-sector-pool market size (or the same computeUnownedSeedRevenue
- * formula as a fallback). Rotunda has no ₳/FX anchor system, so W9 substitutes
+ * formula as a fallback). AHDClient has no ₳/FX anchor system, so W9 substitutes
  * a country/era-neutral proxy: founding capital = one year of the sector's
  * national revenue (weight-share of country GDP), founding per-turn revenue =
  * that annual figure divided by GROWTH_RATE_TURNS_PER_YEAR. This keeps every
@@ -26,7 +26,7 @@
  * two int(0,100) draws per corp in deterministic order (countries sorted,
  * then CORPORATION_TYPES array order within a country) — matches the "no
  * RNG in the count/sizing logic" finding from mainline's own spawn pipeline
- * (CEO selection there balances by party affiliation, not dice; Rotunda has
+ * (CEO selection there balances by party affiliation, not dice; AHDClient has
  * no party-CEO-affiliation system yet, so personality is drawn directly).
  */
 

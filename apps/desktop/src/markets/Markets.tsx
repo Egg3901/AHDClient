@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { WorldState } from "@rotunda/engine";
+import type { WorldState } from "@ahdclient/engine";
 import { game } from "../game.js";
 import "./markets.css";
 

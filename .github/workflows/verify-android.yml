@@ -62,6 +62,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: rotunda-android-arm64-debug
+          name: ahdclient-android-arm64-debug
           path: apps/desktop/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
           if-no-files-found: error

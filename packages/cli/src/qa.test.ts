@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listEras, listPlayableCountries } from "@rotunda/engine";
+import { listEras, listPlayableCountries } from "@ahdclient/engine";
 import { invariantReportsPass, passesQaGate, runQa, runQaForCountry, FULL_QA_OPTIONS, QUICK_QA_OPTIONS } from "./qa.js";
 
 // Keep turn counts tiny — this exercises the real engine (no mocks, per

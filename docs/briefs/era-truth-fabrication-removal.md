@@ -14,7 +14,7 @@ literally. The result:
   forward), not sourced from any real 1960 mainline data.
 - Mainline (`Egg3901/AHDGame`) has never had a "1960" preset. Its real
   `EraId` union (`src/lib/seeds/presetSelector.ts`) is
-  `"1953" | "1979" | "1991" | "1999" | "2007" | "2019" | "2023"`. Rotunda's
+  `"1953" | "1979" | "1991" | "1999" | "2007" | "2019" | "2023"`. AHDClient's
   own `src/lib/constants/countries.test.ts:770` cites exactly
   `1953-default`/`1979-default`/`1991-default`/`2019-default` as the
   four presets this port targets.
@@ -61,7 +61,7 @@ literally. The result:
   new packs use, instead of always seeding every era from the 1953 table.
 - UI: `apps/desktop/src/launcher/CommandGlobe.tsx` era theme map now has
   four entries (1953 phosphor green unchanged; 1979 amber, 1991 cyan, 2019
-  cooler modern default — palettes are Rotunda's own CRT styling choice,
+  cooler modern default — palettes are AHDClient's own CRT styling choice,
   not mainline-sourced, mainline has no UI theme data to port). The world
   creation screen (`apps/desktop/src/App.tsx`) got the same era-chip
   treatment the launcher already had, replacing a plain `<select>`.
@@ -92,7 +92,7 @@ literally. The result:
   real per-state seat-sum data; no equivalent per-era subnational data was
   ported for 1979/1991/2019, so those packs are two-chamber only (matching
   mainline's own `COUNTRY_CONFIGS.legislature` shape more literally than
-  1953's Rotunda-added extension does, in fact).
+  1953's AHDClient-added extension does, in fact).
 - **Union/corp sector weights and historical union names**: still reused
   from `SECTOR_WEIGHTS_1953`/`HISTORICAL_1953` for every era. Mainline has
   real `sectorSeedWeights{1979,1991,2019...}.ts` and per-era

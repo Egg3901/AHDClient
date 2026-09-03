@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import type { WorldState } from "@rotunda/engine";
-import { ACTION_CATALOG, getActionCost, fundraiseQuote } from "@rotunda/engine";
-import type { ActionCatalogEntry } from "@rotunda/engine";
+import type { WorldState } from "@ahdclient/engine";
+import { ACTION_CATALOG, getActionCost, fundraiseQuote } from "@ahdclient/engine";
+import type { ActionCatalogEntry } from "@ahdclient/engine";
 import { game } from "../game.js";
 import "./actions.css";
 

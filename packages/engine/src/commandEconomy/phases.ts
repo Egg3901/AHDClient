@@ -5,7 +5,7 @@
  * PORT-STUB scope cut, cited: mainline's v2 P0/P1 layer (per-SOE plan
  * fulfillment refresh, Gosbank directed credit → SOE capacity, the plants-tier
  * replacement floor) needs a per-corp State-Owned-Enterprise model with plan
- * targets and capacity tracking that Rotunda does not have — W9 seeds one
+ * targets and capacity tracking that AHDClient does not have — W9 seeds one
  * NPC corporation per (country, sector) with no plan/capacity/ownership
  * fields at all (see corporation/types.ts file doc). Porting that layer is a
  * future wave alongside a real nationalization/SOE system. What DOES port

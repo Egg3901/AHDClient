@@ -106,7 +106,7 @@ export function HistoryChart({ series, height = 180, valueFormat, turnFormat, em
     const innerH = Math.max(1, height - PAD_T - PAD_B);
 
     if (!hasData) {
-      ctx.strokeStyle = "#262626";
+      ctx.strokeStyle = "#2a2a3d";
       ctx.setLineDash([3, 3]);
       ctx.lineWidth = 1;
       ctx.beginPath();

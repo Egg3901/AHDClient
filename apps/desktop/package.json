@@ -1,7 +1,8 @@
 {
-  "name": "@rotunda/desktop",
-  "version": "1.0.0",
-  "license": "PolyForm-Noncommercial-1.0.0",
+  "name": "@ahdclient/desktop",
+  "version": "1.0.1",
+  "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "tauri": "tauri",
@@ -17,7 +18,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@rotunda/engine": "*",
+    "@ahdclient/engine": "*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",

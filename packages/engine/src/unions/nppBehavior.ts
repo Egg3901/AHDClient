@@ -2,7 +2,7 @@
  * NPP union behavior — W15.
  *
  * Ports src/lib/turn/unions/nppUnionBehavior.ts processNppUnionBehavior
- * deterministically for Rotunda's world model.
+ * deterministically for AHDClient's world model.
  *
  * Mainline's NPP behavior does:
  *  1. Elect NPP leaders for vacant unions (militancy = ambition*0.6 + stubbornness*0.4)
@@ -11,14 +11,14 @@
  *     and claim = scopeAverageWage * (1 + NPP_DEMAND_PREMIUM*(0.5+militancy))
  *  4. Respond to campaign offers / mediate / escalate
  *
- * Rotunda BLOCKERS (PORT-STUB, named):
+ * AHDClient BLOCKERS (PORT-STUB, named):
  *  - Bargaining campaigns: no bargainingCampaigns/CollectiveAgreements collections yet
  *    (requires W?? bargaining wave). Open/respond/escalate/settlement are stubbed.
- *  - Mainline NPP collection is `npps`; Rotunda has no separate NPP collection —
+ *  - Mainline NPP collection is `npps`; AHDClient has no separate NPP collection —
  *    vacant leadership is filled from Politicians in the same country using the
  *    same militancy scoring, deterministic pick by union id hash.
  *  - Union dues v1 retired the recruitment treasury spend this file used to do;
- *    Rotunda has no strength/organize drive economy yet, so that branch is absent
+ *    AHDClient has no strength/organize drive economy yet, so that branch is absent
  *    (matches the NEEDS OTHER AGENTS note in the mainline file's branch report).
  *
  * What this file DOES port (real, not stub):
@@ -121,7 +121,7 @@ export function processNppUnionBehavior(world: WorldState): NppUnionBehaviorResu
     }
   }
 
-  // --- 2. Orphan cleanup + demandedWageLevel clear (no demandedWageLevel in Rotunda yet, stubbed) ---
+  // --- 2. Orphan cleanup + demandedWageLevel clear (no demandedWageLevel in AHDClient yet, stubbed) ---
   const led = unions.filter((u): u is Union & { ownerId: string } => u.ownerType === "npp" && u.ownerId != null);
   const politicianIds = new Set(world.politicians.map((p) => p.id));
   const orphaned: string[] = [];
@@ -142,7 +142,7 @@ export function processNppUnionBehavior(world: WorldState): NppUnionBehaviorResu
   // --- 3. Bargaining campaign open + dispute handling ---
   // BLOCKER: requires bargainingCampaigns collection and sector unionization data
   // per employer (mainline src/lib/turn/unions/nppBargainingPolicy.ts).
-  // Rotunda has no bargaining wave yet, so these counters remain 0.
+  // AHDClient has no bargaining wave yet, so these counters remain 0.
   // The constants above are still exported and tested via goldens.
 
   return result;

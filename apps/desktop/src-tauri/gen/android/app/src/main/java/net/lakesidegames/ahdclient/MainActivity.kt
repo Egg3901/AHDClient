@@ -1,4 +1,4 @@
-package net.lakesidegames.rotunda
+package net.lakesidegames.ahdclient
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge

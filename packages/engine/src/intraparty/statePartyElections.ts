@@ -133,11 +133,21 @@ export function resolveStatePartyElections(world: WorldState, rng: WorldRng): nu
         if (pol) candidatePols.push({ id: pol.id, ideology: pol.ideology });
       }
     }
-    // Auto-fill human-ballot gaps with NPP ballot logic
+    // Count persisted ballots first. New saves only persist player ballots;
+    // older saves may also contain NPC ballots, so accepting every existing
+    // entry preserves their result across migration.
+    const counts = new Map<string, number>();
+    for (const candidateId of election.candidateIds) counts.set(candidateId, 0);
+    for (const votedFor of Object.values(election.votes)) {
+      if (counts.has(votedFor)) counts.set(votedFor, (counts.get(votedFor) ?? 0) + 1);
+    }
+
+    // Fill NPC ballot gaps transiently. Persisting one entry per politician in
+    // every regional race made mature mobile saves hundreds of MiB while the
+    // entries were never read again after this resolution pass.
     const voters = votersForStateParty(world, election.regionId, election.partyId);
-    const tallies = new Map<string, number>();
     for (const voter of voters) {
-      // Skip voters who already cast a human ballot (recorded in votes map)
+      // Skip voters already present in an old save's ballot map.
       if (election.votes[voter.id] !== undefined) continue;
       if (candidatePols.length === 0) break;
       // Adapt voter to required shape
@@ -146,16 +156,7 @@ export function resolveStatePartyElections(world: WorldState, rng: WorldRng): nu
         personality: (voter as Politician).personality ?? { loyalty: 50, ambition: 50, stubbornness: 50 },
       };
       const pick = pickCandidateForVoter(voterShape, candidatePols, rng);
-      if (pick) {
-        // Record NPP auto-vote
-        election.votes[voter.id] = pick;
-      }
-    }
-    // Tally (including any player manual ballots already in votes)
-    const counts = new Map<string, number>();
-    for (const candidateId of election.candidateIds) counts.set(candidateId, 0);
-    for (const votedFor of Object.values(election.votes)) {
-      if (counts.has(votedFor)) counts.set(votedFor, (counts.get(votedFor) ?? 0) + 1);
+      if (pick && counts.has(pick)) counts.set(pick, (counts.get(pick) ?? 0) + 1);
     }
     // Determine winner: max votes, earliest candidate id tie break (mirrors mainline enteredAt tie break)
     let winnerId: string | null = null;

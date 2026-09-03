@@ -78,7 +78,7 @@ fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
   let close_app = app.clone();
 
   let window = WebviewWindowBuilder::new(&app, "online", WebviewUrl::External(url))
-    .title("A House Divided: Online")
+    .title("AHDClient: Online")
     .inner_size(1280.0, 800.0)
     .center()
     .resizable(true)

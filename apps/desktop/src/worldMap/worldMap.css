@@ -1,7 +1,7 @@
 .world-screen {
   min-height: 100vh;
-  background: #0a0a0a;
-  color: #ededed;
+  background: #14141c;
+  color: #e8e8ee;
   display: flex;
   flex-direction: column;
 }
@@ -12,7 +12,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 10px 16px;
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid #2a2a3d;
   background: #0f0f0f;
   position: sticky;
   top: 0;
@@ -45,9 +45,9 @@
 }
 
 .world-metric-select {
-  background: #141414;
-  border: 1px solid #262626;
-  color: #ededed;
+  background: #1d1d2a;
+  border: 1px solid #2a2a3d;
+  color: #e8e8ee;
   border-radius: 6px;
   padding: 6px 10px;
   font-size: 12px;
@@ -88,8 +88,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #141414;
-  border: 1px solid #262626;
+  background: #1d1d2a;
+  border: 1px solid #2a2a3d;
   border-radius: 8px;
   padding: 10px 12px;
   font-family: ui-monospace, Menlo, Consolas, monospace;
@@ -101,7 +101,7 @@
   width: 180px;
   height: 10px;
   border-radius: 999px;
-  border: 1px solid #262626;
+  border: 1px solid #2a2a3d;
 }
 
 .world-legend-minmax {
@@ -122,7 +122,7 @@
   width: 12px;
   height: 12px;
   border-radius: 2px;
-  border: 1px solid #262626;
+  border: 1px solid #2a2a3d;
   display: inline-block;
 }
 
@@ -137,7 +137,7 @@
   width: 360px;
   min-width: 320px;
   max-width: 420px;
-  border-left: 1px solid #262626;
+  border-left: 1px solid #2a2a3d;
   background: #111111;
   display: flex;
   flex-direction: column;
@@ -154,7 +154,7 @@
 
 .world-side-head {
   padding: 14px 16px;
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid #2a2a3d;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -180,7 +180,7 @@
   letter-spacing: 0.08em;
   padding: 2px 6px;
   border-radius: 999px;
-  border: 1px solid #262626;
+  border: 1px solid #2a2a3d;
 }
 
 .world-badge.playable {
@@ -190,7 +190,7 @@
 }
 
 .world-badge.player {
-  color: #ededed;
+  color: #e8e8ee;
   border-color: #3a3a3a;
   background: #1e1e1e;
 }
@@ -241,7 +241,7 @@
 .world-stat-value {
   font-size: 14px;
   font-weight: 600;
-  color: #ededed;
+  color: #e8e8ee;
   font-family: ui-monospace, Menlo, Consolas, monospace;
 }
 
@@ -273,7 +273,7 @@
 
 .world-party-name {
   font-size: 12px;
-  color: #ededed;
+  color: #e8e8ee;
   flex: 1;
 }
 
@@ -304,7 +304,7 @@
 .world-leg-name {
   font-size: 12px;
   font-weight: 600;
-  color: #ededed;
+  color: #e8e8ee;
 }
 
 .world-leg-tag {
@@ -312,7 +312,7 @@
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 999px;
-  border: 1px solid #262626;
+  border: 1px solid #2a2a3d;
   color: #8a8a8a;
 }
 
@@ -328,7 +328,7 @@
   padding: 6px 8px;
   font-size: 11px;
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  color: #ededed;
+  color: #e8e8ee;
   z-index: 50;
   max-width: 220px;
   line-height: 1.4;
@@ -336,7 +336,7 @@
 }
 
 .world-map-country {
-  stroke: #0a0a0a;
+  stroke: #14141c;
   stroke-width: 0.4;
   cursor: pointer;
   transition: filter 0.12s, stroke 0.12s;
@@ -347,12 +347,12 @@
 }
 
 .world-map-country.is-player {
-  stroke: #ededed;
+  stroke: #e8e8ee;
   stroke-width: 1.1;
 }
 
 .world-map-country.is-selected {
-  stroke: #ededed;
+  stroke: #e8e8ee;
   stroke-width: 1.4;
 }
 
@@ -368,14 +368,14 @@
   font-size: 10px;
   padding: 3px 7px;
   border-radius: 999px;
-  border: 1px solid #262626;
-  background: #141414;
+  border: 1px solid #2a2a3d;
+  background: #1d1d2a;
   color: #8a8a8a;
   cursor: pointer;
 }
 
 .world-country-chip.active {
-  color: #ededed;
+  color: #e8e8ee;
   border-color: #3a3a3a;
   background: #1e1e1e;
 }
@@ -390,7 +390,7 @@
     width: 100%;
     max-width: none;
     border-left: none;
-    border-top: 1px solid #262626;
+    border-top: 1px solid #2a2a3d;
     max-height: none;
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Bill lifecycle engine for solo Rotunda.
+ * Bill lifecycle engine for solo AHDClient.
  * Faithful to mainline src/lib/turn/billLifecycle engine stages and timing,
  * simplified for in-memory WorldState (no DB, no async).
  *

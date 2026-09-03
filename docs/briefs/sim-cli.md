@@ -1,6 +1,6 @@
 # Brief: headless sim CLI and balance harness
 
-Read `docs/FRAMEWORK.md` first. You own a NEW workspace package `packages/cli` (`@rotunda/cli`) only. Do not touch `packages/engine`, `packages/content`, `apps/desktop`, `README.md`, or root config (the `packages/*` workspace glob already covers you).
+Read `docs/FRAMEWORK.md` first. You own a NEW workspace package `packages/cli` (`@ahdclient/cli`) only. Do not touch `packages/engine`, `packages/content`, `apps/desktop`, `README.md`, or root config (the `packages/*` workspace glob already covers you).
 
 ## Goal
 
@@ -17,7 +17,7 @@ Commands (runner: `tsx`, devDependency; script `"sim": "tsx src/sim.ts"`):
 
 ## Rules
 
-- Use only public `@rotunda/engine` / `@rotunda/content` exports.
+- Use only public `@ahdclient/engine` / `@ahdclient/content` exports.
 - Country ids are uppercase (`US`). Era ids from `listEras()`.
 - Run `npm install` first. Merge gate: `npm run verify` green from repo root.
 - Conventional commits when verified. Do not push. No em dashes.

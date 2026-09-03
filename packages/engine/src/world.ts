@@ -1,7 +1,7 @@
 import { rngFromSeed } from "./rng.js";
 import { assignUsSeatGeography, assignRegionalSeatGeography } from "./elections/seatGeography.js";
 import type { WorldState } from "./types.js";
-import { getPackByEra, PACKS_BY_DATE } from "@rotunda/content";
+import { getPackByEra, PACKS_BY_DATE } from "@ahdclient/content";
 import { createPoliticiansForWorld } from "./politician.js";
 import { CATEGORIES_BY_COUNTRY_1953 } from "./demographics/categories.js";
 import { US_STATE_DEMOGRAPHICS_1953, type StateDemographicsSeed } from "./demographics/usStateDemographics1953.js";
@@ -577,7 +577,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
   // ── Unowned sector pools (W14) ───────────────────────────────────
   // One pool per founded corp, seeded at parity with the corp's own founding
   // revenue (PROVISIONAL multiple — flagged for user review, same doctrine as
-  // centralBank/types.ts externalBroadMoney: Rotunda has no per-state
+  // centralBank/types.ts externalBroadMoney: AHDClient has no per-state
   // corporate-sector market-size figure to seed the real headroom from, so
   // the pool starts sized to the corp that already exists in its sector).
   const unownedSectors: WorldState["unownedSectors"] = {};

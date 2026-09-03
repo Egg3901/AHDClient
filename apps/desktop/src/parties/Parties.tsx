@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { WorldState, Party, Legislature, Chamber } from "@rotunda/engine";
+import type { WorldState, Party, Legislature, Chamber } from "@ahdclient/engine";
 import "./parties.css";
 
 function formatNum(n: number): string {

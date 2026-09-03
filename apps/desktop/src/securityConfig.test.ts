@@ -58,7 +58,7 @@ describe("desktop platform configuration", () => {
 
   it("builds native bundles on Linux, Windows, and macOS runners", () => {
     expect(tauriConfig.bundle.targets).toBe("all");
-    expect(tauriConfig.app.windows[0]?.backgroundColor).toBe("#f4efe5");
+    expect(tauriConfig.app.windows[0]?.backgroundColor).toBe("#14141c");
 
     const sourceDirectory = dirname(fileURLToPath(import.meta.url));
     const workflow = readFileSync(join(sourceDirectory, "../../../.github/workflows/release-desktop.yml"), "utf8");
@@ -118,8 +118,8 @@ describe("desktop platform configuration", () => {
     expect(launcher).toContain('import ahdLogo from "../assets/ahd-logo.png";');
     expect(launcher).toContain('import desktopPackage from "../../package.json";');
     expect(launcher).toContain('className="launcher-logo" src={ahdLogo} alt=""');
-    expect(launcher).toContain("Rotunda {desktopPackage.version}");
-    expect(launcher).not.toContain("Rotunda 0.9.0");
+    expect(launcher).toContain("AHDClient {desktopPackage.version}");
+    expect(launcher).not.toContain("AHDClient 0.9.0");
     expect(launcher).not.toContain("StreakField");
     expect(createHash("sha256").update(logo).digest("hex")).toBe(
       "1a7fe54f33c781d6b7741277a20a9e800ca5525a0fbea790a7109c3e119f66a9",
@@ -127,5 +127,21 @@ describe("desktop platform configuration", () => {
     expect(globe).toContain('window.addEventListener("resize", handleResize);');
     expect(globe).toContain('window.removeEventListener("resize", handleResize);');
     expect(globe).not.toContain('fillStyle = "#0a0e12"');
+  });
+
+  it("keeps the 1.0.1 launcher and save safeguards wired", () => {
+    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
+    const app = readFileSync(join(sourceDirectory, "App.tsx"), "utf8");
+    const launcher = readFileSync(join(sourceDirectory, "launcher/Launcher.tsx"), "utf8");
+    const savesScreen = readFileSync(join(sourceDirectory, "saves/SavesScreen.tsx"), "utf8");
+
+    expect(launcher).toContain('const MODE_STORAGE_KEY = "ahdclient.launcher.mode";');
+    expect(launcher).toContain('const ERA_STORAGE_KEY = "ahdclient.launcher.era";');
+    expect(launcher).toContain("continueBusy");
+    expect(app).toContain('window.addEventListener("beforeunload", warnBeforeUnload);');
+    expect(app).toContain("QUICK_SAVE_SLOT");
+    expect(app).toContain('(e.ctrlKey || e.metaKey) && e.key.toLocaleLowerCase() === "s"');
+    expect(savesScreen).toContain('type="search"');
+    expect(savesScreen).toContain("preferredSaveSlot");
   });
 });

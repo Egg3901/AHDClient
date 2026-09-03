@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { NewsItem } from "@rotunda/engine";
+import type { NewsItem } from "@ahdclient/engine";
 import { categorizeNews, stripPrefix, collectCategories } from "./categories.js";
 import "./news.css";
 

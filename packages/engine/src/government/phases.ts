@@ -188,7 +188,7 @@ function processCountry(world: WorldState, countryId: string, chamberKey: string
 /**
  * CN head of state (W61): COUNTRY_CONFIGS.CN headOfStateSelection
  * "partyChairSync" — the President tracks the governing party's chair, the
- * Premier is the chamber-invested head of government. Rotunda parties carry
+ * Premier is the chamber-invested head of government. AHDClient parties carry
  * no seeded chair (PORT-STUB: party leadership elections), so the office
  * follows the Premier until one exists.
  */

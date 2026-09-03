@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { getLaw, getCatalog } from "@rotunda/engine";
-import type { WorldState, Party, Bill, Committee } from "@rotunda/engine";
+import { getLaw, getCatalog } from "@ahdclient/engine";
+import type { WorldState, Party, Bill, Committee } from "@ahdclient/engine";
 import { game } from "../game.js";
 import "./congress.css";
 

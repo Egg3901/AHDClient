@@ -24,7 +24,7 @@ export const SEED_PRESET_IDS = [
 ] as const;
 
 /**
- * Map a Rotunda content-pack era id ("1953"/"1979"/"1991"/"2019", the bare
+ * Map a AHDClient content-pack era id ("1953"/"1979"/"1991"/"2019", the bare
  * year strings `packages/content/src/packs` ships) to the mainline preset id
  * this resolution layer keys everything on ("1953-default" etc). The two
  * naming conventions coexist in this codebase: content packs use bare years
@@ -154,12 +154,12 @@ export const MULTI_SEAT_TYPES: ReadonlySet<string> = new Set([
   "supremeSovietDeputy", "nationalitiesDeputy", "republicSupremeSoviet",
   "volkskammerDeputy", "landAssembly",
   "sejm", "chamberOfThePeople", "nationalAssembly", "grandNationalAssembly", "federalAssembly", "supremeSoviet",
-  // Rotunda-native snap variants (government/constants.ts
+  // AHDClient-native snap variants (government/constants.ts
   // SNAP_ELECTION_TYPE_BY_CHAMBER); mainline only has snap_commons/bundestag/shugiin.
   "snap_supremeSovietDeputy",
   "snap_nationalitiesDeputy",
   "snap_volkskammerDeputy",
-  // W61: JP/DE/IE/CN snap variants for the Dail and NPC (Rotunda-native names,
+  // W61: JP/DE/IE/CN snap variants for the Dail and NPC (AHDClient-native names,
   // same snap_<baseType> convention); snap_shugiin/snap_bundestag are mainline.
   "snap_dail",
   "snap_npcDelegate",

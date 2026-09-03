@@ -17,7 +17,7 @@
  * appliedStressLossFraction, undercapitalizedSinceTurn). All of that sits
  * behind mainline's SEPARATE `bankPropTradingEnabled` kill switch
  * (src/lib/banking/featureFlag.ts isBankPropTradingEnabled) or is
- * player-console UX with no origination action ported yet in Rotunda (no
+ * player-console UX with no origination action ported yet in AHDClient (no
  * "request a bank loan" / "open an investment charter" action exists). W12
  * ports the retail/deposit-taking core only: one bank per playable country
  * (see npcBanks.ts), NPC household deposits + interest, the NPC household
@@ -90,7 +90,7 @@ export interface BankLoan {
   id: string;
   bankCorpId: string;
   /**
-   * "player" is Rotunda's single named character (WorldState.player);
+   * "player" is AHDClient's single named character (WorldState.player);
    * "corporation" is a Corporation.id. Neither has an origination action
    * yet (see file doc) — this array is empty at runtime absent a future
    * wave's "request a bank loan" action, and is exercised by tests with

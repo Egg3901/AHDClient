@@ -30,8 +30,8 @@ import {
   INFLATION_MAX,
   OUTPUT_GAP_BOUND,
   GOVERNMENT_CHAMBER_BY_COUNTRY,
-} from "@rotunda/engine";
-import type { WorldState, InvariantReport } from "@rotunda/engine";
+} from "@ahdclient/engine";
+import type { WorldState, InvariantReport } from "@ahdclient/engine";
 import { deepCompare } from "./comparator.js";
 
 export interface QaOptions {

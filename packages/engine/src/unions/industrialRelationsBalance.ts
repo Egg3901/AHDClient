@@ -17,7 +17,7 @@
  *  - STRIKE_REVENUE_THROTTLE from "@/lib/labour/strikes"
  *  - strikeCallCost from "@/lib/unions/unionEconomy"
  *
- * Rotunda BLOCKER: bargaining mandate not yet ported (needs
+ * AHDClient BLOCKER: bargaining mandate not yet ported (needs
  * src/lib/unions/bargaining.ts buildBargainingMandate + mandate scoring).
  * This file therefore preserves the scenario SHAPE from mainline but computes
  * support/leverage from a simplified local formula cited as a placeholder

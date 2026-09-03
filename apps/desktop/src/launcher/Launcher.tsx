@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { listEras, listPlayableCountries } from "@rotunda/engine";
+import { useEffect, useMemo, useState } from "react";
+import { listEras, listPlayableCountries } from "@ahdclient/engine";
 import desktopPackage from "../../package.json";
 import ahdLogo from "../assets/ahd-logo.png";
 import type { SaveSlotMeta } from "../saves.js";
@@ -16,6 +16,26 @@ interface Props {
   error: string | null;
   onClearError: () => void;
   latestSave: SaveSlotMeta | null;
+  continueBusy: boolean;
+}
+
+const MODE_STORAGE_KEY = "ahdclient.launcher.mode";
+const ERA_STORAGE_KEY = "ahdclient.launcher.era";
+
+function readPreference(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writePreference(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Preferences are optional. The launcher still works when storage is unavailable.
+  }
 }
 
 const ERA_SUBTITLES: Readonly<Record<string, string>> = {
@@ -40,16 +60,23 @@ export function Launcher({
   error,
   onClearError,
   latestSave,
+  continueBusy,
 }: Props): JSX.Element {
-  const eras = listEras();
-  const [mode, setMode] = useState<Mode>("sp");
-  const [eraId, setEraId] = useState<string>(() => eras[0]?.id ?? "1953");
+  const eras = useMemo(() => listEras(), []);
+  const [mode, setMode] = useState<Mode>(() => readPreference(MODE_STORAGE_KEY) === "mp" ? "mp" : "sp");
+  const [eraId, setEraId] = useState<string>(() => {
+    const saved = readPreference(ERA_STORAGE_KEY);
+    return saved && eras.some(({ id }) => id === saved) ? saved : eras[0]?.id ?? "1953";
+  });
 
   useEffect(() => {
     if (eras.length > 0 && !eras.some((era) => era.id === eraId)) {
       setEraId(eras[0]!.id);
     }
   }, [eras, eraId]);
+
+  useEffect(() => writePreference(MODE_STORAGE_KEY, mode), [mode]);
+  useEffect(() => writePreference(ERA_STORAGE_KEY, eraId), [eraId]);
 
   const multiplayer = mode === "mp";
   const selectedEra = eras.find((era) => era.id === eraId) ?? eras[0];
@@ -65,7 +92,7 @@ export function Launcher({
         <header className="launcher-mast">
           <img className="launcher-logo" src={ahdLogo} alt="" />
           <div className="launcher-lockup">
-            <p className="launcher-edition">Rotunda client</p>
+            <p className="launcher-edition">AHDClient</p>
             <h1 id="launcher-title">A House Divided</h1>
             <p className="launcher-subtitle">A historical political simulation</p>
           </div>
@@ -146,7 +173,7 @@ export function Launcher({
           <div className="launcher-actions">
             {multiplayer ? (
               <>
-                <button className="launcher-btn launcher-btn-primary" onClick={onPlayOnline}>
+                <button className="launcher-btn launcher-btn-primary" onClick={onPlayOnline} disabled={continueBusy}>
                   Enter multiplayer <span aria-hidden="true">&#8599;</span>
                 </button>
                 <p className="launcher-caption">
@@ -159,10 +186,12 @@ export function Launcher({
                   <button
                     className="launcher-btn launcher-btn-primary launcher-btn-continue"
                     onClick={() => onContinue(latestSave.slot)}
+                    disabled={continueBusy}
+                    aria-busy={continueBusy}
                     title={`Turn ${latestSave.turn} · ${latestSave.date} · ${latestSave.country}`}
                   >
                     <span>
-                      Continue
+                      {continueBusy ? "Loading save" : "Continue"}
                       <small>{latestSave.playerName} · turn {latestSave.turn}</small>
                     </span>
                     <span aria-hidden="true">&#8594;</span>
@@ -171,10 +200,11 @@ export function Launcher({
                 <button
                   className={`launcher-btn ${latestSave ? "launcher-btn-secondary" : "launcher-btn-primary"}`}
                   onClick={() => onNewWorld(eraId)}
+                  disabled={continueBusy}
                 >
                   New world <span aria-hidden="true">&#8594;</span>
                 </button>
-                <button className="launcher-btn launcher-btn-secondary" onClick={onLoad}>
+                <button className="launcher-btn launcher-btn-secondary" onClick={onLoad} disabled={continueBusy}>
                   All saves
                 </button>
               </>
@@ -184,7 +214,7 @@ export function Launcher({
       </section>
 
       <footer className="launcher-footer">
-        <span>Rotunda {desktopPackage.version}</span>
+        <span>AHDClient {desktopPackage.version}</span>
         <span>Singleplayer saves stay on this device</span>
       </footer>
     </main>

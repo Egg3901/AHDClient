@@ -7,7 +7,7 @@
  * are taken directly from the source file.
  *
  * Membership bridge (see phases.ts file doc): mainline's unionMembers(sectors)
- * counts workers * unionization/100 per CorporateSector. Rotunda has no
+ * counts workers * unionization/100 per CorporateSector. AHDClient has no
  * per-sector workers table yet (see corporation/types.ts single-sector collapse),
  * so this module keeps the same signature — unionMembers(UnionMemberSector[]) —
  * and the turn phase translates laborForces+sectorWeights into the

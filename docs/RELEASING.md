@@ -1,7 +1,7 @@
-# Releasing ROTUNDA (apps/desktop)
+# Releasing AHDClient (apps/desktop)
 
-Build commands per OS for the Tauri desktop shell. Product name "A House Divided",
-identifier `net.lakesidegames.rotunda`, version tracked in the root and desktop
+Build commands per OS for the Tauri desktop shell. Product name "AHDClient",
+identifier `net.lakesidegames.ahdclient`, version tracked in the root and desktop
 `package.json` files, `apps/desktop/src-tauri/tauri.conf.json`, and
 `apps/desktop/src-tauri/Cargo.toml`. Run `npm run release:check` after changing
 the version. CI and bundle workflows reject version or changelog drift.
@@ -29,8 +29,8 @@ npx tauri build
 
 Artifacts land under `apps/desktop/src-tauri/target/release/bundle/`:
 
-- `appimage/A House Divided_<version>_amd64.AppImage`
-- `deb/A House Divided_<version>_amd64.deb`
+- `appimage/AHDClient_<version>_amd64.AppImage`
+- `deb/AHDClient_<version>_amd64.deb`
 
 `tauri.conf.json` uses the platform-native `"all"` target set. The release
 workflow narrows Linux to AppImage and deb. `.deb` dependencies

@@ -5,7 +5,7 @@
  * that consumes these (src/lib/turn/nuclearProductionTurn.ts
  * applyNuclearProduction: reads a defence-appropriation ledger, debits/
  * credits it, concurrency-guards the write) is PORT-STUB — B11, no
- * appropriation/defence-budget model exists in Rotunda; coldWar/phases.ts
+ * appropriation/defence-budget model exists in AHDClient; coldWar/phases.ts
  * nuclearProductionPhase instead spends directly against
  * world.budgets[countryId] as the "available budget" input, which is a
  * simplification (mainline's defence seat has its own committed-but-
@@ -60,7 +60,7 @@ export function nuclearNode(key: string): NuclearNode | undefined {
 /**
  * Countries that can open a nuclear programme in the founding cold-war era.
  * Source: nuclearProgram.ts NUCLEAR_CAPABLE. All three (US/RU/UK) are
- * Rotunda-playable in 1953; DD is not nuclear-capable in either engine.
+ * AHDClient-playable in 1953; DD is not nuclear-capable in either engine.
  */
 export const NUCLEAR_CAPABLE: readonly string[] = ["US", "RU", "UK"];
 

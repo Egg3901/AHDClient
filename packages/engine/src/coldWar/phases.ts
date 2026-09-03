@@ -6,9 +6,9 @@
  *     conflicts, warhead stockpiles, active crises) and relaxes
  *     world.coldWarTension toward the computed floor. No RNG (mainline has
  *     none in this path either). B12: mainline's escalationLevel input is a
- *     Vietnam-style regional-conflict escalation ladder with no Rotunda
+ *     Vietnam-style regional-conflict escalation ladder with no AHDClient
  *     equivalent — held at 0 (PORT-STUB, named). activeCrises reads
- *     world.crises (W31) directly, a real Rotunda input with no blocker.
+ *     world.crises (W31) directly, a real AHDClient input with no blocker.
  *
  *  2. nuclearProductionPhase — ports the pure math half of
  *     src/lib/turn/nuclearProductionTurn.ts applyNuclearProduction
@@ -17,7 +17,7 @@
  *     doc) — this phase substitutes each country's current fiscal-year
  *     surplus (world.budgets[countryId].surplus, floored at 0) as the
  *     "available budget" and debits the spend from treasuryBalance, a
- *     Rotunda-native stand-in for mainline's separate defence-appropriation
+ *     AHDClient-native stand-in for mainline's separate defence-appropriation
  *     sub-ledger.
  *
  * Both run at the END of the phase list (registry.ts), just before

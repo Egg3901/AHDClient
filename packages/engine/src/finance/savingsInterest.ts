@@ -4,7 +4,7 @@
 //
 // This whole module is a pure formula library with no live WorldState
 // wiring (see the multi-currency CharacterInput/CentralBankInput types
-// below — Rotunda's real Politician/PlayerCharacter/CentralBank types carry
+// below — AHDClient's real Politician/PlayerCharacter/CentralBank types carry
 // none of those fields yet). Below, `holder != null && holder !== "centralBank"`
 // (bank-held savings) is intentionally skipped with the comment "paid by
 // bankingTurn" — W12 (packages/engine/src/banking/bankingTurn.ts) is that

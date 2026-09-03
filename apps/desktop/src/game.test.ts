@@ -1,4 +1,4 @@
-import { createWorld, deserializeSave, serializeSave } from "@rotunda/engine";
+import { createWorld, deserializeSave, serializeSave } from "@ahdclient/engine";
 import { describe, expect, it } from "vitest";
 import { game } from "./game.js";
 

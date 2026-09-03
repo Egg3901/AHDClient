@@ -125,6 +125,25 @@ function assertCurrentWorldState(world: WorldState): void {
   }
 }
 
+function compactResolvedNpcBallots(world: WorldState): void {
+  const compactSingleChoice = (records: unknown[]): void => {
+    for (const record of records) {
+      if (!isRecord(record) || record["status"] !== "completed" || !isRecord(record["votes"])) continue;
+      const playerVote = record["votes"]["player"];
+      record["votes"] = typeof playerVote === "string" ? { player: playerVote } : {};
+    }
+  };
+  compactSingleChoice(world.statePartyElections);
+  compactSingleChoice(world.nationalPartyElections);
+  for (const record of world.nationalCommitteeElections) {
+    if (!isRecord(record) || record["status"] !== "completed" || !isRecord(record["votes"])) continue;
+    const playerVote = record["votes"]["player"];
+    record["votes"] = Array.isArray(playerVote) && playerVote.every((candidate) => typeof candidate === "string")
+      ? { player: playerVote }
+      : {};
+  }
+}
+
 export function deserializeSave(raw: string): WorldState {
   let parsed: unknown;
   try {
@@ -1967,6 +1986,11 @@ export function deserializeSave(raw: string): WorldState {
     w["featureFlags"] = resolveWorldFeatureFlags();
     save.world.meta.schemaVersion = 42;
   }
+  // 1.0.0 stored every synthetic NPC party ballot after resolution. They
+  // cannot affect a future turn, so compact them on load while retaining the
+  // player's historical ballot. This is a storage cleanup, not a schema
+  // change, and therefore applies to current-schema saves too.
+  compactResolvedNpcBallots(save.world);
   assertCurrentWorldState(save.world);
   return save.world;
 }

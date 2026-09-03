@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import type { TurnReport, WorldFeatureFlag, WorldFeatureFlags, WorldState } from "@rotunda/engine";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { TurnReport, WorldFeatureFlag, WorldFeatureFlags, WorldState } from "@ahdclient/engine";
 import {
   DEFAULT_WORLD_FEATURE_FLAGS,
   listEras,
   listPlayableCountries,
   rulingPartyForCountry,
   WORLD_FEATURE_FLAG_DEFINITIONS,
-} from "@rotunda/engine";
+} from "@ahdclient/engine";
 import { game } from "./game.js";
 import { Launcher } from "./launcher/Launcher.js";
 import { themeForEra } from "./launcher/CommandGlobe.js";
@@ -26,7 +26,7 @@ import { PartiesScreen } from "./parties/Parties.js";
 import "./parties/parties.css";
 import { SavesScreen } from "./saves/SavesScreen.js";
 import "./saves/saves.css";
-import { listSlots, loadFromSlot, maybeAutosave } from "./saves.js";
+import { listSlots, loadFromSlot, maybeAutosave, QUICK_SAVE_SLOT, saveToSlot } from "./saves.js";
 import type { SaveSlotMeta } from "./saves.js";
 import { CharacterPanel } from "./character/CharacterPanel.js";
 import "./character/character.css";
@@ -252,6 +252,7 @@ function NewWorldScreen({
   const totalModified = modifiedCount + (cashModified ? 1 : 0) + pausedFeatureCount;
 
   const hasInvalid = useMemo(() => {
+    if (!seed.trim() || !name.trim() || !countryId) return true;
     if (!isValidCash(startingCash)) return true;
     for (const r of rows) {
       if (!isValidGdp(r.gdpStr) || !isValidSignedPercent(r.growthStr) || !isValidSignedPercent(r.inflationStr) || !isValidPercent(r.unemploymentStr)) {
@@ -259,7 +260,7 @@ function NewWorldScreen({
       }
     }
     return false;
-  }, [rows, startingCash]);
+  }, [rows, startingCash, seed, name, countryId]);
 
   const handleRandomize = () => setSeed(randomSeed());
 
@@ -423,7 +424,14 @@ function NewWorldScreen({
             <h2>Identity</h2>
             <label>
               {mode === "hos" ? "Leader name" : "Character name"}
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Player" />
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Player"
+                required
+                aria-invalid={!name.trim()}
+                className={name.trim() ? "" : "invalid"}
+              />
             </label>
           </section>
 
@@ -477,7 +485,13 @@ function NewWorldScreen({
             <label>
               World seed
               <div className="row seed-row">
-                <input value={seed} onChange={(e) => setSeed(e.target.value)} className="seed-input" />
+                <input
+                  value={seed}
+                  onChange={(e) => setSeed(e.target.value)}
+                  className={`seed-input${seed.trim() ? "" : " invalid"}`}
+                  required
+                  aria-invalid={!seed.trim()}
+                />
                 <button type="button" className="secondary" onClick={handleRandomize}>
                   Randomize
                 </button>
@@ -634,7 +648,7 @@ function NewWorldScreen({
               Back
             </button>
           </div>
-          {hasInvalid && <div className="muted small">Correct highlighted fields before creating.</div>}
+          {hasInvalid && <div className="muted small">Enter a character name and seed, then correct any highlighted values.</div>}
         </div>
       </div>
     </div>
@@ -1280,12 +1294,14 @@ function Dashboard({
   onWorld,
   onExit,
   onOpenSaves,
+  onSaved,
   isDirty,
 }: {
   world: WorldState;
   onWorld: (world: WorldState) => void;
   onExit: () => void;
   onOpenSaves: () => void;
+  onSaved: () => void;
   isDirty: boolean;
 }) {
   const [lastReport, setLastReport] = useState<TurnReport | null>(null);
@@ -1308,19 +1324,42 @@ function Dashboard({
   const [campaignsOpen, setCampaignsOpen] = useState(false);
   const [hosOpen, setHosOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [saveBusy, setSaveBusy] = useState(false);
+
+  const quickSave = useCallback(async () => {
+    if (saveBusy) return;
+    setSaveBusy(true);
+    setSaveError(null);
+    try {
+      await saveToSlot(QUICK_SAVE_SLOT, world);
+      onSaved();
+      setToast(`Saved to ${QUICK_SAVE_SLOT}`);
+    } catch (error) {
+      setSaveError(`Quick save failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setSaveBusy(false);
+    }
+  }, [onSaved, saveBusy, world]);
 
   const advance = async () => {
     const prevTurn = world.meta.turn;
     setBusy(true);
+    setSaveError(null);
     try {
       const { report, world: next } = await game.advanceTurn();
       setLastReport(report);
       onWorld(next);
       try {
-        await maybeAutosave(prevTurn, next);
+        const slot = await maybeAutosave(prevTurn, next);
+        if (slot) {
+          onSaved();
+          setToast(`Autosaved to ${slot}`);
+        }
       } catch (e) {
-        setSaveError(e instanceof Error ? e.message : String(e));
+        setSaveError(`Autosave failed: ${e instanceof Error ? e.message : String(e)}`);
       }
+    } catch (error) {
+      setSaveError(`Turn failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setBusy(false);
     }
@@ -1328,7 +1367,7 @@ function Dashboard({
 
   const handleExit = () => {
     if (isDirty) {
-      const ok = window.confirm("You have unsaved turns since the last save. Leave and lose them?");
+      const ok = window.confirm("You have unsaved changes since the last save. Leave and lose them?");
       if (!ok) return;
     }
     onExit();
@@ -1342,15 +1381,27 @@ function Dashboard({
       if (current) {
         // Cheat batch advanceTurns already mutated world; try autosave
         const prevTurn = current.meta.turn - advanceCount;
-        void maybeAutosave(prevTurn, current).catch((e) => {
-          setSaveError(e instanceof Error ? e.message : String(e));
-        });
+        void maybeAutosave(prevTurn, current)
+          .then((slot) => {
+            if (slot) {
+              onSaved();
+              setToast(`Autosaved to ${slot}`);
+            }
+          })
+          .catch((e) => {
+            setSaveError(`Autosave failed: ${e instanceof Error ? e.message : String(e)}`);
+          });
       }
     }
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLocaleLowerCase() === "s") {
+        e.preventDefault();
+        if (!busy && !saveBusy) void quickSave();
+        return;
+      }
       if (e.key === "`" || e.code === "Backquote") {
         // avoid toggling when typing in an input
         const target = e.target as HTMLElement | null;
@@ -1366,7 +1417,7 @@ function Dashboard({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cheatOpen, characterOpen]);
+  }, [busy, cheatOpen, characterOpen, quickSave, saveBusy]);
 
   useEffect(() => {
     if (!toast) return;
@@ -1512,8 +1563,11 @@ function Dashboard({
           <button onClick={() => void advance()} disabled={busy}>
             {busy ? "Processing" : "End turn"}
           </button>
-          <button className="secondary" onClick={onOpenSaves}>
-            Save
+          <button className="secondary" onClick={() => void quickSave()} disabled={saveBusy || busy} title="Quick save (Ctrl/Cmd+S)">
+            {saveBusy ? "Saving" : "Quick save"}
+          </button>
+          <button className="secondary" onClick={onOpenSaves} disabled={saveBusy || busy}>
+            Save manager
           </button>
           <button className="secondary" onClick={handleExit}>
             Back to launcher
@@ -1543,7 +1597,7 @@ function Dashboard({
       <CharacterPanel world={world} open={characterOpen} onClose={() => setCharacterOpen(false)} onWorld={(w) => onWorld(w)} onToast={(msg) => setToast(msg)} />
 
       {toast && (
-        <div className="panel toast" role="status" style={{ background: "#141414", borderColor: "#2af57f" }}>
+        <div className="panel toast" role="status" style={{ background: "#1d1d2a", borderColor: "#2af57f" }}>
           {toast}
         </div>
       )}
@@ -1589,6 +1643,17 @@ export function App() {
   const [launcherError, setLauncherError] = useState<string | null>(null);
   const [savesError, setSavesError] = useState<string | null>(null);
   const [latestSave, setLatestSave] = useState<SaveSlotMeta | null>(null);
+  const [continueBusy, setContinueBusy] = useState(false);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isDirty]);
 
   useEffect(() => {
     if (screen !== "launcher") return;
@@ -1636,11 +1701,15 @@ export function App() {
   };
 
   const handleContinue = async (slot: string) => {
+    if (continueBusy) return;
+    setContinueBusy(true);
     setLauncherError(null);
     try {
       handleSavesLoad(await loadFromSlot(slot));
     } catch (error) {
       setLauncherError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setContinueBusy(false);
     }
   };
 
@@ -1659,7 +1728,13 @@ export function App() {
   if (screen === "saves") {
     return (
       <>
-        <SavesScreen currentWorld={world} onLoad={handleSavesLoad} onClose={handleSavesClose} isDirty={isDirty} />
+        <SavesScreen
+          currentWorld={world}
+          onLoad={handleSavesLoad}
+          onClose={handleSavesClose}
+          onSaved={() => setIsDirty(false)}
+          isDirty={isDirty}
+        />
         {savesError && (
           <div className="panel error-banner" role="alert" style={{ margin: 12 }}>
             <span>{savesError}</span>
@@ -1679,6 +1754,7 @@ export function App() {
         onWorld={handleAdvanceWorld}
         onExit={handleExitToLauncher}
         onOpenSaves={openSavesFromGame}
+        onSaved={() => setIsDirty(false)}
         isDirty={isDirty}
       />
     );
@@ -1705,6 +1781,7 @@ export function App() {
         }}
         onLoad={openSavesFromLauncher}
         latestSave={latestSave}
+        continueBusy={continueBusy}
         error={launcherError}
         onClearError={() => setLauncherError(null)}
       />

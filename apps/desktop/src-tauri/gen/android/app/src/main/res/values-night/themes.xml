@@ -1,6 +1,11 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
-    <style name="Theme.rotunda_desktop" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <!-- Customize your theme here. -->
+    <style name="Theme.ahdclient_desktop" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:colorAccent">@color/ahd_primary</item>
+        <item name="android:navigationBarColor">@color/ahd_background</item>
+        <item name="android:statusBarColor">@color/ahd_background</item>
+        <item name="android:windowBackground">@color/ahd_background</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

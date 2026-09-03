@@ -9,12 +9,12 @@
  * Simplifications from mainline (named so a future wave can tighten them):
  *  - B01 intensity: mainline reads a -1..1 intensity from the enacted
  *    option's ladder position (policyOptionId indexes into an authored
- *    option list). Rotunda's catalog does not author that ladder, so
+ *    option list). AHDClient's catalog does not author that ladder, so
  *    intensity = sign(effectDirection) (-1, 0, or 1) — the faithful
  *    degenerate case (effectiveIntensity(±1) = ±1 either way, so a binary
  *    ladder is exact; only intermediate rungs are lost).
  *  - B02 regional scope: mainline's regional-scope multiplier (1) applies to
- *    that ONE region's own metric row. Rotunda has no per-region metric
+ *    that ONE region's own metric row. AHDClient has no per-region metric
  *    store for catalog targets (see metrics/nationalMetrics.ts E01 blocker),
  *    so a regional-scope policy is folded into the same national aggregate
  *    at scope 1 (full local strength) rather than diluted — a deliberate
@@ -22,7 +22,7 @@
  *  - B03 direction: CatalogEntry.targets[].higherBetter defaults true when
  *    absent (see legislation/catalog.ts).
  *  - B05 weight: mainline's per-target `weight` is authored per metric on
- *    LegislationType; Rotunda's CatalogEntry.targets[].weight already carries
+ *    LegislationType; AHDClient's CatalogEntry.targets[].weight already carries
  *    this (ported 1:1, see catalog.ts), no additional simplification needed.
  *
  * Citations: shared/constants/formulas.ts calculateMetricTarget callers,

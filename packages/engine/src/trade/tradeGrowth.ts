@@ -9,7 +9,7 @@
  * PORT-STUBs (cited per term, both contribute 0 by construction):
  *  - `ftaPartnerCount`: no free-trade-agreement system ported (no
  *    legislation/organization accession machinery for FTAs) — always 0.
- *  - `manufacturingCompetitiveness`: no such metric exists in Rotunda's
+ *  - `manufacturingCompetitiveness`: no such metric exists in AHDClient's
  *    macro model — held at MANUFACTURING_REF so its deviation term is 0.
  * Real, wired terms: tariff wedge (budget.taxRates.tariffs), foreign-tax
  * wedge (budget.taxRates.foreignCorporateTax), bloc membership (trade/bloc.ts,

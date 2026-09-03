@@ -7,10 +7,10 @@
  * PORT-STUB substitution, cited: mainline's live computation
  * (computeCountryStateOwnershipConcentration) sums every corp's
  * `countryOwnerId === countryId` sector revenue against the national total —
- * a per-corp nationalization/state-ownership flag Rotunda's Corporation type
+ * a per-corp nationalization/state-ownership flag AHDClient's Corporation type
  * does not carry (see corporation/types.ts; no nationalization action wave
  * has landed). W7's marketization dial already tracks the one form of
- * state-directed economic activity Rotunda models — `plannedShare`, the
+ * state-directed economic activity AHDClient models — `plannedShare`, the
  * fraction of a command economy's activity the plan governs — so this wave
  * uses `plannedShare(marketizationLevel) * 100` as the revenue-share proxy: a
  * fully-command country (RU/DD at their 1953 seed) reads a high SOCI, a

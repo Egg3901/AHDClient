@@ -12,7 +12,7 @@
  * fraction of national GDP one sector's founding NPC corporation captures —
  * see founding.ts file doc for why W9 uses the raw share directly rather than
  * reproducing mainline's per-state computeUnownedSeedRevenue pipeline
- * (SECTOR_SEED_SCALE, era floor, FX): Rotunda has no per-state GDP for three
+ * (SECTOR_SEED_SCALE, era floor, FX): AHDClient has no per-state GDP for three
  * of the four playable countries (UK/RU/DD regions are opaque, see
  * types.ts Region doc) and no unowned-sector-pool/market-tier system to
  * distribute revenue through, so W9 founds exactly one national corp per
@@ -20,7 +20,7 @@
  *
  * RU uses mainline's "SU" bundle (RU is aliased to SU via
  * BUNDLE_KEY_ALIASES_1953 = { RU: "SU" } in the source file — mainline's
- * internal Soviet Union country id is SU, matched to Rotunda's RU).
+ * internal Soviet Union country id is SU, matched to AHDClient's RU).
  *
  * Sectors omitted from a country's map (not listed below) had mainline weight
  * 0 for that country ("essentially zero commercial sector" — e.g. technology

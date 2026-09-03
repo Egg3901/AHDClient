@@ -6,7 +6,7 @@
  * END of the phase list before newsMaintenance.
  *
  * Membership bridge: mainline computes members from CorporateSector.workers *
- * unionization / 100. Rotunda has no per-sector workers table (single-sector
+ * unionization / 100. AHDClient has no per-sector workers table (single-sector
  * corp collapse, see corporation/types.ts). The bridge here derives members
  * from demographics/laborForce (W16) instead:
  *   1. Total country labor force = sum laborForces[regionId] for region.countryId == union.countryId
@@ -16,7 +16,7 @@
  *   while the only demographic input is the real laborForces map.
  *
  * Wage bridge: mainline's averageAnnualWage uses wagePerWorker (daily) * GAME_DAYS_PER_YEAR.
- * Rotunda derives annualWage as:
+ * AHDClient derives annualWage as:
  *   annualWage = (budget.wagesAndSalaries OR gdp*0.35) / totalCountryLaborForce
  * which is the same per-worker annual payroll that budget revenue uses (see
  * budget/revenue.ts wagesAndSalaries = gdp * ratios.wagesAndSalaries).
@@ -33,7 +33,7 @@
  *
  * Suspension (union ban law) is honoured: suspended unions skip the whole block.
  * NPP behavior runs first so a union elected this turn still gets its dues tick
- * the same turn? Mainline runs nppUnionBehavior AFTER unionsTurn; Rotunda runs
+ * the same turn? Mainline runs nppUnionBehavior AFTER unionsTurn; AHDClient runs
  * NPP before unionsTurn in the tail cluster so election is visible same turn —
  * deviation documented in registry.ts comment.
  *
@@ -142,7 +142,7 @@ export const unionsTurnPhase: TurnPhase = {
       const contributionPct = clampPoliticalContributionPct(union.politicalContributionPct);
       const freeCashFlow = freeCashFlowPerTurn(duesIncome, servicesCost);
       // PORT-STUB: mainline distributes contributions to organizers by strength
-      // (unionPoliticalContributions.ts distributePoliticalContributions). Rotunda
+      // (unionPoliticalContributions.ts distributePoliticalContributions). AHDClient
       // has no UnionOrganizer table yet, so contribution is debited from treasury
       // but not credited to any character — the organizer payout wire is blocked
       // until organizer/strength lands. BLOCKER: organizer payout requires

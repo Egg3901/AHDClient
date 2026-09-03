@@ -97,8 +97,18 @@ export function resolveNationalPartyElections(world: WorldState, rng: WorldRng):
     // Weighted scoring if leadershipElectionMethod === "influence": tally uses partyInfluenceSum
     const party = world.parties[election.partyId] as unknown as { leadershipElectionMethod?: string; chairId?: string | null; viceChairId?: string | null; treasurerId?: string | null; committeeIds?: string[] } | undefined;
     const useInfluence = party?.leadershipElectionMethod === "influence";
-    const tallies = new Map<string, number>();
-    for (const cid of election.candidateIds) tallies.set(cid, 0);
+    const counts = new Map<string, number>();
+    for (const cid of election.candidateIds) counts.set(cid, 0);
+
+    // Accept persisted player ballots and the NPC ballots found in older
+    // saves. New NPC decisions are tallied below without bloating the save.
+    for (const [voterId, votedFor] of Object.entries(election.votes)) {
+      const voter = voters.find((candidate) => candidate.id === voterId);
+      const weight = useInfluence && voter ? Math.max(0, voter.partyInfluence ?? 0) : 1;
+      const effectiveWeight = useInfluence ? weight : 1;
+      if (counts.has(votedFor)) counts.set(votedFor, (counts.get(votedFor) ?? 0) + effectiveWeight);
+    }
+
     for (const voter of voters) {
       if (election.votes[voter.id] !== undefined) continue;
       if (candidatePols.length === 0) break;
@@ -109,19 +119,10 @@ export function resolveNationalPartyElections(world: WorldState, rng: WorldRng):
         const weight = useInfluence ? Math.max(0, (voter.partyInfluence ?? 0)) : 1;
         // If influence is 0 for all, still count as 1? Mainline sums; solo: ensure at least 1 if abstain not triggered but pick existed
         const effectiveWeight = useInfluence && weight === 0 ? 0 : (useInfluence ? weight : 1);
-        if (effectiveWeight > 0) {
-          election.votes[voter.id] = pick;
+        if (effectiveWeight > 0 && counts.has(pick)) {
+          counts.set(pick, (counts.get(pick) ?? 0) + effectiveWeight);
         }
       }
-    }
-    // Tally
-    const counts = new Map<string, number>();
-    for (const cid of election.candidateIds) counts.set(cid, 0);
-    for (const [voterId, votedFor] of Object.entries(election.votes)) {
-      const voter = voters.find((v) => v.id === voterId);
-      const weight = useInfluence && voter ? Math.max(0, voter.partyInfluence ?? 0) : 1;
-      const effectiveWeight = useInfluence && weight === 0 ? 0 : (useInfluence ? weight : 1);
-      if (counts.has(votedFor)) counts.set(votedFor, (counts.get(votedFor) ?? 0) + effectiveWeight);
     }
     let winnerId: string | null = null;
     let max = -1;

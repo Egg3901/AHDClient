@@ -5,7 +5,7 @@
  * Emits packages/content/src/packs/budgets{1979,1991,2019}.ts (BudgetSeed[]).
  *
  * Run FROM THE MAINLINE CHECKOUT so its `@/` alias resolves:
- *   npx tsx ../Rotunda/packages/content/scripts/generateBudgets.ts
+ *   npx tsx ../AHDClient/packages/content/scripts/generateBudgets.ts
  *
  * Sources (imported directly, no transcription, no invented numbers):
  *  - src/lib/seeds/reference/budgets.ts getNationalBudgetSeedConfigsForPreset
@@ -82,7 +82,7 @@ function deriveTaxRates(cfg: Cfg): { rates: Record<TaxType, number>; notes: stri
   const extraLaws: string[] = [];
   for (const [taxType, lawId] of Object.entries(cfg.taxPolicyIds) as Array<[TaxType, string | undefined]>) {
     if (!lawId) continue;
-    // Mainline's taxPolicyIds carry country-specific dials beyond Rotunda's six
+    // Mainline's taxPolicyIds carry country-specific dials beyond AHDClient's six
     // revenue lines (DE solidaritySurcharge, CN LVAT / urban maintenance / stamp
     // duty, IE property / USC / CGT / excise): PORT-STUB budget/extraTaxLines.
     if (!(TAX_TYPES as readonly string[]).includes(taxType)) { extraLaws.push(`${taxType}:${lawId}`); continue; }
@@ -102,7 +102,7 @@ function deriveTaxRates(cfg: Cfg): { rates: Record<TaxType, number>; notes: stri
       else extras.push(`${k}=${v}`);
     }
     notes.push(`taxRateOverrides applied: ${JSON.stringify(cfg.taxRateOverrides)}`);
-    // Country-specific dials beyond Rotunda's six-key BudgetTaxRates (DE
+    // Country-specific dials beyond AHDClient's six-key BudgetTaxRates (DE
     // solidaritySurcharge, CN LVAT/urban maintenance/stamp duty, IE property/
     // USC/CGT/excise) have no revenue line in budget/revenue.ts: PORT-STUB.
     if (extras.length) notes.push(`PORT-STUB budget/extraTaxLines: ${extras.join(", ")}`);

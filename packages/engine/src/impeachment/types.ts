@@ -3,7 +3,7 @@
  *
  * Mainline mapping: `Impeachment` (src/lib/db/types/impeachment.ts). Solo
  * scope is narrower: PRESIDENT only (US) — mainline's governor-impeachment
- * branch (state-legislature trial) is PORT-STUB, since Rotunda has no
+ * branch (state-legislature trial) is PORT-STUB, since AHDClient has no
  * governor-as-executive concept yet (governors are legislative-style seats
  * on `Politician.chamberKey`, not entries in `world.executives`).
  *

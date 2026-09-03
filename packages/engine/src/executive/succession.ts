@@ -13,7 +13,7 @@ import type { WorldState } from "../types.js";
  *
  * PORT-STUB: mainline's `hasReachedExecutiveTermLimit` gate (blocks a VP who
  * already served the max consecutive terms from succeeding) has no solo
- * counterpart — Rotunda tracks no per-politician term-served counter yet.
+ * counterpart — AHDClient tracks no per-politician term-served counter yet.
  * Every VP is eligible to succeed.
  */
 export function processPresidentialSuccession(world: WorldState): { promoted: string[] } {

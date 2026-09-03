@@ -57,7 +57,7 @@ export interface CapitalStep {
  * cadence (`/turnsPerYear`); `outputAnnual` is the region's annual GDP
  * (millions). `corpInvestmentPerTurn` is PORT-STUB, always 0 in solo —
  * mainline's O1c term (extra per-turn investment from corporate buildout)
- * needs the plants-tier build-queue system Rotunda does not have.
+ * needs the plants-tier build-queue system AHDClient does not have.
  */
 export function advanceCapitalStock(
   capital: number,

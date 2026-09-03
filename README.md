@@ -1,17 +1,38 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="ROTUNDA" width="100%"/>
+  <img src="apps/desktop/src/assets/ahd-logo.png" alt="A House Divided" width="140"/>
+</p>
+
+<h1 align="center">AHDClient</h1>
+
+<p align="center">
+  The native desktop and Android client for A House Divided.
 </p>
 
 <p align="center">
-  <img alt="status" src="https://img.shields.io/badge/status-1.0.0_release-000000?style=flat-square&labelColor=1a1a1a"/>
-  <img alt="shell" src="https://img.shields.io/badge/shell-Tauri_2-000000?style=flat-square&labelColor=1a1a1a"/>
-  <img alt="engine" src="https://img.shields.io/badge/engine-TypeScript,_deterministic-000000?style=flat-square&labelColor=1a1a1a"/>
-  <img alt="license" src="https://img.shields.io/badge/license-PolyForm_NC_1.0.0-000000?style=flat-square&labelColor=1a1a1a"/>
+  <a href="https://github.com/Egg3901/AHDClient/actions/workflows/verify.yml"><img src="https://github.com/Egg3901/AHDClient/actions/workflows/verify.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/version-1.0.1-informational" alt="Version">
+  <img src="https://img.shields.io/badge/tests-1526-success" alt="Tests">
+  <img src="https://img.shields.io/badge/license-proprietary-red" alt="License">
 </p>
 
-**ROTUNDA** is the multiplatform client for [A House Divided](https://ahousedividedgame.com): one native app with a live multiplayer entry and a fully local singleplayer sandbox. Desktop builds keep multiplayer in a hardened second webview. Android uses its single app webview for multiplayer so the existing OAuth and cookie-backed session flow stays in-app; Tauri remote API access remains disabled. Boot a local world in any era, as any playable country, advance turns at your own pace, save, and replay a seed.
+<p align="center">
+  <img src="https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white" alt="Tauri 2">
+  <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black" alt="React 18">
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript 5">
+  <img src="https://img.shields.io/badge/Android-SDK_24+-3DDC84?logo=android&logoColor=white" alt="Android SDK 24 and later">
+</p>
+
+---
+
+## Overview
+
+AHDClient is the multiplatform client for [A House Divided](https://ahousedividedgame.com): one native app with a live multiplayer entry and a fully local singleplayer sandbox. Desktop builds keep multiplayer in a hardened second webview. Android uses its single app webview for multiplayer so the existing OAuth and cookie-backed session flow stays in-app; Tauri remote API access remains disabled. Boot a local world in any era, as any playable country, advance turns at your own pace, save, and replay a seed.
 
 Singleplayer runs no server. The simulation is a library inside the app process: no listeners, no network, no accounts. Turns cost the player's CPU and nothing else.
+
+## Download
+
+The first official build is available from [GitHub Releases](https://github.com/Egg3901/AHDClient/releases/latest). Windows uses an x64 NSIS installer. Android, Linux, and macOS packages are published alongside it. Release binaries are currently unsigned, so Windows SmartScreen and macOS Gatekeeper may require explicit approval from the player.
 
 ## Architecture
 
@@ -57,8 +78,8 @@ Desktop changes additionally require `npm run build:web --workspace apps/desktop
 
 ## Relationship to mainline
 
-Mainline A House Divided is a live multiplayer service. ROTUNDA consumes it in online mode and diverges deliberately in singleplayer: on-demand turns (one turn = one in-game week), local saves, no anti-abuse systems. Both codebases are PolyForm Noncommercial 1.0.0, so simulation logic and seed content move between them freely. Era seed packs are designed to become a shared format: new eras get built and playtested here before mainline resets into them.
+Mainline A House Divided is a live multiplayer service. AHDClient consumes it in online mode and diverges deliberately in singleplayer: on-demand turns (one turn = one in-game week), local saves, and no anti-abuse systems. Both codebases are proprietary Lakeside Games products. Simulation logic and seed content move between them under the owner's authority. Era seed packs are designed to become a shared format: new eras get built and playtested here before mainline resets into them.
 
 ## License
 
-[PolyForm Noncommercial 1.0.0](LICENSE.md). Source-available; free for any noncommercial use.
+[Proprietary source-available terms](LICENSE.md). Copyright Lakeside Games. All rights reserved. The source may be inspected and evaluated, but reuse, modification, redistribution, and commercial operation require prior written permission.

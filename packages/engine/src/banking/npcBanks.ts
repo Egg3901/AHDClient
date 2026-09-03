@@ -6,7 +6,7 @@
  * mainline spawns 2 dedicated NPP corporations per eligible country and
  * charters each with issueCharter (era-anchored capital requirement, a
  * legalCharterTypes eligibility gate, an NPP_CAPITAL_STATES headquarters
- * check). Rotunda's W9 corporation founding already seeds exactly ONE
+ * check). AHDClient's W9 corporation founding already seeds exactly ONE
  * "financial" sector NPC corporation per playable country unconditionally
  * (corporation/founding.ts — every playable country in every shipped era
  * pack has a nonzero financial weight, see sectorSeedWeights1953.ts), so

@@ -11,7 +11,7 @@
  *   packages/engine/src/demographics/ruDemographics1979.ts, ddDemographics1979.ts
  *
  * Run FROM THE MAINLINE CHECKOUT so its `@/` path alias resolves:
- *   npx tsx ../Rotunda/packages/content/scripts/generateStateLayer.ts
+ *   npx tsx ../AHDClient/packages/content/scripts/generateStateLayer.ts
  *
  * Mainline is read-only; this script only reads it. Every emitted file
  * carries a source header. Conventions mirror the hand-generated 1953 files
@@ -49,9 +49,9 @@ import ukRegionDemographics2019 from "@/lib/seeds/uk/ukRegionDemographics";
 import { getCountryLayer1Model } from "@/lib/seeds/international";
 import { buildModelRegionDemographics } from "@/lib/seeds/international/derive";
 
-const ROTUNDA = path.resolve(import.meta.dirname, "../..");
-const PACKS = path.join(ROTUNDA, "content/src/packs");
-const DEMO = path.join(ROTUNDA, "engine/src/demographics");
+const AHDClient = path.resolve(import.meta.dirname, "../..");
+const PACKS = path.join(AHDClient, "content/src/packs");
+const DEMO = path.join(AHDClient, "engine/src/demographics");
 
 type Reg = { parties: Array<{ abbr: string; org: number; reg: number }>; independent: number; unregistered: number; unaffiliatedOrg: number };
 type RegionIn = { _id: string; countryId: string; name: string; population: number; gdp: number; houseDistricts: number; stateSenateSeats: number; region: string };

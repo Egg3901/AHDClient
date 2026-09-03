@@ -1,9 +1,9 @@
 /**
- * War/conflict model — Rotunda-native abstraction. Mainline's ConflictDoc
+ * War/conflict model — AHDClient-native abstraction. Mainline's ConflictDoc
  * (src/lib/db/types/conflict.ts) is settled by a full unit-level combat
  * engine (battleResolution.ts, battle.ts, coalition.ts — thousands of
  * lines: unit rosters, generals, naval/air support, coalition building).
- * That has no Rotunda equivalent and is PORT-STUB in its entirety — B15,
+ * That has no AHDClient equivalent and is PORT-STUB in its entirety — B15,
  * named blocker: military/unitRosterCombat.
  *
  * What IS ported verbatim from mainline are the portable pieces that don't
@@ -13,7 +13,7 @@
  * window, src/lib/military/principal.ts), `TRUCE_TURNS` (re-declaration
  * lockout, src/lib/db/types/peaceOffer.ts). wars/settlement.ts wires these
  * against a from-scratch, clearly-labeled margin function (GDP-ratio based,
- * not a mainline formula — see settlement.ts file doc) since Rotunda has no
+ * not a mainline formula — see settlement.ts file doc) since AHDClient has no
  * per-unit combat strength to derive a battle margin from.
  */
 export type ConflictType = "interstate" | "intervention" | "civil_war" | "independence" | "cold_war";

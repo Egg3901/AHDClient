@@ -388,7 +388,7 @@ describe("W32 alignment (source: src/lib/alignment/crisis.ts, normalize.ts)", ()
   });
 });
 
-describe("W32 wars/settlement (Rotunda-native — see wars/types.ts, wars/settlement.ts file docs)", () => {
+describe("W32 wars/settlement (AHDClient-native — see wars/types.ts, wars/settlement.ts file docs)", () => {
   it("occupationShift: verbatim port of src/lib/military/occupation.ts", () => {
     expect(occupationShift(50, "B", 45, false)).toBeCloseTo(55, 10); // decisive margin -> full maxShift(5)
     expect(occupationShift(50, "A", 45, false)).toBeCloseTo(45, 10);

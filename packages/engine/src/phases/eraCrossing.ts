@@ -17,7 +17,7 @@ import type { TurnPhase } from "./types.js";
  * the same IO substitution every other ported phase in this codebase makes
  * for mainline's news-posting calls.
  *
- * Rotunda's own era system is coarser than mainline's (four shipped packs,
+ * AHDClient's own era system is coarser than mainline's (four shipped packs,
  * "1953"/"1979"/"1991"/"2019", vs mainline's decade buckets), so the edge
  * condition here
  * is "did `world.meta.era` change since this phase last ran", tracked via
@@ -39,14 +39,14 @@ import type { TurnPhase } from "./types.js";
  * stateless function of the live year, re-evaluated fresh at every call
  * site (approval scoring, policy cost gates, income-band index, etc.), not
  * an edge-triggered mutation; there is no turn-phase equivalent to port
- * beyond the news bookkeeping already covered above. Rotunda already
+ * beyond the news bookkeeping already covered above. AHDClient already
  * follows exactly this "continuous re-evaluation" pattern wherever it has
  * era-gated behavior — see forex/regime.ts `regimeForEra(world.meta.era)`,
  * read fresh every forexTurn — so the pattern itself needs no new wiring.
  * The underlying ~40-metric catalog (metricCatalog.ts:50-316) is PORT-STUB:
  * out of scope this wave, as it would require porting the unrelated
  * approval-scoring and policy-cost systems those metrics feed, none of
- * which exist in Rotunda yet.
+ * which exist in AHDClient yet.
  */
 export const eraCrossingPhase: TurnPhase = {
   name: "eraCrossing",

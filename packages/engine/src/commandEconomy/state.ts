@@ -47,7 +47,7 @@ const SECOND_ECONOMY_ADJUST = 0.25;
  * up.
  *
  * @param planFulfillment aggregate SOE plan fulfillment (1.0 = on plan).
- *        PORT-STUB always 1 in solo — Rotunda has no per-SOE plan-target/
+ *        PORT-STUB always 1 in solo — AHDClient has no per-SOE plan-target/
  *        directed-credit system (see phases.ts file doc), so the unmet-plan
  *        goods-deficit term (mainline's PLAN_SHORTFALL_GOODS_DEFICIT) never
  *        fires; the model runs on the wage/GDP gap alone.

@@ -4,7 +4,7 @@
  * Mainline derives a country's bloc colour from LIVE organisation-membership
  * rows against the era's alignment channels (`resolveAlignmentEra` +
  * `BLOC_BY_POLE`: WEST/WASHINGTON → west, EAST/MOSCOW → east — the map reads
- * the treaty, not a hardcoded judgment table). Rotunda has no
+ * the treaty, not a hardcoded judgment table). AHDClient has no
  * organizationMemberships/alignmentEras/INTERNATIONAL_ORGANIZATIONS system
  * ported, so there is no live NATO/Warsaw-Pact roll to read.
  *

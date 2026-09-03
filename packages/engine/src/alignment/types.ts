@@ -5,9 +5,9 @@
  * Mainline's full pole set is "WEST" | "EAST" | "WASHINGTON" | "MOSCOW" |
  * "BEIJING" — the latter three are era-gated multipolar poles that only
  * exist once the Non-Aligned Movement (1961) and Sino-Soviet split enter
- * play. Rotunda's 1953 pack is bipolar, so only WEST/EAST are ported —
+ * play. AHDClient's 1953 pack is bipolar, so only WEST/EAST are ported —
  * B13, named blocker: multipolar poles have no era-crossing trigger in
- * Rotunda yet (no era after 1953/1960 is playable).
+ * AHDClient yet (no era after 1953/1960 is playable).
  */
 export type AlignmentPoleId = "WEST" | "EAST";
 

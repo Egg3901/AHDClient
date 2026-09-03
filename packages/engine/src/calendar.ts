@@ -1,5 +1,5 @@
 import type { EraId } from "./types.js";
-import { PACKS_BY_DATE } from "@rotunda/content";
+import { PACKS_BY_DATE } from "@ahdclient/content";
 
 export const START_DATE = "1953-01-06";
 export const DAYS_PER_TURN = 7;
@@ -20,7 +20,7 @@ export function addDaysIso(date: string, days: number): string {
 /**
  * Era thresholds, data-driven from the shipped pack registry: find the
  * latest pack whose startDate <= date, else the earliest pack. `world.ts`
- * already imports `@rotunda/content` from this package with no cycle
+ * already imports `@ahdclient/content` from this package with no cycle
  * (content never imports engine), so there is no boundary reason to keep
  * this hardcoded — the old ladder (1953/1960/1968/1976) baked in a
  * fabricated "1960" era and two eras ("1968", "1976") that were never

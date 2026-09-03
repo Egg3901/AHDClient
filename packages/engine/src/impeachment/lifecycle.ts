@@ -80,7 +80,7 @@ function targetStanceFor(
  * one, then promotes the VP the same turn if one is seated), else acquitted.
  * Auto-cancels a case whose target is no longer the sitting president.
  *
- * Governor impeachment (mainline's other branch) is PORT-STUB: Rotunda has
+ * Governor impeachment (mainline's other branch) is PORT-STUB: AHDClient has
  * no governor-as-executive concept (see impeachment/types.ts file doc).
  */
 export function processImpeachmentLifecycle(world: WorldState, rng: WorldRng): { resolved: number } {

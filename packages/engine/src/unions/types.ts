@@ -45,7 +45,7 @@ export interface Union {
   politicalContributionPct: number;
   /**
    * Worker-weighted unionization across represented sectors, 0-100.
-   * In mainline this is CorporateSector.unionization per sector; Rotunda
+   * In mainline this is CorporateSector.unionization per sector; AHDClient
    * collapses to one density per union (the worktree has no per-sector
    * unionization table yet — see phases.ts membership bridge).
    */

@@ -15,7 +15,7 @@
  * Treasury backstop (PORT-STUB, flagged for operator review): mainline funds
  * a failed bank's uninsured NPC deposits from the federal budget after the
  * insurance fund is exhausted (insurance.ts DEPOSIT_INSURANCE_SPENDING_KEY,
- * depositBookReturn.ts). Rotunda's budget module (W2) has no live spending
+ * depositBookReturn.ts). AHDClient's budget module (W2) has no live spending
  * hook wired for this, and adding one risks the budget invariants a
  * different wave owns — see this file's `resolveFailedBank` for the honest
  * alternative: an uninsured excess is money that already left the bank's

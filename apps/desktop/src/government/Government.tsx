@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { WorldState, Legislature, Chamber, Party } from "@rotunda/engine";
+import type { WorldState, Legislature, Chamber, Party } from "@ahdclient/engine";
 import "./government.css";
 
 const PALETTE = [

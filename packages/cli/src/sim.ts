@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
-import { advanceTurn, createWorld, listEras, checkInvariants } from "@rotunda/engine";
-import type { WorldState } from "@rotunda/engine";
+import { advanceTurn, createWorld, listEras, checkInvariants } from "@ahdclient/engine";
+import type { WorldState } from "@ahdclient/engine";
 import { formatProgressTable, formatSummaryTable, formatInvariantReport, formatQaReport } from "./formatter.js";
 import type { ProgressRow } from "./formatter.js";
 import { deepCompare, formatDiffs } from "./comparator.js";
@@ -200,7 +200,7 @@ async function commandDeterminism(opts: Record<string, string | boolean>): Promi
     // pick first playable country as canonical; prefer US if available
     let countryId = "US";
     try {
-      const { listPlayableCountries } = await import("@rotunda/engine");
+      const { listPlayableCountries } = await import("@ahdclient/engine");
       const playable = listPlayableCountries(era.id);
       if (!playable.some((c) => c.id === countryId)) {
         countryId = playable[0]!.id;

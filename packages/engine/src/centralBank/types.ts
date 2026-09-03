@@ -15,7 +15,7 @@
  * (centralBank/phases.ts `centralBankChairChairSelectionPhase`), the same
  * field mainline's `chairAppointedBy` carries. What stays PORT-STUB is the
  * NOMINATION half — mainline's `nominations`/`lobbyingPool` pool of
- * player-characters the president chooses from. Rotunda has no candidate
+ * player-characters the president chooses from. AHDClient has no candidate
  * pool separate from the single player + generated NPC roster to draw a
  * "nominee" from, so every bank's chair remains the autonomous NPP
  * technocrat regardless of whether a president is seated; the president's

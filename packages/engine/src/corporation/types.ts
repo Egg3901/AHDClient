@@ -165,7 +165,7 @@ export interface Corporation {
  *
  * Note on "state" ownership: mainline does NOT model a state/government
  * shareholder row. A state-owned enterprise ("natcorp") is a corp-LEVEL flag
- * (Corporation.countryOwnerId), not a Shareholder entry — and Rotunda has no
+ * (Corporation.countryOwnerId), not a Shareholder entry — and AHDClient has no
  * command-economy/SOE system to spawn one (see corporation/constants.ts file
  * doc). So there is no "state" holder kind here; it would not match anything
  * mainline actually does.

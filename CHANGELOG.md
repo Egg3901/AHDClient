@@ -1,6 +1,27 @@
 # Changelog
 
-All notable ROTUNDA client changes are recorded here.
+All notable AHDClient changes are recorded here.
+
+## [1.0.1] - 2026-09-02
+
+### Ten quality improvements
+
+1. The launcher remembers the selected singleplayer or multiplayer mode and starting era.
+2. Continue prevents duplicate loads, shows progress, and reports load failures without leaving the launcher.
+3. The save manager automatically selects the newest valid slot when no current selection remains.
+4. Save slots can be filtered by name, player, country, era, date, turn, or cheat status.
+5. The dashboard has a one-tap quick save backed by `quick-save`, with Ctrl+S and Cmd+S shortcuts.
+6. Unsaved worlds now warn before launcher exit, browser unload, refresh, or window close.
+7. Manual and automatic saves clear dirty state only after success, and autosaves confirm their destination.
+8. Turn-processing failures are caught and shown in the dashboard instead of becoming unhandled rejections.
+9. New-world character names and seeds validate immediately, mark invalid fields, and block invalid creation.
+10. NPC party ballots are tallied transiently while player ballots remain persisted, reducing a measured 100-turn 1953 world from 121.3 MiB to 48.8 MiB without changing deterministic results.
+
+### Changed
+
+- Aligned the client palette and repository presentation with the current A House Divided visual system while retaining AHDClient's restrained launcher layout.
+- Rebranded the application, package scopes, platform identifiers, build artifacts, documentation, and GitHub repository from its former codename to AHDClient.
+- Changed the repository from PolyForm Noncommercial to proprietary source-available terms and marked every workspace package private and unlicensed for registry publication.
 
 ## [1.0.0] - 2026-09-02
 
