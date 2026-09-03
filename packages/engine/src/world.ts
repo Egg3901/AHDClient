@@ -96,6 +96,7 @@ import { GOVERNMENT_CHAMBER_BY_COUNTRY, GOVERNOR_COUNTRIES } from "./government/
 // renumbering needed as long as v34-v38 land with ascending versions
 // between v33 and this v39 before the final merge.
 import { seedStateResourceCapacities } from "./extraction/founding.js";
+import { seedCountryPolitics } from "./countryPolitics/overview.js";
 import { resolveWorldFeatureFlags } from "./featureFlags.js";
 import type { WorldFeatureFlags } from "./featureFlags.js";
 
@@ -122,7 +123,10 @@ import type { WorldFeatureFlags } from "./featureFlags.js";
 // save.ts's v34->v40 migration chain (stubs for v35-v39, real logic at v40)
 // for the resolver note.
 // v41: tax-rate ladder (budget.taxRatePhaseIn, bill.selectedRate); see save.ts.
-export const SCHEMA_VERSION = 42;
+// v42: player-owned singleplayer simulation controls (featureFlags); see save.ts.
+// v43: country political overview (countryPolitics); see save.ts migration
+// and countryPolitics/overview.ts.
+export const SCHEMA_VERSION = 43;
 
 /** Treasury overrides per party id where mainline diverges from the 1M default. */
 const TREASURY_BY_PARTY: Record<string, number> = {
@@ -185,6 +189,8 @@ export interface NewWorldOptions {
   seed: string;
   playerName: string;
   countryId: string;
+  /** Home state or region used by the State navigation cluster. */
+  homeRegionId?: string;
   /** Era id from listEras(). */
   era: string;
   overrides?: WorldOverrides;
@@ -212,6 +218,18 @@ export function listPlayableCountries(era: string): PlayableCountryInfo[] {
   const pack = getPackByEra(era);
   if (!pack) throw new Error(`Unknown era: ${era}`);
   return pack.countries.filter((c) => c.playable).map((c) => ({ id: c.id, name: c.name }));
+}
+
+export function listRegions(
+  era: string,
+  countryId: string,
+): Array<{ id: string; name: string }> {
+  const pack = getPackByEra(era);
+  if (!pack) throw new Error(`Unknown era: ${era}`);
+  return (pack.states ?? [])
+    .filter((state) => state.countryId === countryId)
+    .map((state) => ({ id: state.id, name: state.name }))
+    .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 export function listCountries(era: string): { id: string; name: string; playable: boolean; economy: WorldState["countries"][string]["economy"] }[] {
@@ -466,6 +484,13 @@ export function createWorld(options: NewWorldOptions): WorldState {
 
   const { regions, electoratePools, regionTurnouts, partyRegions, partyPressures, candidateSupports } =
     seedSupport(pack, parties, politicians);
+  const homeRegions = Object.values(regions)
+    .filter((region) => region.countryId === options.countryId)
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const homeRegionId = options.homeRegionId ?? homeRegions[0]?.id ?? null;
+  if (homeRegionId !== null && regions[homeRegionId]?.countryId !== options.countryId) {
+    throw new Error(`Unknown home region: ${homeRegionId} for country ${options.countryId}`);
+  }
 
   // Seed committees to the depth billLifecycle requires (not live gating)
   const bills: WorldState["bills"] = [];
@@ -654,8 +679,8 @@ export function createWorld(options: NewWorldOptions): WorldState {
     politicians,
     elections: [],
     referendums: [],
-    // W24: no authored incumbent seed exists in packages/content (see
-    // types.ts WorldState.executives file doc) - every fresh world starts
+    // The packs carry no authored incumbent seed (see types.ts
+    // WorldState.executives file doc), so a fresh world starts
     // with a vacant presidency, exactly like an un-elected chamber seat.
     executives: {},
     impeachments: [],
@@ -667,6 +692,8 @@ export function createWorld(options: NewWorldOptions): WorldState {
     prospectingSurveys: [],
     stateResourceCapacities,
     achievementsEarned: [],
+    // v43: seeded post-construction below (needs politicians + executives).
+    countryPolitics: {},
     regions,
     partyRegions,
     electoratePools,
@@ -718,6 +745,7 @@ export function createWorld(options: NewWorldOptions): WorldState {
     player: {
       name: options.playerName,
       countryId: options.countryId,
+      homeRegionId,
       cash: playerCashOverride !== undefined ? playerCashOverride : 10_000,
       actions: 25,
       funds: 0,
@@ -782,6 +810,10 @@ export function createWorld(options: NewWorldOptions): WorldState {
   // a retail bank. Mutates world.corporations in place, same post-
   // construction-mutation pattern as assignUsSeatGeography above.
   seedNpcBanks(world);
+  // v43: RNG-free post-construction overview seed. This deliberately does
+  // not seat an executive or otherwise wake gameplay phases merely to fill
+  // presentation data.
+  world.countryPolitics = seedCountryPolitics(world);
   return world;
 }
 

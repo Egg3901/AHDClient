@@ -5,6 +5,7 @@ import {
   deserializeSave,
   serializeSave,
   executeAction as engineExecuteAction,
+  proposeCabinetNomination as engineProposeCabinetNomination,
   SCHEMA_VERSION,
   type NewWorldOptions,
   type TurnReport,
@@ -28,6 +29,9 @@ export interface GameApi {
   applyCheat(op: CheatOp): void;
   replaceWorldFromJson(raw: string): WorldState;
   executeAction(actionId: string, params?: ExecuteActionParams): ExecuteActionResult;
+  proposeCabinetNomination(
+    options: Parameters<typeof engineProposeCabinetNomination>[1],
+  ): string;
   save(): Promise<{ saved: boolean; path?: string }>;
   load(): Promise<WorldState | null>;
 }
@@ -90,6 +94,13 @@ export const game: GameApi = {
   executeAction(actionId: string, params: ExecuteActionParams = {}): ExecuteActionResult {
     if (!world) throw new Error("No game in progress");
     return engineExecuteAction(world, "player", actionId, params);
+  },
+
+  proposeCabinetNomination(
+    options: Parameters<typeof engineProposeCabinetNomination>[1],
+  ): string {
+    if (!world) throw new Error("No game in progress");
+    return engineProposeCabinetNomination(world, options);
   },
 
   async save(): Promise<{ saved: boolean; path?: string }> {

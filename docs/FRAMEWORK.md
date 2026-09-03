@@ -79,6 +79,14 @@ Singleplayer tools must never render in multiplayer mode. The quick editor route
 
 `WorldState.featureFlags` contains the typed, player-owned simulation controls defined by `WORLD_FEATURE_FLAG_DEFINITIONS`. All default on. Each switch gates a documented family of turn phases; core calendar, action refresh, era crossing, history recording, and news maintenance always run to preserve world invariants. Disabled phases consume no RNG, so identical worlds plus identical flag changes remain deterministic. Schema v42 migrates old saves to the all-on defaults.
 
+Schema v43 adds `WorldState.countryPolitics`, a deterministic local overview record for each playable country, and `player.homeRegionId` for the State navigation cluster. It persists national approval history, regime classification, legitimacy, and unrest. The `countryPolitics` turn phase derives changes from live world state without drawing RNG. The v42 to v43 migration seeds the overview from the loaded save and sets the absent home-region identity to `null`; the Character panel lets the player select it. Migration never fabricates an executive, chamber officeholder, or historical samples from before the migration turn.
+
+## Singleplayer UI contract
+
+The in-game shell keeps the multiplayer top-level navigation visible around every local screen: Actions, State, Nation, World, and Help. Stable route ids come from one navigation manifest for desktop and mobile. All gameplay routes resolve against the on-device `WorldState` without fetches or accounts. Genuinely multiplayer-only destinations remain visible with an explicit explanation.
+
+The country overview renders a transport-free `CountryOverviewModel`. `LocalCountryOverviewSource` is the only adapter from `WorldState` into that model; the view imports no engine, Tauri, or network code. Routes without a full dedicated screen use route-specific projections of real local collections and name any missing engine mechanic instead of substituting unrelated data.
+
 ## Play modes (binding)
 
 Singleplayer has two modes chosen at world creation:

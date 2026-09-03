@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { WorldState, Party, Legislature, Chamber } from "@ahdclient/engine";
+import { PartyOperations } from "./PartyOperations.js";
 import "./parties.css";
 
 function formatNum(n: number): string {
@@ -69,7 +70,21 @@ function partyColor(partyId: string, sortedIds: string[]): string {
   return PALETTE[idx % PALETTE.length]!;
 }
 
-export function PartiesScreen({ world, onBack, initialCountryId }: { world: WorldState; onBack: () => void; initialCountryId?: string }) {
+export function PartiesScreen({
+  world,
+  onBack,
+  initialCountryId,
+  initialPartyId,
+  onWorld,
+  onToast,
+}: {
+  world: WorldState;
+  onBack: () => void;
+  initialCountryId?: string;
+  initialPartyId?: string;
+  onWorld?: (world: WorldState) => void;
+  onToast?: (message: string) => void;
+}) {
   const countryIds = useMemo(() => {
     const all = Object.keys(world.countries ?? {});
     return [...all].sort((a, b) => {
@@ -130,7 +145,12 @@ export function PartiesScreen({ world, onBack, initialCountryId }: { world: Worl
   const maxOrg = useMemo(() => Math.max(0, ...countryParties.map((p) => p.organization ?? 0)), [countryParties]);
   const maxMembers = useMemo(() => Math.max(0, ...countryParties.map((p) => p.memberCount ?? 0)), [countryParties]);
 
-  const [selectedPartyId, setSelectedPartyId] = useState<string>(() => countryParties[0]?.id ?? "");
+  const [selectedPartyId, setSelectedPartyId] = useState<string>(() => {
+    if (initialPartyId && countryParties.some((party) => party.id === initialPartyId)) {
+      return initialPartyId;
+    }
+    return countryParties[0]?.id ?? "";
+  });
 
   // keep selected party in sync when country changes
   const effectivePartyId = useMemo(() => {
@@ -415,6 +435,10 @@ export function PartiesScreen({ world, onBack, initialCountryId }: { world: Worl
                       </div>
                     )}
                   </div>
+
+                  {selectedParty.id === (world.player.partyId ?? world.player.hosPartyId) && selectedCountryId === world.player.countryId && (
+                    <PartyOperations world={world} onWorld={onWorld} onToast={onToast} />
+                  )}
                 </section>
               )}
             </div>

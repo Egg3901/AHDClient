@@ -1,6 +1,6 @@
 [package]
 name = "ahdclient-desktop"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 description = "A House Divided multiplatform client shell"
 authors = ["Lakeside Games"]

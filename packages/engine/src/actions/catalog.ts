@@ -604,19 +604,19 @@ export const ACTION_CATALOG: Record<ActionId, ActionCatalogEntry> = {
     status: "unavailable",
     blockingSystem: "corporation/sector subsidies (subsidyBudget.ts PORT-STUB)",
   },
-  // PORT-STUB: commandEconomy/* (W7) has not merged into this branch as of
-  // this wave (batch-econ, schema v34, still on its own worktree) — no
-  // mutable command-economy state exists here to call into yet.
+  // PORT-STUB: the command-economy turn model is live, but it currently
+  // derives policy stance from the ruling party and has no player-authored
+  // directive record or action-layer mutation to call.
   commandEconomyDirective: {
     id: "commandEconomyDirective",
     name: "Command Economy Directive",
-    description: "State-directed production/allocation dial. Blocked: W7 command economy has not merged into this branch yet — no commandEconomy module exists to call.",
+    description: "State-directed production/allocation dial. Blocked: the live command-economy simulation has no player directive record or action-layer mutation yet.",
     baseCost: 3,
     cooldown: 0,
     fundCost: 0,
     systems: ["commandEconomy"],
     status: "unavailable",
-    blockingSystem: "commandEconomy (W7, not yet merged)",
+    blockingSystem: "player command-economy directives",
   },
   // ── W11 extraction/prospecting ──────────────────────────────────
   // Government (HoS-mode) actions only — see extraction/prospecting.ts and

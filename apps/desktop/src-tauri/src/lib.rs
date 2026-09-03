@@ -1,7 +1,6 @@
 use tauri::{Manager, Url};
 #[cfg(desktop)]
 use tauri::{WebviewUrl, WebviewWindowBuilder, WindowEvent};
-#[cfg(desktop)]
 use tauri_plugin_opener::OpenerExt;
 
 /// Canonical multiplayer viewer target. See docs/FRAMEWORK.md
@@ -16,6 +15,38 @@ const AUXILIARY_ONLINE_HOSTS: &[&str] = &[
   "accounts.google.com",
   "www.google.com",
 ];
+
+#[derive(Debug, PartialEq, Eq)]
+enum HelpDestination {
+  Online(&'static str),
+  External(&'static str),
+}
+
+fn help_destination(route_id: &str) -> Option<HelpDestination> {
+  match route_id {
+    "help.wiki" => Some(HelpDestination::External(
+      "https://wiki.ahousedividedgame.com",
+    )),
+    "help.about" => Some(HelpDestination::Online("/about")),
+    "help.suggestions" => Some(HelpDestination::Online("/feedback")),
+    "help.discord" => Some(HelpDestination::External("https://discord.gg/DmF8zJJuqN")),
+    "help.patreon" => Some(HelpDestination::External(
+      "https://www.patreon.com/cw/AHouseDividedGame/membership",
+    )),
+    "help.supporter-wall" => Some(HelpDestination::External(
+      "https://lakesidegames.net/supporters",
+    )),
+    "help.email-support" => Some(HelpDestination::External(
+      "mailto:admin@ahousedividedgame.com",
+    )),
+    "help.server-status" => Some(HelpDestination::External(
+      "https://ops.ahousedividedgame.com/status",
+    )),
+    "help.privacy" => Some(HelpDestination::Online("/privacy")),
+    "help.terms" => Some(HelpDestination::Online("/terms")),
+    _ => None,
+  }
+}
 
 /// True if `url` is the exact HTTPS online origin. Anything else
 /// (in-page navigation or a clicked link) gets kicked out to the system
@@ -66,12 +97,17 @@ fn is_online_navigation_allowed(url: &Url) -> bool {
 #[tauri::command]
 #[cfg(desktop)]
 async fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
+  let url: Url = ONLINE_URL.parse().map_err(|e| format!("bad ONLINE_URL: {e}"))?;
+  open_online_url(app, url).await
+}
+
+#[cfg(desktop)]
+async fn open_online_url(app: tauri::AppHandle, url: Url) -> Result<(), String> {
   if let Some(existing) = app.get_webview_window("online") {
+    existing.navigate(url).map_err(|e| e.to_string())?;
     existing.set_focus().map_err(|e| e.to_string())?;
     return Ok(());
   }
-
-  let url: Url = ONLINE_URL.parse().map_err(|e| format!("bad ONLINE_URL: {e}"))?;
 
   let nav_app = app.clone();
   let new_window_app = app.clone();
@@ -118,6 +154,24 @@ async fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[cfg(desktop)]
+async fn open_help_destination(app: tauri::AppHandle, route_id: String) -> Result<(), String> {
+  match help_destination(&route_id) {
+    Some(HelpDestination::Online(path)) => {
+      let url: Url = format!("{ONLINE_URL}{path}")
+        .parse()
+        .map_err(|e| format!("bad Help URL: {e}"))?;
+      open_online_url(app, url).await
+    }
+    Some(HelpDestination::External(url)) => app
+      .opener()
+      .open_url(url, None::<&str>)
+      .map_err(|e| e.to_string()),
+    None => Err(format!("unknown Help destination: {route_id}")),
+  }
+}
+
+#[tauri::command]
 #[cfg(mobile)]
 fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
   let url: Url = ONLINE_URL.parse().map_err(|error| format!("bad ONLINE_URL: {error}"))?;
@@ -125,6 +179,27 @@ fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
     .get_webview_window("main")
     .ok_or_else(|| "main webview is unavailable".to_string())?;
   main.navigate(url).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+fn open_help_destination(app: tauri::AppHandle, route_id: String) -> Result<(), String> {
+  match help_destination(&route_id) {
+    Some(HelpDestination::Online(path)) => {
+      let url: Url = format!("{ONLINE_URL}{path}")
+        .parse()
+        .map_err(|error| format!("bad Help URL: {error}"))?;
+      let main = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main webview is unavailable".to_string())?;
+      main.navigate(url).map_err(|error| error.to_string())
+    }
+    Some(HelpDestination::External(url)) => app
+      .opener()
+      .open_url(url, None::<&str>)
+      .map_err(|error| error.to_string()),
+    None => Err(format!("unknown Help destination: {route_id}")),
+  }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -142,15 +217,31 @@ pub fn run() {
     .plugin(tauri_plugin_window_state::Builder::default().build());
 
   builder
-    .invoke_handler(tauri::generate_handler![open_online_window])
+    .invoke_handler(tauri::generate_handler![open_online_window, open_help_destination])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
 
 #[cfg(test)]
 mod tests {
-  use super::{is_online_navigation_allowed, is_online_origin};
+  use super::{help_destination, is_online_navigation_allowed, is_online_origin, HelpDestination};
   use tauri::Url;
+
+  #[test]
+  fn help_routes_resolve_only_to_allowlisted_targets() {
+    assert_eq!(
+      help_destination("help.wiki"),
+      Some(HelpDestination::External(
+        "https://wiki.ahousedividedgame.com"
+      )),
+    );
+    assert_eq!(help_destination("help.about"), Some(HelpDestination::Online("/about")));
+    assert_eq!(
+      help_destination("help.discord"),
+      Some(HelpDestination::External("https://discord.gg/DmF8zJJuqN")),
+    );
+    assert_eq!(help_destination("help.not-real"), None);
+  }
 
   #[test]
   fn online_navigation_stays_in_app_only_for_the_exact_https_origin() {

@@ -227,6 +227,21 @@ describe("buyShares / sellShares actions", () => {
     expect(world.player.cash + corp.liquidCapital).toBeCloseTo(totalBefore, 6);
   });
 
+  it("credits sell proceeds to player cash exactly once", () => {
+    const world = createWorld(OPTS);
+    const corp = world.corporations["US-manufacturing"]!;
+    world.player.cash = 1_000_000_000;
+    const shares = 10;
+    const notional = Math.round(shares * corp.sharePrice * 100) / 100;
+    expect(executeAction(world, "player", "buyShares", { corpId: corp.id, shares }).ok).toBe(true);
+    const cashBeforeSale = world.player.cash;
+
+    const sale = executeAction(world, "player", "sellShares", { corpId: corp.id, shares });
+
+    expect(sale.ok).toBe(true);
+    expect(world.player.cash).toBeCloseTo(cashBeforeSale + notional, 6);
+  });
+
   it("sell rejects when the player doesn't own enough shares", () => {
     const world = createWorld(OPTS);
     const res = executeAction(world, "player", "sellShares", { corpId: "US-manufacturing", shares: 10 });

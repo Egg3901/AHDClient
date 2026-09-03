@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-help-destination"
+description = "Enables the open_help_destination command without any pre-configured scope."
+commands.allow = ["open_help_destination"]
+
+[[permission]]
+identifier = "deny-open-help-destination"
+description = "Denies the open_help_destination command without any pre-configured scope."
+commands.deny = ["open_help_destination"]

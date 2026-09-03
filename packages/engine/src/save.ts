@@ -21,6 +21,7 @@ import {
 } from "./commandEconomy/constants.js";
 import { seedCapitalStock } from "./economy/capitalStock.js";
 import { seedStateResourceCapacities } from "./extraction/founding.js";
+import { seedCountryPolitics } from "./countryPolitics/overview.js";
 
 /**
  * Save file = versioned JSON envelope around the full WorldState. Older
@@ -73,6 +74,7 @@ const REQUIRED_WORLD_RECORDS = [
   "unions", "bonds", "exchangeRates", "nationalMetrics", "economicModels", "commodityPriceHistory",
   "commandEconomy", "capitalStock", "capitalGrowth", "unownedSectors", "history", "policyLedger",
   "enactmentGates", "currencyUnions", "coldWarTension", "nuclearPrograms", "alignments", "internationalOrgs",
+  "countryPolitics",
 ] as const;
 
 function assertCurrentWorldState(world: WorldState): void {
@@ -94,7 +96,8 @@ function assertCurrentWorldState(world: WorldState): void {
     typeof meta["cheatsUsed"] !== "boolean" ||
     !isRecord(player) ||
     typeof player["name"] !== "string" ||
-    typeof player["countryId"] !== "string"
+    typeof player["countryId"] !== "string" ||
+    (player["homeRegionId"] !== null && typeof player["homeRegionId"] !== "string")
   ) {
     throw new Error("Not a valid save file: invalid world state");
   }
@@ -109,6 +112,13 @@ function assertCurrentWorldState(world: WorldState): void {
       throw new Error(`Not a valid save file: invalid world state field ${field}`);
     }
   }
+  if (
+    typeof player["homeRegionId"] === "string" &&
+    (value["regions"] as Record<string, { countryId?: unknown }>)[player["homeRegionId"]]?.countryId !==
+      player["countryId"]
+  ) {
+    throw new Error("Not a valid save file: player home region does not belong to player country");
+  }
   const featureFlags = value["featureFlags"] as Record<string, unknown>;
   if (Object.keys(featureFlags).some((key) => !isWorldFeatureFlag(key))) {
     throw new Error("Not a valid save file: unknown feature flag");
@@ -121,6 +131,64 @@ function assertCurrentWorldState(world: WorldState): void {
   for (const field of ["ledgerPreForexSnapshot", "economicVitalSigns"] as const) {
     if (value[field] !== null && !isRecord(value[field])) {
       throw new Error(`Not a valid save file: invalid world state field ${field}`);
+    }
+  }
+  assertCountryPolitics(value["countryPolitics"]);
+}
+
+const COUNTRY_POLITICS_REGIMES = new Set([
+  "presidential-republic",
+  "parliamentary",
+  "one-party",
+  "national-government",
+]);
+
+function assertFiniteGauge(entry: Record<string, unknown>, field: string, countryId: string): void {
+  const v = entry[field];
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 100) {
+    throw new Error(`Not a valid save file: invalid countryPolitics["${countryId}"].${field}`);
+  }
+}
+
+/** Strict per-entry validation for the v43 countryPolitics record. */
+function assertCountryPolitics(value: unknown): void {
+  if (!isRecord(value)) {
+    throw new Error("Not a valid save file: invalid world state field countryPolitics");
+  }
+  for (const [countryId, entry] of Object.entries(value)) {
+    if (!isRecord(entry)) {
+      throw new Error(`Not a valid save file: invalid countryPolitics["${countryId}"]`);
+    }
+    if (entry["countryId"] !== countryId) {
+      throw new Error(`Not a valid save file: invalid countryPolitics["${countryId}"].countryId`);
+    }
+    for (const field of ["approval", "legitimacy", "unrest"] as const) {
+      assertFiniteGauge(entry, field, countryId);
+    }
+    if (!Array.isArray(entry["approvalHistory"])) {
+      throw new Error(`Not a valid save file: invalid countryPolitics["${countryId}"].approvalHistory`);
+    }
+    for (const sample of entry["approvalHistory"] as unknown[]) {
+      if (
+        !isRecord(sample) ||
+        !Number.isInteger(sample["turn"]) ||
+        (sample["turn"] as number) < 0 ||
+        typeof sample["approval"] !== "number" ||
+        !Number.isFinite(sample["approval"] as number) ||
+        (sample["approval"] as number) < 0 ||
+        (sample["approval"] as number) > 100
+      ) {
+        throw new Error(`Not a valid save file: invalid countryPolitics["${countryId}"].approvalHistory entry`);
+      }
+    }
+    if (typeof entry["regime"] !== "string" || !COUNTRY_POLITICS_REGIMES.has(entry["regime"])) {
+      throw new Error(`Not a valid save file: invalid countryPolitics["${countryId}"].regime`);
+    }
+    if (typeof entry["governmentType"] !== "string") {
+      throw new Error(`Not a valid save file: invalid countryPolitics["${countryId}"].governmentType`);
+    }
+    if (!Number.isInteger(entry["updatedTurn"]) || (entry["updatedTurn"] as number) < 0) {
+      throw new Error(`Not a valid save file: invalid countryPolitics["${countryId}"].updatedTurn`);
     }
   }
 }
@@ -1985,6 +2053,27 @@ export function deserializeSave(raw: string): WorldState {
     const w = save.world as unknown as Record<string, unknown>;
     w["featureFlags"] = resolveWorldFeatureFlags();
     save.world.meta.schemaVersion = 42;
+  }
+  // v42 -> v43: country political overview and player home-region identity.
+  // Existing saves never selected a home region, so they retain an honest
+  // null until the player chooses one from the Character panel.
+  // countryPolitics is backfilled by
+  // deriving every gauge from the save's own live data at its current turn
+  // (seedCountryOverview over the migrated world) — no RNG, no invented
+  // office-holders.
+  // Executives are deliberately untouched: a vacant US presidency in an old
+  // save means no election seated one in that save's history, and neither
+  // migration nor fresh-world overview seeding may fabricate one.
+  if (save.schemaVersion < 43) {
+    const w = save.world as unknown as Record<string, unknown>;
+    const player = w["player"];
+    if (isRecord(player) && player["homeRegionId"] === undefined) {
+      player["homeRegionId"] = null;
+    }
+    if (!isRecord(w["countryPolitics"])) {
+      w["countryPolitics"] = seedCountryPolitics(save.world);
+    }
+    save.world.meta.schemaVersion = 43;
   }
   // 1.0.0 stored every synthetic NPC party ballot after resolution. They
   // cannot affect a future turn, so compact them on load while retaining the

@@ -130,6 +130,7 @@ import { policyEffectsPhase } from "../policyEffects/phases.js";
 import { resolveProspectsPhase } from "../extraction/prospecting.js";
 import { contractOfferAcceptancePhase } from "../extraction/contracts.js";
 import { achievementCheckPhase } from "../achievements/phase.js";
+import { countryPoliticsPhase } from "../countryPolitics/phases.js";
 
 export const TURN_PHASES: readonly TurnPhase[] = [
   advanceCalendarPhase,
@@ -549,5 +550,13 @@ export const TURN_PHASES: readonly TurnPhase[] = [
   resolveProspectsPhase,
   contractOfferAcceptancePhase,
   achievementCheckPhase,
+  // v43 country political overview at END before newsMaintenance — same
+  // rng-stream-stability rule as every other tail cluster above (this phase
+  // is RNG-free, so the rule here is purely about append-only ordering).
+  // Runs last so approval/legitimacy/unrest read this turn's final macro
+  // state (macroCountryTurn early, crisis/budget/forex clusters in the
+  // tail all mutate economy/budgets first) and so officers reconcile after
+  // electionResolutionPhase settled this turn's composition.
+  countryPoliticsPhase,
   newsMaintenancePhase,
 ];

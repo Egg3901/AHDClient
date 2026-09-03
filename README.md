@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/Egg3901/AHDClient/actions/workflows/verify.yml"><img src="https://github.com/Egg3901/AHDClient/actions/workflows/verify.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/version-1.0.2-informational" alt="Version">
+  <img src="https://img.shields.io/badge/version-1.0.3-informational" alt="Version">
   <img src="https://img.shields.io/badge/fast_tests-815-success" alt="Fast tests">
   <img src="https://img.shields.io/badge/license-proprietary-red" alt="License">
 </p>
@@ -28,7 +28,7 @@
 
 AHDClient is the multiplatform client for [A House Divided](https://ahousedividedgame.com): one native app with a live multiplayer entry and a fully local singleplayer sandbox. Desktop builds keep multiplayer in a hardened second webview. Android uses its single app webview for multiplayer so the existing OAuth and cookie-backed session flow stays in-app; Tauri remote API access remains disabled. Boot a local world in any era, as any playable country, advance turns at your own pace, save, and replay a seed.
 
-Singleplayer runs no server. The simulation is a library inside the app process: no listeners, no network, no accounts. Turns cost the player's CPU and nothing else.
+Singleplayer runs no server. The simulation is a library inside the app process: no listeners, no network, no accounts. Turns cost the player's CPU and nothing else. Its persistent Actions, State, Nation, World, and Help navigation mirrors the multiplayer information architecture while local screens read the in-process world directly.
 
 ## Download
 

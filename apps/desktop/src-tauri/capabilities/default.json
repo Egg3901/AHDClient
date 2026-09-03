@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "allow-open-online-window",
+    "allow-open-help-destination",
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",

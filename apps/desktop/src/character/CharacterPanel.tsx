@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import type { WorldState } from "@ahdclient/engine";
 import { ACTION_CATALOG, getActionCost } from "@ahdclient/engine";
 import { game } from "../game.js";
@@ -41,7 +41,6 @@ function costLabel(entry: { baseCost: number } | null, ap: number, funds: number
 }
 
 export function CharacterPanel({ world, open, onClose, onWorld, onToast }: Props) {
-  if (!open) return null;
   const player = world.player;
   const countryName = world.countries[player.countryId]?.name ?? player.countryId;
   const party = player.partyId ? world.parties[player.partyId] : null;
@@ -59,6 +58,8 @@ export function CharacterPanel({ world, open, onClose, onWorld, onToast }: Props
   const [caucusTaxRate, setCaucusTaxRate] = useState("0");
   const [joinErrors, setJoinErrors] = useState<Record<string, string>>({});
   const [joinCaucusErrors, setJoinCaucusErrors] = useState<Record<string, string>>({});
+  const [homeRegionDraft, setHomeRegionDraft] = useState(player.homeRegionId ?? "");
+  const [homeRegionError, setHomeRegionError] = useState<string | null>(null);
 
   const playerCountryParties = useMemo(() => {
     return Object.values(world.parties)
@@ -77,11 +78,42 @@ export function CharacterPanel({ world, open, onClose, onWorld, onToast }: Props
     return world.endorsements.filter((e) => e.endorserId === "player");
   }, [world.endorsements]);
 
+  const playerCountryRegions = useMemo(
+    () =>
+      Object.values(world.regions)
+        .filter((region) => region.countryId === player.countryId)
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    [player.countryId, world.regions],
+  );
+
+  useEffect(() => {
+    if (open) setHomeRegionDraft(player.homeRegionId ?? playerCountryRegions[0]?.id ?? "");
+  }, [open, player.homeRegionId, playerCountryRegions]);
+
+  if (!open) return null;
+
   function refresh() {
     const w = game.getStateSync();
     if (w && onWorld) {
       onWorld({ ...w, meta: { ...w.meta }, player: { ...w.player, actionCooldowns: { ...w.player.actionCooldowns }, purgeRejoinBlocks: [...(w.player.purgeRejoinBlocks ?? [])] }, parties: { ...w.parties }, caucuses: [...w.caucuses], endorsements: [...w.endorsements], charters: [...w.charters] });
     }
+  }
+
+  function saveHomeRegion() {
+    setHomeRegionError(null);
+    const region = world.regions[homeRegionDraft];
+    if (region?.countryId !== player.countryId) {
+      setHomeRegionError("Choose a state or region in the player's country.");
+      return;
+    }
+    const current = game.getStateSync();
+    if (!current) {
+      setHomeRegionError("No game is currently loaded.");
+      return;
+    }
+    current.player.homeRegionId = region.id;
+    onWorld?.({ ...current, player: { ...current.player } });
+    onToast?.(`Home region set to ${region.name}`);
   }
 
   function handleExecute(actionId: string, params: Record<string, unknown>, setError: (s: string | null) => void) {
@@ -152,6 +184,37 @@ export function CharacterPanel({ world, open, onClose, onWorld, onToast }: Props
             <span className="character-label">Country</span>
             <span className="character-value">{countryName} ({player.countryId})</span>
           </div>
+          {player.homeRegionId ? (
+            <div className="character-row">
+              <span className="character-label">Home state or region</span>
+              <span className="character-value">
+                {world.regions[player.homeRegionId]?.name ?? player.homeRegionId}
+              </span>
+            </div>
+          ) : (
+            <div className="character-home-region">
+              <p className="muted small">
+                This save predates home-region selection. Choose one to enable State navigation.
+              </p>
+              <div className="row">
+                <select
+                  aria-label="Home state or region"
+                  value={homeRegionDraft}
+                  onChange={(event) => setHomeRegionDraft(event.target.value)}
+                >
+                  {playerCountryRegions.map((region) => (
+                    <option key={region.id} value={region.id}>
+                      {region.name}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className="secondary small-btn" onClick={saveHomeRegion}>
+                  Set home region
+                </button>
+              </div>
+              {homeRegionError && <div className="action-error" role="alert">{homeRegionError}</div>}
+            </div>
+          )}
         </div>
 
         <div className="character-section">

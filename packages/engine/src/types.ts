@@ -13,6 +13,7 @@ import type { MinisterialOrder } from "./ministerialOrders/types.js";
 import type { ColdWarTensionState, NuclearProgramState } from "./coldWar/types.js";
 import type { Conflict, Settlement } from "./wars/types.js";
 import type { AlignmentRecord } from "./alignment/types.js";
+import type { CountryPoliticalOverview } from "./countryPolitics/types.js";
 import type { InternationalOrgState } from "./internationalOrgs/types.js";
 import type { WorldFeatureFlags } from "./featureFlags.js";
 
@@ -393,6 +394,14 @@ export interface WorldState {
    * see achievements/catalog.ts file doc). Schema v36.
    */
   achievementsEarned: string[];
+  /**
+   * Per-country political overview (national approval + history, regime
+   * classification, legitimacy/unrest, chamber officers). One entry per
+   * playable country; non-playable countries carry no entry. Seeded
+   * RNG-free at creation, eased toward live macro targets each turn by
+   * countryPolitics/phases.ts. Schema v43.
+   */
+  countryPolitics: Record<string, CountryPoliticalOverview>;
 }
 
 /** Source: src/lib/budget/debt.ts triggerDebtCeilingCrisis state shape (per-country here — see budget/debtCeiling.ts file doc). */
@@ -611,6 +620,8 @@ export interface PurgeRejoinBlock {
 export interface PlayerCharacter {
   name: string;
   countryId: string;
+  /** Home state or region for the State navigation cluster. Null on migrated saves that never chose one. */
+  homeRegionId?: string | null;
   cash: number;
   /**
    * Action points mirroring mainline Character.actions refresh cadence.
