@@ -62,9 +62,11 @@ describe("buildSummary", () => {
   });
 
   it("names the missing home-region identity on every state route", () => {
+    const state = world();
+    state.player.homeRegionId = null;
     for (const id of summaryRouteIds().filter((route) => route.startsWith("state."))) {
-      const model = buildSummary(id, world(), "US");
-      expect(model!.notice ?? "", id).toMatch(/no home-region/);
+      const model = buildSummary(id, state, "US");
+      expect(model!.notice ?? "", id).toMatch(/home-region/);
     }
   });
 
@@ -73,6 +75,50 @@ describe("buildSummary", () => {
     expect(trade!.notice ?? "").toMatch(/no trade-agreement/);
     const imf = buildSummary("world.imf", world(), "US");
     expect(imf!.notice ?? "").toMatch(/No IMF mechanic/);
+  });
+
+  it("keeps State routes anchored to the player's home nation", () => {
+    const state = world();
+    const summary = buildSummary("state.overview", state, "UK");
+    expect(summary?.lede).toContain("United States");
+    expect(summary?.lede).not.toContain("United Kingdom");
+  });
+
+  it("routes State My Office to the player's cabinet seat", () => {
+    const state = world();
+    state.cabinetMembers.push({
+      countryId: "US",
+      positionId: "secretary-of-state",
+      characterId: "player",
+      characterName: "Tester",
+      partyId: null,
+      appointedBy: null,
+      acting: false,
+      appointedAtTurn: 0,
+      confirmedAtTurn: 0,
+    });
+    const summary = buildSummary("state.my-office", state, "US");
+    expect(summary?.facts).toContainEqual({ label: "Cabinet seats held", value: "1" });
+    expect(summary?.lists[0]?.items[0]).toContain("secretary-of-state");
+  });
+
+  it("anchors Cabinet Office to the player's seat instead of the viewed nation", () => {
+    const state = world();
+    state.cabinetMembers.push({
+      countryId: "US",
+      positionId: "secretary-of-state",
+      characterId: "player",
+      characterName: "Tester",
+      partyId: null,
+      appointedBy: null,
+      acting: false,
+      appointedAtTurn: 0,
+      confirmedAtTurn: 0,
+    });
+    const summary = buildSummary("nation.cabinet-office", state, "UK");
+    expect(summary?.lede).toContain("United States");
+    expect(summary?.lede).not.toContain("United Kingdom");
+    expect(summary?.facts).toContainEqual({ label: "Player seat", value: "secretary-of-state" });
   });
 
   it("never mutates the live world while projecting summaries", () => {

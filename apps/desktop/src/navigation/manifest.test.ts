@@ -35,7 +35,6 @@ const EXPECTED_NATION_PINNED = [
   "nation.cabinet-office",
   "nation.my-party",
   "nation.political-operations",
-  "nation.switch-view",
 ];
 
 const EXPECTED_NATION_POLITICS = [
@@ -102,15 +101,20 @@ const COUNTRY_OVERVIEW_IDS = [
   "nation.other.map",
   ...EXPECTED_NATION_GOVERNMENT,
   ...EXPECTED_NATION_ECONOMY,
+  "nation.switch-view",
 ];
 
 /** Actions + State destinations: all singleplayer-relevant. */
 const ACTIONS_AND_STATE_IDS = ["actions", ...EXPECTED_STATE];
 
 /** World destinations served from the local world (hall of fame is multiplayer-only). */
-const LOCAL_WORLD_IDS = ["world.my-corporation", ...EXPECTED_WORLD_MAIN].filter(
-  (id) => id !== "world.hall-of-fame",
-);
+const LOCAL_WORLD_IDS = EXPECTED_WORLD_MAIN.filter((id) => id !== "world.hall-of-fame");
+
+const LOCAL_UNSUPPORTED_IDS = [
+  "world.my-corporation",
+  "world.hall-of-fame",
+  "help.quick-suggest",
+];
 
 /** The only explicitly multiplayer-only entries. Classified, never hidden. */
 const MULTIPLAYER_ONLY_IDS = ["world.hall-of-fame", "help.quick-suggest"];
@@ -161,6 +165,7 @@ describe("navigation manifest structure", () => {
     expect(byId.get("other")).toEqual(["nation.other.map"]);
     expect(byId.get("government")).toEqual(EXPECTED_NATION_GOVERNMENT);
     expect(byId.get("economy")).toEqual(EXPECTED_NATION_ECONOMY);
+    expect(nation.destinations?.map((d) => d.id)).toEqual(["nation.switch-view"]);
   });
 
   it("covers the World directory including the pinned corporation link", () => {
@@ -240,7 +245,19 @@ describe("capabilities and availability", () => {
   it("serves every gameplay destination locally except the multiplayer-only set", () => {
     for (const platform of ["desktop", "mobile"] as const) {
       const unsupported = unsupportedDestinations(NAV_MANIFEST, platform, "local").map((d) => d.id);
-      expect([...unsupported].sort()).toEqual([...MULTIPLAYER_ONLY_IDS].sort());
+      expect([...unsupported].sort()).toEqual([...LOCAL_UNSUPPORTED_IDS].sort());
+    }
+  });
+
+  it("keeps My Corporation unavailable in local NPC-only corporation worlds", () => {
+    const corporation = findDestination(NAV_MANIFEST, "world.my-corporation")!;
+    expect(corporation.requiresCondition).toBe("corporation-ceo");
+    expect(corporation.multiplayerOnly).not.toBe(true);
+    for (const platform of ["desktop", "mobile"] as const) {
+      expect(corporation.availability.local[platform].supported).toBe(false);
+      expect(corporation.availability.local[platform].reason).toMatch(/NPC-only/);
+      expect(corporation.availability.multiplayer[platform].supported).toBe(true);
+      expect(corporation.availability.multiplayer[platform].via).toBe("online-viewer");
     }
   });
 
@@ -357,11 +374,32 @@ describe("capabilities and availability", () => {
       "world.german-question": "crisis-live",
       "world.conflicts": "conflicts-feature",
       "world.my-corporation": "corporation-ceo",
-      "state.my-election": "active-candidacy",
       "state.office": "governor-seat",
     };
     for (const [id, condition] of Object.entries(gates)) {
       expect(findDestination(NAV_MANIFEST, id)?.requiresCondition, id).toBe(condition);
+    }
+  });
+
+  it("keeps My Election listed as an empty state without a candidacy", () => {
+    const viewer = viewerFor("desktop", "local", {
+      capabilities: ["standard-character", "external-browser"],
+      conditions: ["home-state"],
+    });
+    expect(
+      visibleDestinations(NAV_MANIFEST, viewer).map(({ destination }) => destination.id),
+    ).toContain("state.my-election");
+    expect(findDestination(NAV_MANIFEST, "state.my-election")?.requiresCondition).toBeUndefined();
+  });
+
+  it("opens the live wiki in the system browser", () => {
+    const wiki = findDestination(NAV_MANIFEST, "help.wiki")!;
+    expect(wiki.requiresCapabilities).toContain("external-browser");
+    expect(wiki.requiresCondition).toBeUndefined();
+    for (const playMode of ["local", "multiplayer"] as const) {
+      for (const platform of ["desktop", "mobile"] as const) {
+        expect(wiki.availability[playMode][platform].via).toBe("system-browser");
+      }
     }
   });
 
@@ -403,17 +441,21 @@ describe("local-mode resolution", () => {
       ],
     });
 
-  it("shows all five top-level sections to a bare local viewer", () => {
+  it("applies character and home-state gates to local top-level sections", () => {
     const bare = viewerFor("desktop", "local");
-    expect(visibleSections(NAV_MANIFEST, bare).map((s) => s.id)).toEqual(SECTION_ORDER);
-    for (const id of SECTION_ORDER) {
-      expect(
-        isSectionVisible(NAV_MANIFEST, id as "actions", bare),
-        `${id} local section`,
-      ).toBe(true);
-    }
+    expect(visibleSections(NAV_MANIFEST, bare).map((s) => s.id)).toEqual([
+      "nation",
+      "world",
+      "help",
+    ]);
+    expect(isSectionVisible(NAV_MANIFEST, "actions", bare)).toBe(false);
+    expect(isSectionVisible(NAV_MANIFEST, "state", bare)).toBe(false);
     const bareMobile = viewerFor("mobile", "local");
-    expect(visibleSections(NAV_MANIFEST, bareMobile).map((s) => s.id)).toEqual(SECTION_ORDER);
+    expect(visibleSections(NAV_MANIFEST, bareMobile).map((s) => s.id)).toEqual([
+      "nation",
+      "world",
+      "help",
+    ]);
   });
 
   it("resolves every country-overview destination locally on desktop and mobile", () => {

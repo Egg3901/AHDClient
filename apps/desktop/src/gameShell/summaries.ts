@@ -29,13 +29,7 @@ export interface SummaryModel {
 }
 
 const NO_HOME_REGION =
-  "The engine tracks the player by home nation only: there is no home-region " +
-  "identity on the player record, so the figures below are aggregates over " +
-  "the viewed nation's regions, not a home-state record.";
-
-const NO_HOME_REGION_PERSONAL =
-  "The engine carries no home-region identity for the player, so this lists " +
-  "the player's own record rather than a home-state record.";
+  "This migrated world predates home-region selection. Choose one in the Character panel to enable State navigation.";
 
 const LIST_CAP = 8;
 
@@ -48,11 +42,11 @@ function countryName(world: WorldState, countryId: string): string {
   return world.countries[countryId]?.name ?? countryId;
 }
 
-function regionIdsOf(world: WorldState, countryId: string): string[] {
-  return Object.values(world.regions)
-    .filter((region) => region.countryId === countryId)
-    .map((region) => region.id)
-    .sort();
+function playerHomeRegion(world: WorldState): WorldState["regions"][string] | null {
+  const id = world.player.homeRegionId;
+  if (!id) return null;
+  const region = world.regions[id];
+  return region?.countryId === world.player.countryId ? region : null;
 }
 
 function partyName(world: WorldState, partyId: string | null): string {
@@ -62,21 +56,25 @@ function partyName(world: WorldState, partyId: string | null): string {
 
 function stateMyParty(world: WorldState, viewedCountryId: string): SummaryModel {
   const partyId = world.player.partyId;
+  const home = playerHomeRegion(world);
   const orgs = Object.values(world.partyRegions).filter(
-    (pr) => pr.countryId === viewedCountryId && (partyId === null ? false : pr.partyId === partyId),
+    (pr) => pr.regionId === home?.id && (partyId === null ? false : pr.partyId === partyId),
   );
   const intra = world.statePartyElections.filter(
-    (e) => e.countryId === viewedCountryId && (partyId === null ? false : e.partyId === partyId),
+    (e) => e.regionId === home?.id && (partyId === null ? false : e.partyId === partyId),
   );
   return {
     routeId: "state.my-party",
     title: "My Party (State)",
-    lede: `State-level organization of ${partyName(world, partyId)} across the viewed nation's regions.`,
-    notice: NO_HOME_REGION,
+    lede: home
+      ? `State-level organization of ${partyName(world, partyId)} in ${home.name}.`
+      : `State-level organization of ${partyName(world, partyId)}.`,
+    notice: home ? null : NO_HOME_REGION,
     facts: [
       { label: "Membership", value: partyName(world, partyId) },
       { label: "Viewed nation", value: `${countryName(world, viewedCountryId)} (${viewedCountryId})` },
-      { label: "Region orgs held", value: String(orgs.length) },
+      { label: "Home state or region", value: home ? `${home.name} (${home.id})` : "Not selected" },
+      { label: "Region organization records", value: String(orgs.length) },
       { label: "Intra-party state races", value: String(intra.length) },
     ],
     lists: [
@@ -92,80 +90,72 @@ function stateMyParty(world: WorldState, viewedCountryId: string): SummaryModel 
   };
 }
 
-function stateOverview(world: WorldState, viewedCountryId: string): SummaryModel {
-  const regionIds = regionIdsOf(world, viewedCountryId);
-  const governors = regionIds.map((id) => world.governors[id]);
-  const filled = governors.filter((g) => g?.governorId).length;
-  const budgets = regionIds.filter((id) => world.regionalBudgets[id] !== undefined).length;
-  const bills = world.stateBills.filter((b) => b.countryId === viewedCountryId).length;
+function stateOverview(world: WorldState, _viewedCountryId: string): SummaryModel {
+  const home = playerHomeRegion(world);
+  const governor = home ? world.governors[home.id] : undefined;
+  const budget = home ? world.regionalBudgets[home.id] : undefined;
   return {
     routeId: "state.overview",
     title: "State Overview",
-    lede: `Regional footprint of ${countryName(world, viewedCountryId)}: regions, governors, and state books.`,
-    notice: NO_HOME_REGION,
+    lede: home
+      ? `${home.name}, the player's home region in ${countryName(world, home.countryId)}.`
+      : `Home-region overview for ${countryName(world, world.player.countryId)}.`,
+    notice: home ? null : NO_HOME_REGION,
     facts: [
-      { label: "Regions", value: String(regionIds.length) },
-      { label: "Governors seated", value: `${filled} of ${regionIds.length}` },
-      { label: "Regional budgets", value: String(budgets) },
-      { label: "State bills on file", value: String(bills) },
+      { label: "Region", value: home ? `${home.name} (${home.id})` : "Not selected" },
+      { label: "Population", value: home?.population?.toLocaleString() ?? "Not recorded" },
+      { label: "Regional GDP", value: home?.gdp === undefined ? "Not recorded" : String(Math.round(home.gdp)) },
+      { label: "Governor", value: governor?.governorName ?? governor?.governorId ?? "Vacant or unsupported" },
+      { label: "Regional budget", value: budget ? `Balance ${Math.round(budget.balance)}` : "Not recorded" },
     ],
-    lists: [{ heading: "Regions", items: withMore(regionIds) }],
+    lists: [],
   };
 }
 
-function stateEconomy(world: WorldState, viewedCountryId: string): SummaryModel {
-  const regionIds = regionIdsOf(world, viewedCountryId);
-  const budgets = regionIds
-    .map((id) => world.regionalBudgets[id])
-    .filter((b) => b !== undefined);
-  const revenue = budgets.reduce((sum, b) => sum + b.revenue.total, 0);
-  const spending = budgets.reduce((sum, b) => sum + b.spending.total, 0);
-  const capital = regionIds.reduce((sum, id) => sum + (world.capitalStock[id] ?? 0), 0);
-  const capacities = regionIds.filter((id) => world.stateResourceCapacities[id] !== undefined).length;
+function stateEconomy(world: WorldState, _viewedCountryId: string): SummaryModel {
+  const home = playerHomeRegion(world);
+  const budget = home ? world.regionalBudgets[home.id] : undefined;
+  const capital = home ? world.capitalStock[home.id] : undefined;
+  const capacities = home ? world.stateResourceCapacities[home.id] : undefined;
   return {
     routeId: "state.economy",
     title: "State Economy",
-    lede: `Regional books of ${countryName(world, viewedCountryId)}: revenue, spending, capital, and resource ceilings.`,
-    notice: NO_HOME_REGION,
+    lede: home
+      ? `Regional books, capital, and resources for ${home.name}.`
+      : `Home-region economy for ${countryName(world, world.player.countryId)}.`,
+    notice: home ? null : NO_HOME_REGION,
     facts: [
-      { label: "Regional budgets", value: `${budgets.length} of ${regionIds.length} regions` },
-      { label: "Regional revenue", value: String(Math.round(revenue)) },
-      { label: "Regional spending", value: String(Math.round(spending)) },
-      { label: "Regional balance", value: String(Math.round(revenue - spending)) },
-      { label: "Regional capital stock", value: String(Math.round(capital)) },
-      { label: "Resource ceilings mapped", value: String(capacities) },
+      { label: "Home state or region", value: home ? `${home.name} (${home.id})` : "Not selected" },
+      { label: "Regional GDP", value: home?.gdp === undefined ? "Not recorded" : String(Math.round(home.gdp)) },
+      { label: "Revenue", value: budget ? String(Math.round(budget.revenue.total)) : "Not recorded" },
+      { label: "Spending", value: budget ? String(Math.round(budget.spending.total)) : "Not recorded" },
+      { label: "Balance", value: budget ? String(Math.round(budget.balance)) : "Not recorded" },
+      { label: "Capital stock", value: capital === undefined ? "Not recorded" : String(Math.round(capital)) },
+      { label: "Resource capacity", value: capacities === undefined ? "Not recorded" : "Mapped" },
     ],
-    lists: [
-      {
-        heading: "Balance by region",
-        items: withMore(
-          budgets
-            .sort((a, b) => a.regionId.localeCompare(b.regionId))
-            .map((b) => `${b.regionId}: balance ${Math.round(b.balance)} (deficits x${b.consecutiveDeficits})`),
-        ),
-      },
-    ],
+    lists: [],
   };
 }
 
-function stateElections(world: WorldState, viewedCountryId: string): SummaryModel {
-  const regionIds = new Set(regionIdsOf(world, viewedCountryId));
-  const intra = world.statePartyElections.filter((e) => e.countryId === viewedCountryId);
+function stateElections(world: WorldState, _viewedCountryId: string): SummaryModel {
+  const home = playerHomeRegion(world);
+  const intra = world.statePartyElections.filter((e) => e.regionId === home?.id);
   const district = world.elections.filter(
-    (e) => e.countryId === viewedCountryId && e.state !== undefined && regionIds.has(e.state),
+    (e) => e.countryId === world.player.countryId && e.state === home?.id,
   );
-  const vacant = regionIdsOf(world, viewedCountryId).filter(
-    (id) => world.governors[id]?.governorId == null,
-  );
+  const governorVacant = home ? world.governors[home.id]?.governorId == null : false;
   return {
     routeId: "state.elections",
     title: "State Elections",
-    lede: `Sub-national contests in ${countryName(world, viewedCountryId)}: intra-party races, district races, and vacant governorships.`,
-    notice: NO_HOME_REGION,
+    lede: home
+      ? `Sub-national contests in ${home.name}: intra-party races, district races, and the governorship.`
+      : `Home-region contests in ${countryName(world, world.player.countryId)}.`,
+    notice: home ? null : NO_HOME_REGION,
     facts: [
+      { label: "Home state or region", value: home ? `${home.name} (${home.id})` : "Not selected" },
       { label: "Intra-party state races", value: String(intra.length) },
       { label: "District/state races", value: String(district.length) },
-      { label: "Vacant governorships", value: String(vacant.length) },
+      { label: "Governorship vacant", value: home ? (governorVacant ? "Yes" : "No") : "Unknown" },
     ],
     lists: [
       {
@@ -188,82 +178,83 @@ function stateElections(world: WorldState, viewedCountryId: string): SummaryMode
   };
 }
 
-function stateLegislature(world: WorldState, viewedCountryId: string): SummaryModel {
-  const bills = world.stateBills.filter((b) => b.countryId === viewedCountryId);
-  const byStatus = new Map<string, number>();
-  for (const bill of bills) byStatus.set(bill.status, (byStatus.get(bill.status) ?? 0) + 1);
+function stateLegislature(world: WorldState, _viewedCountryId: string): SummaryModel {
+  const home = playerHomeRegion(world);
   return {
     routeId: "state.legislature",
     title: "State Legislature",
-    lede: `Regional bills filed in ${countryName(world, viewedCountryId)}. The national legislature stays on its own screen.`,
-    notice: NO_HOME_REGION,
+    lede: home
+      ? `State legislature for ${home.name}.`
+      : `Home-region legislature for ${countryName(world, world.player.countryId)}.`,
+    notice: home
+      ? "The engine's state-bill records do not carry a region id, so national totals are not presented as this state's legislature."
+      : NO_HOME_REGION,
     facts: [
-      { label: "State bills", value: String(bills.length) },
-      ...[...byStatus.entries()]
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([status, count]): SummaryFact => ({ label: `Bills: ${status}`, value: String(count) })),
+      { label: "Home state or region", value: home ? `${home.name} (${home.id})` : "Not selected" },
+      { label: "Lower-house seats", value: home?.houseSeats === undefined ? "Not recorded" : String(home.houseSeats) },
+      { label: "Upper-house seats", value: home?.senateSeats === undefined ? "Not recorded" : String(home.senateSeats) },
+      { label: "Region-scoped bills", value: "Not represented by the engine" },
     ],
-    lists: [
-      {
-        heading: "State bills",
-        items: withMore(
-          bills
-            .sort((a, b) => a.id.localeCompare(b.id))
-            .map((b) => `${b.title} (${b.status})`),
-        ),
-      },
-    ],
+    lists: [],
   };
 }
 
-function stateOffice(world: WorldState, viewedCountryId: string): SummaryModel {
-  const regionIds = regionIdsOf(world, viewedCountryId);
-  const seats = regionIds.map((id) => ({ id, gov: world.governors[id] }));
-  const filled = seats.filter((s) => s.gov?.governorId);
-  const playerHolds = seats.some((s) => s.gov?.governorId === "player");
-  const orders = world.governorOrders.filter((o) => o.countryId === viewedCountryId).length;
-  const addresses = world.governorAddresses.filter((a) => a.countryId === viewedCountryId).length;
+function stateOffice(world: WorldState, _viewedCountryId: string): SummaryModel {
+  const home = playerHomeRegion(world);
+  const governor = home ? world.governors[home.id] : undefined;
+  const orders = world.governorOrders.filter((order) => order.stateId === home?.id);
+  const addresses = world.governorAddresses.filter((address) => address.stateId === home?.id);
   return {
     routeId: "state.office",
     title: "Office (State)",
-    lede: `Governorships of ${countryName(world, viewedCountryId)}: who holds each state office and what it has issued.`,
-    notice: NO_HOME_REGION,
+    lede: home ? `Executive office of ${home.name}.` : "The player's home-region executive office.",
+    notice: home
+      ? governor === undefined
+        ? "This country's regional executive office is not represented by the engine."
+        : null
+      : NO_HOME_REGION,
     facts: [
-      { label: "Governorships filled", value: `${filled.length} of ${regionIds.length}` },
-      { label: "Player holds an office", value: playerHolds ? "Yes" : "No" },
-      { label: "Governor orders", value: String(orders) },
-      { label: "Governor addresses", value: String(addresses) },
+      { label: "Home state or region", value: home ? `${home.name} (${home.id})` : "Not selected" },
+      { label: "Officeholder", value: governor?.governorName ?? governor?.governorId ?? "Vacant or unsupported" },
+      { label: "Player holds this office", value: governor?.governorId === "player" ? "Yes" : "No" },
+      { label: "Governor actions", value: governor ? String(governor.gubernatorialActions) : "Not represented" },
+      { label: "Governor orders", value: String(orders.length) },
+      { label: "Governor addresses", value: String(addresses.length) },
     ],
     lists: [
       {
-        heading: "Governors",
+        heading: "Orders",
         items: withMore(
-          seats.map((s) =>
-            s.gov?.governorId
-              ? `${s.id}: ${s.gov.governorName ?? s.gov.governorId} (${s.gov.governorParty ?? "no party"})`
-              : `${s.id}: vacant`,
-          ),
+          orders.map((order) => `${order.legislationTypeId}: ${order.status}, turn ${order.issuedAtTurn}`),
         ),
       },
     ],
   };
 }
 
-function stateMyElection(world: WorldState, viewedCountryId: string): SummaryModel {
+function stateMyElection(world: WorldState, _viewedCountryId: string): SummaryModel {
+  const home = playerHomeRegion(world);
   const mine = world.elections.filter(
-    (e) => e.status !== "resolved" && e.candidates.some((c) => c.id === "player"),
+    (e) =>
+      e.status !== "resolved" &&
+      e.state === home?.id &&
+      e.candidates.some((candidate) => candidate.id === "player"),
   );
   return {
     routeId: "state.my-election",
     title: "My Election (State)",
-    lede: "The player's own live candidacies, read from the election records.",
+    lede: home
+      ? `The player's own live candidacies in ${home.name}.`
+      : "The player's own home-region candidacies.",
     notice:
-      mine.length === 0
-        ? `No active candidacy for the player in the local election records. ${NO_HOME_REGION_PERSONAL}`
-        : NO_HOME_REGION_PERSONAL,
+      home === null
+        ? NO_HOME_REGION
+        : mine.length === 0
+          ? "No active candidacy for the player in this state or region."
+          : null,
     facts: [
       { label: "Active candidacies", value: String(mine.length) },
-      { label: "Viewed nation", value: `${countryName(world, viewedCountryId)} (${viewedCountryId})` },
+      { label: "Home state or region", value: home ? `${home.name} (${home.id})` : "Not selected" },
     ],
     lists: [
       {
@@ -279,49 +270,75 @@ function stateMyElection(world: WorldState, viewedCountryId: string): SummaryMod
 }
 
 function stateMyOffice(world: WorldState, _viewedCountryId: string): SummaryModel {
-  const seats = world.cabinetMembers.filter((m) => m.characterId === "player");
-  const nominations = world.cabinetNominations.filter((n) => n.nomineeId === "player");
+  const home = playerHomeRegion(world);
+  const seats = world.cabinetMembers.filter((member) => member.characterId === "player");
+  const nominations = world.cabinetNominations.filter(
+    (nomination) => nomination.nomineeId === "player",
+  );
+  const liveNominations = nominations.filter(
+    (nomination) =>
+      nomination.status !== "confirmed" &&
+      nomination.status !== "rejected" &&
+      nomination.status !== "withdrawn",
+  );
   return {
     routeId: "state.my-office",
     title: "My Office (State)",
-    lede: "Cabinet seats and nominations held by the player in the local world.",
+    lede: "The player's cabinet seats and nominations across their home nation.",
     notice:
-      seats.length === 0 && nominations.length === 0
-        ? `The player holds no cabinet seat and has no live nomination in the local world. ${NO_HOME_REGION_PERSONAL}`
-        : NO_HOME_REGION_PERSONAL,
+      home === null
+        ? NO_HOME_REGION
+        : seats.length === 0 && nominations.length === 0
+          ? "The player does not hold a cabinet seat and has no cabinet nomination."
+          : null,
     facts: [
+      { label: "Home nation", value: `${countryName(world, world.player.countryId)} (${world.player.countryId})` },
+      { label: "Home state or region", value: home ? `${home.name} (${home.id})` : "Not selected" },
       { label: "Cabinet seats held", value: String(seats.length) },
-      { label: "Live nominations", value: String(nominations.length) },
+      { label: "Live nominations", value: String(liveNominations.length) },
     ],
     lists: [
       {
         heading: "Seats",
         items: withMore(
-          seats.map((m) => `${m.countryId} ${m.positionId}${m.acting ? " (acting)" : ""}`),
+          seats
+            .sort((a, b) => a.positionId.localeCompare(b.positionId))
+            .map(
+              (seat) =>
+                `${seat.positionId}: ${countryName(world, seat.countryId)}${seat.acting ? " (acting)" : ""}`,
+            ),
         ),
       },
       {
         heading: "Nominations",
         items: withMore(
-          nominations.map((n) => `${n.countryId} ${n.positionId}: ${n.status} (${n.votesFor}-${n.votesAgainst}-${n.votesAbstain})`),
+          nominations
+            .sort((a, b) => a.id.localeCompare(b.id))
+            .map(
+              (nomination) =>
+                `${nomination.positionId}: ${countryName(world, nomination.countryId)}, ${nomination.status}`,
+            ),
         ),
       },
     ],
   };
 }
 
-function nationCabinetOffice(world: WorldState, viewedCountryId: string): SummaryModel {
-  const members = world.cabinetMembers.filter((m) => m.countryId === viewedCountryId);
-  const nominations = world.cabinetNominations.filter((n) => n.countryId === viewedCountryId);
+function nationCabinetOffice(world: WorldState, _viewedCountryId: string): SummaryModel {
+  const playerSeat = world.cabinetMembers.find((member) => member.characterId === "player");
+  const officeCountryId = playerSeat?.countryId ?? world.player.countryId;
+  const members = world.cabinetMembers.filter((member) => member.countryId === officeCountryId);
+  const nominations = world.cabinetNominations.filter(
+    (nomination) => nomination.countryId === officeCountryId,
+  );
   const pending = nominations.filter((n) => n.status !== "confirmed" && n.status !== "rejected" && n.status !== "withdrawn");
-  const playerSeat = members.find((m) => m.characterId === "player");
   return {
     routeId: "nation.cabinet-office",
     title: "Cabinet Office",
-    lede: `Cabinet seats and nominations of ${countryName(world, viewedCountryId)}.`,
+    lede: `Cabinet seats and nominations of ${countryName(world, officeCountryId)}.`,
     notice:
       playerSeat === undefined
-        ? "The player holds no cabinet seat in the viewed nation: this is the full roster, not a personal office record."
+        ? "The player holds no cabinet seat: showing the cabinet of their home nation."
         : null,
     facts: [
       { label: "Seats filled", value: String(members.length) },
@@ -614,13 +631,13 @@ export function buildSummary(
   viewedCountryId: string,
 ): SummaryModel | null {
   switch (routeId) {
-    case "state.my-party": return stateMyParty(world, viewedCountryId);
-    case "state.overview": return stateOverview(world, viewedCountryId);
-    case "state.economy": return stateEconomy(world, viewedCountryId);
-    case "state.elections": return stateElections(world, viewedCountryId);
-    case "state.legislature": return stateLegislature(world, viewedCountryId);
-    case "state.office": return stateOffice(world, viewedCountryId);
-    case "state.my-election": return stateMyElection(world, viewedCountryId);
+    case "state.my-party": return stateMyParty(world, world.player.countryId);
+    case "state.overview": return stateOverview(world, world.player.countryId);
+    case "state.economy": return stateEconomy(world, world.player.countryId);
+    case "state.elections": return stateElections(world, world.player.countryId);
+    case "state.legislature": return stateLegislature(world, world.player.countryId);
+    case "state.office": return stateOffice(world, world.player.countryId);
+    case "state.my-election": return stateMyElection(world, world.player.countryId);
     case "state.my-office": return stateMyOffice(world, viewedCountryId);
     case "nation.cabinet-office": return nationCabinetOffice(world, viewedCountryId);
     case "nation.politics.political-metrics": return nationPoliticalMetrics(world, viewedCountryId);

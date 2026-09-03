@@ -3,7 +3,13 @@ import type { ReactNode } from "react";
 import type { WorldState } from "@ahdclient/engine";
 import { NAV_MANIFEST } from "../navigation/manifest.js";
 import type { Destination } from "../navigation/types.js";
-import { findDestination, sectionDestinations } from "../navigation/resolve.js";
+import {
+  findDestination,
+  isDestinationVisible,
+  sectionDestinations,
+  visibleSections,
+} from "../navigation/resolve.js";
+import { localViewerForWorld } from "../navigation/localViewer.js";
 import { CountryOverviewScreen } from "../country/CountryOverviewScreen.js";
 import type { CountryOverviewModel } from "../country/model.js";
 import { CountryDetailsScreen } from "../countryDetails/CountryDetailsScreen.js";
@@ -19,6 +25,10 @@ import { CampaignsScreen } from "../campaigns/Campaigns.js";
 import { HeadOfStateScreen } from "../hos/HeadOfState.js";
 import { NewsScreen, NewsWidget } from "../news/NewsFeed.js";
 import { ActionsHub } from "../actions/ActionsHub.js";
+import {
+  GovernorOfficeScreen,
+  localGovernorOfficeActions,
+} from "../stateOffice/index.js";
 import "../elections/elections.css";
 import { targetForRoute } from "./routeMap.js";
 import { buildSummary } from "./summaries.js";
@@ -45,7 +55,7 @@ export interface GameShellProps {
   onOpenCharacter: () => void;
   onWorld: (world: WorldState) => void;
   onToast: (message: string) => void;
-  onOpenOnline: () => void;
+  onOpenHelp: (routeId: string) => void;
   cheatsUsed: boolean;
   pausedFeatureCount: number;
   statusFooter?: ReactNode;
@@ -56,9 +66,6 @@ function GateBadges({ destination }: { destination: Destination }) {
     <>
       {destination.multiplayerOnly === true ? (
         <span className="gs-badge">Multiplayer</span>
-      ) : null}
-      {destination.requiresCondition !== undefined ? (
-        <span className="gs-badge gs-badge-gate">{destination.requiresCondition}</span>
       ) : null}
     </>
   );
@@ -126,19 +133,20 @@ function MultiplayerState({ routeId }: { routeId: string }) {
 
 function HelpPanel({
   routeId,
-  onOpenOnline,
+  onOpenHelp,
 }: {
   routeId: string;
-  onOpenOnline: () => void;
+  onOpenHelp: (routeId: string) => void;
 }) {
   const destination = findDestination(NAV_MANIFEST, routeId);
+  const via = destination?.availability.local.desktop.via;
   return (
     <ShellPanel title={destination?.label ?? routeId}>
       <p className="muted">
         {localReason(destination) ?? "Help opens outside the local world."}
       </p>
-      <button type="button" onClick={onOpenOnline}>
-        Open online help
+      <button type="button" onClick={() => onOpenHelp(routeId)}>
+        {via === "system-browser" ? "Open in system browser" : "Open online help"}
       </button>
     </ShellPanel>
   );
@@ -209,7 +217,7 @@ export function GameShell(props: GameShellProps) {
     onOpenCharacter,
     onWorld,
     onToast,
-    onOpenOnline,
+    onOpenHelp,
     cheatsUsed,
     pausedFeatureCount,
     statusFooter,
@@ -233,40 +241,161 @@ export function GameShell(props: GameShellProps) {
   const navigateAndClose = (id: string) => {
     setOpenSection(null);
     setDrawerOpen(false);
+    if (id === "nation.home") {
+      onSelectCountry(world.player.countryId);
+      return;
+    }
     onNavigate(id);
   };
 
   const countryName =
     world.countries[viewedCountryId]?.name ?? viewedCountryId;
+  const homeCountryName =
+    world.countries[world.player.countryId]?.name ?? world.player.countryId;
+  const viewer = localViewerForWorld(world, viewedCountryId);
+  const navSections = visibleSections(NAV_MANIFEST, viewer);
+  const homeRegion = world.player.homeRegionId
+    ? world.regions[world.player.homeRegionId]
+    : undefined;
+  const playerParty = world.player.partyId
+    ? world.parties[world.player.partyId]
+    : undefined;
+  const playerCabinetSeat = world.cabinetMembers.find(
+    (member) => member.characterId === "player",
+  );
+  const homeRegionElection = world.elections.find(
+    (election) =>
+      election.status !== "resolved" &&
+      election.countryId === world.player.countryId &&
+      election.state === world.player.homeRegionId &&
+      election.candidates.some((candidate) => candidate.id === "player"),
+  );
   const activeSection = NAV_MANIFEST.sections.find((section) =>
     sectionDestinations(section).some((d) => d.id === routeId),
   )?.id;
   const isHos = world.player.mode === "hos";
   const busy = advanceBusy || saveBusy;
 
-  const renderMenuItems = (sectionId: string) => {
+  const destinationLabel = (destination: Destination): string => {
+    switch (destination.id) {
+      case "nation.home":
+        return `${homeCountryName} (Home)`;
+      case "state.my-party":
+      case "nation.my-party":
+        return playerParty ? `My Party: ${playerParty.name}` : destination.label;
+      case "state.my-election":
+        return homeRegionElection
+          ? `My Election: ${homeRegionElection.electionType}`
+          : "My Election: None";
+      case "state.my-office":
+        return playerCabinetSeat
+          ? `My Office: ${playerCabinetSeat.positionId}`
+          : destination.label;
+      case "nation.cabinet-office":
+        return playerCabinetSeat
+          ? `Cabinet Office: ${playerCabinetSeat.positionId}`
+          : destination.label;
+      case "state.legislature":
+        if (homeRegion?.id === "SCO") return "Scottish Parliament";
+        if (homeRegion?.id === "WAL") return "Senedd Cymru";
+        if (homeRegion?.id === "NIR") return "Northern Ireland Assembly";
+        return destination.label;
+      case "nation.government.legislature":
+        return world.legislatures[viewedCountryId]?.name ?? destination.label;
+      default:
+        return destination.label;
+    }
+  };
+
+  const isDestinationDisabled = (destination: Destination): boolean =>
+    destination.id === "state.my-election" && homeRegionElection === undefined;
+
+  const renderDestination = (
+    destination: Destination,
+    variant: "menu" | "drawer",
+  ) => (
+    <li key={destination.id} role={variant === "menu" ? "none" : undefined}>
+      <button
+        type="button"
+        role={variant === "menu" ? "menuitem" : undefined}
+        className={variant === "menu" ? "gs-menu-item" : "gs-drawer-item"}
+        data-route={destination.id}
+        aria-current={destination.id === routeId}
+        disabled={isDestinationDisabled(destination)}
+        onClick={() => navigateAndClose(destination.id)}
+      >
+        <span className="gs-row-text">
+          <strong>{destinationLabel(destination)}</strong>
+          {variant === "menu" && destination.labelNote ? (
+            <small className="muted">{destination.labelNote}</small>
+          ) : null}
+        </span>
+        <GateBadges destination={destination} />
+      </button>
+    </li>
+  );
+
+  const renderHeading = (title: string, key: string, primary = false) => (
+    <li
+      key={key}
+      role="presentation"
+      className={`gs-menu-heading${primary ? " gs-menu-heading-primary" : ""}`}
+    >
+      {title}
+    </li>
+  );
+
+  const renderMenuItems = (
+    sectionId: string,
+    variant: "menu" | "drawer" = "menu",
+  ) => {
     const section = NAV_MANIFEST.sections.find((s) => s.id === sectionId);
     if (!section) return null;
-    return sectionDestinations(section).map((destination) => (
-      <li key={destination.id} role="none">
-        <button
-          type="button"
-          role="menuitem"
-          className="gs-menu-item"
-          data-route={destination.id}
-          aria-current={destination.id === routeId}
-          onClick={() => navigateAndClose(destination.id)}
-        >
-          <span className="gs-row-text">
-            <strong>{destination.label}</strong>
-            {destination.labelNote ? (
-              <small className="muted">{destination.labelNote}</small>
-            ) : null}
-          </span>
-          <GateBadges destination={destination} />
-        </button>
-      </li>
-    ));
+    const isVisible = (destination: Destination) =>
+      isDestinationVisible(NAV_MANIFEST, section.id, destination, viewer);
+
+    if (section.id !== "nation") {
+      return sectionDestinations(section)
+        .filter(isVisible)
+        .map((destination) => renderDestination(destination, variant));
+    }
+
+    const nodes: ReactNode[] = [];
+    const pinned = (section.pinned ?? []).filter(isVisible);
+    if (pinned.length > 0) {
+      nodes.push(renderHeading("Home Nation", "nation-home", true));
+      nodes.push(...pinned.map((destination) => renderDestination(destination, variant)));
+    }
+    const groups = section.groups ?? [];
+    if (groups.some((group) => group.destinations.some(isVisible))) {
+      nodes.push(
+        renderHeading(
+          `National Details: ${countryName}`,
+          "nation-details",
+          true,
+        ),
+      );
+    }
+    for (const group of groups) {
+      const destinations = group.destinations.filter(isVisible);
+      if (destinations.length === 0) continue;
+      nodes.push(renderHeading(group.title, `nation-${group.id}`));
+      nodes.push(
+        ...destinations.map((destination) => renderDestination(destination, variant)),
+      );
+    }
+    nodes.push(
+      ...(section.destinations ?? [])
+        .filter(isVisible)
+        .map((destination) => renderDestination(destination, variant)),
+    );
+    return nodes;
+  };
+
+  const sectionLabel = (sectionId: string, fallback: string): string => {
+    if (sectionId === "state" && homeRegion !== undefined) return homeRegion.name;
+    if (sectionId === "nation") return countryName;
+    return fallback;
   };
 
   const target = targetForRoute(routeId);
@@ -305,15 +434,24 @@ export function GameShell(props: GameShellProps) {
         </>
       );
       break;
-    case "parties":
+    case "parties": {
+      const personalPartyRoute =
+        routeId === "nation.my-party" || routeId === "state.my-party";
       content = (
         <PartiesScreen
+          key={`${routeId}:${personalPartyRoute ? world.player.countryId : viewedCountryId}`}
           world={world}
           onBack={goHome}
-          initialCountryId={viewedCountryId}
+          initialCountryId={
+            personalPartyRoute ? world.player.countryId : viewedCountryId
+          }
+          {...(personalPartyRoute && world.player.partyId
+            ? { initialPartyId: world.player.partyId }
+            : {})}
         />
       );
       break;
+    }
     case "elections":
       content = (
         <ElectionsScreen
@@ -406,6 +544,17 @@ export function GameShell(props: GameShellProps) {
         />
       );
       break;
+    case "governorOffice":
+      content = (
+        <GovernorOfficeScreen
+          world={world}
+          actions={localGovernorOfficeActions}
+          onWorld={onWorld}
+          onToast={onToast}
+          onBack={goHome}
+        />
+      );
+      break;
     case "switchView":
       content = (
         <NationPicker
@@ -428,7 +577,7 @@ export function GameShell(props: GameShellProps) {
       content = <MultiplayerState routeId={routeId} />;
       break;
     case "help":
-      content = <HelpPanel routeId={routeId} onOpenOnline={onOpenOnline} />;
+      content = <HelpPanel routeId={routeId} onOpenHelp={onOpenHelp} />;
       break;
     case "unknown":
     default:
@@ -475,7 +624,7 @@ export function GameShell(props: GameShellProps) {
           ) : null}
         </div>
         <nav className="gs-nav" aria-label="Game sections">
-          {NAV_MANIFEST.sections.map((section) => (
+          {navSections.map((section) => (
             <div key={section.id} className="gs-menu-wrap">
               <button
                 type="button"
@@ -489,11 +638,11 @@ export function GameShell(props: GameShellProps) {
                   )
                 }
               >
-                {section.title}
+                {sectionLabel(section.id, section.title)}
               </button>
               {openSection === section.id ? (
-                <ul className="gs-menu" role="menu" aria-label={section.title}>
-                  {renderMenuItems(section.id)}
+                <ul className="gs-menu" role="menu" aria-label={sectionLabel(section.id, section.title)}>
+                  {renderMenuItems(section.id, "menu")}
                 </ul>
               ) : null}
             </div>
@@ -558,26 +707,11 @@ export function GameShell(props: GameShellProps) {
                 Close
               </button>
             </div>
-            {NAV_MANIFEST.sections.map((section) => (
+            {navSections.map((section) => (
               <section key={section.id} aria-label={section.title}>
-                <h2 className="gs-drawer-section">{section.title}</h2>
+                <h2 className="gs-drawer-section">{sectionLabel(section.id, section.title)}</h2>
                 <ul className="gs-drawer-list">
-                  {sectionDestinations(section).map((destination) => (
-                    <li key={destination.id}>
-                      <button
-                        type="button"
-                        className="gs-drawer-item"
-                        data-route={destination.id}
-                        aria-current={destination.id === routeId}
-                        onClick={() => navigateAndClose(destination.id)}
-                      >
-                        <span className="gs-row-text">
-                          <strong>{destination.label}</strong>
-                        </span>
-                        <GateBadges destination={destination} />
-                      </button>
-                    </li>
-                  ))}
+                  {renderMenuItems(section.id, "drawer")}
                 </ul>
               </section>
             ))}

@@ -223,7 +223,6 @@ const STATE: NavSection = {
       label: "My Election",
       labelNote: "Renders disabled as My Election: None with no active candidacy",
       requiresCapabilities: [],
-      requiresCondition: "active-candidacy",
       availability: gameplay(
         "player's own race from the local election records; disabled empty state without one",
         "viewer's own race page; disabled empty state without one",
@@ -286,16 +285,6 @@ const NATION: NavSection = {
       availability: gameplay(
         "political operations topics from the local world; US home nations only",
         "political operations page; US home nations only",
-      ),
-    }),
-    dest({
-      id: "nation.switch-view",
-      label: "Switch nation view",
-      labelNote: "Picker over enabled countries, not a page; home badge marks home nation",
-      requiresCapabilities: [],
-      availability: gameplay(
-        "nation picker over the local world's enabled countries, rendered by the shell",
-        "nation picker rendered by the shell around the online viewer",
       ),
     }),
   ],
@@ -489,6 +478,18 @@ const NATION: NavSection = {
       ],
     },
   ],
+  destinations: [
+    dest({
+      id: "nation.switch-view",
+      label: "Switch nation view",
+      labelNote: "Picker over enabled countries, not a page; home badge marks home nation",
+      requiresCapabilities: [],
+      availability: gameplay(
+        "nation picker over the local world's enabled countries, rendered by the shell",
+        "nation picker rendered by the shell around the online viewer",
+      ),
+    }),
+  ],
 };
 
 const WORLD: NavSection = {
@@ -502,9 +503,9 @@ const WORLD: NavSection = {
       label: "My Corporation",
       requiresCapabilities: [],
       requiresCondition: "corporation-ceo",
-      availability: gameplay(
-        "player corporation record from the local world; CEOs only",
+      availability: onlineOnly(
         "corporation page of the viewer's company; CEOs only",
+        "Unavailable in singleplayer: corporations are NPC-only",
       ),
     }),
   ],
@@ -678,12 +679,9 @@ const HELP: NavSection = {
     dest({
       id: "help.wiki",
       label: "Wiki/Guides",
-      labelNote: "Falls back to Guides for non-staff while the wiki is disabled",
-      requiresCapabilities: [],
-      requiresCondition: "wiki-live",
-      availability: helpOnline(
-        "community wiki; admins and moderators bypass the disabled flag; Help may use the online viewer in any mode",
-      ),
+      labelNote: "Live community wiki opens in the system browser",
+      requiresCapabilities: ["external-browser"],
+      availability: external("live community wiki opens in the system browser"),
     }),
     dest({
       id: "help.about",

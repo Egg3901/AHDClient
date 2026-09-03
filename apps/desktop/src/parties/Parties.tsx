@@ -69,7 +69,17 @@ function partyColor(partyId: string, sortedIds: string[]): string {
   return PALETTE[idx % PALETTE.length]!;
 }
 
-export function PartiesScreen({ world, onBack, initialCountryId }: { world: WorldState; onBack: () => void; initialCountryId?: string }) {
+export function PartiesScreen({
+  world,
+  onBack,
+  initialCountryId,
+  initialPartyId,
+}: {
+  world: WorldState;
+  onBack: () => void;
+  initialCountryId?: string;
+  initialPartyId?: string;
+}) {
   const countryIds = useMemo(() => {
     const all = Object.keys(world.countries ?? {});
     return [...all].sort((a, b) => {
@@ -130,7 +140,12 @@ export function PartiesScreen({ world, onBack, initialCountryId }: { world: Worl
   const maxOrg = useMemo(() => Math.max(0, ...countryParties.map((p) => p.organization ?? 0)), [countryParties]);
   const maxMembers = useMemo(() => Math.max(0, ...countryParties.map((p) => p.memberCount ?? 0)), [countryParties]);
 
-  const [selectedPartyId, setSelectedPartyId] = useState<string>(() => countryParties[0]?.id ?? "");
+  const [selectedPartyId, setSelectedPartyId] = useState<string>(() => {
+    if (initialPartyId && countryParties.some((party) => party.id === initialPartyId)) {
+      return initialPartyId;
+    }
+    return countryParties[0]?.id ?? "";
+  });
 
   // keep selected party in sync when country changes
   const effectivePartyId = useMemo(() => {
