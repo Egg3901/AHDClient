@@ -437,16 +437,19 @@ export function GameShell(props: GameShellProps) {
     case "parties": {
       const personalPartyRoute =
         routeId === "nation.my-party" || routeId === "state.my-party";
+      const personalPartyId = world.player.partyId ?? world.player.hosPartyId;
       content = (
         <PartiesScreen
           key={`${routeId}:${personalPartyRoute ? world.player.countryId : viewedCountryId}`}
           world={world}
           onBack={goHome}
+          onWorld={onWorld}
+          onToast={onToast}
           initialCountryId={
             personalPartyRoute ? world.player.countryId : viewedCountryId
           }
-          {...(personalPartyRoute && world.player.partyId
-            ? { initialPartyId: world.player.partyId }
+          {...(personalPartyRoute && personalPartyId
+            ? { initialPartyId: personalPartyId }
             : {})}
         />
       );

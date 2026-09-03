@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { WorldState, Party, Legislature, Chamber } from "@ahdclient/engine";
+import { PartyOperations } from "./PartyOperations.js";
 import "./parties.css";
 
 function formatNum(n: number): string {
@@ -74,11 +75,15 @@ export function PartiesScreen({
   onBack,
   initialCountryId,
   initialPartyId,
+  onWorld,
+  onToast,
 }: {
   world: WorldState;
   onBack: () => void;
   initialCountryId?: string;
   initialPartyId?: string;
+  onWorld?: (world: WorldState) => void;
+  onToast?: (message: string) => void;
 }) {
   const countryIds = useMemo(() => {
     const all = Object.keys(world.countries ?? {});
@@ -430,6 +435,10 @@ export function PartiesScreen({
                       </div>
                     )}
                   </div>
+
+                  {selectedParty.id === (world.player.partyId ?? world.player.hosPartyId) && selectedCountryId === world.player.countryId && (
+                    <PartyOperations world={world} onWorld={onWorld} onToast={onToast} />
+                  )}
                 </section>
               )}
             </div>
