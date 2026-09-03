@@ -102,6 +102,7 @@ function makeWorld(): WorldState {
     prospectingSurveys: [],
     stateResourceCapacities: {},
     achievementsEarned: [],
+    countryPolitics: {},
   };
 }
 

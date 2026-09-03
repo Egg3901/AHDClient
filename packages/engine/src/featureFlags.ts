@@ -99,6 +99,7 @@ const PHASE_FEATURE_FLAGS: Readonly<Record<string, WorldFeatureFlag>> = {
   billLifecycle: "legislation",
   governmentFormation: "governments",
   governmentVacancyWatcher: "governments",
+  countryPolitics: "governments",
   impeachmentLifecycle: "governments",
   presidentialSuccession: "governments",
   cabinetTransition: "governments",

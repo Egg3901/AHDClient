@@ -60,3 +60,4 @@ export {
   OUTPUT_GAP_BOUND,
 } from "./economy/macroConstants.js";
 export { GOVERNMENT_CHAMBER_BY_COUNTRY } from "./government/constants.js";
+export * from "./countryPolitics/index.js";

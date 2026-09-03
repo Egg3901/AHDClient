@@ -211,6 +211,7 @@ describe("advanceTurn", () => {
       "resolveProspects",
       "contractOfferAcceptance",
       "achievementCheck",
+      "countryPolitics",
       "newsMaintenance",
     ]);
   });
