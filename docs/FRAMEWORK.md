@@ -101,4 +101,4 @@ No `Math.random`, `Date.now`, or IO inside `packages/engine` or `packages/conten
 
 ## Verification
 
-`npm run verify` from the repo root (typecheck all workspaces + engine tests) is the merge gate. Desktop changes additionally require `npm run build:web --workspace apps/desktop` and `cargo check` in `apps/desktop/src-tauri`.
+`npm run verify` from the repo root (typecheck all workspaces + bounded fast tests) is the merge gate. Tests that advance a complete world across many turns use the `.sim.test.ts` suffix and run only through the opt-in `npm run verify:full` suite. Desktop changes additionally require `npm run build:web --workspace apps/desktop` and `cargo check` in `apps/desktop/src-tauri`.

@@ -8,6 +8,7 @@
     "sim": "tsx src/sim.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "test:ci": "vitest run --exclude \"**/*.sim.test.ts\"",
     "verify:qa": "tsx src/sim.ts qa --quick"
   },
   "dependencies": {

@@ -15,6 +15,7 @@
     "build:web": "vite build",
     "build:preview": "vite build --base ./",
     "test": "vitest run",
+    "test:ci": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

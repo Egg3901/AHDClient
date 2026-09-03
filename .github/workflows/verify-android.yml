@@ -57,7 +57,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test --workspace apps/desktop
       - run: npm test --workspace packages/content
-      - run: npm test --workspace packages/engine -- --run src/engine.test.ts
+      - run: npm run test:ci --workspace packages/engine
       - run: npm run android:build:apk --workspace apps/desktop -- --debug --target aarch64
 
       - uses: actions/upload-artifact@v4

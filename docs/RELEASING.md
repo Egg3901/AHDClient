@@ -120,9 +120,10 @@ To enable:
 
 ## Verification before a release build
 
-`npm run typecheck` from repo root is the fast gate (all workspaces). Full
-`npm run verify` (typecheck + engine tests) is the merge gate per
-`docs/FRAMEWORK.md`; desktop-touching changes additionally need
+`npm run verify` from repo root is the merge gate: all workspace typechecks,
+all bounded unit tests, and a deterministic turn and save smoke test. Full
+world simulations are deliberately opt-in through `npm run verify:full` and
+do not block CI or packaging. Per `docs/FRAMEWORK.md`, desktop-touching changes additionally need
 `npm run build:web --workspace apps/desktop` and `cargo check` in
 `apps/desktop/src-tauri` to pass before a packaging run. Begin every release
 candidate check with `npm run release:check`.

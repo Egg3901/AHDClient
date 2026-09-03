@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/Egg3901/AHDClient/actions/workflows/verify.yml"><img src="https://github.com/Egg3901/AHDClient/actions/workflows/verify.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/version-1.0.1-informational" alt="Version">
-  <img src="https://img.shields.io/badge/tests-1526-success" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-1528-success" alt="Tests">
   <img src="https://img.shields.io/badge/license-proprietary-red" alt="License">
 </p>
 
@@ -70,7 +70,8 @@ Requires Node >= 22.12 and Rust (plus `libwebkit2gtk-4.1-dev` on Linux).
 ```
 npm install
 npm run release:check # synchronized version and changelog metadata
-npm run verify   # typecheck + engine tests: the merge gate
+npm run verify       # typecheck + bounded fast tests: the merge gate
+npm run verify:full  # opt-in exhaustive multi-turn simulation suite
 npm run dev      # tauri dev
 ```
 

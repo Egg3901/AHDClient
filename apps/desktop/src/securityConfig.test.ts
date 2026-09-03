@@ -82,6 +82,16 @@ describe("desktop platform configuration", () => {
     expect(workflow).toContain("cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml");
   });
 
+  it("keeps blocking CI on the bounded fast suite", () => {
+    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
+    const workflow = readFileSync(join(sourceDirectory, "../../../.github/workflows/verify.yml"), "utf8");
+
+    expect(rootPackage.scripts["verify"]).toContain("test:ci");
+    expect(rootPackage.scripts["verify:full"]).toContain("npm run test");
+    expect(workflow).toContain("npm run verify");
+    expect(workflow).not.toMatch(/run:\s+npm run test\s*$/m);
+  });
+
   it("keeps a reproducible Android project and build commands", () => {
     const sourceDirectory = dirname(fileURLToPath(import.meta.url));
     const rustHost = readFileSync(join(sourceDirectory, "../src-tauri/src/lib.rs"), "utf8");
@@ -105,7 +115,7 @@ describe("desktop platform configuration", () => {
     expect(workflow).not.toContain("npm exec vitest");
     expect(workflow).toContain("npm test --workspace apps/desktop");
     expect(workflow).toContain("npm test --workspace packages/content");
-    expect(workflow).toContain("npm test --workspace packages/engine -- --run src/engine.test.ts");
+    expect(workflow).toContain("npm run test:ci --workspace packages/engine");
     expect(rustHost).toMatch(
       /#\[cfg\(mobile\)\][\s\S]*?fn open_online_window[\s\S]*?get_webview_window\("main"\)[\s\S]*?\.navigate\(url\)/,
     );
