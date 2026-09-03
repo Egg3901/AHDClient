@@ -2,6 +2,20 @@
 
 All notable AHDClient changes are recorded here.
 
+## [1.0.2] - 2026-09-03
+
+### Fixed
+
+- Moved desktop multiplayer webview creation off the Tauri UI thread so opening the live game no longer produces a frozen blank window on Windows.
+- Made the new-world era choice player-controlled after entering setup instead of continuously resetting it to the launcher selection.
+- Allowed historically valid high-inflation starts such as 1991 Brazil, whose 480% annual rate previously made the entire era fail editor validation and disabled world creation.
+
+### Quality assurance
+
+- Added browser-level interaction tests for era stability, country-list refresh, play-mode selection, feature-flag overrides, validation, and the exact options passed into world creation.
+- Added a bounded creation matrix covering all 21 supported era and playable-country starts without adding long simulations to CI.
+- Added a release regression that keeps native multiplayer window construction off the UI thread.
+
 ## [1.0.1] - 2026-09-02
 
 ### Ten quality improvements

@@ -1,4 +1,10 @@
-import { createWorld, deserializeSave, serializeSave } from "@ahdclient/engine";
+import {
+  createWorld,
+  deserializeSave,
+  listEras,
+  listPlayableCountries,
+  serializeSave,
+} from "@ahdclient/engine";
 import { describe, expect, it } from "vitest";
 import { game } from "./game.js";
 
@@ -10,6 +16,25 @@ const OPTS = {
 } as const;
 
 describe("desktop game session", () => {
+  it("creates every supported era and playable-country start", async () => {
+    let starts = 0;
+    for (const era of listEras()) {
+      for (const country of listPlayableCountries(era.id)) {
+        const world = await game.newGame({
+          ...OPTS,
+          seed: `desktop-start-${era.id}-${country.id}`,
+          era: era.id,
+          countryId: country.id,
+        });
+
+        expect(world.meta.era).toBe(era.id);
+        expect(world.player.countryId).toBe(country.id);
+        starts++;
+      }
+    }
+    expect(starts).toBe(21);
+  });
+
   it("resumes a loaded world as the authoritative active session", async () => {
     await game.newGame({ ...OPTS, seed: "world-being-replaced" });
     const loaded = createWorld(OPTS);

@@ -48,8 +48,8 @@ import { ONLINE_URL } from "./onlineTarget.js";
 
 // Desktop builds create the online window in Rust so it can be given
 // navigation and new-window guards without handing the remote webview a
-// Tauri capability. Mobile builds route the same command to the system
-// browser, keeping remote content outside the capability-bearing SP webview. See
+// Tauri capability. Mobile builds navigate the main app webview so its
+// cookie-backed session matches the existing Android client. See
 // docs/FRAMEWORK.md "Security doctrine" and capabilities/online.json (empty
 // permission set) plus capabilities/default.json (only "main" may invoke
 // this command). If the Tauri bridge is unavailable for any reason (e.g. a
@@ -109,6 +109,10 @@ function isValidSignedPercent(s: string): boolean {
   const n = Number(s);
   return Number.isFinite(n) && n >= -100 && n <= 100;
 }
+function isValidInflationPercent(s: string): boolean {
+  const n = Number(s);
+  return Number.isFinite(n) && n >= -100 && n <= 10_000;
+}
 function isValidPercent(s: string): boolean {
   const n = Number(s);
   return Number.isFinite(n) && n >= 0 && n <= 100;
@@ -119,7 +123,7 @@ function isValidCash(s: string): boolean {
   return Number.isFinite(n) && n >= 0;
 }
 
-function NewWorldScreen({
+export function NewWorldScreen({
   onBack,
   onCreated,
   initialEra,
@@ -128,7 +132,7 @@ function NewWorldScreen({
   onCreated: (world: WorldState) => void;
   initialEra?: string | undefined;
 }) {
-  const eras = listEras();
+  const eras = useMemo(() => listEras(), []);
   const [era, setEra] = useState<string>(() => initialEra ?? eras[0]?.id ?? "1953");
   const playable = useMemo(() => {
     try {
@@ -181,13 +185,6 @@ function NewWorldScreen({
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  // sync era change -> rebuild rows and validate country
-  useEffect(() => {
-    if (initialEra && eras.some((e) => e.id === initialEra) && initialEra !== era) {
-      setEra(initialEra);
-    }
-  }, [initialEra, eras, era]);
 
   useEffect(() => {
     const list = playable;
@@ -255,7 +252,7 @@ function NewWorldScreen({
     if (!seed.trim() || !name.trim() || !countryId) return true;
     if (!isValidCash(startingCash)) return true;
     for (const r of rows) {
-      if (!isValidGdp(r.gdpStr) || !isValidSignedPercent(r.growthStr) || !isValidSignedPercent(r.inflationStr) || !isValidPercent(r.unemploymentStr)) {
+      if (!isValidGdp(r.gdpStr) || !isValidSignedPercent(r.growthStr) || !isValidInflationPercent(r.inflationStr) || !isValidPercent(r.unemploymentStr)) {
         return true;
       }
     }
@@ -325,8 +322,8 @@ function NewWorldScreen({
       return;
     }
     for (const r of rows) {
-      if (!isValidGdp(r.gdpStr) || !isValidSignedPercent(r.growthStr) || !isValidSignedPercent(r.inflationStr) || !isValidPercent(r.unemploymentStr)) {
-        setError("Correct highlighted fields before creating. GDP must be > 0 and growth and inflation -100 to 100, unemployment 0-100.");
+      if (!isValidGdp(r.gdpStr) || !isValidSignedPercent(r.growthStr) || !isValidInflationPercent(r.inflationStr) || !isValidPercent(r.unemploymentStr)) {
+        setError("Correct highlighted fields before creating. GDP must be > 0, growth -100 to 100, inflation -100 to 10,000, and unemployment 0 to 100.");
         return;
       }
     }
@@ -540,7 +537,7 @@ function NewWorldScreen({
                       {rows.map((r) => {
                         const gdpInvalid = !isValidGdp(r.gdpStr);
                         const growthInvalid = !isValidSignedPercent(r.growthStr);
-                        const inflationInvalid = !isValidSignedPercent(r.inflationStr);
+                        const inflationInvalid = !isValidInflationPercent(r.inflationStr);
                         const unemploymentInvalid = !isValidPercent(r.unemploymentStr);
                         return (
                           <tr key={r.id}>

@@ -84,6 +84,15 @@ describe("desktop platform configuration", () => {
     expect(workflow).toContain("cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml");
   });
 
+  it("creates the multiplayer webview off the UI thread", () => {
+    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
+    const rustHost = readFileSync(join(sourceDirectory, "../src-tauri/src/lib.rs"), "utf8");
+
+    expect(rustHost).toMatch(
+      /#\[cfg\(desktop\)\]\s*async fn open_online_window/,
+    );
+  });
+
   it("keeps blocking CI on the bounded fast suite", () => {
     const sourceDirectory = dirname(fileURLToPath(import.meta.url));
     const workflow = readFileSync(join(sourceDirectory, "../../../.github/workflows/verify.yml"), "utf8");
@@ -145,7 +154,7 @@ describe("desktop platform configuration", () => {
     expect(globe).not.toContain('fillStyle = "#0a0e12"');
   });
 
-  it("keeps the 1.0.1 launcher and save safeguards wired", () => {
+  it("keeps the launcher and save safeguards wired", () => {
     const sourceDirectory = dirname(fileURLToPath(import.meta.url));
     const app = readFileSync(join(sourceDirectory, "App.tsx"), "utf8");
     const launcher = readFileSync(join(sourceDirectory, "launcher/Launcher.tsx"), "utf8");

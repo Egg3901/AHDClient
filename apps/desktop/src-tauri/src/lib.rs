@@ -65,7 +65,7 @@ fn is_online_navigation_allowed(url: &Url) -> bool {
 ///   capability-bearing window.
 #[tauri::command]
 #[cfg(desktop)]
-fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
+async fn open_online_window(app: tauri::AppHandle) -> Result<(), String> {
   if let Some(existing) = app.get_webview_window("online") {
     existing.set_focus().map_err(|e| e.to_string())?;
     return Ok(());
