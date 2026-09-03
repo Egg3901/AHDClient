@@ -15,6 +15,18 @@ type Props = {
 const CATEGORY_ORDER = ["Finance", "Campaign", "Field Operations", "Party", "Other"] as const;
 type Category = (typeof CATEGORY_ORDER)[number];
 
+const HUB_ACTION_IDS: ReadonlySet<ActionCatalogEntry["id"]> = new Set([
+  "fundraise",
+  "campaign",
+  "advertise",
+  "buildDonorBase",
+  "convertCash",
+  "rest",
+  "canvass",
+  "organize",
+  "pressureBoost",
+]);
+
 function categoryForEntry(entry: ActionCatalogEntry): Category {
   switch (entry.id) {
     case "fundraise":
@@ -91,6 +103,7 @@ export function ActionsHub({ world, onWorld, onToast }: Props) {
     const map = new Map<Category, ActionCatalogEntry[]>();
     for (const c of CATEGORY_ORDER) map.set(c, []);
     for (const entry of Object.values(ACTION_CATALOG) as ActionCatalogEntry[]) {
+      if (!HUB_ACTION_IDS.has(entry.id)) continue;
       const cat = categoryForEntry(entry);
       map.get(cat)!.push(entry);
     }

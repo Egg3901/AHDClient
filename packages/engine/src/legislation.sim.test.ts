@@ -418,6 +418,33 @@ describe("player actions gating", () => {
     expect(world.bills[0]!.votes["player"]).toBe("for");
   });
 
+  it("invokeFilibuster requires the player's senate seat in the bill's country", async () => {
+    const world = createWorld(OPTS);
+    world.player.actions = 25;
+    world.player.actionCounts = {};
+    world.bills.push(makeBill({
+      id: "senate-filibuster-gate",
+      status: "active",
+      currentChamber: "senate",
+      originChamber: "senate",
+      countryId: "US",
+      votingEndsOnTurn: 5,
+    }));
+    const before = structuredClone(world);
+    const { executeAction } = await import("./actions/execute.js");
+
+    const noSeat = executeAction(world, "player", "invokeFilibuster", { billId: "senate-filibuster-gate" });
+
+    expect(noSeat.ok).toBe(false);
+    if (!noSeat.ok) expect(noSeat.error).toMatch(/senate seat/);
+    expect(world).toEqual(before);
+
+    world.player.legislativeSeat = { chamberKey: "senate", countryId: "US" };
+    const withSeat = executeAction(world, "player", "invokeFilibuster", { billId: "senate-filibuster-gate" });
+    expect(withSeat.ok).toBe(true);
+    expect(world.bills[0]!.filibusterInvocations).toHaveLength(1);
+  });
+
   it("HoS mode allows sponsor without seat", async () => {
     const world = createWorld(OPTS);
     world.player.mode = "hos";

@@ -135,6 +135,36 @@ describe("cost/cooldown enforcement", () => {
     expect(res.ok).toBe(false);
     expect((res as { error: string }).error).toMatch(/regionId/);
   });
+
+  it("leaves the entire world unchanged when dispatch fails after charging costs", () => {
+    const world = createWorld(OPTS);
+    world.player.actions = 25;
+    world.player.actionCounts = { sponsorBill: 4 };
+    world.player.mode = "hos";
+    world.player.hosPartyId = "US_DEM";
+    const before = structuredClone(world);
+
+    const res = executeAction(world, "player", "sponsorBill", { catalogId: "missing-law" });
+
+    expect(res).toEqual({ ok: false, error: "Unknown catalog entry: missing-law" });
+    expect(world).toEqual(before);
+    expect(world.player.actions).toBe(25);
+    expect(world.player.actionCooldowns).toEqual({});
+    expect(world.player.actionCounts).toEqual({ sponsorBill: 4 });
+  });
+
+  it("restores action points, funds, and counts when a target is invalid", () => {
+    const world = createWorld(OPTS);
+    world.player.actions = 25;
+    world.player.funds = 100_000;
+    world.player.actionCounts = {};
+    const before = structuredClone(world);
+
+    const res = executeAction(world, "player", "canvass", { regionId: "missing-region" });
+
+    expect(res).toEqual({ ok: false, error: "Unknown region missing-region" });
+    expect(world).toEqual(before);
+  });
 });
 
 // ─── End-to-end: action changes support deterministically ───────────────────

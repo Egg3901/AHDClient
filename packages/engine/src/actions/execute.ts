@@ -137,6 +137,65 @@ export function executeAction(
   actionId: string,
   params: ExecuteActionParams = {},
 ): ExecuteActionResult {
+  // Dispatchers validate before their first domain mutation. Accounting is
+  // the only shared state charged before dispatch, so snapshot it once and
+  // restore it exactly for every returned or thrown failure.
+  const actor = findActor(world, actorId)?.entity as {
+    actions: number;
+    funds: number;
+    actionCooldowns: Record<string, number>;
+    actionCounts?: Record<string, number>;
+  } | undefined;
+  const accounting = actor
+    ? {
+        actions: actor.actions,
+        funds: actor.funds,
+        actionCooldowns: { ...actor.actionCooldowns },
+        actionCounts: actor.actionCounts ? { ...actor.actionCounts } : undefined,
+      }
+    : undefined;
+  try {
+    const result = executeActionWithModeBypass(world, actorId, actionId, params);
+    if (!result.ok && actor && accounting) restoreActionAccounting(actor, accounting);
+    return result;
+  } catch (error) {
+    if (actor && accounting) restoreActionAccounting(actor, accounting);
+    throw error;
+  }
+}
+
+function restoreActionAccounting(
+  actor: { actions: number; funds: number; actionCooldowns: Record<string, number>; actionCounts?: Record<string, number> },
+  snapshot: {
+    actions: number;
+    funds: number;
+    actionCooldowns: Record<string, number>;
+    actionCounts: Record<string, number> | undefined;
+  },
+): void {
+  actor.actions = snapshot.actions;
+  actor.funds = snapshot.funds;
+  replaceRecord(actor.actionCooldowns, snapshot.actionCooldowns);
+  if (actor.actionCounts && snapshot.actionCounts) {
+    replaceRecord(actor.actionCounts, snapshot.actionCounts);
+  } else if (snapshot.actionCounts) {
+    actor.actionCounts = { ...snapshot.actionCounts };
+  } else {
+    delete actor.actionCounts;
+  }
+}
+
+function replaceRecord(target: Record<string, number>, snapshot: Record<string, number>): void {
+  for (const key of Object.keys(target)) delete target[key];
+  Object.assign(target, snapshot);
+}
+
+function executeActionWithModeBypass(
+  world: WorldState,
+  actorId: string,
+  actionId: string,
+  params: ExecuteActionParams,
+): ExecuteActionResult {
   const player = world.player as unknown as { mode: string; partyId: string | null; hosPartyId: string | null };
   const bypass =
     actorId === "player" &&
@@ -169,6 +228,8 @@ function executeActionInner(
 
   const found = findActor(world, actorId);
   if (!found) return { ok: false, error: `Unknown actor: ${actorId}` };
+  const paramError = validateRequiredActionParams(actionId, params);
+  if (paramError) return { ok: false, error: paramError };
   const actor = found.entity as {
     actions: number;
     funds: number;
@@ -635,10 +696,15 @@ function executeActionInner(
     return { ok: true, message: `Repeal bill ${id} sponsored` };
   }
   if (actionId === "invokeFilibuster") {
+    if (found.kind !== "player") return { ok: false, error: "Only the player can invoke a filibuster" };
     const billId = params.billId;
     if (!billId) return { ok: false, error: "invokeFilibuster requires billId" };
     const bill = world.bills.find((b) => b.id === billId);
     if (!bill) return { ok: false, error: `Unknown bill: ${billId}` };
+    const playerSeat = world.player.legislativeSeat;
+    if (!playerSeat || playerSeat.chamberKey !== "senate" || playerSeat.countryId !== bill.countryId) {
+      return { ok: false, error: "Must hold a senate seat in the bill's country to invoke a filibuster" };
+    }
     if (bill.currentChamber !== "senate") {
       actor.actions += cost;
       if (catalog.cooldown > 0) delete actor.actionCooldowns[actionId];
@@ -1213,6 +1279,96 @@ function executeActionInner(
   }
 
   return { ok: false, error: `No effect for ${actionId}` };
+}
+
+function validateRequiredActionParams(actionId: string, params: ExecuteActionParams): string | null {
+  switch (actionId) {
+    case "canvass":
+    case "organize":
+    case "pressureBoost":
+      return params.regionId ? null : `Action ${actionId} requires a regionId`;
+    case "joinParty":
+      return params.partyId ? null : "joinParty requires partyId";
+    case "foundParty":
+      return params.foundPartyName && params.foundPartyAbbr
+        ? null
+        : "foundParty requires foundPartyName and foundPartyAbbr";
+    case "createCaucus":
+      return params.caucusName ? null : "createCaucus requires caucusName";
+    case "joinCaucus":
+      return params.caucusId ? null : "joinCaucus requires caucusId";
+    case "endorse":
+      return params.endorsedId ? null : "endorse requires endorsedId";
+    case "declareCandidacy":
+    case "withdrawCandidacy":
+      return params.electionId ? null : `${actionId} requires electionId`;
+    case "sponsorBill":
+    case "repealLaw":
+      return params.catalogId ? null : `${actionId} requires catalogId`;
+    case "voteOnBill":
+      return params.billId && params.vote ? null : "voteOnBill requires billId and vote";
+    case "invokeFilibuster":
+      return params.billId ? null : "invokeFilibuster requires billId";
+    case "contestPartyLeadership":
+      return params.intrapartyElectionId || params.position
+        ? null
+        : "contestPartyLeadership requires intrapartyElectionId or position";
+    case "votePartyLeadership":
+      return params.intrapartyElectionId && params.candidateId
+        ? null
+        : "votePartyLeadership requires intrapartyElectionId and candidateId";
+    case "voteCommittee":
+      return params.intrapartyElectionId && (params.committeeCandidateIds || params.candidateId)
+        ? null
+        : "voteCommittee requires intrapartyElectionId and committeeCandidateIds";
+    case "joinCoalition":
+      return params.coalitionId ? null : "joinCoalition requires coalitionId";
+    case "initiateCoalitionDisband":
+      return params.coalitionId ? null : "requires coalitionId";
+    case "voteCoalitionDisband":
+      return params.coalitionId && (params.disbandVote || params.vote)
+        ? null
+        : "requires coalitionId and disbandVote";
+    case "buyShares":
+    case "sellShares":
+      return params.corpId && params.shares !== undefined && Number.isInteger(params.shares) && params.shares > 0
+        ? null
+        : `${actionId} requires corpId and a positive integer shares amount`;
+    case "buyBond":
+    case "sellBond":
+      return params.bondId && params.units !== undefined && Number.isInteger(params.units) && params.units > 0
+        ? null
+        : `${actionId} requires bondId and a positive integer units amount`;
+    case "adjustBudgetSpending":
+      return params.budgetCategory && params.budgetAmount !== undefined && Number.isFinite(params.budgetAmount) && params.budgetAmount >= 0
+        ? null
+        : "adjustBudgetSpending requires budgetCategory and a non-negative finite budgetAmount";
+    case "adjustTaxRate":
+      return params.taxField && params.taxRate !== undefined && Number.isFinite(params.taxRate) && params.taxRate >= 0 && params.taxRate <= 100
+        ? null
+        : "adjustTaxRate requires taxField and taxRate in [0,100]";
+    case "launchProspect":
+      return params.regionId && params.resource ? null : "launchProspect requires regionId and resource";
+    case "issueExtractionContract":
+      if (!params.regionId || !params.resource) return "issueExtractionContract requires regionId and resource";
+      return params.share !== undefined &&
+        params.royaltyRatePerTurn !== undefined &&
+        params.termTurns !== undefined &&
+        params.signingFeeAnchor !== undefined
+        ? null
+        : "issueExtractionContract requires share, royaltyRatePerTurn, termTurns, signingFeeAnchor";
+    case "depositSavings":
+    case "withdrawSavings":
+      return params.amount === undefined ? `${actionId} requires amount` : null;
+    case "moveSavings":
+      return params.holder ? null : "moveSavings requires holder";
+    case "wireTransfer":
+      return params.targetPoliticianId && params.amount !== undefined
+        ? null
+        : "wireTransfer requires targetPoliticianId and amount";
+    default:
+      return null;
+  }
 }
 
 function awaitImportCatalog(id: string): import("../legislation/catalog.js").CatalogEntry | null {
