@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import tauriConfig from "../src-tauri/tauri.conf.json";
@@ -8,9 +7,13 @@ import desktopPackage from "../package.json";
 import rootPackage from "../../../package.json";
 import defaultCapability from "../src-tauri/capabilities/default.json";
 import onlineCapability from "../src-tauri/capabilities/online.json";
+import gameCapability from "../src-tauri/capabilities/game.json";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const read = (relative: string) => readFileSync(join(here, relative), "utf8");
 
 describe("desktop security configuration", () => {
-  it("ships a local-only CSP for the singleplayer window", () => {
+  it("ships a local-only CSP for the launcher window", () => {
     expect(tauriConfig.app.security.csp).toEqual({
       "default-src": "'self'",
       "connect-src": "ipc: http://ipc.localhost",
@@ -19,154 +22,73 @@ describe("desktop security configuration", () => {
     });
   });
 
-  it("keeps the remote multiplayer window capability-empty", () => {
+  it("keeps both remote-content windows capability-empty", () => {
     expect(onlineCapability.windows).toEqual(["online"]);
     expect(onlineCapability.permissions).toEqual([]);
-    expect("remote" in defaultCapability).toBe(false);
-    expect("remote" in onlineCapability).toBe(false);
+    expect(gameCapability.windows).toEqual(["game"]);
+    expect(gameCapability.permissions).toEqual([]);
+    for (const capability of [defaultCapability, onlineCapability, gameCapability]) {
+      expect("remote" in capability).toBe(false);
+    }
   });
 
-  it("keeps persistent filesystem permissions scoped to managed saves", () => {
-    const permissions = defaultCapability.permissions as Array<
-      string | { identifier: string; allow?: Array<{ path: string }> }
-    >;
-    expect(permissions.filter((permission) => typeof permission === "string" && permission.startsWith("fs:"))).toEqual([]);
-
-    const filesystemPermissions = permissions.filter(
-      (permission): permission is { identifier: string; allow?: Array<{ path: string }> } =>
-        typeof permission !== "string" && permission.identifier.startsWith("fs:"),
-    );
-    expect(filesystemPermissions.length).toBeGreaterThan(0);
-    for (const permission of filesystemPermissions) {
-      expect(permission.allow?.every(({ path }) => path === "$APPDATA/saves" || path.startsWith("$APPDATA/saves/"))).toBe(true);
+  it("gives the launcher no filesystem or shell access of its own", () => {
+    const permissions = defaultCapability.permissions as Array<string | { identifier: string }>;
+    const identifiers = permissions.map((p) => (typeof p === "string" ? p : p.identifier));
+    expect(identifiers.filter((id) => id.startsWith("fs:") || id.startsWith("shell:"))).toEqual([]);
+    for (const command of ["game-start", "game-stop", "game-request", "open-game-window", "list-worlds"]) {
+      expect(identifiers).toContain(`allow-${command}`);
     }
+  });
+
+  it("pins the game window to its own loopback port in Rust", () => {
+    const rust = read("../src-tauri/src/lib.rs");
+    expect(rust).toMatch(/fn is_local_game_url\(/);
+    expect(rust).toMatch(/WebviewWindowBuilder::new\(&app, "game"/);
+    expect(rust).toMatch(/"--parent-pid"/);
+    expect(rust).toMatch(/"--no-browser"/);
   });
 });
 
 describe("desktop platform configuration", () => {
   it("keeps release versions and the changelog synchronized", () => {
-    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
-    const cargoManifest = readFileSync(join(sourceDirectory, "../src-tauri/Cargo.toml"), "utf8");
-    const changelog = readFileSync(join(sourceDirectory, "../../../CHANGELOG.md"), "utf8");
-    const cargoVersion = cargoManifest.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
-
+    const cargoVersion = read("../src-tauri/Cargo.toml").match(/^version\s*=\s*"([^"]+)"/m)?.[1];
     expect(rootPackage.version).toBe(desktopPackage.version);
     expect(tauriConfig.version).toBe(desktopPackage.version);
     expect(cargoVersion).toBe(desktopPackage.version);
-    expect(changelog).toContain(`## [${desktopPackage.version}]`);
+    expect(read("../../../CHANGELOG.md")).toContain(`## [${desktopPackage.version}]`);
   });
 
-  it("builds native bundles on Linux, Windows, and macOS runners", () => {
-    expect(tauriConfig.bundle.targets).toBe("all");
+  it("bundles Node as a sidecar and the game as a resource", () => {
+    expect(tauriConfig.bundle.externalBin).toEqual(["binaries/node"]);
+    expect(tauriConfig.bundle.resources).toEqual({ "resources/game": "game" });
     expect(tauriConfig.app.windows[0]?.backgroundColor).toBe("#14141c");
+  });
 
-    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
-    const workflow = readFileSync(join(sourceDirectory, "../../../.github/workflows/release-desktop.yml"), "utf8");
-    expect(workflow).toContain("ubuntu-22.04");
-    expect(workflow).toContain("windows-latest");
-    expect(workflow).toContain("macos-latest");
-    expect(workflow).toContain("--bundles appimage,deb");
-    expect(workflow).toContain("--bundles nsis");
-    expect(workflow).toContain("--bundles dmg");
-    expect(workflow).toContain("actions/upload-artifact@v4");
-    expect(workflow).toContain("ahdclient-windows-x86_64");
-    expect(workflow).toContain("bundle/nsis/*.exe");
+  it("stages the game before every native bundle", () => {
+    const workflow = read("../../../.github/workflows/release-desktop.yml");
+    expect(workflow).toContain("Egg3901/AHDGame");
+    expect(workflow).toContain("scripts/prepare-game.mjs");
+    for (const needle of ["ubuntu-22.04", "windows-latest", "macos-latest", "--bundles appimage,deb", "--bundles nsis", "--bundles dmg", "actions/upload-artifact@v4", "ahdclient-windows-x86_64", "bundle/nsis/*.exe"]) {
+      expect(workflow).toContain(needle);
+    }
     expect(workflow).not.toContain("uploadWorkflowArtifacts");
   });
 
-  it("tests the desktop Rust target when Tauri source changes", () => {
-    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
-    const workflow = readFileSync(join(sourceDirectory, "../../../.github/workflows/verify-rust.yml"), "utf8");
+  it("tests the Rust target with a staged sidecar", () => {
+    const workflow = read("../../../.github/workflows/verify-rust.yml");
     expect(workflow).toContain("libwebkit2gtk-4.1-dev");
-    expect(workflow).toContain("dtolnay/rust-toolchain@stable");
-    expect(workflow).toContain('"apps/desktop/src-tauri/**"');
-    expect(workflow).toContain("touch apps/desktop/dist/index.html");
+    expect(workflow).toContain("prepare-game.mjs --node-only");
     expect(workflow).toContain("cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml");
   });
 
-  it("creates the multiplayer webview off the UI thread", () => {
-    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
-    const rustHost = readFileSync(join(sourceDirectory, "../src-tauri/src/lib.rs"), "utf8");
-
-    expect(rustHost).toMatch(
-      /#\[cfg\(desktop\)\]\s*async fn open_online_window/,
-    );
-  });
-
   it("keeps blocking CI on the bounded fast suite", () => {
-    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
-    const workflow = readFileSync(join(sourceDirectory, "../../../.github/workflows/verify.yml"), "utf8");
-
+    const workflow = read("../../../.github/workflows/verify.yml");
     expect(rootPackage.scripts["verify"]).toContain("test:ci");
-    expect(rootPackage.scripts["verify:full"]).toContain("npm run test");
     expect(workflow).toContain("npm run verify");
-    expect(workflow).not.toMatch(/run:\s+npm run test\s*$/m);
   });
 
-  it("keeps a reproducible Android project and build commands", () => {
-    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
-    const rustHost = readFileSync(join(sourceDirectory, "../src-tauri/src/lib.rs"), "utf8");
-    const androidManifest = readFileSync(
-      join(sourceDirectory, "../src-tauri/gen/android/app/src/main/AndroidManifest.xml"),
-      "utf8",
-    );
-    const workflow = readFileSync(
-      join(sourceDirectory, "../../../.github/workflows/verify-android.yml"),
-      "utf8",
-    );
-    expect(desktopPackage.scripts["android:init"]).toBe("tauri android init");
-    expect(desktopPackage.scripts["android:dev"]).toBe("tauri android dev");
-    expect(desktopPackage.scripts["android:build:apk"]).toBe("tauri android build --apk");
-    expect(desktopPackage.scripts["android:build:aab"]).toBe("tauri android build --aab");
-    expect(existsSync(join(sourceDirectory, "../src-tauri/gen/android/gradlew"))).toBe(true);
-    expect(existsSync(join(sourceDirectory, "../../../.github/workflows/verify-android.yml"))).toBe(true);
-    expect(workflow).toContain('"platforms;android-36"');
-    expect(workflow).toContain('"build-tools;36.0.0"');
-    expect(workflow).toContain('"ndk;27.0.12077973"');
-    expect(workflow).not.toContain("npm exec vitest");
-    expect(workflow).toContain("npm test --workspace apps/desktop");
-    expect(workflow).toContain("npm test --workspace packages/content");
-    expect(workflow).toContain("npm run test:ci --workspace packages/engine");
-    expect(rustHost).toMatch(
-      /#\[cfg\(mobile\)\][\s\S]*?fn open_online_window[\s\S]*?get_webview_window\("main"\)[\s\S]*?\.navigate\(url\)/,
-    );
-    expect(androidManifest).toContain('android:roundIcon="@mipmap/ic_launcher_round"');
-    expect(androidManifest).not.toContain("LEANBACK_LAUNCHER");
-  });
-
-  it("keeps launcher effects inside the local security boundary", () => {
-    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
-    const launcher = readFileSync(join(sourceDirectory, "launcher/Launcher.tsx"), "utf8");
-    const globe = readFileSync(join(sourceDirectory, "launcher/CommandGlobe.tsx"), "utf8");
-    const logo = readFileSync(join(sourceDirectory, "assets/ahd-logo.png"));
-    expect(launcher).not.toContain("fetch(");
-    expect(launcher).toContain('import ahdLogo from "../assets/ahd-logo.png";');
-    expect(launcher).toContain('import desktopPackage from "../../package.json";');
-    expect(launcher).toContain('className="launcher-logo" src={ahdLogo} alt=""');
-    expect(launcher).toContain("AHDClient {desktopPackage.version}");
-    expect(launcher).not.toContain("AHDClient 0.9.0");
-    expect(launcher).not.toContain("StreakField");
-    expect(createHash("sha256").update(logo).digest("hex")).toBe(
-      "1a7fe54f33c781d6b7741277a20a9e800ca5525a0fbea790a7109c3e119f66a9",
-    );
-    expect(globe).toContain('window.addEventListener("resize", handleResize);');
-    expect(globe).toContain('window.removeEventListener("resize", handleResize);');
-    expect(globe).not.toContain('fillStyle = "#0a0e12"');
-  });
-
-  it("keeps the launcher and save safeguards wired", () => {
-    const sourceDirectory = dirname(fileURLToPath(import.meta.url));
-    const app = readFileSync(join(sourceDirectory, "App.tsx"), "utf8");
-    const launcher = readFileSync(join(sourceDirectory, "launcher/Launcher.tsx"), "utf8");
-    const savesScreen = readFileSync(join(sourceDirectory, "saves/SavesScreen.tsx"), "utf8");
-
-    expect(launcher).toContain('const MODE_STORAGE_KEY = "ahdclient.launcher.mode";');
-    expect(launcher).toContain('const ERA_STORAGE_KEY = "ahdclient.launcher.era";');
-    expect(launcher).toContain("continueBusy");
-    expect(app).toContain('window.addEventListener("beforeunload", warnBeforeUnload);');
-    expect(app).toContain("QUICK_SAVE_SLOT");
-    expect(app).toContain('(e.ctrlKey || e.metaKey) && e.key.toLocaleLowerCase() === "s"');
-    expect(savesScreen).toContain('type="search"');
-    expect(savesScreen).toContain("preferredSaveSlot");
+  it("has no Android target left", () => {
+    expect(Object.keys(desktopPackage.scripts).some((s) => s.startsWith("android:"))).toBe(false);
   });
 });

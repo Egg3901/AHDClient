@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-touch-world"
+description = "Enables the touch_world command without any pre-configured scope."
+commands.allow = ["touch_world"]
+
+[[permission]]
+identifier = "deny-touch-world"
+description = "Denies the touch_world command without any pre-configured scope."
+commands.deny = ["touch_world"]

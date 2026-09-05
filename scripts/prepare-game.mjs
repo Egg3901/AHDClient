@@ -1,0 +1,137 @@
+#!/usr/bin/env node
+/**
+ * Stage what the desktop bundle needs beyond its own code:
+ *
+ *   1. A Node runtime as a Tauri sidecar
+ *      (apps/desktop/src-tauri/binaries/node-<triple>[.exe]).
+ *   2. The game itself: the A House Divided singleplayer build
+ *      (apps/desktop/src-tauri/resources/game/), produced from an AHDGame
+ *      checkout with `npm run singleplayer:package`.
+ *
+ *   node scripts/prepare-game.mjs [--target <rust triple>] [--game-dir <path>]
+ *                                 [--node-only] [--skip-game-build]
+ *
+ * `--game-dir` defaults to $AHDGAME_DIR. `--skip-game-build` reuses an
+ * existing dist/singleplayer in that checkout.
+ */
+
+import { spawnSync } from "node:child_process";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { createWriteStream } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { fileURLToPath } from "node:url";
+
+export const NODE_VERSION = "v22.23.2";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const TAURI = path.join(ROOT, "apps", "desktop", "src-tauri");
+
+/** Rust target triple -> Node distribution name. */
+export const NODE_DIST = {
+  "x86_64-unknown-linux-gnu": { dist: "linux-x64", ext: "tar.xz", bin: "bin/node" },
+  "aarch64-unknown-linux-gnu": { dist: "linux-arm64", ext: "tar.xz", bin: "bin/node" },
+  "aarch64-apple-darwin": { dist: "darwin-arm64", ext: "tar.gz", bin: "bin/node" },
+  "x86_64-apple-darwin": { dist: "darwin-x64", ext: "tar.gz", bin: "bin/node" },
+  "x86_64-pc-windows-msvc": { dist: "win-x64", ext: "zip", bin: "node.exe" },
+};
+
+function arg(flag, fallback) {
+  const i = process.argv.indexOf(flag);
+  return i === -1 ? fallback : process.argv[i + 1];
+}
+
+function hostTriple() {
+  const out = spawnSync("rustc", ["-vV"], { encoding: "utf8" }).stdout ?? "";
+  const m = out.match(/^host:\s*(\S+)/m);
+  if (m) return m[1];
+  const arch = process.arch === "arm64" ? "aarch64" : "x86_64";
+  if (process.platform === "linux") return `${arch}-unknown-linux-gnu`;
+  if (process.platform === "darwin") return `${arch}-apple-darwin`;
+  if (process.platform === "win32") return "x86_64-pc-windows-msvc";
+  throw new Error(`cannot infer a Rust target for ${process.platform}/${process.arch}`);
+}
+
+async function download(url, dest) {
+  const res = await fetch(url);
+  if (!res.ok || !res.body) throw new Error(`download failed (${res.status}) ${url}`);
+  await pipeline(Readable.fromWeb(res.body), createWriteStream(dest));
+}
+
+export async function stageNode(triple) {
+  const spec = NODE_DIST[triple];
+  if (!spec) throw new Error(`no Node distribution known for ${triple}`);
+  const suffix = triple.includes("windows") ? ".exe" : "";
+  const dest = path.join(TAURI, "binaries", `node-${triple}${suffix}`);
+  if (existsSync(dest)) {
+    console.log(`node sidecar present: ${dest}`);
+    return dest;
+  }
+  const name = `node-${NODE_VERSION}-${spec.dist}`;
+  const url = `https://nodejs.org/dist/${NODE_VERSION}/${name}.${spec.ext}`;
+  const tmp = mkdtempSync(path.join(tmpdir(), "ahdclient-node-"));
+  const archive = path.join(tmp, `${name}.${spec.ext}`);
+  console.log(`fetching ${url}`);
+  await download(url, archive);
+  // bsdtar (macOS, Windows) and GNU tar both unpack every format used here.
+  const r = spawnSync("tar", ["-xf", archive, "-C", tmp], { stdio: "inherit" });
+  if (r.status !== 0) throw new Error("tar failed while unpacking Node");
+  const extracted = path.join(tmp, name, spec.bin);
+  if (!existsSync(extracted)) throw new Error(`${spec.bin} not found in ${name}`);
+  mkdirSync(path.dirname(dest), { recursive: true });
+  cpSync(extracted, dest);
+  if (!suffix) chmodSync(dest, 0o755);
+  rmSync(tmp, { recursive: true, force: true });
+  console.log(`node sidecar staged: ${dest}`);
+  return dest;
+}
+
+export function stageGame(gameDir, { skipBuild = false } = {}) {
+  if (!gameDir) throw new Error("pass --game-dir or set AHDGAME_DIR to an AHDGame checkout");
+  gameDir = path.resolve(gameDir);
+  if (!existsSync(path.join(gameDir, "scripts", "singleplayer", "package.mjs"))) {
+    throw new Error(`${gameDir} does not look like an AHDGame checkout with singleplayer packaging`);
+  }
+  const dist = path.join(gameDir, "dist", "singleplayer");
+  if (!skipBuild) {
+    for (const [cmd, args] of [
+      ["npm", ["ci", "--no-audit", "--no-fund"]],
+      ["npm", ["run", "singleplayer:package"]],
+    ]) {
+      const r = spawnSync(cmd, args, { cwd: gameDir, stdio: "inherit", shell: process.platform === "win32" });
+      if (r.status !== 0) throw new Error(`${cmd} ${args.join(" ")} failed in ${gameDir}`);
+    }
+  }
+  if (!existsSync(path.join(dist, "server.js")) || !existsSync(path.join(dist, "launch.mjs"))) {
+    throw new Error(`${dist} is missing server.js or launch.mjs`);
+  }
+  const dest = path.join(TAURI, "resources", "game");
+  const staging = `${dest}.staging`;
+  rmSync(staging, { recursive: true, force: true });
+  cpSync(dist, staging, { recursive: true });
+  rmSync(dest, { recursive: true, force: true });
+  renameSync(staging, dest);
+  console.log(`game staged: ${dest}`);
+  return dest;
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const triple = arg("--target", hostTriple());
+  await stageNode(triple);
+  if (process.argv.includes("--node-only")) {
+    // tauri-build refuses to compile when a declared resource directory is
+    // missing, so CI that only needs `cargo test` gets an empty stand-in.
+    // The app itself notices the missing launcher and says so at runtime.
+    const stub = path.join(TAURI, "resources", "game");
+    if (!existsSync(stub)) {
+      mkdirSync(stub, { recursive: true });
+      writeFileSync(path.join(stub, "NOT_STAGED.txt"), "Run scripts/prepare-game.mjs with --game-dir to stage the game.\n");
+    }
+  } else {
+    stageGame(arg("--game-dir", process.env.AHDGAME_DIR), {
+      skipBuild: process.argv.includes("--skip-game-build"),
+    });
+  }
+}

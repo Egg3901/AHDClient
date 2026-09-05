@@ -2,6 +2,24 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.0.0] - 2026-09-05
+
+### Changed
+
+- Singleplayer is now the real game. The client runs the A House Divided server locally under a bundled Node, against a MongoDB it finds on your machine or downloads once, and shows it in its own window. Every screen, map and mechanic is the multiplayer game's own; nothing is re-implemented in the client any more.
+- The launcher keeps its look and gains worlds: each world is its own data folder with a name, era, turn and character, listed under All worlds. Continue resumes the most recent one; a running world can be resumed or stopped from the launcher.
+- New world asks for a world name and your name, then builds the world from the chosen era's preset and drops you into character creation.
+- Turns advance from an End turn button inside the game instead of a client-side turn loop.
+
+### Removed
+
+- The ported engine, its content packs, the CLI, every ported game screen and the save-file format. Saves from 1.x do not carry over; the worlds they described were a different simulation.
+- The Android build. The local server needs a desktop operating system.
+
+### Security
+
+- The game window is a plain webview pinned to its own loopback port with no Tauri capabilities, the same shape as the multiplayer window. The launcher window has no filesystem or shell access; worlds and the server are managed entirely in Rust.
+
 ## [1.0.3] - 2026-09-03
 
 ### Added
