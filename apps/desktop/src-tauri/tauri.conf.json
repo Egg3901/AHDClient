@@ -60,7 +60,7 @@
       }
     },
     "externalBin": [
-      "binaries/node"
+      "binaries/ahd-node"
     ],
     "resources": {
       "resources/game": "game"

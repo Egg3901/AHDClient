@@ -23,7 +23,9 @@ use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 const ONLINE_URL: &str = "https://ahousedividedgame.com";
+const SANDBOX_URL: &str = "https://sandbox.ahousedividedgame.com";
 const ONLINE_HOST: &str = "ahousedividedgame.com";
+const SANDBOX_HOST: &str = "sandbox.ahousedividedgame.com";
 const AUXILIARY_ONLINE_HOSTS: &[&str] = &[
   "www.ahousedividedgame.com",
   "discord.com",
@@ -67,7 +69,9 @@ fn help_destination(route_id: &str) -> Option<HelpDestination> {
 }
 
 fn is_online_origin(url: &Url) -> bool {
-  url.scheme() == "https" && url.host_str() == Some(ONLINE_HOST) && url.port_or_known_default() == Some(443)
+  url.scheme() == "https"
+    && matches!(url.host_str(), Some(ONLINE_HOST) | Some(SANDBOX_HOST))
+    && url.port_or_known_default() == Some(443)
 }
 
 fn is_online_navigation_allowed(url: &Url) -> bool {
@@ -325,7 +329,9 @@ async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String) -> Resu
   let port = free_port()?;
   let mut command = app
     .shell()
-    .sidecar("node")
+    // Named ahd-node, not node: Linux packages install sidecars into
+    // /usr/bin, and a plain "node" would collide with the system one.
+    .sidecar("ahd-node")
     .map_err(|e| format!("bundled Node is missing: {e}"))?
     .args([
       script.to_string_lossy().as_ref(),
@@ -551,9 +557,16 @@ async fn open_game_window(app: AppHandle, game: State<'_, Game>, path: Option<St
   Ok(())
 }
 
+/// `target` is "live" or "sandbox". Both use the same zero-capability window;
+/// the sandbox is a separate deployment with its own accounts and world.
 #[tauri::command]
-async fn open_online_window(app: AppHandle) -> Result<(), String> {
-  let url: Url = ONLINE_URL.parse().map_err(|e| format!("bad ONLINE_URL: {e}"))?;
+async fn open_online_window(app: AppHandle, target: Option<String>) -> Result<(), String> {
+  let base = match target.as_deref() {
+    None | Some("live") => ONLINE_URL,
+    Some("sandbox") => SANDBOX_URL,
+    Some(other) => return Err(format!("unknown online target {other:?}")),
+  };
+  let url: Url = base.parse().map_err(|e| format!("bad online URL: {e}"))?;
   open_online_url(app, url).await
 }
 
@@ -567,7 +580,7 @@ async fn open_online_url(app: AppHandle, url: Url) -> Result<(), String> {
   let new_window_app = app.clone();
   let close_app = app.clone();
   let window = WebviewWindowBuilder::new(&app, "online", WebviewUrl::External(url))
-    .title("A House Divided: Online")
+    .title(if url.host_str() == Some(SANDBOX_HOST) { "A House Divided: Sandbox" } else { "A House Divided: Online" })
     .inner_size(1280.0, 800.0)
     .center()
     .resizable(true)
@@ -673,8 +686,10 @@ mod tests {
     let redirector: Url = "https://www.ahousedividedgame.com/play".parse().unwrap();
     let subdomain: Url = "https://accounts.ahousedividedgame.com/".parse().unwrap();
     let unrelated: Url = "https://example.com/".parse().unwrap();
+    let sandbox: Url = "https://sandbox.ahousedividedgame.com/play".parse().unwrap();
 
     assert!(is_online_origin(&allowed));
+    assert!(is_online_origin(&sandbox));
     assert!(!is_online_origin(&http));
     assert!(!is_online_origin(&custom_port));
     assert!(!is_online_origin(&redirector));

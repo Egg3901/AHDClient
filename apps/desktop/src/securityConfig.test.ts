@@ -60,7 +60,7 @@ describe("desktop platform configuration", () => {
   });
 
   it("bundles Node as a sidecar and the game as a resource", () => {
-    expect(tauriConfig.bundle.externalBin).toEqual(["binaries/node"]);
+    expect(tauriConfig.bundle.externalBin).toEqual(["binaries/ahd-node"]);
     expect(tauriConfig.bundle.resources).toEqual({ "resources/game": "game" });
     expect(tauriConfig.app.windows[0]?.backgroundColor).toBe("#14141c");
   });

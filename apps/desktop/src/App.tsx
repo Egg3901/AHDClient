@@ -6,7 +6,7 @@ import { WorldsScreen } from "./screens/WorldsScreen.js";
 import { BootScreen } from "./screens/BootScreen.js";
 import { PlayingScreen } from "./screens/PlayingScreen.js";
 import { eraById, game, online, slugForWorld, worlds } from "./worlds.js";
-import type { GameInfo, WorldMeta } from "./worlds.js";
+import type { GameInfo, OnlineTarget, WorldMeta } from "./worlds.js";
 import "./screens/screens.css";
 
 type Screen = "launcher" | "newWorld" | "worlds" | "booting" | "playing";
@@ -174,9 +174,9 @@ export function App(): JSX.Element {
     setScreen("launcher");
   };
 
-  const handlePlayOnline = () => {
+  const handlePlayOnline = (target: OnlineTarget) => {
     setError(null);
-    void online.open().catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    void online.open(target).catch((e) => setError(e instanceof Error ? e.message : String(e)));
   };
 
   const latest = allWorlds[0] ?? null;

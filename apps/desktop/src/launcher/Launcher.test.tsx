@@ -63,6 +63,13 @@ describe("Launcher", () => {
     const props = renderLauncher();
     await userEvent.click(screen.getByRole("button", { name: "Multiplayer" }));
     await userEvent.click(screen.getByRole("button", { name: /Enter multiplayer/ }));
-    expect(props.onPlayOnline).toHaveBeenCalled();
+    expect(props.onPlayOnline).toHaveBeenCalledWith("live");
+  });
+
+  it("offers the sandbox server as a third mode", async () => {
+    const props = renderLauncher();
+    await userEvent.click(screen.getByRole("button", { name: "Sandbox" }));
+    await userEvent.click(screen.getByRole("button", { name: /Enter sandbox/ }));
+    expect(props.onPlayOnline).toHaveBeenCalledWith("sandbox");
   });
 });

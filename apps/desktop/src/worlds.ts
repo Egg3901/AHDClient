@@ -102,7 +102,9 @@ export const game = {
     }),
 };
 
+export type OnlineTarget = "live" | "sandbox";
+
 export const online = {
-  open: () => invoke<void>("open_online_window"),
+  open: (target: OnlineTarget = "live") => invoke<void>("open_online_window", { target }),
   help: (routeId: string) => invoke<void>("open_help_destination", { routeId }),
 };

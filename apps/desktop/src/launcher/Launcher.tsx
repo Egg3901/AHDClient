@@ -6,13 +6,15 @@ import type { WorldMeta } from "../worlds.js";
 import { CommandGlobe, themeForEra } from "./CommandGlobe.js";
 import "./launcher.css";
 
-type Mode = "sp" | "mp";
+type Mode = "sp" | "mp" | "sandbox";
+
+export type OnlineTarget = "live" | "sandbox";
 
 interface Props {
   onNewWorld: (eraId: string) => void;
   onContinue: (slot: string) => void;
   onLoad: () => void;
-  onPlayOnline: () => void;
+  onPlayOnline: (target: OnlineTarget) => void;
   error: string | null;
   onClearError: () => void;
   latestWorld: WorldMeta | null;
@@ -51,7 +53,10 @@ export function Launcher({
   continueBusy,
 }: Props): JSX.Element {
   const eras = useMemo(() => ERAS, []);
-  const [mode, setMode] = useState<Mode>(() => readPreference(MODE_STORAGE_KEY) === "mp" ? "mp" : "sp");
+  const [mode, setMode] = useState<Mode>(() => {
+    const saved = readPreference(MODE_STORAGE_KEY);
+    return saved === "mp" || saved === "sandbox" ? saved : "sp";
+  });
   const [eraId, setEraId] = useState<string>(() => {
     const saved = readPreference(ERA_STORAGE_KEY);
     return saved && eras.some(({ id }) => id === saved) ? saved : eras[0]?.id ?? "1953";
@@ -66,7 +71,8 @@ export function Launcher({
   useEffect(() => writePreference(MODE_STORAGE_KEY, mode), [mode]);
   useEffect(() => writePreference(ERA_STORAGE_KEY, eraId), [eraId]);
 
-  const multiplayer = mode === "mp";
+  const multiplayer = mode !== "sp";
+  const onlineTarget: OnlineTarget = mode === "sandbox" ? "sandbox" : "live";
   const selectedEra = eras.find((era) => era.id === eraId) ?? eras[0];
   const latestEra = latestWorld ? eraForPreset(latestWorld.preset) : undefined;
   const latestRunning = latestWorld !== null && runningSlot === latestWorld.slot;
@@ -102,6 +108,13 @@ export function Launcher({
             >
               Multiplayer
             </button>
+            <button
+              className={mode === "sandbox" ? "active" : ""}
+              onClick={() => setMode("sandbox")}
+              aria-pressed={mode === "sandbox"}
+            >
+              Sandbox
+            </button>
           </div>
 
           {error && (
@@ -115,8 +128,12 @@ export function Launcher({
             <div className="launcher-online-summary" aria-live="polite">
               <span className="launcher-live-dot" aria-hidden="true" />
               <span>
-                <strong>Continue in the online world</strong>
-                <small>Your account and session stay together in the app.</small>
+                <strong>{mode === "sandbox" ? "Enter the sandbox server" : "Continue in the online world"}</strong>
+                <small>
+                  {mode === "sandbox"
+                    ? "A separate world for trying things out. Nothing here touches the main game."
+                    : "Your account and session stay together in the app."}
+                </small>
               </span>
             </div>
           ) : (
@@ -150,7 +167,6 @@ export function Launcher({
               <dl className="launcher-era-facts" aria-live="polite">
                 <div><dt>Period</dt><dd>{selectedEra?.subtitle ?? "Unknown"}</dd></div>
                 <div><dt>Begins</dt><dd>{selectedEra?.startDate ?? "Unknown"}</dd></div>
-                <div><dt>World</dt><dd>The full game, locally</dd></div>
               </dl>
             </div>
           )}
@@ -160,12 +176,14 @@ export function Launcher({
           <div className="launcher-actions">
             {multiplayer ? (
               <>
-                <button className="launcher-btn launcher-btn-primary" onClick={onPlayOnline} disabled={continueBusy}>
-                  Enter multiplayer <span aria-hidden="true">&#8599;</span>
+                <button
+                  className="launcher-btn launcher-btn-primary"
+                  onClick={() => onPlayOnline(onlineTarget)}
+                  disabled={continueBusy}
+                >
+                  {mode === "sandbox" ? "Enter sandbox" : "Enter multiplayer"} <span aria-hidden="true">&#8599;</span>
                 </button>
-                <p className="launcher-caption">
-                  Opens separately on desktop. Stays in the app on Android.
-                </p>
+                <p className="launcher-caption">Opens in its own window.</p>
               </>
             ) : (
               <>

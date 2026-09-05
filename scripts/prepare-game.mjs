@@ -3,7 +3,7 @@
  * Stage what the desktop bundle needs beyond its own code:
  *
  *   1. A Node runtime as a Tauri sidecar
- *      (apps/desktop/src-tauri/binaries/node-<triple>[.exe]).
+ *      (apps/desktop/src-tauri/binaries/ahd-node-<triple>[.exe]).
  *   2. The game itself: the A House Divided singleplayer build
  *      (apps/desktop/src-tauri/resources/game/), produced from an AHDGame
  *      checkout with `npm run singleplayer:package`.
@@ -64,7 +64,8 @@ export async function stageNode(triple) {
   const spec = NODE_DIST[triple];
   if (!spec) throw new Error(`no Node distribution known for ${triple}`);
   const suffix = triple.includes("windows") ? ".exe" : "";
-  const dest = path.join(TAURI, "binaries", `node-${triple}${suffix}`);
+  // "ahd-node" rather than "node": Linux packages put sidecars in /usr/bin.
+  const dest = path.join(TAURI, "binaries", `ahd-node-${triple}${suffix}`);
   if (existsSync(dest)) {
     console.log(`node sidecar present: ${dest}`);
     return dest;
