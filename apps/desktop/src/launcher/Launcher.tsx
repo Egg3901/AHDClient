@@ -1,21 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
-import { listEras, listPlayableCountries } from "@ahdclient/engine";
+import type { CSSProperties } from "react";
 import desktopPackage from "../../package.json";
 import ahdLogo from "../assets/ahd-logo.png";
-import type { SaveSlotMeta } from "../saves.js";
+import { ERAS, eraForPreset } from "../worlds.js";
+import type { WorldMeta } from "../worlds.js";
 import { CommandGlobe, themeForEra } from "./CommandGlobe.js";
 import "./launcher.css";
 
-type Mode = "sp" | "mp";
+type Mode = "sp" | "mp" | "sandbox";
+
+export type OnlineTarget = "live" | "sandbox";
 
 interface Props {
   onNewWorld: (eraId: string) => void;
   onContinue: (slot: string) => void;
   onLoad: () => void;
-  onPlayOnline: () => void;
+  onPlayOnline: (target: OnlineTarget) => void;
   error: string | null;
   onClearError: () => void;
-  latestSave: SaveSlotMeta | null;
+  latestWorld: WorldMeta | null;
+  runningSlot: string | null;
   continueBusy: boolean;
 }
 
@@ -38,20 +42,6 @@ function writePreference(key: string, value: string): void {
   }
 }
 
-const ERA_SUBTITLES: Readonly<Record<string, string>> = {
-  "1953": "Cold War dawn",
-  "1979": "Late Cold War",
-  "1991": "New world order",
-  "2019": "Contemporary politics",
-};
-
-function eraSubtitle(id: string, label: string): string {
-  const authoredSubtitle = ERA_SUBTITLES[id];
-  if (authoredSubtitle) return authoredSubtitle;
-  const separator = label.indexOf(":");
-  return separator >= 0 ? label.slice(separator + 1).trim() : label;
-}
-
 export function Launcher({
   onNewWorld,
   onContinue,
@@ -59,11 +49,15 @@ export function Launcher({
   onPlayOnline,
   error,
   onClearError,
-  latestSave,
+  latestWorld,
+  runningSlot,
   continueBusy,
 }: Props): JSX.Element {
-  const eras = useMemo(() => listEras(), []);
-  const [mode, setMode] = useState<Mode>(() => readPreference(MODE_STORAGE_KEY) === "mp" ? "mp" : "sp");
+  const eras = useMemo(() => ERAS, []);
+  const [mode, setMode] = useState<Mode>(() => {
+    const saved = readPreference(MODE_STORAGE_KEY);
+    return saved === "mp" || saved === "sandbox" ? saved : "sp";
+  });
   const [eraId, setEraId] = useState<string>(() => {
     const saved = readPreference(ERA_STORAGE_KEY);
     return saved && eras.some(({ id }) => id === saved) ? saved : eras[0]?.id ?? "1953";
@@ -78,15 +72,21 @@ export function Launcher({
   useEffect(() => writePreference(MODE_STORAGE_KEY, mode), [mode]);
   useEffect(() => writePreference(ERA_STORAGE_KEY, eraId), [eraId]);
 
-  const multiplayer = mode === "mp";
+  const multiplayer = mode !== "sp";
+  const onlineTarget: OnlineTarget = mode === "sandbox" ? "sandbox" : "live";
   const selectedEra = eras.find((era) => era.id === eraId) ?? eras[0];
-  const playableCountries = selectedEra
-    ? listPlayableCountries(selectedEra.id).length
-    : 0;
+  const latestEra = latestWorld ? eraForPreset(latestWorld.preset) : undefined;
+  const latestRunning = latestWorld !== null && runningSlot === latestWorld.slot;
 
   return (
     <main className="launcher-scope" data-mode={mode}>
-      <div className="launcher-pattern" aria-hidden="true" />
+      <div
+        className="launcher-pattern"
+        aria-hidden="true"
+        style={{ "--nebula": themeForEra(eraId).dim } as CSSProperties}
+      >
+        <div className="launcher-nebula" />
+      </div>
 
       <section className="launcher-stage" aria-labelledby="launcher-title">
         <header className="launcher-mast">
@@ -115,6 +115,13 @@ export function Launcher({
             >
               Multiplayer
             </button>
+            <button
+              className={mode === "sandbox" ? "active" : ""}
+              onClick={() => setMode("sandbox")}
+              aria-pressed={mode === "sandbox"}
+            >
+              Sandbox
+            </button>
           </div>
 
           {error && (
@@ -128,8 +135,12 @@ export function Launcher({
             <div className="launcher-online-summary" aria-live="polite">
               <span className="launcher-live-dot" aria-hidden="true" />
               <span>
-                <strong>Continue in the online world</strong>
-                <small>Your account and session stay together in the app.</small>
+                <strong>{mode === "sandbox" ? "Enter the sandbox server" : "Continue in the online world"}</strong>
+                <small>
+                  {mode === "sandbox"
+                    ? "A separate world for trying things out. Nothing here touches the main game."
+                    : "Your account and session stay together in the app."}
+                </small>
               </span>
             </div>
           ) : (
@@ -148,7 +159,7 @@ export function Launcher({
                       className={`launcher-era-chip${active ? " active" : ""}`}
                       onClick={() => setEraId(era.id)}
                       aria-pressed={active}
-                      title={eraSubtitle(era.id, era.label)}
+                      title={era.subtitle}
                     >
                       <span
                         className="launcher-era-swatch"
@@ -161,9 +172,8 @@ export function Launcher({
                 })}
               </div>
               <dl className="launcher-era-facts" aria-live="polite">
-                <div><dt>Period</dt><dd>{selectedEra ? eraSubtitle(selectedEra.id, selectedEra.label) : "Unknown"}</dd></div>
+                <div><dt>Period</dt><dd>{selectedEra?.subtitle ?? "Unknown"}</dd></div>
                 <div><dt>Begins</dt><dd>{selectedEra?.startDate ?? "Unknown"}</dd></div>
-                <div><dt>Countries</dt><dd>{playableCountries} playable</dd></div>
               </dl>
             </div>
           )}
@@ -173,39 +183,45 @@ export function Launcher({
           <div className="launcher-actions">
             {multiplayer ? (
               <>
-                <button className="launcher-btn launcher-btn-primary" onClick={onPlayOnline} disabled={continueBusy}>
-                  Enter multiplayer <span aria-hidden="true">&#8599;</span>
+                <button
+                  className="launcher-btn launcher-btn-primary"
+                  onClick={() => onPlayOnline(onlineTarget)}
+                  disabled={continueBusy}
+                >
+                  {mode === "sandbox" ? "Enter sandbox" : "Enter multiplayer"} <span aria-hidden="true">&#8599;</span>
                 </button>
-                <p className="launcher-caption">
-                  Opens separately on desktop. Stays in the app on Android.
-                </p>
+                <p className="launcher-caption">Opens in its own window.</p>
               </>
             ) : (
               <>
-                {latestSave && (
+                {latestWorld && (
                   <button
                     className="launcher-btn launcher-btn-primary launcher-btn-continue"
-                    onClick={() => onContinue(latestSave.slot)}
+                    onClick={() => onContinue(latestWorld.slot)}
                     disabled={continueBusy}
                     aria-busy={continueBusy}
-                    title={`Turn ${latestSave.turn} · ${latestSave.date} · ${latestSave.country}`}
+                    title={`${latestWorld.name}${latestWorld.turn != null ? ` · turn ${latestWorld.turn}` : ""}`}
                   >
                     <span>
-                      {continueBusy ? "Loading save" : "Continue"}
-                      <small>{latestSave.playerName} · turn {latestSave.turn}</small>
+                      {continueBusy ? "Starting" : latestRunning ? "Resume" : "Continue"}
+                      <small>
+                        {latestWorld.name}
+                        {latestEra ? ` · ${latestEra.label}` : ""}
+                        {latestWorld.turn != null ? ` · turn ${latestWorld.turn}` : ""}
+                      </small>
                     </span>
                     <span aria-hidden="true">&#8594;</span>
                   </button>
                 )}
                 <button
-                  className={`launcher-btn ${latestSave ? "launcher-btn-secondary" : "launcher-btn-primary"}`}
+                  className={`launcher-btn ${latestWorld ? "launcher-btn-secondary" : "launcher-btn-primary"}`}
                   onClick={() => onNewWorld(eraId)}
                   disabled={continueBusy}
                 >
                   New world <span aria-hidden="true">&#8594;</span>
                 </button>
                 <button className="launcher-btn launcher-btn-secondary" onClick={onLoad} disabled={continueBusy}>
-                  All saves
+                  All worlds
                 </button>
               </>
             )}
@@ -215,7 +231,7 @@ export function Launcher({
 
       <footer className="launcher-footer">
         <span>AHDClient {desktopPackage.version}</span>
-        <span>Singleplayer saves stay on this device</span>
+        <span>Singleplayer worlds stay on this device</span>
       </footer>
     </main>
   );

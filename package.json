@@ -1,12 +1,11 @@
 {
   "name": "ahdclient",
   "private": true,
-  "version": "1.0.3",
+  "version": "2.0.0",
   "description": "A House Divided client with local singleplayer and multiplayer entry points",
   "license": "UNLICENSED",
   "type": "module",
   "workspaces": [
-    "packages/*",
     "apps/*"
   ],
   "scripts": {
@@ -16,8 +15,8 @@
     "dev": "npm run dev --workspace apps/desktop",
     "verify": "npm run typecheck && npm run test:ci",
     "verify:full": "npm run typecheck && npm run test",
-    "verify:qa": "npm run verify:qa --workspace packages/cli",
-    "release:check": "node scripts/release-check.mjs"
+    "release:check": "node scripts/release-check.mjs",
+    "prepare:game": "node scripts/prepare-game.mjs"
   },
   "engines": {
     "node": ">=22.12.0"

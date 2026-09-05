@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-game-request"
+description = "Enables the game_request command without any pre-configured scope."
+commands.allow = ["game_request"]
+
+[[permission]]
+identifier = "deny-game-request"
+description = "Denies the game_request command without any pre-configured scope."
+commands.deny = ["game_request"]

@@ -1,46 +1,25 @@
 {
   "$schema": "https://schema.tauri.app/config/2/capability",
   "identifier": "default",
-  "description": "Main window - dialog open/save, managed saves under $APPDATA/saves/** with crash-safe tmp rename, and entering multiplayer through Rust. Desktop uses the zero-capability online window; mobile navigates this webview but grants no remote API access.",
-  "windows": ["main"],
+  "description": "Main window: the launcher. Starts and stops the local game through Rust, lists worlds through Rust, and opens the game and multiplayer windows through Rust. No filesystem access of its own.",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "allow-open-online-window",
     "allow-open-help-destination",
+    "allow-open-game-window",
+    "allow-game-start",
+    "allow-game-stop",
+    "allow-game-status",
+    "allow-game-request",
+    "allow-list-worlds",
+    "allow-create-world",
+    "allow-delete-world",
+    "allow-touch-world",
     "dialog:default",
     "dialog:allow-open",
-    "dialog:allow-save",
-    {
-      "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "$APPDATA/saves/**" }, { "path": "$APPDATA/saves" }]
-    },
-    {
-      "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "$APPDATA/saves/**" }, { "path": "$APPDATA/saves" }]
-    },
-    {
-      "identifier": "fs:allow-rename",
-      "allow": [{ "path": "$APPDATA/saves/**" }, { "path": "$APPDATA/saves" }]
-    },
-    {
-      "identifier": "fs:allow-mkdir",
-      "allow": [{ "path": "$APPDATA/saves" }, { "path": "$APPDATA/saves/**" }]
-    },
-    {
-      "identifier": "fs:allow-read-dir",
-      "allow": [{ "path": "$APPDATA/saves" }, { "path": "$APPDATA/saves/**" }]
-    },
-    {
-      "identifier": "fs:allow-exists",
-      "allow": [{ "path": "$APPDATA/saves" }, { "path": "$APPDATA/saves/**" }]
-    },
-    {
-      "identifier": "fs:allow-remove",
-      "allow": [{ "path": "$APPDATA/saves/**" }]
-    },
-    {
-      "identifier": "fs:allow-stat",
-      "allow": [{ "path": "$APPDATA/saves" }, { "path": "$APPDATA/saves/**" }]
-    }
+    "dialog:allow-save"
   ]
 }

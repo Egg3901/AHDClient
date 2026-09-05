@@ -30,6 +30,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri -> target
-      - name: Prepare Tauri test frontend
-        run: mkdir -p apps/desktop/dist && touch apps/desktop/dist/index.html
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare Tauri test frontend and the Node sidecar
+        run: |
+          mkdir -p apps/desktop/dist && touch apps/desktop/dist/index.html
+          node scripts/prepare-game.mjs --node-only
       - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml

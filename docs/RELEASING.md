@@ -50,31 +50,6 @@ The `desktop bundles` workflow builds DMGs for Apple Silicon and Intel on
 Public distribution still needs an Apple Developer signing identity and
 notarization credentials. `icons/icon.icns` is already generated and ready.
 
-## Android
-
-The checked-in Tauri Android project lives at
-`apps/desktop/src-tauri/gen/android`. It packages the same local singleplayer
-engine and React UI as desktop. On Android, Play Online navigates the app's
-single webview so OAuth callbacks and multiplayer cookies remain in the same
-session. Remote pages do not receive Tauri API access because no remote origin
-is present in the capability configuration. Android Back follows web history
-back toward the local launcher.
-
-Install Android SDK Platform 36, Build Tools 36, NDK 27.0.12077973, JDK 21,
-and the Rust Android targets. Then run:
-
-```bash
-npm run android:build:apk --workspace apps/desktop -- --debug --target aarch64
-npm run android:build:aab --workspace apps/desktop -- --target aarch64
-```
-
-The first command is the local and CI validation build. It writes
-`app-universal-debug.apk` under
-`apps/desktop/src-tauri/gen/android/app/build/outputs/apk/universal/debug/`.
-The AAB command produces an unsigned release bundle for validation. Play
-distribution requires an owner-provided upload key. `.github/workflows/verify-android.yml`
-builds and retains the ARM64 debug APK without signing secrets.
-
 ## Icon generation
 
 Source of truth: `apps/desktop/src/assets/ahd-logo.png`, the canonical
@@ -140,3 +115,19 @@ cp -r apps/desktop/dist/. <publish dir>/
 ```
 
 `build:web` (absolute base) is for the Tauri bundle only.
+
+## Game staging
+
+Every native bundle needs two things that are not in this repository: a Node
+runtime as a Tauri sidecar and the AHDGame singleplayer build as a resource.
+`scripts/prepare-game.mjs` stages both. The release workflow checks out
+`Egg3901/AHDGame` at `main` (override with the `AHDGAME_REF` repository
+variable) and runs it before `tauri build`. Locally:
+
+```
+node scripts/prepare-game.mjs --game-dir ../AHDGame
+```
+
+The game build is large (roughly 550 MB unpacked) and takes several minutes;
+`--skip-game-build` reuses an existing `dist/singleplayer` in the checkout.
+Nothing staged is committed.

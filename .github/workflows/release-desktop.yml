@@ -67,6 +67,17 @@ jobs:
       - run: npm run typecheck
       - run: npm test --workspace apps/desktop
 
+      - name: Check out the game
+        uses: actions/checkout@v4
+        with:
+          repository: Egg3901/AHDGame
+          ref: ${{ vars.AHDGAME_REF || 'main' }}
+          path: vendor/AHDGame
+      - name: Stage Node and the game build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: node scripts/prepare-game.mjs --target ${{ matrix.target }} --game-dir vendor/AHDGame
       - uses: tauri-apps/tauri-action@v0.6.2
         env:
           APPLE_SIGNING_IDENTITY: ${{ startsWith(matrix.platform, 'macos') && '-' || '' }}

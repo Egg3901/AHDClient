@@ -14,7 +14,10 @@ const ERA_THEMES: Record<string, EraTheme> = {
   "1953": { phosphor: "#173f69", dim: "23,63,105", label: "World map · 1953" },
   "1979": { phosphor: "#9a6030", dim: "154,96,48", label: "World map · 1979" },
   "1991": { phosphor: "#526b7d", dim: "82,107,125", label: "World map · 1991" },
+  "1999": { phosphor: "#2f6f6a", dim: "47,111,106", label: "World map · 1999" },
+  "2007": { phosphor: "#7a5a1e", dim: "122,90,30", label: "World map · 2007" },
   "2019": { phosphor: "#8e2942", dim: "142,41,66", label: "World map · 2019" },
+  "2023": { phosphor: "#5a3a8a", dim: "90,58,138", label: "World map · 2023" },
 };
 
 const DEFAULT_THEME: EraTheme = ERA_THEMES["1953"]!;

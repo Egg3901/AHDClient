@@ -1,112 +1,53 @@
 # AHDClient framework
 
-Codename AHDClient: the multiplatform A House Divided client. One app, two modes: an entry to the live multiplayer game and fully local singleplayer worlds bootable in any era as any playable country. Desktop hosts multiplayer in an isolated webview; Android navigates the app webview so sign-in and session continuity match the existing mobile client.
+AHDClient is the desktop client for A House Divided. One app, two modes: the live multiplayer game in a guarded webview, and singleplayer, which is the same game run entirely on the player's machine.
 
-This document is the integration contract. Parallel work streams build against it; changing a contract here requires updating this file in the same commit.
+This document is the integration contract. Changing a contract here requires updating this file in the same commit.
+
+## What singleplayer is
+
+Singleplayer is not a port. It is the A House Divided server (the `AHDGame` repository's Next.js standalone build) running locally under a bundled Node, against a MongoDB that the game's own launcher script finds on the machine or downloads once, with one local account that the server mints a session for. The client never re-implements a screen, a map or a mechanic; every one of them is the multiplayer game's own, served from loopback.
+
+What the client owns, and all it owns:
+
+| Concern | Owner |
+|---|---|
+| Worlds: one data directory per world under the app data folder, with a small `world.json` (name, era preset, turn, character, timestamps) | Rust (`lib.rs`) |
+| The game process: Node sidecar running `game/launch.mjs` from the bundled resources, one at a time, pinned to a free loopback port | Rust |
+| Readiness and progress: the launcher's stdout streamed to the launcher window as `game:log` events; `ready at` is the readiness signal | Rust |
+| Talking to the game from the launcher (new world, status): an HTTP proxy command, loopback only, JSON only | Rust (`game_request`) |
+| The launcher UI: eras, worlds, boot progress, the running-world screen, multiplayer entry | React (`apps/desktop/src`) |
+| Everything a player sees once the game window opens | AHDGame, unchanged |
 
 ## Module boundaries
 
 | Module | Owns | Never touches |
 |---|---|---|
-| `packages/engine` | WorldState, turn phases, RNG, saves, world creation | Tauri, DOM, network, filesystem |
-| `packages/content` | Era seed packs (data + validation) | Engine internals beyond public types, UI |
-| `apps/desktop` | Tauri shell, launcher, mode routing, React UI | Engine internals; it consumes `@ahdsolo/engine` exports only |
+| `apps/desktop/src-tauri` | Windows, the game process, worlds on disk, HTTP to loopback | Game content |
+| `apps/desktop/src` | Launcher screens | Filesystem, shell, network (CSP and capabilities forbid all three) |
+| `apps/desktop/src-tauri/resources/game` | The staged AHDGame singleplayer build, produced by `scripts/prepare-game.mjs`, never committed | Client code |
+| `apps/desktop/src-tauri/binaries` | The Node sidecar per target triple, staged by the same script, never committed | Client code |
 
-## Engine contract (v1)
+## Game contract
 
-`@ahdsolo/engine` exports, stable for UI work to code against:
+The client depends on exactly these AHDGame surfaces and nothing else:
 
-```ts
-interface EraInfo { id: string; label: string; startDate: string }
-interface PlayableCountryInfo { id: string; name: string }
+- `scripts/singleplayer/package.mjs` produces `dist/singleplayer/` containing `server.js`, `launch.mjs`, `.next/`, `public/`, `node_modules/`.
+- `launch.mjs --port N --home DIR --no-browser --parent-pid P` starts MongoDB and the server, prints `[ahd] ready at http://127.0.0.1:N` on stdout, mints and persists the server's secrets under `DIR`, mirrors art under `DIR/cdn`, and exits (taking MongoDB with it) when process `P` disappears.
+- `GET /api/singleplayer/status` and `POST /api/singleplayer/new-game {preset, displayName?}`, both loopback-only on the server side.
+- Era presets `1953-default` through `2023-default`, mirrored in `apps/desktop/src/worlds.ts`.
 
-function listEras(): EraInfo[]
-function listPlayableCountries(era: string): PlayableCountryInfo[]
-
-interface NewWorldOptions {
-  seed: string
-  playerName: string
-  countryId: string
-  era: string        // an id from listEras()
-}
-function createWorld(options: NewWorldOptions): WorldState
-function advanceTurn(world: WorldState): TurnReport
-function serializeSave(world: WorldState, savedAt: string): string
-function deserializeSave(raw: string): WorldState
-```
-
-Era ids are strings sourced from seed packs, not a hardcoded union. `createWorld` throws on unknown era or non-playable country.
-
-## Engine contract: custom creation and singleplayer tools
-
-Singleplayer worlds are the player's property: world creation is granular and an explicit cheat surface exists. Both are engine-validated mutations, never raw UI pokes at state.
-
-```ts
-interface CountryEconomyOverride {
-  gdp?: number
-  growthRate?: number
-  inflationRate?: number
-  unemploymentRate?: number
-}
-interface WorldOverrides {
-  playerCash?: number
-  countries?: Record<string, CountryEconomyOverride>   // uppercase country ids
-}
-// NewWorldOptions gains: overrides?: WorldOverrides
-// createWorld validates overrides (finite numbers, gdp > 0, rates in pack bounds)
-// and throws on unknown country ids.
-
-function listCountries(era: string): {
-  id: string; name: string; playable: boolean; economy: CountryEconomy
-}[]   // full pack roster with default anchors, for the creation editor
-
-type CheatOp =
-  | { kind: "setPlayerCash"; amount: number }
-  | { kind: "setPlayerField"; field: PlayerNumericField; value: number }
-  | { kind: "setCountryEconomy"; countryId: string;
-      field: "gdp" | "growthRate" | "inflationRate" | "unemploymentRate" | "outputGap";
-      value: number }
-  | { kind: "advanceTurns"; count: number }
-  | { kind: "addNews"; headline: string }
-  | { kind: "setPoliticianField"; politicianId: string; field: PoliticianNumericField; value: number }
-  | { kind: "setPartyField"; partyId: string; field: PartyNumericField; value: number }
-  | { kind: "setFeatureFlag"; flag: WorldFeatureFlag; enabled: boolean }
-  | { kind: "setFeatureFlags"; flags: Partial<WorldFeatureFlags> }
-function applyCheat(world: WorldState, op: CheatOp): void   // validates, throws on bad input
-```
-
-Singleplayer tools must never render in multiplayer mode. The quick editor routes through `applyCheat`; the complete JSON editor routes through the current save-schema validator before replacing the active world. Successful changes set `meta.cheatsUsed` and persist normally.
-
-`WorldState.featureFlags` contains the typed, player-owned simulation controls defined by `WORLD_FEATURE_FLAG_DEFINITIONS`. All default on. Each switch gates a documented family of turn phases; core calendar, action refresh, era crossing, history recording, and news maintenance always run to preserve world invariants. Disabled phases consume no RNG, so identical worlds plus identical flag changes remain deterministic. Schema v42 migrates old saves to the all-on defaults.
-
-Schema v43 adds `WorldState.countryPolitics`, a deterministic local overview record for each playable country, and `player.homeRegionId` for the State navigation cluster. It persists national approval history, regime classification, legitimacy, and unrest. The `countryPolitics` turn phase derives changes from live world state without drawing RNG. The v42 to v43 migration seeds the overview from the loaded save and sets the absent home-region identity to `null`; the Character panel lets the player select it. Migration never fabricates an executive, chamber officeholder, or historical samples from before the migration turn.
-
-## Singleplayer UI contract
-
-The in-game shell keeps the multiplayer top-level navigation visible around every local screen: Actions, State, Nation, World, and Help. Stable route ids come from one navigation manifest for desktop and mobile. All gameplay routes resolve against the on-device `WorldState` without fetches or accounts. Genuinely multiplayer-only destinations remain visible with an explicit explanation.
-
-The country overview renders a transport-free `CountryOverviewModel`. `LocalCountryOverviewSource` is the only adapter from `WorldState` into that model; the view imports no engine, Tauri, or network code. Routes without a full dedicated screen use route-specific projections of real local collections and name any missing engine mechanic instead of substituting unrelated data.
-
-## Play modes (binding)
-
-Singleplayer has two modes chosen at world creation:
-
-- **Career** (default): the player is a politician climbing the existing systems.
-- **Head of State**: the player is the ruling party/government of a chosen country: legislative agenda, economic direction (NPP economy encouragement, subsidies, state levers), wars and foreign policy.
-
-The rule that keeps modes safe: **a mode is who the player is, never how the world works.** The turn pipeline, phase logic, and formulas are mode-blind; there is no `if (mode)` inside any phase. A mode only changes which existing action surfaces the player holds (the levers party/executive NPCs already operate) and which UI hub renders. `player.mode` lives on the player document; action gating happens at the action layer; NPCs fill whatever roles the player does not hold, identically in both modes. Any feature that cannot be built under this rule needs an explicit owner decision before it is built.
+A change to any of these is a change to this contract and lands in both repositories together.
 
 ## Security doctrine (binding)
 
-1. **Singleplayer is fully local.** No server process, no listeners, no network requests from SP surfaces. The engine is a library in the app process; turns cost the player's CPU and nothing else.
-2. **The online mode loads https://ahousedividedgame.com in a webview.** Desktop uses a dedicated zero-capability window. Mobile, where Tauri supports only one webview, navigates the main webview so OAuth callbacks and the multiplayer cookie jar stay inside the app; Android Back follows web history to return to the local client. Tauri remote API access is not enabled, so remote pages cannot use the main window's local fs, dialog, or command permissions. Desktop OAuth navigation is limited to the same Discord and Google hosts used by the existing mobile client. Never enable remote-domain IPC access.
-3. **Capabilities are minimal and per-window.** The SP window holds dialog open/save, read/write access to dialog-picked files, and only the filesystem operations required for managed slots under `$APPDATA/saves/**` (read, write, atomic rename, create/list, stat, and delete). No other persistent filesystem path is in scope.
-4. **Saves are inert data.** Loading validates format and schema version and fails hard; no code or paths execute from a save file.
-
-## Determinism doctrine (binding)
-
-No `Math.random`, `Date.now`, or IO inside `packages/engine` or `packages/content`. All randomness flows through the world RNG; all time from the world calendar. Any WorldState shape change bumps `SCHEMA_VERSION` with a load migration in the same PR. Determinism is test-enforced; keep it that way.
+1. **Singleplayer listens on loopback only.** The server binds `127.0.0.1` on a port chosen at start; MongoDB binds `127.0.0.1` on its own port. Nothing on the player's network can reach either. The server's own singleplayer routes additionally refuse any Host header that is not loopback, and refuse to run at all when a hosting-provider environment marker is present.
+2. **The game window is a plain webview.** It loads the loopback origin, may navigate only within that origin and port (anything else opens in the system browser), denies popups, and holds zero Tauri capabilities (`capabilities/game.json`). The game talks to its server over HTTP exactly as a browser would.
+3. **The online window is unchanged from 1.x.** Loads `https://ahousedividedgame.com`, may navigate to the site and the approved OAuth hosts, zero capabilities (`capabilities/online.json`). Never enable remote-domain IPC access.
+4. **The launcher window has no filesystem, shell or network access.** It invokes Rust commands and nothing else. Worlds are created, listed and deleted in Rust with slot names restricted to `[A-Za-z0-9_-]`; the HTTP proxy accepts only absolute paths without `..` and only reaches the running game's port.
+5. **The game process cannot outlive the client.** Rust kills it on exit and on stop; the launcher script polls the client's pid and shuts down on its own if the client dies without warning.
+6. **Downloads are pinned.** Node (`scripts/prepare-game.mjs`, `NODE_VERSION`) is fetched at build time from nodejs.org. MongoDB (`launch.mjs`, `MONGO_VERSION`) is fetched at first run from fastdl.mongodb.org, and only the server binary is extracted.
 
 ## Verification
 
-`npm run verify` from the repo root (typecheck all workspaces + bounded fast tests) is the merge gate. Tests that advance a complete world across many turns use the `.sim.test.ts` suffix and run only through the opt-in `npm run verify:full` suite. Desktop changes additionally require `npm run build:web --workspace apps/desktop` and `cargo check` in `apps/desktop/src-tauri`.
+`npm run verify` from the repo root (typecheck plus the bounded test suite) is the merge gate. Rust changes run `cargo test` in `apps/desktop/src-tauri` with a staged Node sidecar (`node scripts/prepare-game.mjs --node-only`). A release bundle requires the game staged as well (`node scripts/prepare-game.mjs --game-dir <AHDGame checkout>`), which the release workflow does from a fresh AHDGame checkout.

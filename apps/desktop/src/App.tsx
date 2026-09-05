@@ -1,1716 +1,241 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { TurnReport, WorldFeatureFlag, WorldFeatureFlags, WorldState } from "@ahdclient/engine";
-import {
-  DEFAULT_WORLD_FEATURE_FLAGS,
-  listEras,
-  listPlayableCountries,
-  listRegions,
-  rulingPartyForCountry,
-  WORLD_FEATURE_FLAG_DEFINITIONS,
-} from "@ahdclient/engine";
-import { game } from "./game.js";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { Launcher } from "./launcher/Launcher.js";
-import { themeForEra } from "./launcher/CommandGlobe.js";
-import { createWorldWithOverrides, listCountries } from "./worldSetup.js";
-import type { WorldOverrides, CountryEconomyOverride } from "./worldSetup.js";
-import { applyCheat, describeCheat } from "./cheats.js";
-import type { CheatOp, PartyNumericField, PlayerNumericField, PoliticianNumericField } from "./cheats.js";
-import { SavesScreen } from "./saves/SavesScreen.js";
-import "./saves/saves.css";
-import { listSlots, loadFromSlot, maybeAutosave, QUICK_SAVE_SLOT, saveToSlot } from "./saves.js";
-import type { SaveSlotMeta } from "./saves.js";
-import { CharacterPanel } from "./character/CharacterPanel.js";
-import "./character/character.css";
-import { GameShell } from "./gameShell/GameShell.js";
-import { helpTargetForRoute } from "./gameShell/helpTargets.js";
-import { LocalCountryOverviewSource } from "./country/localSource.js";
-import type { CountryOverviewModel } from "./country/model.js";
-import { ONLINE_URL } from "./onlineTarget.js";
+import { NewWorldScreen } from "./screens/NewWorldScreen.js";
+import { WorldsScreen } from "./screens/WorldsScreen.js";
+import { BootScreen } from "./screens/BootScreen.js";
+import { PlayingScreen } from "./screens/PlayingScreen.js";
+import { eraById, game, online, slugForWorld, worlds } from "./worlds.js";
+import type { GameInfo, OnlineTarget, WorldMeta } from "./worlds.js";
+import "./screens/screens.css";
 
-// Desktop builds create the online window in Rust so it can be given
-// navigation and new-window guards without handing the remote webview a
-// Tauri capability. Mobile builds navigate the main app webview so its
-// cookie-backed session matches the existing Android client. See
-// docs/FRAMEWORK.md "Security doctrine" and capabilities/online.json (empty
-// permission set) plus capabilities/default.json (only "main" may invoke
-// this command). If the Tauri bridge is unavailable for any reason (e.g. a
-// bug that leaves `window.__TAURI_INTERNALS__` unset), fall back to a plain
-// system-browser open rather than leaving the button dead.
-async function openOnline(): Promise<void> {
-  try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("open_online_window");
-  } catch (e) {
-    console.error("failed to open online window", e);
-    window.open(ONLINE_URL, "_blank", "noopener");
-  }
-}
+type Screen = "launcher" | "newWorld" | "worlds" | "booting" | "playing";
 
-async function openHelp(routeId: string): Promise<void> {
-  const target = helpTargetForRoute(routeId);
-  if (target === undefined) {
-    console.error(`unknown Help destination: ${routeId}`);
-    return;
-  }
-  try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("open_help_destination", { routeId });
-  } catch (error) {
-    console.error(`failed to open Help destination ${routeId}`, error);
-    window.open(target.url, "_blank", "noopener");
-  }
-}
+const IDLE: GameInfo = { running: false, port: null, slot: null, url: null };
+const LOG_LINES = 14;
 
-function formatPct(rate: number): string {
-  return `${(rate * 100).toFixed(1)}%`;
-}
-
-function randomSeed(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
-
-function percentInput(rate: number): string {
-  // store as fraction, display as percent without trailing zeros
-  const p = rate * 100;
-  // keep up to 3 decimals, trim
-  const s = p.toFixed(3);
-  const trimmed = s.replace(/\.?0+$/, "");
-  return trimmed;
-}
-
-// -------------------------------------------------------------------
-// New World — granular setup
-// -------------------------------------------------------------------
-
-interface EditorRow {
-  id: string;
-  name: string;
-  playable: boolean;
-  defaultGdp: number;
-  defaultGrowth: number;
-  defaultInflation: number;
-  defaultUnemployment: number;
-  gdpStr: string;
-  growthStr: string;
-  inflationStr: string;
-  unemploymentStr: string;
-}
-
-function isValidGdp(s: string): boolean {
-  const n = Number(s);
-  return Number.isFinite(n) && n > 0;
-}
-// growth and inflation may be negative (recession, deflation)
-function isValidSignedPercent(s: string): boolean {
-  const n = Number(s);
-  return Number.isFinite(n) && n >= -100 && n <= 100;
-}
-function isValidInflationPercent(s: string): boolean {
-  const n = Number(s);
-  return Number.isFinite(n) && n >= -100 && n <= 10_000;
-}
-function isValidPercent(s: string): boolean {
-  const n = Number(s);
-  return Number.isFinite(n) && n >= 0 && n <= 100;
-}
-function isValidCash(s: string): boolean {
-  if (s.trim() === "") return false;
-  const n = Number(s);
-  return Number.isFinite(n) && n >= 0;
-}
-
-export function NewWorldScreen({
-  onBack,
-  onCreated,
-  initialEra,
-}: {
-  onBack: () => void;
-  onCreated: (world: WorldState) => void;
-  initialEra?: string | undefined;
-}) {
-  const eras = useMemo(() => listEras(), []);
-  const [era, setEra] = useState<string>(() => initialEra ?? eras[0]?.id ?? "1953");
-  const playable = useMemo(() => {
-    try {
-      return listPlayableCountries(era);
-    } catch {
-      return [];
-    }
-  }, [era]);
-  const [countryId, setCountryId] = useState<string>(() => playable[0]?.id ?? "US");
-  const homeRegions = useMemo(() => {
-    try {
-      return listRegions(era, countryId);
-    } catch {
-      return [];
-    }
-  }, [countryId, era]);
-  const [homeRegionId, setHomeRegionId] = useState("");
-  const [seed, setSeed] = useState(() => randomSeed());
-  const [name, setName] = useState("Player");
-  // M2 (Lane 12 Head of State mode): career is the default per FRAMEWORK.md
-  // "Play modes (binding)". HoS binds to countryId's seeded ruling party at
-  // creation (engine side, world.ts rulingPartyIdForCountry); this preview
-  // uses the same pure function so the picker can show it before a world
-  // exists.
-  const [mode, setMode] = useState<"career" | "hos">("career");
-  const rulingParty = useMemo(() => {
-    if (mode !== "hos" || !countryId) return null;
-    try {
-      return rulingPartyForCountry(era, countryId);
-    } catch {
-      return null;
-    }
-  }, [mode, era, countryId]);
-  const [startingCash, setStartingCash] = useState("10000");
-  const [featureFlags, setFeatureFlags] = useState<WorldFeatureFlags>(() => ({
-    ...DEFAULT_WORLD_FEATURE_FLAGS,
-  }));
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [rows, setRows] = useState<EditorRow[]>(() => {
-    try {
-      const roster = listCountries(era);
-      return roster.map((c) => ({
-        id: c.id,
-        name: c.name,
-        playable: c.playable,
-        defaultGdp: c.economy.gdp,
-        defaultGrowth: c.economy.growthRate,
-        defaultInflation: c.economy.inflationRate,
-        defaultUnemployment: c.economy.unemploymentRate,
-        gdpStr: String(Math.round(c.economy.gdp)),
-        growthStr: percentInput(c.economy.growthRate),
-        inflationStr: percentInput(c.economy.inflationRate),
-        unemploymentStr: percentInput(c.economy.unemploymentRate),
-      }));
-    } catch {
-      return [];
-    }
-  });
+export function App(): JSX.Element {
+  const [screen, setScreen] = useState<Screen>("launcher");
+  const [allWorlds, setAllWorlds] = useState<WorldMeta[]>([]);
+  const [info, setInfo] = useState<GameInfo>(IDLE);
+  const [pendingEra, setPendingEra] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [bootTitle, setBootTitle] = useState("Starting");
+  const [log, setLog] = useState<string[]>([]);
+  const cancelled = useRef(false);
 
-  useEffect(() => {
-    const list = playable;
-    if (list.length > 0 && !list.some((c) => c.id === countryId)) {
-      const first = list[0];
-      if (first) setCountryId(first.id);
-    }
-  }, [playable, countryId]);
-
-  useEffect(() => {
-    if (!homeRegions.some((region) => region.id === homeRegionId)) {
-      setHomeRegionId(homeRegions[0]?.id ?? "");
-    }
-  }, [homeRegionId, homeRegions]);
-
-  useEffect(() => {
+  const refreshWorlds = useCallback(async () => {
     try {
-      const roster = listCountries(era);
-      setRows(
-        roster.map((c) => ({
-          id: c.id,
-          name: c.name,
-          playable: c.playable,
-          defaultGdp: c.economy.gdp,
-          defaultGrowth: c.economy.growthRate,
-          defaultInflation: c.economy.inflationRate,
-          defaultUnemployment: c.economy.unemploymentRate,
-          gdpStr: String(Math.round(c.economy.gdp)),
-          growthStr: percentInput(c.economy.growthRate),
-          inflationStr: percentInput(c.economy.inflationRate),
-          unemploymentStr: percentInput(c.economy.unemploymentRate),
-        })),
-      );
-    } catch {
-      setRows([]);
-    }
-  }, [era]);
-
-  const modifiedCount = useMemo(() => {
-    let n = 0;
-    for (const r of rows) {
-      const gdp = Number(r.gdpStr);
-      const growth = Number(r.growthStr);
-      const inflation = Number(r.inflationStr);
-      const unemployment = Number(r.unemploymentStr);
-      // if any parse invalid, we count as not yet but will block creation
-      const isModified =
-        (Number.isFinite(gdp) && Math.abs(gdp - r.defaultGdp) > 1e-6) ||
-        (Number.isFinite(growth) && Math.abs(growth / 100 - r.defaultGrowth) > 1e-9) ||
-        (Number.isFinite(inflation) && Math.abs(inflation / 100 - r.defaultInflation) > 1e-9) ||
-        (Number.isFinite(unemployment) && Math.abs(unemployment / 100 - r.defaultUnemployment) > 1e-9);
-      if (isModified) n++;
-    }
-    return n;
-  }, [rows]);
-
-  const cashModified = useMemo(() => {
-    const n = Number(startingCash);
-    if (!Number.isFinite(n)) return false;
-    return Math.abs(n - 10000) > 1e-6;
-  }, [startingCash]);
-
-  const pausedFeatureCount = useMemo(
-    () => Object.values(featureFlags).filter((enabled) => !enabled).length,
-    [featureFlags],
-  );
-
-  const totalModified = modifiedCount + (cashModified ? 1 : 0) + pausedFeatureCount;
-
-  const hasInvalid = useMemo(() => {
-    if (!seed.trim() || !name.trim() || !countryId || (homeRegions.length > 0 && !homeRegionId)) return true;
-    if (!isValidCash(startingCash)) return true;
-    for (const r of rows) {
-      if (!isValidGdp(r.gdpStr) || !isValidSignedPercent(r.growthStr) || !isValidInflationPercent(r.inflationStr) || !isValidPercent(r.unemploymentStr)) {
-        return true;
-      }
-    }
-    return false;
-  }, [rows, startingCash, seed, name, countryId, homeRegionId, homeRegions.length]);
-
-  const handleRandomize = () => setSeed(randomSeed());
-
-  const updateRow = (id: string, patch: Partial<Pick<EditorRow, "gdpStr" | "growthStr" | "inflationStr" | "unemploymentStr">>) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-  };
-
-  const resetRow = (id: string) => {
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              gdpStr: String(Math.round(r.defaultGdp)),
-              growthStr: percentInput(r.defaultGrowth),
-              inflationStr: percentInput(r.defaultInflation),
-              unemploymentStr: percentInput(r.defaultUnemployment),
-            }
-          : r,
-      ),
-    );
-  };
-
-  const resetAll = () => {
-    setRows((prev) =>
-      prev.map((r) => ({
-        ...r,
-        gdpStr: String(Math.round(r.defaultGdp)),
-        growthStr: percentInput(r.defaultGrowth),
-        inflationStr: percentInput(r.defaultInflation),
-        unemploymentStr: percentInput(r.defaultUnemployment),
-      })),
-    );
-    setStartingCash("10000");
-    setFeatureFlags({ ...DEFAULT_WORLD_FEATURE_FLAGS });
-  };
-
-  const setAllFeatures = (enabled: boolean) => {
-    setFeatureFlags(
-      Object.fromEntries(
-        WORLD_FEATURE_FLAG_DEFINITIONS.map(({ key }) => [key, enabled]),
-      ) as WorldFeatureFlags,
-    );
-  };
-
-  const handleCreate = async () => {
-    setError(null);
-    if (!seed.trim()) {
-      setError("Seed is required.");
-      return;
-    }
-    if (!name.trim()) {
-      setError("Character name is required.");
-      return;
-    }
-    if (!countryId) {
-      setError("Pick a country.");
-      return;
-    }
-    if (homeRegions.length > 0 && !homeRegionId) {
-      setError("Pick a home state or region.");
-      return;
-    }
-    if (!isValidCash(startingCash)) {
-      setError("Correct highlighted fields before creating. Starting cash must be a finite number >= 0.");
-      return;
-    }
-    for (const r of rows) {
-      if (!isValidGdp(r.gdpStr) || !isValidSignedPercent(r.growthStr) || !isValidInflationPercent(r.inflationStr) || !isValidPercent(r.unemploymentStr)) {
-        setError("Correct highlighted fields before creating. GDP must be > 0, growth -100 to 100, inflation -100 to 10,000, and unemployment 0 to 100.");
-        return;
-      }
-    }
-    setBusy(true);
-    try {
-      const overrides: WorldOverrides = {};
-      const cashNum = Number(startingCash);
-      if (Math.abs(cashNum - 10000) > 1e-6) {
-        overrides.playerCash = cashNum;
-      }
-      const countries: Record<string, CountryEconomyOverride> = {};
-      for (const r of rows) {
-        const gdp = Number(r.gdpStr);
-        const growth = Number(r.growthStr) / 100;
-        const inflation = Number(r.inflationStr) / 100;
-        const unemployment = Number(r.unemploymentStr) / 100;
-        const ov: CountryEconomyOverride = {};
-        let changed = false;
-        if (Math.abs(gdp - r.defaultGdp) > 1e-6) {
-          ov.gdp = gdp;
-          changed = true;
-        }
-        if (Math.abs(growth - r.defaultGrowth) > 1e-9) {
-          ov.growthRate = growth;
-          changed = true;
-        }
-        if (Math.abs(inflation - r.defaultInflation) > 1e-9) {
-          ov.inflationRate = inflation;
-          changed = true;
-        }
-        if (Math.abs(unemployment - r.defaultUnemployment) > 1e-9) {
-          ov.unemploymentRate = unemployment;
-          changed = true;
-        }
-        if (changed) countries[r.id] = ov;
-      }
-      if (Object.keys(countries).length > 0) overrides.countries = countries;
-
-      const world = await createWorldWithOverrides(
-        {
-          seed: seed.trim(),
-          playerName: name.trim(),
-          countryId,
-          ...(homeRegionId ? { homeRegionId } : {}),
-          era,
-          mode,
-          featureFlags,
-        },
-        overrides,
-      );
-      onCreated(world);
+      setAllWorlds(await worlds.list());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
     }
-  };
-
-  const eraLabel = eras.find((e) => e.id === era)?.label ?? era;
-  const countryLabel = playable.find((c) => c.id === countryId)?.name ?? countryId;
-
-  return (
-    <div className="new-world">
-      <div className="new-world-inner">
-        <div className="new-world-head">
-          <h1>New World</h1>
-          <p className="muted small">Local world. Turns run on your machine.</p>
-        </div>
-
-        <div className="panel new-world-panel">
-          <section className="nw-section">
-            <h2>Mode</h2>
-            <div className="nw-mode-picker" role="radiogroup" aria-label="Play mode">
-              <button
-                type="button"
-                className={mode === "career" ? "nw-mode-option nw-mode-selected" : "nw-mode-option"}
-                aria-pressed={mode === "career"}
-                onClick={() => setMode("career")}
-              >
-                <strong>Career</strong>
-                <span className="muted small">Climb the existing systems as a politician: run for office, join a party, sponsor bills once you hold a seat.</span>
-              </button>
-              <button
-                type="button"
-                className={mode === "hos" ? "nw-mode-option nw-mode-selected" : "nw-mode-option"}
-                aria-pressed={mode === "hos"}
-                onClick={() => setMode("hos")}
-              >
-                <strong>Head of State</strong>
-                <span className="muted small">Govern as your chosen country's ruling party: legislative agenda, economic direction, war and foreign policy from turn one.</span>
-              </button>
-            </div>
-          </section>
-
-          <section className="nw-section">
-            <h2>Identity</h2>
-            <label>
-              {mode === "hos" ? "Leader name" : "Character name"}
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Player"
-                required
-                aria-invalid={!name.trim()}
-                className={name.trim() ? "" : "invalid"}
-              />
-            </label>
-          </section>
-
-          <section className="nw-section">
-            <h2>World</h2>
-            <label>
-              Era
-              <div className="nw-era-row" role="radiogroup" aria-label="Era">
-                {eras.map((er) => {
-                  const active = er.id === era;
-                  const theme = themeForEra(er.id);
-                  return (
-                    <button
-                      key={er.id}
-                      type="button"
-                      className={`nw-era-chip${active ? " active" : ""}`}
-                      onClick={() => setEra(er.id)}
-                      aria-pressed={active}
-                      role="radio"
-                      aria-checked={active}
-                    >
-                      <span
-                        className="swatch"
-                        style={{ background: active ? theme.phosphor : undefined }}
-                        aria-hidden="true"
-                      />
-                      <span className="nw-era-chip-label">{er.label}</span>
-                      <span className="nw-era-chip-date muted">{er.startDate}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </label>
-            <label>
-              Playable country
-              <select value={countryId} onChange={(e) => setCountryId(e.target.value)}>
-                {playable.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {homeRegions.length > 0 && (
-              <label>
-                Home state or region
-                <select
-                  value={homeRegionId}
-                  onChange={(event) => setHomeRegionId(event.target.value)}
-                >
-                  {homeRegions.map((region) => (
-                    <option key={region.id} value={region.id}>
-                      {region.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {mode === "hos" && (
-              <div className="nw-ruling-party muted small" role="note">
-                {rulingParty
-                  ? `You will govern as the ${rulingParty.name} (${rulingParty.abbreviation}), ${countryLabel}'s seeded ruling party.`
-                  : `No seeded ruling-party data for ${countryLabel} yet — Head of State mode still works, but government-only action surfaces won't unlock.`}
-              </div>
-            )}
-            <label>
-              World seed
-              <div className="row seed-row">
-                <input
-                  value={seed}
-                  onChange={(e) => setSeed(e.target.value)}
-                  className={`seed-input${seed.trim() ? "" : " invalid"}`}
-                  required
-                  aria-invalid={!seed.trim()}
-                />
-                <button type="button" className="secondary" onClick={handleRandomize}>
-                  Randomize
-                </button>
-              </div>
-            </label>
-          </section>
-
-          <section className="nw-section">
-            <button type="button" className="secondary nw-advanced-toggle" onClick={() => setAdvancedOpen((v) => !v)}>
-              <span className="nw-chevron">{advancedOpen ? "▾" : "▸"}</span> Advanced
-              <span className="muted small" style={{ marginLeft: 8 }}>
-                {totalModified > 0 ? `${totalModified} modified` : "defaults"}
-              </span>
-            </button>
-            {advancedOpen && (
-              <div className="nw-advanced">
-                <label>
-                  Starting cash
-                  <input
-                    value={startingCash}
-                    onChange={(e) => setStartingCash(e.target.value)}
-                    className={isValidCash(startingCash) ? "" : "invalid"}
-                  />
-                </label>
-
-                <div className="nw-editor-head row spread">
-                  <span className="small muted">Economy — {rows.length} countries</span>
-                  <button type="button" className="secondary small-btn" onClick={resetAll}>
-                    Reset all
-                  </button>
-                </div>
-
-                <div className="nw-table-wrap">
-                  <table className="nw-table">
-                    <thead>
-                      <tr>
-                        <th>Country</th>
-                        <th>GDP ($M)</th>
-                        <th>Growth %</th>
-                        <th>Inflation %</th>
-                        <th>Unemployment %</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((r) => {
-                        const gdpInvalid = !isValidGdp(r.gdpStr);
-                        const growthInvalid = !isValidSignedPercent(r.growthStr);
-                        const inflationInvalid = !isValidInflationPercent(r.inflationStr);
-                        const unemploymentInvalid = !isValidPercent(r.unemploymentStr);
-                        return (
-                          <tr key={r.id}>
-                            <td className="nw-country-cell">
-                              <span className="nw-country-name">{r.name}</span>
-                              <span className="nw-country-id muted small">{r.id}</span>
-                              {r.playable && <span className="nw-playable-dot" title="playable" />}
-                            </td>
-                            <td>
-                              <input
-                                value={r.gdpStr}
-                                onChange={(e) => updateRow(r.id, { gdpStr: e.target.value })}
-                                className={gdpInvalid ? "invalid" : ""}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                value={r.growthStr}
-                                onChange={(e) => updateRow(r.id, { growthStr: e.target.value })}
-                                className={growthInvalid ? "invalid" : ""}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                value={r.inflationStr}
-                                onChange={(e) => updateRow(r.id, { inflationStr: e.target.value })}
-                                className={inflationInvalid ? "invalid" : ""}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                value={r.unemploymentStr}
-                                onChange={(e) => updateRow(r.id, { unemploymentStr: e.target.value })}
-                                className={unemploymentInvalid ? "invalid" : ""}
-                              />
-                            </td>
-                            <td>
-                              <button type="button" className="secondary small-btn" onClick={() => resetRow(r.id)}>
-                                Reset
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="nw-feature-head row spread">
-                  <div>
-                    <strong>Simulation systems</strong>
-                    <div className="muted small">
-                      Pause systems before the first turn. Their state is retained and they can be resumed later from Tools.
-                    </div>
-                  </div>
-                  <div className="row">
-                    <button type="button" className="secondary small-btn" onClick={() => setAllFeatures(true)}>
-                      Enable all
-                    </button>
-                    <button type="button" className="secondary small-btn" onClick={() => setAllFeatures(false)}>
-                      Pause all
-                    </button>
-                  </div>
-                </div>
-
-                <div className="nw-feature-grid">
-                  {WORLD_FEATURE_FLAG_DEFINITIONS.map(({ key, label, description }) => (
-                    <label className="nw-feature-card" key={key}>
-                      <input
-                        type="checkbox"
-                        checked={featureFlags[key]}
-                        onChange={(event) => {
-                          const enabled = event.target.checked;
-                          setFeatureFlags((current) => ({ ...current, [key]: enabled }));
-                        }}
-                      />
-                      <span>
-                        <strong>{label}</strong>
-                        <small>{description}</small>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-          </section>
-
-          <div className="nw-summary muted small">
-            {mode === "hos" ? "Head of State" : "Career"} · {eraLabel} · {countryLabel} · seed {seed.trim() || "—"} · {modifiedCount} {modifiedCount === 1 ? "country" : "countries"} modified
-            {cashModified ? " · cash modified" : ""}
-            {pausedFeatureCount > 0 ? ` · ${pausedFeatureCount} systems paused` : ""}
-          </div>
-
-          {error && (
-            <div className="error-text" role="alert">
-              {error}
-            </div>
-          )}
-
-          <div className="row">
-            <button onClick={() => void handleCreate()} disabled={busy || hasInvalid}>
-              {busy ? "Creating" : "Create world"}
-            </button>
-            <button className="secondary" onClick={onBack}>
-              Back
-            </button>
-          </div>
-          {hasInvalid && <div className="muted small">Enter a character name and seed, then correct any highlighted values.</div>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// -------------------------------------------------------------------
-// Cheat panel (singleplayer only)
-// -------------------------------------------------------------------
-
-function CheatPanel({
-  open,
-  onClose,
-  world,
-  onWorld,
-  onCheatApplied,
-  log,
-}: {
-  open: boolean;
-  onClose: () => void;
-  world: WorldState;
-  onWorld: (w: WorldState) => void;
-  onCheatApplied: (entry: string, advanceCount?: number) => void;
-  log: string[];
-}) {
-  const [toolTab, setToolTab] = useState<"quick" | "features" | "advanced">("quick");
-  const [playerField, setPlayerField] = useState<PlayerNumericField>("cash");
-  const [cashInput, setCashInput] = useState("");
-  const [econCountry, setEconCountry] = useState<string>(() => Object.keys(world.countries)[0] ?? "US");
-  const [econField, setEconField] = useState<"gdp" | "growthRate" | "inflationRate" | "unemploymentRate" | "outputGap">("gdp");
-  const [econValue, setEconValue] = useState("");
-  const [timeCount, setTimeCount] = useState("1");
-  const [lastElapsed, setLastElapsed] = useState<number | null>(null);
-  const [headline, setHeadline] = useState("");
-  const [newsCategory, setNewsCategory] = useState("");
-  const [cheatError, setCheatError] = useState<string | null>(null);
-  const [worldJson, setWorldJson] = useState(() => JSON.stringify(world, null, 2));
+  }, []);
 
   useEffect(() => {
-    if (open) setWorldJson(JSON.stringify(world, null, 2));
-  }, [open]);
-
-  // Elections force resolve
-  const activeElections = useMemo(() => {
-    const list = Array.isArray(world.elections) ? world.elections : [];
-    return list
-      .filter((e) => e.status === "active")
-      .sort((a, b) => a.id.localeCompare(b.id));
-  }, [world.elections]);
-  const [selectedElectionId, setSelectedElectionId] = useState<string>(() => activeElections[0]?.id ?? "");
-  useEffect(() => {
-    if (activeElections.length === 0) {
-      if (selectedElectionId !== "") setSelectedElectionId("");
-      return;
-    }
-    if (!activeElections.some((e) => e.id === selectedElectionId)) {
-      setSelectedElectionId(activeElections[0]!.id);
-    }
-  }, [activeElections, selectedElectionId]);
-
-  // Politician editor
-  const polityCountries = useMemo(() => Object.keys(world.countries).sort(), [world.countries]);
-  const [polCountry, setPolCountry] = useState<string>(() => polityCountries[0] ?? "US");
-  const [polChamber, setPolChamber] = useState<string>("all");
-  const legislatures = world.legislatures as Record<string, { chambers: Array<{ key: string; name: string }> } | undefined>;
-  const chamberOptions = useMemo(() => {
-    const leg = legislatures[polCountry];
-    const keys = leg ? leg.chambers.map((c) => c.key) : [];
-    return ["all", ...keys.sort()];
-  }, [legislatures, polCountry]);
-  useEffect(() => {
-    if (!polityCountries.includes(polCountry) && polityCountries[0]) setPolCountry(polityCountries[0]);
-  }, [polityCountries, polCountry]);
-  useEffect(() => {
-    if (!chamberOptions.includes(polChamber)) setPolChamber("all");
-  }, [chamberOptions, polChamber]);
-  const filteredPoliticians = useMemo(() => {
-    const list = Array.isArray(world.politicians) ? world.politicians : [];
-    return list
-      .filter((p) => p.countryId === polCountry && (polChamber === "all" || p.chamberKey === polChamber))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [world.politicians, polCountry, polChamber]);
-  const [selectedPoliticianId, setSelectedPoliticianId] = useState<string>(() => filteredPoliticians[0]?.id ?? "");
-  useEffect(() => {
-    if (filteredPoliticians.length === 0) {
-      if (selectedPoliticianId !== "") setSelectedPoliticianId("");
-      return;
-    }
-    if (!filteredPoliticians.some((p) => p.id === selectedPoliticianId)) {
-      setSelectedPoliticianId(filteredPoliticians[0]!.id);
-    }
-  }, [filteredPoliticians, selectedPoliticianId]);
-  const [polField, setPolField] = useState<PoliticianNumericField>("favorability");
-  const [polValue, setPolValue] = useState("");
-  const selectedPolitician = useMemo(() => {
-    return world.politicians.find((p) => p.id === selectedPoliticianId) ?? null;
-  }, [world.politicians, selectedPoliticianId]);
-
-  // Party editor
-  const partyList = useMemo(() => Object.values(world.parties).sort((a, b) => a.id.localeCompare(b.id)), [world.parties]);
-  const partyCountries = useMemo(() => {
-    const s = new Set<string>();
-    for (const p of partyList) s.add(p.countryId);
-    return [...s].sort();
-  }, [partyList]);
-  const [partyCountry, setPartyCountry] = useState<string>(() => partyCountries[0] ?? polityCountries[0] ?? "US");
-  useEffect(() => {
-    if (partyCountries.length > 0 && !partyCountries.includes(partyCountry)) setPartyCountry(partyCountries[0]!);
-  }, [partyCountries, partyCountry]);
-  const filteredParties = useMemo(() => {
-    return partyList.filter((p) => p.countryId === partyCountry);
-  }, [partyList, partyCountry]);
-  const [selectedPartyId, setSelectedPartyId] = useState<string>(() => filteredParties[0]?.id ?? "");
-  useEffect(() => {
-    if (filteredParties.length === 0) {
-      if (selectedPartyId !== "") setSelectedPartyId("");
-      return;
-    }
-    if (!filteredParties.some((p) => p.id === selectedPartyId)) {
-      setSelectedPartyId(filteredParties[0]!.id);
-    }
-  }, [filteredParties, selectedPartyId]);
-  const [partyField, setPartyField] = useState<PartyNumericField>("treasury");
-  const [partyValue, setPartyValue] = useState("");
-  const selectedParty = useMemo(() => {
-    return world.parties[selectedPartyId] ?? null;
-  }, [world.parties, selectedPartyId]);
+    void refreshWorlds();
+    void game.status().then(setInfo).catch(() => setInfo(IDLE));
+  }, [refreshWorlds]);
 
   useEffect(() => {
-    if (!world.countries[econCountry]) {
-      const first = Object.keys(world.countries)[0];
-      if (first) setEconCountry(first);
-    }
-  }, [world.countries, econCountry]);
-
-  const refreshWorld = () => {
-    const w = game.getStateSync();
-    if (w) {
-      onWorld({
-        ...w,
-        meta: { ...w.meta },
-        featureFlags: { ...w.featureFlags },
-        player: { ...w.player },
-        countries: { ...w.countries },
-        news: [...w.news],
-        parties: { ...w.parties },
-        legislatures: { ...w.legislatures },
-        politicians: [...w.politicians],
-        elections: [...w.elections],
-        regions: { ...w.regions },
-        partyRegions: { ...w.partyRegions },
-      } as WorldState);
-    }
-  };
-
-  const handleSetPlayer = () => {
-    setCheatError(null);
-    const value = Number(cashInput);
-    try {
-      const op: CheatOp = { kind: "setPlayerField", field: playerField, value };
-      const result = applyCheat(op);
-      void result;
-      onCheatApplied(describeCheat(op));
-      refreshWorld();
-    } catch (e) {
-      setCheatError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const handleSetEconomy = () => {
-    setCheatError(null);
-    const value = Number(econValue);
-    try {
-      const op: CheatOp = { kind: "setCountryEconomy", countryId: econCountry, field: econField, value };
-      applyCheat(op);
-      onCheatApplied(describeCheat(op));
-      refreshWorld();
-    } catch (e) {
-      setCheatError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const handleAdvance = () => {
-    setCheatError(null);
-    const count = Number(timeCount);
-    try {
-      const op: CheatOp = { kind: "advanceTurns", count };
-      const { elapsedMs } = applyCheat(op);
-      if (elapsedMs !== undefined) setLastElapsed(elapsedMs);
-      onCheatApplied(
-        describeCheat(op, elapsedMs !== undefined ? `(${elapsedMs.toFixed(1)}ms)` : undefined),
-        count,
-      );
-      refreshWorld();
-    } catch (e) {
-      setCheatError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const handleAddNews = () => {
-    setCheatError(null);
-    try {
-      const cat = newsCategory.trim();
-      const op: CheatOp = cat ? { kind: "addNews", headline, category: cat } : { kind: "addNews", headline };
-      applyCheat(op);
-      onCheatApplied(describeCheat(op));
-      setHeadline("");
-      refreshWorld();
-    } catch (e) {
-      setCheatError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const handleForceResolve = () => {
-    setCheatError(null);
-    try {
-      if (!selectedElectionId) throw new Error("Select an active election");
-      const op: CheatOp = { kind: "forceResolveElection", electionId: selectedElectionId };
-      applyCheat(op);
-      onCheatApplied(describeCheat(op));
-      refreshWorld();
-    } catch (e) {
-      setCheatError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const handleSetPolitician = () => {
-    setCheatError(null);
-    const value = Number(polValue);
-    try {
-      if (!selectedPoliticianId) throw new Error("Select a politician");
-      const op: CheatOp = { kind: "setPoliticianField", politicianId: selectedPoliticianId, field: polField, value };
-      applyCheat(op);
-      onCheatApplied(describeCheat(op));
-      refreshWorld();
-    } catch (e) {
-      setCheatError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const handleSetParty = () => {
-    setCheatError(null);
-    const value = Number(partyValue);
-    try {
-      if (!selectedPartyId) throw new Error("Select a party");
-      const op: CheatOp = { kind: "setPartyField", partyId: selectedPartyId, field: partyField, value };
-      applyCheat(op);
-      onCheatApplied(describeCheat(op));
-      refreshWorld();
-    } catch (e) {
-      setCheatError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const handleFeatureFlag = (flag: WorldFeatureFlag, enabled: boolean) => {
-    setCheatError(null);
-    try {
-      const op: CheatOp = { kind: "setFeatureFlag", flag, enabled };
-      applyCheat(op);
-      onCheatApplied(describeCheat(op));
-      refreshWorld();
-    } catch (e) {
-      setCheatError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const handleFeatureFlagPreset = (enabled: boolean) => {
-    setCheatError(null);
-    try {
-      const flags = Object.fromEntries(
-        WORLD_FEATURE_FLAG_DEFINITIONS.map(({ key }) => [key, enabled]),
-      ) as Record<WorldFeatureFlag, boolean>;
-      const op: CheatOp = { kind: "setFeatureFlags", flags };
-      applyCheat(op);
-      onCheatApplied(`${enabled ? "enable" : "pause"} all simulation systems`);
-      refreshWorld();
-    } catch (e) {
-      setCheatError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const handleApplyWorldJson = () => {
-    setCheatError(null);
-    try {
-      const replaced = game.replaceWorldFromJson(worldJson);
-      onCheatApplied("replace world from Advanced JSON");
-      onWorld(replaced);
-      setWorldJson(JSON.stringify(replaced, null, 2));
-    } catch (e) {
-      setCheatError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  if (!open) return null;
-
-  return (
-    <div className="cheat-overlay" onClick={onClose}>
-      <div className="cheat-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Cheats">
-        <div className="cheat-head row spread">
-          <div>
-            <span className="cheat-title">SINGLEPLAYER TOOLS</span>
-            <div className="muted small">Changes are validated, saved with this world, and mark cheats active.</div>
-          </div>
-          <button className="secondary small-btn" onClick={onClose}>
-            Close
-          </button>
-        </div>
-
-        <div className="cheat-tabs" role="tablist" aria-label="Singleplayer tools">
-          {(["quick", "features", "advanced"] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              role="tab"
-              aria-selected={toolTab === tab}
-              className={toolTab === tab ? "active" : ""}
-              onClick={() => {
-                setToolTab(tab);
-                setCheatError(null);
-                if (tab === "advanced") setWorldJson(JSON.stringify(game.getStateSync() ?? world, null, 2));
-              }}
-            >
-              {tab === "quick" ? "Quick edit" : tab === "features" ? "Features" : "Advanced JSON"}
-            </button>
-          ))}
-        </div>
-
-        {toolTab === "quick" && <>
-        <div className="cheat-section">
-          <h3>Player</h3>
-          <select value={playerField} onChange={(e) => setPlayerField(e.target.value as PlayerNumericField)} className="cheat-input">
-            <option value="cash">personal cash, 0+</option>
-            <option value="actions">action points, integer 0+</option>
-            <option value="funds">campaign funds, 0+</option>
-            <option value="savings">savings, 0+</option>
-            <option value="donorBaseLevel">donor base, integer 0-75</option>
-            <option value="politicalInfluence">political influence, 0-100</option>
-            <option value="favorability">favorability, 0-100</option>
-            <option value="infamy">infamy, 0-100</option>
-            <option value="wireQuotaUsedAnchor">wire quota used, integer 0+</option>
-          </select>
-          <div className="row">
-            <input placeholder="value" value={cashInput} onChange={(e) => setCashInput(e.target.value)} className="cheat-input" />
-            <button className="secondary small-btn" onClick={handleSetPlayer}>
-              Apply
-            </button>
-          </div>
-          <div className="muted small">Current {playerField}: {world.player[playerField].toLocaleString("en-US")}</div>
-        </div>
-
-        <div className="cheat-section">
-          <h3>Economy</h3>
-          <div className="cheat-economy-row">
-            <select value={econCountry} onChange={(e) => setEconCountry(e.target.value)}>
-              {Object.values(world.countries).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.id})
-                </option>
-              ))}
-            </select>
-            <select value={econField} onChange={(e) => setEconField(e.target.value as typeof econField)}>
-              <option value="gdp">GDP ($M)</option>
-              <option value="growthRate">growthRate 0-1</option>
-              <option value="inflationRate">inflationRate 0-1</option>
-              <option value="unemploymentRate">unemploymentRate 0-1</option>
-              <option value="outputGap">outputGap</option>
-            </select>
-          </div>
-          <div className="row">
-            <input placeholder="value" value={econValue} onChange={(e) => setEconValue(e.target.value)} className="cheat-input" />
-            <button className="secondary small-btn" onClick={handleSetEconomy}>
-              Apply
-            </button>
-          </div>
-          <div className="muted small">Enter raw value. Rates 0-1 (0.05 = 5%). GDP &gt; 0.</div>
-        </div>
-
-        <div className="cheat-section">
-          <h3>Time</h3>
-          <div className="row">
-            <input value={timeCount} onChange={(e) => setTimeCount(e.target.value)} className="cheat-input" style={{ maxWidth: 100 }} />
-            <button className="secondary small-btn" onClick={handleAdvance}>
-              Advance
-            </button>
-          </div>
-          {lastElapsed !== null && <div className="muted small">Elapsed: {lastElapsed.toFixed(1)}ms</div>}
-        </div>
-
-        <div className="cheat-section">
-          <h3>ELECTIONS</h3>
-          {activeElections.length === 0 ? (
-            <div className="muted small">No active elections. Advance turns to spawn races. Upcoming elections are not yet force-resolvable.</div>
-          ) : (
-            <>
-              <select value={selectedElectionId} onChange={(e) => setSelectedElectionId(e.target.value)} className="cheat-input" style={{ width: "100%", marginBottom: 8 }}>
-                {activeElections.map((rec) => {
-                  const label = rec.state ? `${rec.countryId} ${rec.electionType} ${rec.state} T${rec.endTurn}` : `${rec.countryId} ${rec.electionType} T${rec.endTurn}`;
-                  return (
-                    <option key={rec.id} value={rec.id}>
-                      {label} ({rec.id}) [{rec.status}]
-                    </option>
-                  );
-                })}
-              </select>
-              <div className="row">
-                <button className="secondary small-btn" onClick={handleForceResolve}>
-                  Force resolve (resolves on next turn)
-                </button>
-              </div>
-              <div className="muted small">Sets endTurn to current turn {world.meta.turn}. Real resolution phase handles it next turn.</div>
-            </>
-          )}
-        </div>
-
-        <div className="cheat-section">
-          <h3>News</h3>
-          <div className="row" style={{ marginBottom: 8 }}>
-            <input
-              placeholder="category (optional, e.g. general)"
-              value={newsCategory}
-              onChange={(e) => setNewsCategory(e.target.value)}
-              className="cheat-input"
-              style={{ maxWidth: 180 }}
-            />
-            <span className="muted small">Category prefixes headline as [category]</span>
-          </div>
-          <div className="row">
-            <input
-              placeholder="headline"
-              value={headline}
-              onChange={(e) => setHeadline(e.target.value)}
-              className="cheat-input"
-            />
-            <button className="secondary small-btn" onClick={handleAddNews}>
-              Inject
-            </button>
-          </div>
-        </div>
-
-        <div className="cheat-section">
-          <h3>Politician</h3>
-          <div className="cheat-economy-row">
-            <select value={polCountry} onChange={(e) => setPolCountry(e.target.value)}>
-              {polityCountries.map((cid) => {
-                const c = world.countries[cid];
-                return (
-                  <option key={cid} value={cid}>
-                    {c ? `${c.name} (${cid})` : cid}
-                  </option>
-                );
-              })}
-            </select>
-            <select value={polChamber} onChange={(e) => setPolChamber(e.target.value)}>
-              {chamberOptions.map((k) => (
-                <option key={k} value={k}>
-                  {k === "all" ? "all chambers" : k}
-                </option>
-              ))}
-            </select>
-          </div>
-          <select
-            value={selectedPoliticianId}
-            onChange={(e) => setSelectedPoliticianId(e.target.value)}
-            className="cheat-input"
-            style={{ width: "100%", marginTop: 8, marginBottom: 8 }}
-          >
-            {filteredPoliticians.length === 0 ? (
-              <option value="">No politicians in filter</option>
-            ) : (
-              filteredPoliticians.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.id}) {p.chamberKey || "unseated"} favor {p.favorability} funds {p.funds} ideology {p.ideology.economic},{p.ideology.social} [{p.partyId}]
-                </option>
-              ))
-            )}
-          </select>
-          {selectedPolitician && (
-            <div className="muted small" style={{ marginBottom: 8 }}>
-              Current: favorability {selectedPolitician.favorability} funds {selectedPolitician.funds} ideology {selectedPolitician.ideology.economic},{selectedPolitician.ideology.social}
-            </div>
-          )}
-          <div className="cheat-economy-row">
-            <select value={polField} onChange={(e) => setPolField(e.target.value as typeof polField)}>
-              <option value="favorability">favorability 0-100</option>
-              <option value="funds">funds &gt;= 0</option>
-              <option value="cash">personal cash &gt;= 0</option>
-              <option value="actions">actions, integer 0+</option>
-              <option value="donorBaseLevel">donor base, integer 0-75</option>
-              <option value="politicalInfluence">political influence 0-100</option>
-              <option value="infamy">infamy 0-100</option>
-              <option value="partyInfluence">party influence 0-100</option>
-              <option value="bonusActions">bonus actions, integer 0+</option>
-              <option value="age">age 18-120</option>
-              <option value="ideologyEconomic">ideologyEconomic -5..5</option>
-              <option value="ideologySocial">ideologySocial -5..5</option>
-            </select>
-            <input placeholder="value" value={polValue} onChange={(e) => setPolValue(e.target.value)} className="cheat-input" style={{ maxWidth: 140 }} />
-          </div>
-          <div className="row" style={{ marginTop: 8 }}>
-            <button className="secondary small-btn" onClick={handleSetPolitician}>
-              Apply
-            </button>
-            <span className="muted small">Ideology bounds -5..5</span>
-          </div>
-        </div>
-
-        <div className="cheat-section">
-          <h3>Party</h3>
-          <div className="cheat-economy-row">
-            <select value={partyCountry} onChange={(e) => setPartyCountry(e.target.value)}>
-              {partyCountries.map((cid) => (
-                <option key={cid} value={cid}>
-                  {cid}
-                </option>
-              ))}
-            </select>
-            <select value={selectedPartyId} onChange={(e) => setSelectedPartyId(e.target.value)} className="cheat-input">
-              {filteredParties.length === 0 ? (
-                <option value="">No parties</option>
-              ) : (
-                filteredParties.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.id}) T{p.treasury} PS{p.politicalStrength} org{p.organization}
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
-          {selectedParty && (
-            <div className="muted small" style={{ marginTop: 8, marginBottom: 8 }}>
-              Current: treasury {selectedParty.treasury} politicalStrength {selectedParty.politicalStrength} organization {selectedParty.organization}
-            </div>
-          )}
-          <div className="cheat-economy-row">
-            <select value={partyField} onChange={(e) => setPartyField(e.target.value as typeof partyField)}>
-              <option value="treasury">treasury &gt;= 0</option>
-              <option value="politicalStrength">politicalStrength 0..1000</option>
-              <option value="organization">organization 0..100</option>
-              <option value="economicPosition">economic position -5..5</option>
-              <option value="socialPosition">social position -5..5</option>
-              <option value="memberCount">member count, integer 0+</option>
-            </select>
-            <input placeholder="value" value={partyValue} onChange={(e) => setPartyValue(e.target.value)} className="cheat-input" style={{ maxWidth: 140 }} />
-          </div>
-          <div className="row" style={{ marginTop: 8 }}>
-            <button className="secondary small-btn" onClick={handleSetParty}>
-              Apply
-            </button>
-            <span className="muted small">Caps enforced inline</span>
-          </div>
-        </div>
-        </>}
-
-        {toolTab === "features" && (
-          <div className="feature-flag-list">
-            <div className="cheat-section feature-intro">
-              <h3>Simulation controls</h3>
-              <p className="muted small">Turn systems can be paused independently. Turning a system back on resumes it from its retained state on the next turn.</p>
-              <div className="row">
-                <button
-                  type="button"
-                  className="secondary small-btn"
-                  onClick={() => handleFeatureFlagPreset(true)}
-                >
-                  Enable all
-                </button>
-                <button
-                  type="button"
-                  className="secondary small-btn"
-                  onClick={() => handleFeatureFlagPreset(false)}
-                >
-                  Pause all
-                </button>
-              </div>
-            </div>
-            <div className="feature-flag-grid">
-              {WORLD_FEATURE_FLAG_DEFINITIONS.map(({ key, label, description }) => (
-                <label className="feature-flag-card" key={key}>
-                  <input
-                    type="checkbox"
-                    checked={world.featureFlags[key]}
-                    onChange={(event) => handleFeatureFlag(key, event.target.checked)}
-                  />
-                  <span>
-                    <strong>{label}</strong>
-                    <small>{description}</small>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {toolTab === "advanced" && (
-          <div className="cheat-section advanced-world-editor">
-            <h3>Complete world state</h3>
-            <p className="muted small">Edit any persisted world field. Applying runs the same schema validation used when loading a save. Keep a save backup before structural edits.</p>
-            <textarea
-              className="world-json-editor"
-              value={worldJson}
-              onChange={(event) => setWorldJson(event.target.value)}
-              spellCheck={false}
-              aria-label="World state JSON"
-            />
-            <div className="row">
-              <button type="button" onClick={handleApplyWorldJson}>Validate and apply</button>
-              <button type="button" className="secondary" onClick={() => setWorldJson(JSON.stringify(game.getStateSync() ?? world, null, 2))}>Reset draft</button>
-            </div>
-          </div>
-        )}
-
-        {cheatError && (
-          <div className="cheat-error" role="alert">
-            {cheatError}
-          </div>
-        )}
-
-        <div className="cheat-log">
-          <h3>Session log</h3>
-          {log.length === 0 ? (
-            <div className="muted small">No cheats applied yet.</div>
-          ) : (
-            <ul className="cheat-log-list">
-              {log.map((entry, i) => (
-                <li key={i} className="cheat-log-entry">
-                  {entry}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// -------------------------------------------------------------------
-// Dashboard
-// -------------------------------------------------------------------
-
-function Dashboard({
-  world,
-  onWorld,
-  onExit,
-  onOpenSaves,
-  onSaved,
-  isDirty,
-}: {
-  world: WorldState;
-  onWorld: (world: WorldState) => void;
-  onExit: () => void;
-  onOpenSaves: () => void;
-  onSaved: () => void;
-  isDirty: boolean;
-}) {
-  const [lastReport, setLastReport] = useState<TurnReport | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [cheatOpen, setCheatOpen] = useState(false);
-  const [cheatLog, setCheatLog] = useState<string[]>([]);
-  // Persistent shell navigation: one route id replaces the old per-screen
-  // booleans so the top navigation stays visible on every screen.
-  const [route, setRoute] = useState("nation.home");
-  const [viewedCountryId, setViewedCountryId] = useState(world.player.countryId);
-  const [overviewModel, setOverviewModel] = useState<CountryOverviewModel | null>(null);
-  const [overviewError, setOverviewError] = useState<string | null>(null);
-  const [characterOpen, setCharacterOpen] = useState(false);
-  const cheatsUsed = world.meta.cheatsUsed;
-  const pausedFeatureCount = Object.values(world.featureFlags).filter((enabled) => !enabled).length;
-  const [toast, setToast] = useState<string | null>(null);
-  const [saveBusy, setSaveBusy] = useState(false);
-
-  const quickSave = useCallback(async () => {
-    if (saveBusy) return;
-    setSaveBusy(true);
-    setSaveError(null);
-    try {
-      await saveToSlot(QUICK_SAVE_SLOT, world);
-      onSaved();
-      setToast(`Saved to ${QUICK_SAVE_SLOT}`);
-    } catch (error) {
-      setSaveError(`Quick save failed: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setSaveBusy(false);
-    }
-  }, [onSaved, saveBusy, world]);
-
-  const advance = async () => {
-    const prevTurn = world.meta.turn;
-    setBusy(true);
-    setSaveError(null);
-    try {
-      const { report, world: next } = await game.advanceTurn();
-      setLastReport(report);
-      onWorld(next);
-      try {
-        const slot = await maybeAutosave(prevTurn, next);
-        if (slot) {
-          onSaved();
-          setToast(`Autosaved to ${slot}`);
-        }
-      } catch (e) {
-        setSaveError(`Autosave failed: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    } catch (error) {
-      setSaveError(`Turn failed: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleExit = () => {
-    if (isDirty) {
-      const ok = window.confirm("You have unsaved changes since the last save. Leave and lose them?");
-      if (!ok) return;
-    }
-    onExit();
-  };
-
-  const handleCheatApplied = (entry: string, advanceCount?: number) => {
-    const ts = new Date().toLocaleTimeString("en-GB", { hour12: false });
-    setCheatLog((prev) => [...prev, `[${ts}] ${entry}`]);
-    if (advanceCount !== undefined && advanceCount > 0) {
-      const current = game.getStateSync();
-      if (current) {
-        // Cheat batch advanceTurns already mutated world; try autosave
-        const prevTurn = current.meta.turn - advanceCount;
-        void maybeAutosave(prevTurn, current)
-          .then((slot) => {
-            if (slot) {
-              onSaved();
-              setToast(`Autosaved to ${slot}`);
-            }
-          })
-          .catch((e) => {
-            setSaveError(`Autosave failed: ${e instanceof Error ? e.message : String(e)}`);
-          });
-      }
-    }
-  };
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLocaleLowerCase() === "s") {
-        e.preventDefault();
-        if (!busy && !saveBusy) void quickSave();
-        return;
-      }
-      if (e.key === "`" || e.code === "Backquote") {
-        // avoid toggling when typing in an input
-        const target = e.target as HTMLElement | null;
-        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT")) {
-          return;
-        }
-        setCheatOpen((v) => !v);
-      }
-      if (e.key === "Escape" && (cheatOpen || characterOpen)) {
-        setCheatOpen(false);
-        setCharacterOpen(false);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [busy, cheatOpen, characterOpen, quickSave, saveBusy]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3000);
-    return () => clearTimeout(t);
-  }, [toast]);
-
-  // Home-nation overview loads through the local source: the live world
-  // is projected on-device, never fetched.
-  useEffect(() => {
-    if (world.countries[viewedCountryId] === undefined) {
-      setViewedCountryId(world.player.countryId);
-      return;
-    }
-    let cancelled = false;
-    setOverviewModel(null);
-    setOverviewError(null);
-    const source = new LocalCountryOverviewSource(world);
-    void source
-      .load(viewedCountryId)
-      .then((model) => {
-        if (!cancelled) setOverviewModel(model);
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setOverviewError(error instanceof Error ? error.message : String(error));
-        }
-      });
+    const subscriptions = [
+      listen<{ line: string }>("game:log", (event) => {
+        setLog((lines) => [...lines, event.payload.line].slice(-LOG_LINES));
+      }),
+      listen<{ line: string }>("game:exited", (event) => {
+        setInfo(IDLE);
+        setScreen((current) => {
+          if (current === "playing" || current === "booting") {
+            setError(event.payload.line || "The game stopped.");
+            return "launcher";
+          }
+          return current;
+        });
+        void refreshWorlds();
+      }),
+      listen("game:window-closed", () => {
+        void recordProgress();
+      }),
+    ];
     return () => {
-      cancelled = true;
+      for (const subscription of subscriptions) void subscription.then((unlisten) => unlisten());
     };
-  }, [route, world, world.meta.turn, viewedCountryId]);
+    // recordProgress reads the latest info through a ref-free closure below;
+    // re-subscribing on every info change would drop events mid-boot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshWorlds]);
 
-  const handleSelectCountry = (countryId: string) => {
-    setViewedCountryId(countryId);
-    setRoute("nation.home");
-  };
-
-  const lastReportSummary = lastReport
-    ? `Last turn: ${lastReport.phaseTimings.map((p) => `${p.name} ${p.ms.toFixed(1)}ms`).join(" · ")}`
-    : undefined;
-
-  return (
-    <div className="dashboard">
-      <GameShell
-        world={world}
-        routeId={route}
-        viewedCountryId={viewedCountryId}
-        overviewModel={overviewModel}
-        overviewError={overviewError}
-        onNavigate={setRoute}
-        onSelectCountry={handleSelectCountry}
-        onAdvance={() => void advance()}
-        advanceBusy={busy}
-        onQuickSave={() => void quickSave()}
-        saveBusy={saveBusy}
-        onOpenSaves={onOpenSaves}
-        onExit={handleExit}
-        onOpenCheats={() => setCheatOpen((v) => !v)}
-        onOpenCharacter={() => setCharacterOpen(true)}
-        onWorld={onWorld}
-        onToast={(msg) => setToast(msg)}
-        onOpenHelp={(routeId) => void openHelp(routeId)}
-        cheatsUsed={cheatsUsed}
-        pausedFeatureCount={pausedFeatureCount}
-        statusFooter={lastReportSummary}
-      />
-
-      <CheatPanel
-        open={cheatOpen}
-        onClose={() => setCheatOpen(false)}
-        world={world}
-        onWorld={(w) => {
-          onWorld(w);
-        }}
-        onCheatApplied={(entry, count) => {
-          handleCheatApplied(entry, count);
-        }}
-        // Note: onCheatApplied previously also drove the session-local
-        // history hack here (game.getStateSync() + onRecordHistory(current,
-        // count)); WorldHistory is now recorded per-turn inside the engine's
-        // own advanceTurn (called by applyCheat's advanceTurns op), so no
-        // client-side backfill is needed. count is passed straight through
-        // to handleCheatApplied, which already branches on it for autosave.
-        log={cheatLog}
-      />
-
-      <CharacterPanel world={world} open={characterOpen} onClose={() => setCharacterOpen(false)} onWorld={(w) => onWorld(w)} onToast={(msg) => setToast(msg)} />
-
-      {toast && (
-        <div className="panel toast" role="status" style={{ background: "#1d1d2a", borderColor: "#2af57f" }}>
-          {toast}
-        </div>
-      )}
-
-      {saveError && (
-        <div className="panel error-banner" role="alert">
-          <span>{saveError}</span>
-          <button className="secondary small-btn" onClick={() => setSaveError(null)}>
-            Dismiss
-          </button>
-        </div>
-      )}
-
-    </div>
-  );
-}
-
-// -------------------------------------------------------------------
-// Root
-// -------------------------------------------------------------------
-
-export function App() {
-  const [screen, setScreen] = useState<"launcher" | "newWorld" | "game" | "saves">("launcher");
-  const [savesReturn, setSavesReturn] = useState<"launcher" | "game">("launcher");
-  const [pendingEra, setPendingEra] = useState<string | null>(null);
-  const [world, setWorld] = useState<WorldState | null>(null);
-  const [isDirty, setIsDirty] = useState(false);
-  const [launcherError, setLauncherError] = useState<string | null>(null);
-  const [savesError, setSavesError] = useState<string | null>(null);
-  const [latestSave, setLatestSave] = useState<SaveSlotMeta | null>(null);
-  const [continueBusy, setContinueBusy] = useState(false);
-
-  useEffect(() => {
-    if (!isDirty) return;
-    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", warnBeforeUnload);
-    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
-  }, [isDirty]);
-
-  useEffect(() => {
-    if (screen !== "launcher") return;
-    let active = true;
-    void listSlots()
-      .then((slots) => {
-        if (active) setLatestSave(slots[0] ?? null);
-      })
-      .catch(() => {
-        if (active) setLatestSave(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [screen]);
-
-  const handleNewWorldCreated = (w: WorldState) => {
-    setWorld(w);
-    setIsDirty(false);
-    setScreen("game");
-  };
-
-  const openSavesFromLauncher = () => {
-    setSavesError(null);
-    setSavesReturn("launcher");
-    setScreen("saves");
-  };
-
-  const openSavesFromGame = () => {
-    setSavesError(null);
-    setSavesReturn("game");
-    setScreen("saves");
-  };
-
-  const handleSavesClose = () => {
-    setScreen(savesReturn);
-  };
-
-  const handleSavesLoad = (loaded: WorldState) => {
-    setWorld(game.resumeGame(loaded));
-    setIsDirty(false);
-    setLauncherError(null);
-    setSavesError(null);
-    setScreen("game");
-  };
-
-  const handleContinue = async (slot: string) => {
-    if (continueBusy) return;
-    setContinueBusy(true);
-    setLauncherError(null);
+  /** Pull turn and character off the running game and remember them. */
+  const recordProgress = useCallback(async () => {
     try {
-      handleSavesLoad(await loadFromSlot(slot));
-    } catch (error) {
-      setLauncherError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setContinueBusy(false);
+      const current = await game.status();
+      if (!current.running || !current.slot) return;
+      const status = await game.singleplayerStatus();
+      await worlds.touch(current.slot, status.turn, status.characterName);
+      await refreshWorlds();
+    } catch {
+      // Best effort: the world still plays without an up-to-date turn badge.
     }
-  };
+  }, [refreshWorlds]);
 
-  const handleAdvanceWorld = (w: WorldState) => {
-    setWorld(w);
-    setIsDirty(true);
-  };
-
-  const handleExitToLauncher = () => {
-    game.endGame();
-    setWorld(null);
-    setIsDirty(false);
+  const fail = (e: unknown) => {
+    setError(e instanceof Error ? e.message : String(e));
     setScreen("launcher");
   };
 
-  if (screen === "saves") {
-    return (
-      <>
-        <SavesScreen
-          currentWorld={world}
-          onLoad={handleSavesLoad}
-          onClose={handleSavesClose}
-          onSaved={() => setIsDirty(false)}
-          isDirty={isDirty}
+  /**
+   * Boot the server for a slot, optionally seed a fresh world, then open the
+   * game window. The boot screen shows the server's own log lines so a
+   * first-run MongoDB download reads as progress rather than a hang.
+   */
+  const boot = async (slot: string, fresh: { preset: string; displayName?: string } | null) => {
+    cancelled.current = false;
+    setBusy(true);
+    setError(null);
+    setLog([]);
+    setBootTitle(fresh ? "Building the world" : "Starting the world");
+    setScreen("booting");
+    try {
+      const started = await game.start(slot);
+      setInfo(started);
+      if (cancelled.current) return;
+      if (fresh) {
+        setLog((lines) => [...lines, "Seeding countries, parties, markets and the electorate"].slice(-LOG_LINES));
+        await game.newGame(fresh.preset, fresh.displayName);
+        if (cancelled.current) return;
+      }
+      const status = await game.singleplayerStatus();
+      await worlds.touch(slot, status.turn, status.characterName);
+      await game.openWindow("/");
+      await refreshWorlds();
+      setScreen("playing");
+    } catch (e) {
+      if (!cancelled.current) fail(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelBoot = async () => {
+    cancelled.current = true;
+    try {
+      setInfo(await game.stop());
+    } catch {
+      setInfo(IDLE);
+    }
+    setBusy(false);
+    setScreen("launcher");
+  };
+
+  const handleNewWorld = (eraId: string) => {
+    setPendingEra(eraId);
+    setError(null);
+    setScreen("newWorld");
+  };
+
+  const handleCreate = async (name: string, displayName: string) => {
+    const era = eraById(pendingEra ?? "");
+    if (!era) return fail(new Error("Pick an era first."));
+    const slot = slugForWorld(name, allWorlds.map((w) => w.slot));
+    try {
+      await worlds.create(slot, name.trim() || era.label, era.preset);
+    } catch (e) {
+      return fail(e);
+    }
+    const trimmed = displayName.trim();
+    await boot(slot, { preset: era.preset, ...(trimmed ? { displayName: trimmed } : {}) });
+  };
+
+  const handleContinue = (slot: string) => {
+    if (info.running && info.slot === slot) {
+      void game.openWindow("/").then(() => setScreen("playing")).catch(fail);
+      return;
+    }
+    void boot(slot, null);
+  };
+
+  const handleDelete = async (slot: string) => {
+    try {
+      await worlds.remove(slot);
+      await refreshWorlds();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleStop = async () => {
+    await recordProgress();
+    try {
+      setInfo(await game.stop());
+    } catch {
+      setInfo(IDLE);
+    }
+    setScreen("launcher");
+  };
+
+  const handlePlayOnline = (target: OnlineTarget) => {
+    setError(null);
+    void online.open(target).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  };
+
+  const latest = allWorlds[0] ?? null;
+
+  if (screen === "newWorld" && pendingEra) {
+    const era = eraById(pendingEra);
+    if (era) {
+      return (
+        <NewWorldScreen
+          era={era}
+          taken={allWorlds.map((w) => w.name)}
+          onBack={() => setScreen("launcher")}
+          onCreate={handleCreate}
         />
-        {savesError && (
-          <div className="panel error-banner" role="alert" style={{ margin: 12 }}>
-            <span>{savesError}</span>
-            <button className="secondary small-btn" onClick={() => setSavesError(null)}>
-              Dismiss
-            </button>
-          </div>
-        )}
-      </>
-    );
+      );
+    }
   }
 
-  if (screen === "game" && world) {
+  if (screen === "worlds") {
     return (
-      <Dashboard
-        world={world}
-        onWorld={handleAdvanceWorld}
-        onExit={handleExitToLauncher}
-        onOpenSaves={openSavesFromGame}
-        onSaved={() => setIsDirty(false)}
-        isDirty={isDirty}
+      <WorldsScreen
+        worlds={allWorlds}
+        runningSlot={info.running ? info.slot : null}
+        busy={busy}
+        error={error}
+        onPlay={handleContinue}
+        onDelete={handleDelete}
+        onBack={() => setScreen("launcher")}
       />
     );
   }
 
-  if (screen === "newWorld") {
+  if (screen === "booting") {
+    return <BootScreen title={bootTitle} lines={log} onCancel={cancelBoot} />;
+  }
+
+  if (screen === "playing" && info.running) {
+    const world = allWorlds.find((w) => w.slot === info.slot) ?? null;
     return (
-      <NewWorldScreen
-        onBack={() => setScreen("launcher")}
-        onCreated={handleNewWorldCreated}
-        initialEra={pendingEra ?? undefined}
+      <PlayingScreen
+        world={world}
+        lines={log}
+        onResume={() => void game.openWindow("/").catch(fail)}
+        onStop={handleStop}
       />
     );
   }
 
   return (
-    <>
-      <Launcher
-        onPlayOnline={() => void openOnline()}
-        onContinue={(slot) => void handleContinue(slot)}
-        onNewWorld={(eraId) => {
-          setPendingEra(eraId);
-          setScreen("newWorld");
-        }}
-        onLoad={openSavesFromLauncher}
-        latestSave={latestSave}
-        continueBusy={continueBusy}
-        error={launcherError}
-        onClearError={() => setLauncherError(null)}
-      />
-      {savesError && (
-        <div className="panel error-banner" role="alert" style={{ margin: 12 }}>
-          <span>{savesError}</span>
-          <button className="secondary small-btn" onClick={() => setSavesError(null)}>
-            Dismiss
-          </button>
-        </div>
-      )}
-    </>
+    <Launcher
+      onNewWorld={handleNewWorld}
+      onContinue={handleContinue}
+      onLoad={() => setScreen("worlds")}
+      onPlayOnline={handlePlayOnline}
+      error={error}
+      onClearError={() => setError(null)}
+      latestWorld={latest}
+      runningSlot={info.running ? info.slot : null}
+      continueBusy={busy}
+    />
   );
 }
