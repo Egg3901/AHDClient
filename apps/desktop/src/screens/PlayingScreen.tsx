@@ -14,7 +14,9 @@ interface Props {
 export function PlayingScreen({ world, lines, onResume, onStop }: Props): JSX.Element {
   return (
     <main className="launcher-scope screen-scope">
-      <div className="launcher-pattern" aria-hidden="true" />
+      <div className="launcher-pattern" aria-hidden="true">
+        <div className="launcher-nebula" />
+      </div>
       <section className="launcher-stage screen-stage" aria-labelledby="playing-title">
         <header className="screen-head">
           <span className="launcher-live-dot" aria-hidden="true" />

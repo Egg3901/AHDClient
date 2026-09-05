@@ -23,7 +23,9 @@ export function WorldsScreen({ worlds, runningSlot, busy, error, onPlay, onDelet
 
   return (
     <main className="launcher-scope screen-scope">
-      <div className="launcher-pattern" aria-hidden="true" />
+      <div className="launcher-pattern" aria-hidden="true">
+        <div className="launcher-nebula" />
+      </div>
       <section className="launcher-stage screen-stage" aria-labelledby="worlds-title">
         <header className="screen-head">
           <button className="launcher-btn launcher-btn-secondary screen-back" onClick={onBack}>

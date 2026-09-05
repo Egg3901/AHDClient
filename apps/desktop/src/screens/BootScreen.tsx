@@ -8,7 +8,9 @@ interface Props {
 export function BootScreen({ title, lines, onCancel }: Props): JSX.Element {
   return (
     <main className="launcher-scope screen-scope">
-      <div className="launcher-pattern" aria-hidden="true" />
+      <div className="launcher-pattern" aria-hidden="true">
+        <div className="launcher-nebula" />
+      </div>
       <section className="launcher-stage screen-stage" aria-labelledby="boot-title" aria-busy="true">
         <header className="screen-head">
           <span className="screen-spinner" aria-hidden="true" />

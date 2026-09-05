@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import desktopPackage from "../../package.json";
 import ahdLogo from "../assets/ahd-logo.png";
 import { ERAS, eraForPreset } from "../worlds.js";
@@ -79,7 +80,13 @@ export function Launcher({
 
   return (
     <main className="launcher-scope" data-mode={mode}>
-      <div className="launcher-pattern" aria-hidden="true" />
+      <div
+        className="launcher-pattern"
+        aria-hidden="true"
+        style={{ "--nebula": themeForEra(eraId).dim } as CSSProperties}
+      >
+        <div className="launcher-nebula" />
+      </div>
 
       <section className="launcher-stage" aria-labelledby="launcher-title">
         <header className="launcher-mast">

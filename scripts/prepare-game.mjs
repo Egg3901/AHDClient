@@ -16,7 +16,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createWriteStream } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -76,9 +76,12 @@ export async function stageNode(triple) {
   const archive = path.join(tmp, `${name}.${spec.ext}`);
   console.log(`fetching ${url}`);
   await download(url, archive);
-  // bsdtar (macOS, Windows) and GNU tar both unpack every format used here.
-  const r = spawnSync("tar", ["-xf", archive, "-C", tmp], { stdio: "inherit" });
-  if (r.status !== 0) throw new Error("tar failed while unpacking Node");
+  // GNU tar (Linux) does not read zip; bsdtar (macOS, Windows) reads everything.
+  const useUnzip = spec.ext === "zip" && process.platform !== "win32";
+  const r = useUnzip
+    ? spawnSync("unzip", ["-q", archive, "-d", tmp], { stdio: "inherit" })
+    : spawnSync("tar", ["-xf", archive, "-C", tmp], { stdio: "inherit" });
+  if (r.status !== 0) throw new Error(`${useUnzip ? "unzip" : "tar"} failed while unpacking Node`);
   const extracted = path.join(tmp, name, spec.bin);
   if (!existsSync(extracted)) throw new Error(`${spec.bin} not found in ${name}`);
   mkdirSync(path.dirname(dest), { recursive: true });
@@ -89,7 +92,52 @@ export async function stageNode(triple) {
   return dest;
 }
 
-export function stageGame(gameDir, { skipBuild = false } = {}) {
+/** Rust triple -> the npm os/cpu pair sharp publishes native builds for. */
+const NATIVE_PLATFORM = {
+  "x86_64-unknown-linux-gnu": "linux-x64",
+  "aarch64-unknown-linux-gnu": "linux-arm64",
+  "aarch64-apple-darwin": "darwin-arm64",
+  "x86_64-apple-darwin": "darwin-x64",
+  "x86_64-pc-windows-msvc": "win32-x64",
+};
+
+/**
+ * The game is built on Linux, so its node_modules carry Linux natives only.
+ * For any other target, fetch that platform's sharp packages straight from
+ * the npm registry into the staged tree and drop the ones that cannot load
+ * there. sharp is the only native module the game ships.
+ */
+async function stageNativeVariants(staging, triple) {
+  const want = NATIVE_PLATFORM[triple];
+  if (!want) throw new Error(`no native platform mapping for ${triple}`);
+  const imgDir = path.join(staging, "node_modules", "@img");
+  const sharpManifest = path.join(staging, "node_modules", "sharp", "package.json");
+  if (!existsSync(sharpManifest)) return;
+  const optional = JSON.parse(readFileSync(sharpManifest, "utf8")).optionalDependencies ?? {};
+  for (const [name, version] of Object.entries(optional)) {
+    if (!name.startsWith("@img/")) continue;
+    const short = name.slice("@img/".length);
+    const dest = path.join(imgDir, short);
+    if (!short.endsWith(`-${want}`)) {
+      if (existsSync(dest)) rmSync(dest, { recursive: true, force: true });
+      continue;
+    }
+    if (existsSync(dest)) continue;
+    const exact = version.replace(/^[\^~]/, "");
+    const url = `https://registry.npmjs.org/${name}/-/${short}-${exact}.tgz`;
+    const tmp = mkdtempSync(path.join(tmpdir(), "ahdclient-native-"));
+    const archive = path.join(tmp, "pkg.tgz");
+    console.log(`fetching ${url}`);
+    await download(url, archive);
+    const r = spawnSync("tar", ["-xzf", archive, "-C", tmp], { stdio: "inherit" });
+    if (r.status !== 0) throw new Error(`tar failed for ${name}`);
+    mkdirSync(imgDir, { recursive: true });
+    cpSync(path.join(tmp, "package"), dest, { recursive: true });
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+export async function stageGame(gameDir, triple, { skipBuild = false } = {}) {
   if (!gameDir) throw new Error("pass --game-dir or set AHDGAME_DIR to an AHDGame checkout");
   gameDir = path.resolve(gameDir);
   if (!existsSync(path.join(gameDir, "scripts", "singleplayer", "package.mjs"))) {
@@ -112,17 +160,28 @@ export function stageGame(gameDir, { skipBuild = false } = {}) {
   const staging = `${dest}.staging`;
   rmSync(staging, { recursive: true, force: true });
   cpSync(dist, staging, { recursive: true });
-  // Every bundle targets glibc Linux, macOS or Windows; the musl variants of
-  // native modules are dead weight, and linuxdeploy refuses to package an
-  // AppDir containing an ELF that links libc.musl.
-  const optionalNatives = path.join(staging, "node_modules", "@img");
-  if (existsSync(optionalNatives)) {
-    for (const entry of readdirSync(optionalNatives)) {
-      if (entry.includes("musl")) rmSync(path.join(optionalNatives, entry), { recursive: true, force: true });
-    }
-  }
+  // Keep exactly the target platform's native modules. Foreign ones are dead
+  // weight, and linuxdeploy refuses an AppDir holding an ELF linked to musl.
+  await stageNativeVariants(staging, triple);
   rmSync(dest, { recursive: true, force: true });
   renameSync(staging, dest);
+  // tauri-build copies resources next to the binary at compile time and
+  // tauri-bundler reuses a previous AppDir; both would keep files that are
+  // no longer staged (linuxdeploy then trips over them). Purge both copies.
+  for (const stale of [
+    path.join(TAURI, "target", "release", "game"),
+    path.join(TAURI, "target", "release", "bundle", "appimage", "AHDClient.AppDir"),
+    path.join(TAURI, "target", "release", "bundle", "appimage_deb"),
+  ]) {
+    rmSync(stale, { recursive: true, force: true });
+  }
+  const perTarget = path.join(TAURI, "target");
+  if (existsSync(perTarget)) {
+    for (const entry of readdirSync(perTarget)) {
+      const candidate = path.join(perTarget, entry, "release", "game");
+      if (entry.includes("-") && existsSync(candidate)) rmSync(candidate, { recursive: true, force: true });
+    }
+  }
   console.log(`game staged: ${dest}`);
   return dest;
 }
@@ -140,7 +199,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       writeFileSync(path.join(stub, "NOT_STAGED.txt"), "Run scripts/prepare-game.mjs with --game-dir to stage the game.\n");
     }
   } else {
-    stageGame(arg("--game-dir", process.env.AHDGAME_DIR), {
+    await stageGame(arg("--game-dir", process.env.AHDGAME_DIR), triple, {
       skipBuild: process.argv.includes("--skip-game-build"),
     });
   }
