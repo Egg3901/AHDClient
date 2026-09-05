@@ -16,7 +16,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createWriteStream } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -112,6 +112,15 @@ export function stageGame(gameDir, { skipBuild = false } = {}) {
   const staging = `${dest}.staging`;
   rmSync(staging, { recursive: true, force: true });
   cpSync(dist, staging, { recursive: true });
+  // Every bundle targets glibc Linux, macOS or Windows; the musl variants of
+  // native modules are dead weight, and linuxdeploy refuses to package an
+  // AppDir containing an ELF that links libc.musl.
+  const optionalNatives = path.join(staging, "node_modules", "@img");
+  if (existsSync(optionalNatives)) {
+    for (const entry of readdirSync(optionalNatives)) {
+      if (entry.includes("musl")) rmSync(path.join(optionalNatives, entry), { recursive: true, force: true });
+    }
+  }
   rmSync(dest, { recursive: true, force: true });
   renameSync(staging, dest);
   console.log(`game staged: ${dest}`);

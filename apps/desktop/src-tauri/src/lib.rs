@@ -579,8 +579,13 @@ async fn open_online_url(app: AppHandle, url: Url) -> Result<(), String> {
   let nav_app = app.clone();
   let new_window_app = app.clone();
   let close_app = app.clone();
+  let title = if url.host_str() == Some(SANDBOX_HOST) {
+    "A House Divided: Sandbox"
+  } else {
+    "A House Divided: Online"
+  };
   let window = WebviewWindowBuilder::new(&app, "online", WebviewUrl::External(url))
-    .title(if url.host_str() == Some(SANDBOX_HOST) { "A House Divided: Sandbox" } else { "A House Divided: Online" })
+    .title(title)
     .inner_size(1280.0, 800.0)
     .center()
     .resizable(true)
