@@ -220,10 +220,10 @@ export function Launcher({
                 >
                   {choosingEra ? "Start new game" : "New Game"} <span aria-hidden="true">&#8594;</span>
                 </button>
-                <button className="launcher-btn launcher-btn-secondary" onClick={onLoad} disabled={continueBusy}>
+                {!choosingEra && <button className="launcher-btn launcher-btn-secondary" onClick={onLoad} disabled={continueBusy}>
                   Load Game
-                </button>
-                {latestWorld && (
+                </button>}
+                {latestWorld && !choosingEra && (
                   <button
                     className="launcher-btn launcher-btn-secondary launcher-btn-continue"
                     onClick={() => onContinue(latestWorld.slot)}
