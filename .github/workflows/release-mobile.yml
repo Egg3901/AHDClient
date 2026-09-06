@@ -151,16 +151,12 @@ jobs:
 
       - name: Build for the simulator (unsigned)
         if: steps.signing.outputs.mode == 'simulator'
+        env:
+          APPLE_DEVELOPMENT_TEAM: XXXXXXXXXX
         run: |
-          cd apps/desktop/src-tauri/gen/apple
-          project=$(ls -d *.xcodeproj | head -n1)
-          scheme="${project%.xcodeproj}_iOS"
-          xcodebuild -project "$project" -scheme "$scheme" -configuration release \
-            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$RUNNER_TEMP/derived" CODE_SIGNING_ALLOWED=NO build
-          mkdir -p "$RUNNER_TEMP/simulator"
-          cp -R "$RUNNER_TEMP"/derived/Build/Products/release-iphonesimulator/*.app "$RUNNER_TEMP/simulator/"
-          echo "SIMULATOR_APP_DIR=$RUNNER_TEMP/simulator" >> "$GITHUB_ENV"
+          npm run tauri --workspace apps/desktop -- ios build --help
+          npm run tauri --workspace apps/desktop -- ios build --ci --target aarch64-sim --no-sign
+          find apps/desktop/src-tauri/gen/apple/build -maxdepth 3 -name '*.app' -print
 
       - name: Upload the IPA
         if: steps.signing.outputs.mode == 'store'
@@ -175,5 +171,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ahdclient-ios-simulator
-          path: ${{ env.SIMULATOR_APP_DIR }}
+          path: apps/desktop/src-tauri/gen/apple/build/**/*.app
           if-no-files-found: error
