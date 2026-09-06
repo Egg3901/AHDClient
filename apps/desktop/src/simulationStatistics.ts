@@ -66,7 +66,10 @@ export type SimulationMode = (typeof ALLOWED_MODES)[number];
 /** Short opaque tokens (era, difficulty, autonomy): no free text. */
 const ALLOWED_ERAS = new Set(["1953", "1979", "1991", "1999", "2007", "2019", "2023"]);
 const ALLOWED_DIFFICULTIES = new Set(["easy", "normal", "hard"]);
-const ALLOWED_AUTONOMY = new Set(["off", "v0", "v1", "v2", "v3", "v4"]);
+// Kept in step with the game's own allowlist (src/lib/clientStatistics.ts) and
+// with SetupAutonomy. A tier this set is missing fails validation here, before
+// upload, so a world the player was allowed to create silently stops reporting.
+const ALLOWED_AUTONOMY = new Set(["off", "v0", "v1", "v2", "v3", "v4", "v5"]);
 const ALLOWED_FLAGS = new Set<string>(FEATURE_OPTIONS.map((flag) => flag.key));
 const ALLOWED_SECTORS = new Set(["financial", "media", "manufacturing", "chemical_industries", "healthcare", "retail", "automobiles", "technology", "energy", "agriculture", "real_estate", "construction", "defense", "telecommunications", "entertainment", "logistics", "extraction"]);
 const TOKEN_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _.\-]{0,31}$/;
