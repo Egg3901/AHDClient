@@ -2,9 +2,6 @@
   "$schema": "https://schema.tauri.app/config/2/capability",
   "identifier": "default",
   "description": "Main window: the launcher. Starts and stops the local game through Rust, lists worlds through Rust, and opens the game and multiplayer windows through Rust. No filesystem access of its own.",
-  "windows": [
-    "main"
-  ],
   "permissions": [
     "core:default",
     "allow-open-online-window",
@@ -20,6 +17,14 @@
     "allow-touch-world",
     "dialog:default",
     "dialog:allow-open",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    "allow-close-embedded-game",
+    "allow-linked-account",
+    "allow-link-account",
+    "allow-set-statistics-consent",
+    "allow-submit-statistics"
+  ],
+  "webviews": [
+    "main"
   ]
 }

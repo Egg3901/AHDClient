@@ -1,0 +1,16 @@
+.client-settings { position: relative; color: #e8e8ef; font-size: 14px; z-index: 20; }
+.client-settings summary { cursor: pointer; padding: 10px 14px; border: 1px solid #50505b; border-radius: 6px; }
+.client-settings-panel { position: absolute; top: calc(100% + 8px); right: 0; width: min(350px, calc(100vw - 32px)); padding: 20px; border: 1px solid #50505b; border-radius: 10px; background: #1d1d29; box-shadow: 0 12px 40px #0008; }
+.client-settings-panel label { display: flex; gap: 10px; align-items: start; margin: 12px 0 6px; }
+.client-settings-panel input { margin-top: 3px; accent-color: #e61c25; }
+.client-settings-panel small { display: block; color: #b8b8c7; line-height: 1.5; }
+.client-settings-panel button { padding: 9px 12px; color: #fff; background: #bd1821; border: 0; border-radius: 5px; cursor: pointer; }
+.client-settings-panel hr { border: 0; border-top: 1px solid #50505b; margin: 18px 0; }
+.client-game-toolbar { height: 64px; box-sizing: border-box; display: flex; align-items: center; gap: 16px; padding: 8px 18px; background: #14141c; color: #e8e8ef; }
+.client-game-toolbar > strong { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.client-game-toolbar > button { background: #272735; border: 1px solid #50505b; color: inherit; border-radius: 5px; padding: 9px 14px; cursor: pointer; }
+html[data-animations="off"] .launcher-nebula { animation: none; }
+
+.client-account-notice { display: flex; gap: 12px; align-items: center; padding: 12px 24px; background: #242433; color: #e8e8ef; font-size: 14px; }
+.client-account-notice span { flex: 1; }
+.client-account-notice button { padding: 8px 12px; cursor: pointer; }

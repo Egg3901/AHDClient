@@ -6,6 +6,11 @@ fn main() {
   // capabilities/game.json.
   tauri_build::try_build(
     tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
+      "set_statistics_consent",
+      "submit_statistics",
+      "linked_account",
+      "link_account",
+      "close_embedded_game",
       "open_online_window",
       "open_help_destination",
       "open_game_window",

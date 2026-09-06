@@ -10,14 +10,17 @@
 //! only to these commands; the game and online windows get no Tauri IPC at
 //! all and are plain webviews pointed at an origin we chose.
 
+mod node_path;
+
 use std::fs;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, RunEvent, State, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent, WebviewBuilder, LogicalPosition, LogicalSize};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
@@ -28,6 +31,7 @@ const ONLINE_HOST: &str = "ahousedividedgame.com";
 const SANDBOX_HOST: &str = "sandbox.ahousedividedgame.com";
 const AUXILIARY_ONLINE_HOSTS: &[&str] = &[
   "www.ahousedividedgame.com",
+  "auth.ahousedividedgame.com",
   "discord.com",
   "accounts.google.com",
   "www.google.com",
@@ -52,6 +56,13 @@ enum HelpDestination {
 
 fn help_destination(route_id: &str) -> Option<HelpDestination> {
   match route_id {
+    "help.era-photo-1953" => Some(HelpDestination::External("https://commons.wikimedia.org/wiki/File:Eisenhower_inauguration.gif")),
+    "help.era-photo-1979" => Some(HelpDestination::External("https://commons.wikimedia.org/wiki/File:Portrait_of_Jimmy_Carter_by_Ansel_Adams_(1979)_(cropped).jpg")),
+    "help.era-photo-1991" => Some(HelpDestination::External("https://commons.wikimedia.org/wiki/File:President_George_H._W._Bush_poses_for_a_photograph_with_four_of_his_predecessors.jpg")),
+    "help.era-photo-1999" => Some(HelpDestination::External("https://commons.wikimedia.org/wiki/File:Bill_Clinton_1999.jpg")),
+    "help.era-photo-2007" => Some(HelpDestination::External("https://commons.wikimedia.org/wiki/File:George_Bush_visit_Kansas_City_Assembly.jpg")),
+    "help.era-photo-2019" => Some(HelpDestination::External("https://commons.wikimedia.org/wiki/File:President_Trump_Meets_with_the_Prime_Minister_of_Pakistan_(48350243921).jpg")),
+    "help.era-photo-2023" => Some(HelpDestination::External("https://commons.wikimedia.org/wiki/File:P20230106AS-0338_(52644827761).jpg")),
     "help.wiki" => Some(HelpDestination::External("https://wiki.ahousedividedgame.com")),
     "help.about" => Some(HelpDestination::Online("/about")),
     "help.suggestions" => Some(HelpDestination::Online("/feedback")),
@@ -104,6 +115,8 @@ struct WorldMeta {
   turn: Option<u64>,
   #[serde(default)]
   character: Option<String>,
+  #[serde(default)]
+  setup: Option<serde_json::Value>,
 }
 
 fn now_iso() -> String {
@@ -172,7 +185,7 @@ fn list_worlds(app: AppHandle) -> Result<Vec<WorldMeta>, String> {
 }
 
 #[tauri::command]
-fn create_world(app: AppHandle, slot: String, name: String, preset: String) -> Result<WorldMeta, String> {
+fn create_world(app: AppHandle, slot: String, name: String, preset: String, setup: Option<serde_json::Value>) -> Result<WorldMeta, String> {
   let dir = world_dir(&app, &slot)?;
   if dir.join("world.json").exists() {
     return Err(format!("a world named {slot:?} already exists"));
@@ -186,6 +199,7 @@ fn create_world(app: AppHandle, slot: String, name: String, preset: String) -> R
     last_played_at: now,
     turn: None,
     character: None,
+    setup,
   };
   write_meta(&dir, &meta)?;
   Ok(meta)
@@ -229,12 +243,13 @@ fn delete_world(app: AppHandle, game: State<'_, Game>, slot: String) -> Result<(
 
 #[derive(Default)]
 struct GameInner {
+  generation: u64,
   child: Option<CommandChild>,
   port: Option<u16>,
   slot: Option<String>,
 }
 
-struct Game(Mutex<GameInner>);
+struct Game(Mutex<GameInner>, tokio::sync::Mutex<()>);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -281,6 +296,7 @@ fn launcher_script(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn stop_locked(inner: &mut GameInner) {
+  inner.generation = inner.generation.wrapping_add(1);
   if let Some(child) = inner.child.take() {
     // SIGTERM on Unix, TerminateProcess on Windows. The launcher polls our
     // pid as well, so MongoDB goes down either way.
@@ -297,6 +313,7 @@ fn game_status(game: State<'_, Game>) -> Result<GameInfo, String> {
 
 #[tauri::command]
 async fn game_stop(app: AppHandle, game: State<'_, Game>) -> Result<GameInfo, String> {
+  if let Some(view) = app.get_webview("game-embedded") { let _ = view.close(); }
   if let Some(window) = app.get_webview_window("game") {
     let _ = window.close();
   }
@@ -311,11 +328,12 @@ async fn game_stop(app: AppHandle, game: State<'_, Game>) -> Result<GameInfo, St
 /// download is visible rather than a frozen button.
 #[tauri::command]
 async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String) -> Result<GameInfo, String> {
+  let _start_guard = game.1.try_lock().map_err(|_| "a world is already starting")?;
   let home = world_dir(&app, &slot)?;
   if !home.join("world.json").exists() {
     return Err(format!("no world at {slot:?}"));
   }
-  {
+  let generation = {
     let mut inner = game.0.lock().map_err(|_| "game state poisoned")?;
     if inner.child.is_some() {
       if inner.slot.as_deref() == Some(slot.as_str()) {
@@ -323,22 +341,30 @@ async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String) -> Resu
       }
       stop_locked(&mut inner);
     }
-  }
+    inner.generation = inner.generation.wrapping_add(1);
+    inner.generation
+  };
 
-  let script = launcher_script(&app)?;
+  let script = node_path::path_for_node(&launcher_script(&app)?);
+  let launch_dir = script.parent().ok_or("game resource directory is missing")?;
   let port = free_port()?;
+  let mut mongo_port = free_port()?;
+  while mongo_port == port { mongo_port = free_port()?; }
   let mut command = app
     .shell()
     // Named ahd-node, not node: Linux packages install sidecars into
     // /usr/bin, and a plain "node" would collide with the system one.
     .sidecar("ahd-node")
     .map_err(|e| format!("bundled Node is missing: {e}"))?
+    .current_dir(launch_dir)
     .args([
       script.to_string_lossy().as_ref(),
       "--port",
       &port.to_string(),
+      "--mongo-port",
+      &mongo_port.to_string(),
       "--home",
-      home.to_string_lossy().as_ref(),
+      node_path::path_for_node(&home).to_string_lossy().as_ref(),
       "--no-browser",
       "--parent-pid",
       &std::process::id().to_string(),
@@ -351,6 +377,10 @@ async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String) -> Resu
   let (mut rx, child) = command.spawn().map_err(|e| format!("could not start the game: {e}"))?;
   {
     let mut inner = game.0.lock().map_err(|_| "game state poisoned")?;
+    if inner.generation != generation {
+      let _ = child.kill();
+      return Err("world start cancelled".into());
+    }
     inner.child = Some(child);
     inner.port = Some(port);
     inner.slot = Some(slot.clone());
@@ -365,11 +395,11 @@ async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String) -> Resu
     let event = match tokio::time::timeout(remaining, rx.recv()).await {
       Ok(Some(event)) => event,
       Ok(None) => {
-        fail_start(&app, &game, &tail);
+        fail_start(&app, &game, &tail, generation);
         return Err(format!("the game exited before it was ready:\n{}", tail.join("\n")));
       }
       Err(_) => {
-        fail_start(&app, &game, &tail);
+        fail_start(&app, &game, &tail, generation);
         return Err(format!(
           "the game did not become ready within {} seconds:\n{}",
           START_TIMEOUT.as_secs(),
@@ -393,7 +423,7 @@ async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String) -> Resu
         }
       }
       CommandEvent::Terminated(status) => {
-        fail_start(&app, &game, &tail);
+        fail_start(&app, &game, &tail, generation);
         return Err(format!(
           "the game exited with code {:?} before it was ready:\n{}",
           status.code,
@@ -421,6 +451,7 @@ async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String) -> Resu
         CommandEvent::Terminated(status) => {
           if let Some(game) = drain_app.try_state::<Game>() {
             if let Ok(mut inner) = game.0.lock() {
+              if inner.generation != generation { break; }
               inner.child = None;
               inner.port = None;
               inner.slot = None;
@@ -430,6 +461,7 @@ async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String) -> Resu
             "game:exited",
             GameLogEvent { line: format!("game exited with code {:?}", status.code) },
           );
+          if let Some(view) = drain_app.get_webview("game-embedded") { let _ = view.close(); }
           if let Some(window) = drain_app.get_webview_window("game") {
             let _ = window.close();
           }
@@ -444,8 +476,9 @@ async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String) -> Resu
   Ok(game.0.lock().map_err(|_| "game state poisoned")?.info())
 }
 
-fn fail_start(app: &AppHandle, game: &State<'_, Game>, tail: &[String]) {
+fn fail_start(app: &AppHandle, game: &State<'_, Game>, tail: &[String], generation: u64) {
   if let Ok(mut inner) = game.0.lock() {
+    if inner.generation != generation { return; }
     stop_locked(&mut inner);
   }
   let _ = app.emit("game:exited", GameLogEvent { line: tail.last().cloned().unwrap_or_default() });
@@ -468,13 +501,13 @@ async fn game_request(
     .map_err(|_| "game state poisoned")?
     .port
     .ok_or("the game is not running")?;
-  if !path.starts_with('/') || path.contains("..") {
+  if !path.starts_with("/api/singleplayer/") || path.contains("..") || path.contains(['\r', '\n', '\\']) {
     return Err(format!("refusing request path {path:?}"));
   }
   let url = format!("http://127.0.0.1:{port}{path}");
   let method = method.to_ascii_uppercase();
   tauri::async_runtime::spawn_blocking(move || {
-    let agent = ureq::AgentBuilder::new().timeout(REQUEST_TIMEOUT).build();
+    let agent = ureq::AgentBuilder::new().timeout(REQUEST_TIMEOUT).redirects(0).build();
     let request = agent.request(&method, &url).set("Accept", "application/json");
     let response = match body {
       Some(json) => request.send_json(json),
@@ -497,12 +530,121 @@ async fn game_request(
   .map_err(|e| e.to_string())?
 }
 
+struct StatisticsConsent(AtomicBool);
+
+#[tauri::command]
+fn set_statistics_consent(consent: State<'_, StatisticsConsent>, enabled: bool) {
+  consent.0.store(enabled, Ordering::SeqCst);
+}
+
+#[tauri::command]
+async fn submit_statistics(app: AppHandle, consent: State<'_, StatisticsConsent>, report: serde_json::Value) -> Result<(), String> {
+  if !consent.0.load(Ordering::SeqCst) { return Err("statistics sharing is disabled".into()); }
+  let body = serde_json::to_string(&report).map_err(|_| "invalid report")?;
+  if body.len() > 8192 { return Err("report is too large".into()); }
+  tauri::async_runtime::spawn_blocking(move || {
+    if !app.state::<StatisticsConsent>().0.load(Ordering::SeqCst) { return Err("statistics sharing is disabled".into()); }
+    // A separate HTTP client with no WebView cookies, credentials, redirect
+    // following, device identifiers, or request/response-body logging.
+    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(10)).redirects(0).build();
+    let response = agent.post("https://ahousedividedgame.com/api/client/statistics")
+      .set("Content-Type", "application/json")
+      .set("User-Agent", "AHDClient/2")
+      .send_string(&body).map_err(|_| "statistics delivery unavailable")?;
+    if response.status() == 202 { Ok(()) } else { Err("statistics delivery unavailable".into()) }
+  }).await.map_err(|_| "statistics delivery failed")?
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LinkedAccount {
+  linked: bool,
+  display_name: String,
+  supporter: bool,
+}
+
+#[tauri::command]
+async fn linked_account(app: AppHandle) -> Result<Option<LinkedAccount>, String> {
+  // Read the platform WebView cookie store. Credentials never cross IPC or
+  // enter launcher storage, telemetry, URLs or log messages.
+  let view = app.get_webview("main").ok_or("launcher is missing")?;
+  let url: Url = format!("{ONLINE_URL}/api/client/account").parse().map_err(|_| "invalid account URL")?;
+  let cookies = view.cookies_for_url(url).map_err(|_| "cannot access the app session")?;
+  let header = cookies.iter()
+    .filter(|cookie| matches!(cookie.name(), "auth-token" | "authjs.session-token" | "__Secure-authjs.session-token" | "next-auth.session-token" | "__Secure-next-auth.session-token")
+      || ["authjs.session-token.", "__Secure-authjs.session-token.", "next-auth.session-token.", "__Secure-next-auth.session-token."].iter().any(|prefix| cookie.name().strip_prefix(prefix).is_some_and(|suffix| !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit()))))
+    .map(|cookie| format!("{}={}", cookie.name(), cookie.value()))
+    .collect::<Vec<_>>().join("; ");
+  if header.is_empty() { return Ok(None); }
+  tauri::async_runtime::spawn_blocking(move || {
+    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(15)).redirects(0).build();
+    match agent.get(&format!("{ONLINE_URL}/api/client/account")).set("Cookie", &header).call() {
+      Ok(response) => response.into_json::<LinkedAccount>().map(Some).map_err(|_| "invalid account response".into()),
+      Err(ureq::Error::Status(401, _)) => Ok(None),
+      Err(_) => Err("Cannot check the linked account. Connect to the internet and try again.".into()),
+    }
+  }).await.map_err(|_| "account check failed")?
+}
+
+#[tauri::command]
+async fn link_account(app: AppHandle, separate_window: Option<bool>) -> Result<(), String> {
+  let url: Url = format!("{ONLINE_URL}/client/link").parse().map_err(|_| "invalid account URL")?;
+  if separate_window.unwrap_or(false) { open_online_url(app, url).await }
+  else { open_embedded(&app, url, None) }
+}
+
 // ---------------------------------------------------------------------------
 // Windows
 // ---------------------------------------------------------------------------
 
+const EMBEDDED_TOP: f64 = 64.0;
+
+fn close_embedded(app: &AppHandle) {
+  for label in ["game-embedded", "online-embedded"] {
+    if let Some(view) = app.get_webview(label) { let _ = view.close(); }
+  }
+}
+
 #[tauri::command]
-async fn open_game_window(app: AppHandle, game: State<'_, Game>, path: Option<String>) -> Result<(), String> {
+fn close_embedded_game(app: AppHandle) {
+  close_embedded(&app);
+}
+
+fn open_embedded(app: &AppHandle, url: Url, local_port: Option<u16>) -> Result<(), String> {
+  close_embedded(app);
+  let window = app.get_window("main").ok_or("launcher window is missing")?;
+  let size = window.inner_size().map_err(|e| e.to_string())?
+    .to_logical::<f64>(window.scale_factor().map_err(|e| e.to_string())?);
+  let nav_app = app.clone();
+  let popup_app = app.clone();
+  let label = if local_port.is_some() { "game-embedded" } else { "online-embedded" };
+  let builder = WebviewBuilder::new(label, WebviewUrl::External(url))
+    .on_navigation(move |url| {
+      let allowed = match local_port {
+        Some(port) => is_local_game_url(url, port),
+        None => is_online_navigation_allowed(url),
+      };
+      if !allowed && matches!(url.scheme(), "https" | "http" | "mailto") {
+        let _ = nav_app.opener().open_url(url.to_string(), None::<&str>);
+      }
+      allowed
+    })
+    .on_new_window(move |url, _| {
+      if matches!(url.scheme(), "https" | "http" | "mailto") {
+        let _ = popup_app.opener().open_url(url.to_string(), None::<&str>);
+      }
+      tauri::webview::NewWindowResponse::Deny
+    });
+  window.add_child(builder, LogicalPosition::new(0.0, EMBEDDED_TOP),
+    LogicalSize::new(size.width, (size.height - EMBEDDED_TOP).max(1.0)))
+    .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+
+
+#[tauri::command]
+async fn open_game_window(app: AppHandle, game: State<'_, Game>, path: Option<String>, separate_window: Option<bool>) -> Result<(), String> {
   let port = game
     .0
     .lock()
@@ -517,6 +659,11 @@ async fn open_game_window(app: AppHandle, game: State<'_, Game>, path: Option<St
     .parse()
     .map_err(|e| format!("bad game URL: {e}"))?;
 
+  if !separate_window.unwrap_or(false) {
+    if let Some(existing) = app.get_webview_window("game") { let _ = existing.close(); }
+    return open_embedded(&app, url, Some(port));
+  }
+  close_embedded(&app);
   if let Some(existing) = app.get_webview_window("game") {
     existing.navigate(url).map_err(|e| e.to_string())?;
     existing.set_focus().map_err(|e| e.to_string())?;
@@ -560,13 +707,25 @@ async fn open_game_window(app: AppHandle, game: State<'_, Game>, path: Option<St
 /// `target` is "live" or "sandbox". Both use the same zero-capability window;
 /// the sandbox is a separate deployment with its own accounts and world.
 #[tauri::command]
-async fn open_online_window(app: AppHandle, target: Option<String>) -> Result<(), String> {
+async fn open_online_window(app: AppHandle, target: Option<String>, separate_window: Option<bool>) -> Result<(), String> {
   let base = match target.as_deref() {
     None | Some("live") => ONLINE_URL,
-    Some("sandbox") => SANDBOX_URL,
+    Some("sandbox") => {
+      let account = linked_account(app.clone()).await?;
+      if !account.is_some_and(|account| account.linked && account.supporter) {
+        app.opener().open_url("https://www.patreon.com/cw/AHouseDividedGame/membership", None::<&str>).map_err(|e| e.to_string())?;
+        return Err("Sandbox requires supporter access. Link your supporter game account in Settings.".into());
+      }
+      SANDBOX_URL
+    },
     Some(other) => return Err(format!("unknown online target {other:?}")),
   };
   let url: Url = base.parse().map_err(|e| format!("bad online URL: {e}"))?;
+  if !separate_window.unwrap_or(false) {
+    if let Some(existing) = app.get_webview_window("online") { let _ = existing.close(); }
+    return open_embedded(&app, url, None);
+  }
+  close_embedded(&app);
   open_online_url(app, url).await
 }
 
@@ -635,8 +794,14 @@ pub fn run() {
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_window_state::Builder::default().build())
-    .manage(Game(Mutex::new(GameInner::default())))
+    .manage(Game(Mutex::new(GameInner::default()), tokio::sync::Mutex::new(())))
+    .manage(StatisticsConsent(AtomicBool::new(false)))
     .invoke_handler(tauri::generate_handler![
+      set_statistics_consent,
+      submit_statistics,
+      linked_account,
+      link_account,
+      close_embedded_game,
       open_online_window,
       open_help_destination,
       open_game_window,
@@ -649,6 +814,19 @@ pub fn run() {
       touch_world,
       delete_world,
     ])
+    .on_window_event(|window, event| {
+      if window.label() == "main" && matches!(event, WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. }) {
+        if let (Ok(size), Ok(scale)) = (window.inner_size(), window.scale_factor()) {
+          let logical = size.to_logical::<f64>(scale);
+          for label in ["game-embedded", "online-embedded"] {
+            if let Some(view) = window.app_handle().get_webview(label) {
+              let _ = view.set_position(LogicalPosition::new(0.0, EMBEDDED_TOP));
+              let _ = view.set_size(LogicalSize::new(logical.width, (logical.height - EMBEDDED_TOP).max(1.0)));
+            }
+          }
+        }
+      }
+    })
     .build(tauri::generate_context!())
     .expect("error while building AHDClient")
     .run(|app, event| {

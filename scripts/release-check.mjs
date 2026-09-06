@@ -9,12 +9,7 @@ const json = (path) => JSON.parse(read(path));
 
 const rootPackage = json("package.json");
 const desktopPackage = json("apps/desktop/package.json");
-const workspacePackages = [
-  desktopPackage,
-  json("packages/cli/package.json"),
-  json("packages/content/package.json"),
-  json("packages/engine/package.json"),
-];
+const workspacePackages = [desktopPackage];
 const packageLock = json("package-lock.json");
 const tauriConfig = json("apps/desktop/src-tauri/tauri.conf.json");
 const cargoManifest = read("apps/desktop/src-tauri/Cargo.toml");

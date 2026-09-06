@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { SetupOptions } from "./screens/setupOptions.js";
 
 /**
  * A world is a directory under the app's data folder holding a MongoDB data
@@ -13,6 +14,7 @@ export interface WorldMeta {
   lastPlayedAt: string;
   turn: number | null;
   character: string | null;
+  setup?: SetupOptions | null;
 }
 
 export interface GameInfo {
@@ -25,6 +27,7 @@ export interface GameInfo {
 /** What the game reports about a world once its server is up. */
 export interface SingleplayerStatus {
   hasWorld: boolean;
+  mode?: "normal" | "head-of-state" | "worldsim" | null;
   turn: number | null;
   preset: string | null;
   hasCharacter: boolean;
@@ -39,17 +42,19 @@ export interface Era {
   label: string;
   subtitle: string;
   startDate: string;
+  description?: string;
+  playableNations?: readonly string[];
 }
 
 /** Every era the game can seed, oldest first. Mirrors AHDGame's presets. */
 export const ERAS: readonly Era[] = [
-  { id: "1953", preset: "1953-default", label: "1953", subtitle: "Cold War dawn", startDate: "January 1953" },
-  { id: "1979", preset: "1979-default", label: "1979", subtitle: "Late Cold War", startDate: "January 1979" },
-  { id: "1991", preset: "1991-default", label: "1991", subtitle: "New world order", startDate: "January 1991" },
-  { id: "1999", preset: "1999-default", label: "1999", subtitle: "Peak globalisation", startDate: "January 1999" },
-  { id: "2007", preset: "2007-default", label: "2007", subtitle: "Before the crash", startDate: "January 2007" },
-  { id: "2019", preset: "2019-default", label: "2019", subtitle: "Contemporary politics", startDate: "January 2019" },
-  { id: "2023", preset: "2023-default", label: "2023", subtitle: "Realignment", startDate: "January 2023" },
+  { description: "The Cold War hardens after Stalin. Compete for power in a world divided between rival blocs.", playableNations: ["United States", "United Kingdom", "Soviet Union", "East Germany"], id: "1953", preset: "1953-default", label: "1953", subtitle: "Cold War dawn", startDate: "January 1953" },
+  { description: "Oil shocks, revolution and renewed Cold War tensions challenge the postwar settlement.", playableNations: ["United States", "United Kingdom", "Soviet Union", "East Germany"], id: "1979", preset: "1979-default", label: "1979", subtitle: "Late Cold War", startDate: "January 1979" },
+  { description: "The Cold War order unravels. Shape the political choices of a new international era.", playableNations: ["United States", "United Kingdom"], id: "1991", preset: "1991-default", label: "1991", subtitle: "New world order", startDate: "January 1991" },
+  { description: "Globalisation accelerates as the internet boom and a new European currency reshape politics.", playableNations: ["United States", "United Kingdom"], id: "1999", preset: "1999-default", label: "1999", subtitle: "Peak globalisation", startDate: "January 1999" },
+  { description: "Credit and confidence run high on the eve of the global financial crisis.", playableNations: ["United States", "United Kingdom"], id: "2007", preset: "2007-default", label: "2007", subtitle: "Before the crash", startDate: "January 2007" },
+  { description: "Polarisation, shifting alliances and contested institutions define an interconnected world.", playableNations: ["United States", "United Kingdom", "Germany", "Japan", "Ireland", "China"], id: "2019", preset: "2019-default", label: "2019", subtitle: "Contemporary politics", startDate: "January 2019" },
+  { description: "Inflation, war and renewed great-power competition put governments under pressure.", playableNations: ["United States", "United Kingdom", "Japan", "Germany", "Ireland", "China"], id: "2023", preset: "2023-default", label: "2023", subtitle: "Realignment", startDate: "January 2023" },
 ];
 
 export function eraById(id: string): Era | undefined {
@@ -81,7 +86,7 @@ export function slugForWorld(name: string, taken: readonly string[]): string {
 
 export const worlds = {
   list: () => invoke<WorldMeta[]>("list_worlds"),
-  create: (slot: string, name: string, preset: string) => invoke<WorldMeta>("create_world", { slot, name, preset }),
+  create: (slot: string, name: string, preset: string, setup?: SetupOptions) => invoke<WorldMeta>("create_world", { slot, name, preset, setup: setup ?? null }),
   touch: (slot: string, turn?: number | null, character?: string | null) =>
     invoke<WorldMeta>("touch_world", { slot, turn: turn ?? null, character: character ?? null }),
   remove: (slot: string) => invoke<void>("delete_world", { slot }),
@@ -93,8 +98,11 @@ export const game = {
   status: () => invoke<GameInfo>("game_status"),
   request: <T>(method: string, path: string, body?: unknown) =>
     invoke<T>("game_request", { method, path, body: body ?? null }),
-  openWindow: (path = "/") => invoke<void>("open_game_window", { path }),
+  openWindow: (path = "/", separateWindow = false) => invoke<void>("open_game_window", { path, separateWindow }),
+  closeEmbedded: () => invoke<void>("close_embedded_game"),
   singleplayerStatus: () => game.request<SingleplayerStatus>("GET", "/api/singleplayer/status"),
+  setup: (preset: string, setup: SetupOptions, displayName?: string) =>
+    game.request<{ ok: boolean }>("POST", "/api/singleplayer/setup", { preset, ...setup, ...(displayName ? { displayName } : {}) }),
   newGame: (preset: string, displayName?: string) =>
     game.request<{ ok: boolean }>("POST", "/api/singleplayer/new-game", {
       preset,
@@ -105,6 +113,8 @@ export const game = {
 export type OnlineTarget = "live" | "sandbox";
 
 export const online = {
-  open: (target: OnlineTarget = "live") => invoke<void>("open_online_window", { target }),
+  open: (target: OnlineTarget = "live", separateWindow = false) => invoke<void>("open_online_window", { target, separateWindow }),
+  link: (separateWindow = false) => invoke<void>("link_account", { separateWindow }),
+  account: () => invoke<{ linked: boolean; displayName: string; supporter: boolean } | null>("linked_account"),
   help: (routeId: string) => invoke<void>("open_help_destination", { routeId }),
 };

@@ -2,6 +2,9 @@
   "$schema": "https://schema.tauri.app/config/2/capability",
   "identifier": "online",
   "description": "Desktop multiplayer window, deliberately empty. The online window loads https://ahousedividedgame.com and approved OAuth hosts but must never get Tauri IPC, fs, dialog, or shell. This explicit zero-grant makes any future boundary change reviewable.",
-  "windows": ["online"],
-  "permissions": []
+  "permissions": [],
+  "webviews": [
+    "online",
+    "online-embedded"
+  ]
 }
