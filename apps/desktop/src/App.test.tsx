@@ -82,7 +82,7 @@ vi.mock("./screens/NewWorldScreen.js", () => ({
 }));
 vi.mock("./screens/WorldsScreen.js", () => ({ WorldsScreen: () => null }));
 vi.mock("./screens/BootScreen.js", () => ({
-  BootScreen: () => <p>Booting</p>,
+  BootScreen: ({ onCancel }: { onCancel: () => void }) => <main><p>Booting</p><button onClick={onCancel}>Cancel loading</button></main>,
 }));
 vi.mock("./screens/PlayingScreen.js", () => ({
   PlayingScreen: () => <p>Playing</p>,
@@ -229,6 +229,18 @@ describe("App singleplayer integration", () => {
 
     expect((await screen.findByRole("alert", {}, { timeout: 3_000 })).textContent)
       .toContain("stopped reporting progress");
+    expect(screen.getByRole("dialog", { name: "Report this problem?" })).toBeTruthy();
+  });
+
+  it("offers diagnostics after the player cancels loading", async () => {
+    prepare();
+    mocks.game.start.mockReturnValue(new Promise(() => {}));
+    render(<App />);
+    await userEvent.click(screen.getByRole("button", { name: "New world" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel loading" }));
+    expect(await screen.findByRole("dialog", { name: "Report this problem?" })).toBeTruthy();
+    expect(mocks.game.stop).toHaveBeenCalled();
   });
 
   it("does not start a local world for an account without singleplayer access", async () => {

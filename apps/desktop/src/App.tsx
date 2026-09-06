@@ -31,6 +31,8 @@ import {
 import { UpdateNotice } from "./UpdateNotice.js";
 import { AccountControl } from "./AccountControl.js";
 import { GameVersionBar } from "./GameVersionBar.js";
+import { DiagnosticPrompt } from "./DiagnosticPrompt.js";
+import { submitDiagnostics, type DiagnosticReason } from "./diagnostics.js";
 
 type Screen =
   | "launcher"
@@ -71,6 +73,8 @@ export function App(): JSX.Element {
   const [bootTitle, setBootTitle] = useState("Starting");
   const [bootProgress, setBootProgress] = useState<SetupProgress | null>(null);
   const [log, setLog] = useState<string[]>([]);
+  const [diagnosticIncident, setDiagnosticIncident] = useState<{ reason: DiagnosticReason; message: string; lines: string[] } | null>(null);
+  const [sendingDiagnostics, setSendingDiagnostics] = useState(false);
   const cancelled = useRef(false);
   const bootId = useRef(0);
   const creating = useRef(false);
@@ -241,7 +245,13 @@ export function App(): JSX.Element {
   }, [refreshWorlds]);
 
   const fail = (e: unknown) => {
-    setError(e instanceof Error ? e.message : String(e));
+    const message = e instanceof Error ? e.message : String(e);
+    setError(message);
+    setDiagnosticIncident({
+      reason: message.includes("stopped reporting progress") ? "stalled" : "error",
+      message,
+      lines: [...log],
+    });
     setScreen("launcher");
   };
 
@@ -357,6 +367,7 @@ export function App(): JSX.Element {
   };
 
   const cancelBoot = async () => {
+    const diagnosticLines = [...log];
     cancelled.current = true;
     bootId.current += 1;
     try {
@@ -367,6 +378,11 @@ export function App(): JSX.Element {
     setBusy(false);
     setBootProgress(null);
     setScreen("launcher");
+    setDiagnosticIncident({
+      reason: "cancelled",
+      message: "The local game was cancelled while it was loading.",
+      lines: diagnosticLines,
+    });
   };
 
   const handleNewWorld = (eraId: string, worldsim = false) => {
@@ -523,10 +539,29 @@ export function App(): JSX.Element {
       onReportIssue={() => void online.help("help.report-issue").catch(fail)}
     />
   );
+  const diagnosticPrompt = (
+    <DiagnosticPrompt
+      incident={diagnosticIncident}
+      sending={sendingDiagnostics}
+      onDismiss={() => setDiagnosticIncident(null)}
+      onSend={() => {
+        if (!diagnosticIncident || sendingDiagnostics) return;
+        setSendingDiagnostics(true);
+        void submitDiagnostics(
+          diagnosticIncident.reason,
+          diagnosticIncident.message,
+          diagnosticIncident.lines,
+        ).then(() => setDiagnosticIncident(null)).catch(() => {
+          setError("Diagnostics could not be sent. Use Report issue in Settings instead.");
+        }).finally(() => setSendingDiagnostics(false));
+      }}
+    />
+  );
   const withSettings = (content: JSX.Element) => (
     <>
       {content}
       {settingsMenu}
+      {diagnosticPrompt}
     </>
   );
   const latest = allWorlds[0] ?? null;
@@ -571,6 +606,7 @@ export function App(): JSX.Element {
           </nav>
         </main>
         {settingsMenu}
+        {diagnosticPrompt}
       </>
     );
   }
@@ -708,6 +744,7 @@ export function App(): JSX.Element {
         }}
       />
       {settingsMenu}
+      {diagnosticPrompt}
     </>
   );
 }

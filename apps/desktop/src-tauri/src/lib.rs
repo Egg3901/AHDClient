@@ -586,6 +586,20 @@ async fn submit_statistics(app: AppHandle, consent: State<'_, StatisticsConsent>
   }).await.map_err(|_| "statistics delivery failed")?
 }
 
+#[tauri::command]
+async fn submit_diagnostics(report: serde_json::Value) -> Result<(), String> {
+  let body = serde_json::to_string(&report).map_err(|_| "invalid diagnostic report")?;
+  if body.len() > 40_000 { return Err("diagnostic report is too large".into()); }
+  tauri::async_runtime::spawn_blocking(move || {
+    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(10)).redirects(0).build();
+    let response = agent.post("https://ahousedividedgame.com/api/client/diagnostics")
+      .set("Content-Type", "application/json")
+      .set("User-Agent", "AHDClient/2")
+      .send_string(&body).map_err(|_| "diagnostic delivery unavailable")?;
+    if response.status() == 202 { Ok(()) } else { Err("diagnostic delivery unavailable".into()) }
+  }).await.map_err(|_| "diagnostic delivery failed")?
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct LinkedAccount {
@@ -875,6 +889,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       set_statistics_consent,
       submit_statistics,
+      submit_diagnostics,
       linked_account,
       link_account,
       close_embedded_game,
