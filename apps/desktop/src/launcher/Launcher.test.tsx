@@ -99,4 +99,19 @@ describe("Launcher", () => {
     await userEvent.click(screen.getByRole("button", { name: /Enter sandbox/ }));
     expect(props.onPlayOnline).toHaveBeenCalledWith("sandbox");
   });
+  it("offers only the online modes on mobile and defaults to multiplayer", async () => {
+    localStorage.setItem("ahdclient.launcher.mode", "sp");
+    const props = renderLauncher({ mobile: true });
+    expect(screen.queryByRole("button", { name: /Singleplayer/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Worldsim/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "New Game" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Load Game" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Multiplayer" }).getAttribute("aria-pressed")).toBe("true");
+    await userEvent.click(screen.getByRole("button", { name: /Enter multiplayer/ }));
+    expect(props.onPlayOnline).toHaveBeenCalledWith("live");
+    await userEvent.click(screen.getByRole("button", { name: "Sandbox" }));
+    await userEvent.click(screen.getByRole("button", { name: /Enter sandbox/ }));
+    expect(props.onPlayOnline).toHaveBeenCalledWith("sandbox");
+    localStorage.removeItem("ahdclient.launcher.mode");
+  });
 });

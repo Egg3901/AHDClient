@@ -8,6 +8,9 @@ import rootPackage from "../../../package.json";
 import defaultCapability from "../src-tauri/capabilities/default.json";
 import onlineCapability from "../src-tauri/capabilities/online.json";
 import gameCapability from "../src-tauri/capabilities/game.json";
+import mobileCapability from "../src-tauri/capabilities/mobile.json";
+import androidConfig from "../src-tauri/tauri.android.conf.json";
+import iosConfig from "../src-tauri/tauri.ios.conf.json";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (relative: string) => readFileSync(join(here, relative), "utf8");
@@ -62,11 +65,65 @@ describe("desktop security configuration", () => {
   });
 
   it("pins the game window to its own loopback port in Rust", () => {
-    const rust = read("../src-tauri/src/lib.rs");
+    const rust = read("../src-tauri/src/desktop.rs");
     expect(rust).toMatch(/fn is_local_game_url\(/);
     expect(rust).toMatch(/WebviewWindowBuilder::new\(&app, "game"/);
     expect(rust).toMatch(/"--parent-pid"/);
     expect(rust).toMatch(/"--no-browser"/);
+  });
+
+  it("keeps the local game and its windows off the mobile build", () => {
+    const rust = read("../src-tauri/src/lib.rs");
+    expect(rust).toMatch(/#\[cfg\(desktop\)\]\s*mod desktop;/);
+    expect(rust).toMatch(/#\[cfg\(mobile\)\]\s*mod mobile;/);
+    const cargo = read("../src-tauri/Cargo.toml");
+    const desktopOnly = cargo.split(
+      "[target.'cfg(not(any(target_os = \"android\", target_os = \"ios\")))'.dependencies]",
+    )[1];
+    expect(desktopOnly).toBeDefined();
+    for (const plugin of [
+      "tauri-plugin-shell",
+      "tauri-plugin-updater",
+      "tauri-plugin-process",
+      "tauri-plugin-fs",
+      "tauri-plugin-dialog",
+      "tauri-plugin-window-state",
+    ]) {
+      expect(desktopOnly).toContain(plugin);
+    }
+  });
+
+  it("gives the mobile webview only the online, account and diagnostics commands", () => {
+    expect(mobileCapability.platforms).toEqual(["android", "iOS"]);
+    expect(mobileCapability.webviews).toEqual(["main"]);
+    expect("remote" in mobileCapability).toBe(false);
+    expect([...mobileCapability.permissions].sort()).toEqual(
+      [
+        "core:default",
+        "allow-open-online-window",
+        "allow-open-help-destination",
+        "allow-linked-account",
+        "allow-link-account",
+        "allow-submit-diagnostics",
+      ].sort(),
+    );
+    expect(defaultCapability.platforms).toEqual(["linux", "macOS", "windows"]);
+  });
+
+  it("strips the sidecar, game resources and updater from mobile bundles", () => {
+    for (const config of [androidConfig, iosConfig]) {
+      expect(config.app.windows).toEqual([]);
+      expect(config.bundle.externalBin).toBeNull();
+      expect(config.bundle.resources).toBeNull();
+      expect(config.bundle.createUpdaterArtifacts).toBe(false);
+      expect(config.plugins.updater).toBeNull();
+    }
+    expect(androidConfig.bundle.android.minSdkVersion).toBe(24);
+    expect(iosConfig.bundle.iOS.minimumSystemVersion).toBe("14.0");
+    const mobileRust = read("../src-tauri/src/mobile.rs");
+    expect(mobileRust).toMatch(/fn is_app_origin\(/);
+    expect(mobileRust).toMatch(/is_online_navigation_allowed\(url\)/);
+    expect(mobileRust).toContain("ahdclient://launcher");
   });
 });
 
@@ -145,9 +202,18 @@ describe("desktop platform configuration", () => {
     expect(workflow).toContain("npm run verify");
   });
 
-  it("has no Android target left", () => {
-    expect(
-      Object.keys(desktopPackage.scripts).some((s) => s.startsWith("android:")),
-    ).toBe(false);
+  it("builds Android and iOS bundles in their own workflow", () => {
+    const workflow = read("../../../.github/workflows/release-mobile.yml");
+    for (const needle of [
+      "ubuntu-22.04",
+      "macos-latest",
+      "android build --apk --aab",
+      "ios build --export-method app-store-connect",
+      "CODE_SIGNING_ALLOWED=NO",
+      "ahdclient-android",
+      "ahdclient-ios",
+    ]) {
+      expect(workflow).toContain(needle);
+    }
   });
 });
