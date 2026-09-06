@@ -2,6 +2,14 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.0.5] - 2026-09-06
+
+- Fix Windows local worlds never becoming ready: the game server was started on the launcher's own input and output handles, which on Windows left it accepting connections without answering. It now runs on captured output and a fresh world is ready in seconds.
+- Stop the local database through its own shutdown command when a world is closed, and wait for it to finish before the supervisor exits, so the last turn is always on disk and a world can be reopened immediately.
+- Keep a closing world's supervisor alive until it reports that it has exited instead of ending it after a fixed delay.
+- Report each startup step in plain words with its own deadline, and on failure show the step, the game server's last output and the database log instead of a frozen progress line.
+- Skip preloading every page and route in the local game server, which held the first request for several seconds.
+
 ## [2.0.4] - 2026-09-06
 
 - Fix repeated MongoDB downloads with a shared, versioned cache that only accepts complete installations.
