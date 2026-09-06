@@ -26,6 +26,7 @@ jobs:
             artifact: ahdclient-linux-x86_64
             paths: |
               apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+              apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.sig
               apps/desktop/src-tauri/target/release/bundle/deb/*.deb
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
@@ -38,12 +39,18 @@ jobs:
             target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin --bundles dmg
             artifact: ahdclient-macos-aarch64
-            paths: apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            paths: |
+              apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+              apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
+              apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
           - platform: macos-latest
             target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin --bundles dmg
             artifact: ahdclient-macos-x86_64
-            paths: apps/desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+            paths: |
+              apps/desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+              apps/desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz
+              apps/desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
 
     runs-on: ${{ matrix.platform }}
 

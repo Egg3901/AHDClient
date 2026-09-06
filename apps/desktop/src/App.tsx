@@ -31,6 +31,8 @@ import {
 import { UpdateNotice } from "./UpdateNotice.js";
 import { AccountControl } from "./AccountControl.js";
 import { GameVersionBar } from "./GameVersionBar.js";
+import { DiagnosticPrompt } from "./DiagnosticPrompt.js";
+import { submitDiagnostics, type DiagnosticReason } from "./diagnostics.js";
 
 type Screen =
   | "launcher"
@@ -71,6 +73,8 @@ export function App(): JSX.Element {
   const [bootTitle, setBootTitle] = useState("Starting");
   const [bootProgress, setBootProgress] = useState<SetupProgress | null>(null);
   const [log, setLog] = useState<string[]>([]);
+  const [diagnosticIncident, setDiagnosticIncident] = useState<{ reason: DiagnosticReason; message: string; lines: string[] } | null>(null);
+  const [sendingDiagnostics, setSendingDiagnostics] = useState(false);
   const cancelled = useRef(false);
   const bootId = useRef(0);
   const creating = useRef(false);
@@ -241,7 +245,13 @@ export function App(): JSX.Element {
   }, [refreshWorlds]);
 
   const fail = (e: unknown) => {
-    setError(e instanceof Error ? e.message : String(e));
+    const message = e instanceof Error ? e.message : String(e);
+    setError(message);
+    setDiagnosticIncident({
+      reason: message.includes("stopped reporting progress") ? "stalled" : "error",
+      message,
+      lines: [...log],
+    });
     setScreen("launcher");
   };
 
@@ -274,6 +284,10 @@ export function App(): JSX.Element {
           ].slice(-LOG_LINES),
         );
         let polling = true;
+        let rejectStalledSetup: ((error: Error) => void) | null = null;
+        const stalledSetup = new Promise<never>((_resolve, reject) => {
+          rejectStalledSetup = reject;
+        });
         const pollProgress = async () => {
           while (
             polling &&
@@ -282,8 +296,17 @@ export function App(): JSX.Element {
           ) {
             try {
               const nextProgress = await game.setupProgress();
-              if (polling && generation === bootId.current)
+              if (polling && generation === bootId.current) {
                 setBootProgress(nextProgress);
+                if (nextProgress.stalled) {
+                  polling = false;
+                  rejectStalledSetup?.(
+                    new Error(
+                      "World setup stopped reporting progress. The local game was stopped safely; retry the world or report diagnostics.",
+                    ),
+                  );
+                }
+              }
             } catch {
               // The setup POST is authoritative; progress is supplemental.
             }
@@ -292,7 +315,10 @@ export function App(): JSX.Element {
         };
         void pollProgress();
         try {
-          await game.setup(fresh.preset, fresh.setup, fresh.displayName);
+          await Promise.race([
+            game.setup(fresh.preset, fresh.setup, fresh.displayName),
+            stalledSetup,
+          ]);
         } finally {
           polling = false;
         }
@@ -327,13 +353,21 @@ export function App(): JSX.Element {
       await refreshWorlds();
       setScreen("playing");
     } catch (e) {
-      if (!cancelled.current && generation === bootId.current) fail(e);
+      if (!cancelled.current && generation === bootId.current) {
+        try {
+          setInfo(await game.stop());
+        } catch {
+          setInfo(IDLE);
+        }
+        fail(e);
+      }
     } finally {
       if (generation === bootId.current) setBusy(false);
     }
   };
 
   const cancelBoot = async () => {
+    const diagnosticLines = [...log];
     cancelled.current = true;
     bootId.current += 1;
     try {
@@ -344,6 +378,11 @@ export function App(): JSX.Element {
     setBusy(false);
     setBootProgress(null);
     setScreen("launcher");
+    setDiagnosticIncident({
+      reason: "cancelled",
+      message: "The local game was cancelled while it was loading.",
+      lines: diagnosticLines,
+    });
   };
 
   const handleNewWorld = (eraId: string, worldsim = false) => {
@@ -484,8 +523,11 @@ export function App(): JSX.Element {
     <AccountControl
       checked={accountChecked}
       linked={Boolean(account)}
+      displayName={account?.displayName}
+      supporter={account?.supporter}
       onLink={linkAccount}
       onProfile={() => void online.help("help.profile").catch(fail)}
+      onManage={() => void online.help("help.account").catch(fail)}
     />
   );
   const settingsMenu = (
@@ -494,12 +536,32 @@ export function App(): JSX.Element {
       settings={settings}
       onChange={changeSettings}
       onClose={() => setSettingsOpen(false)}
+      onReportIssue={() => void online.help("help.report-issue").catch(fail)}
+    />
+  );
+  const diagnosticPrompt = (
+    <DiagnosticPrompt
+      incident={diagnosticIncident}
+      sending={sendingDiagnostics}
+      onDismiss={() => setDiagnosticIncident(null)}
+      onSend={() => {
+        if (!diagnosticIncident || sendingDiagnostics) return;
+        setSendingDiagnostics(true);
+        void submitDiagnostics(
+          diagnosticIncident.reason,
+          diagnosticIncident.message,
+          diagnosticIncident.lines,
+        ).then(() => setDiagnosticIncident(null)).catch(() => {
+          setError("Diagnostics could not be sent. Use Report issue in Settings instead.");
+        }).finally(() => setSendingDiagnostics(false));
+      }}
     />
   );
   const withSettings = (content: JSX.Element) => (
     <>
       {content}
       {settingsMenu}
+      {diagnosticPrompt}
     </>
   );
   const latest = allWorlds[0] ?? null;
@@ -544,6 +606,7 @@ export function App(): JSX.Element {
           </nav>
         </main>
         {settingsMenu}
+        {diagnosticPrompt}
       </>
     );
   }
@@ -681,6 +744,7 @@ export function App(): JSX.Element {
         }}
       />
       {settingsMenu}
+      {diagnosticPrompt}
     </>
   );
 }

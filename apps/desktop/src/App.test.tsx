@@ -82,7 +82,7 @@ vi.mock("./screens/NewWorldScreen.js", () => ({
 }));
 vi.mock("./screens/WorldsScreen.js", () => ({ WorldsScreen: () => null }));
 vi.mock("./screens/BootScreen.js", () => ({
-  BootScreen: () => <p>Booting</p>,
+  BootScreen: ({ onCancel }: { onCancel: () => void }) => <main><p>Booting</p><button onClick={onCancel}>Cancel loading</button></main>,
 }));
 vi.mock("./screens/PlayingScreen.js", () => ({
   PlayingScreen: () => <p>Playing</p>,
@@ -124,6 +124,7 @@ function prepare(status = normalStatus) {
   });
   mocks.game.status.mockResolvedValue(idle);
   mocks.game.start.mockResolvedValue(running);
+  mocks.game.stop.mockResolvedValue(idle);
   mocks.game.setup.mockResolvedValue({ ok: true });
   mocks.game.setupProgress.mockResolvedValue({
     active: true,
@@ -208,6 +209,38 @@ describe("App singleplayer integration", () => {
     expect((await screen.findByRole("alert")).textContent).toContain(
       "setup failed",
     );
+  });
+
+  it("escapes a setup request when the game reports that setup stalled", async () => {
+    prepare();
+    mocks.game.setup.mockReturnValue(new Promise(() => {}));
+    mocks.game.setupProgress.mockResolvedValue({
+      active: true,
+      phase: "building",
+      label: "Building the world",
+      detail: "Seeding institutions",
+      progress: 42,
+      updatedAt: new Date(Date.now() - 120_000).toISOString(),
+      stalled: true,
+    });
+    render(<App />);
+    await userEvent.click(screen.getByRole("button", { name: "New world" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect((await screen.findByRole("alert", {}, { timeout: 3_000 })).textContent)
+      .toContain("stopped reporting progress");
+    expect(screen.getByRole("dialog", { name: "Report this problem?" })).toBeTruthy();
+  });
+
+  it("offers diagnostics after the player cancels loading", async () => {
+    prepare();
+    mocks.game.start.mockReturnValue(new Promise(() => {}));
+    render(<App />);
+    await userEvent.click(screen.getByRole("button", { name: "New world" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel loading" }));
+    expect(await screen.findByRole("dialog", { name: "Report this problem?" })).toBeTruthy();
+    expect(mocks.game.stop).toHaveBeenCalled();
   });
 
   it("does not start a local world for an account without singleplayer access", async () => {

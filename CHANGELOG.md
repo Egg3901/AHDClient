@@ -2,6 +2,16 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.0.4] - 2026-09-06
+
+- Fix repeated MongoDB downloads with a shared, versioned cache that only accepts complete installations.
+- Reduce fresh-world startup to seconds by skipping hosted initialization work and production-only turn auditing in local singleplayer.
+- Detect stalled setup promptly, show continuing startup progress, and offer redacted opt-in diagnostics after failures or cancellation.
+- Add release-gated world creation, turn processing, shutdown, and restart smoke coverage across Windows, Linux, and macOS game packages.
+- Add verified game-version downloads and graceful switching for immutable game releases from 1.6.0 onward.
+- Fix failed desktop updates remaining stuck on Installing and retain signed updater artifacts for Windows, Linux, and macOS.
+- Restyle the installer and launcher settings with native account controls, issue reporting, gameplay hints, and clearer update controls.
+
 ## [2.0.3] - 2026-09-06
 
 - Fix linked-account recognition for environment-scoped production sessions and replace the inert account-management action with clear Profile or Link account controls.

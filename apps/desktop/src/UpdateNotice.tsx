@@ -4,7 +4,12 @@ import "./update.css";
 type UpdateState =
   | { kind: "checking" }
   | { kind: "current" }
-  | { kind: "available"; version: string; notes: string; install: () => Promise<void> }
+  | {
+      kind: "available";
+      version: string;
+      notes: string;
+      install: () => Promise<void>;
+    }
   | { kind: "installing" }
   | { kind: "error"; message: string };
 
@@ -26,12 +31,21 @@ export function UpdateNotice(): JSX.Element | null {
           setState({
             kind: "available",
             version: update.version,
-            notes: update.body ?? "A new AHDClient and paired game build are ready.",
+            notes:
+              update.body ?? "A new AHDClient and paired game build are ready.",
             install: async () => {
               setState({ kind: "installing" });
-              await update.downloadAndInstall();
-              const { relaunch } = await import("@tauri-apps/plugin-process");
-              await relaunch();
+              try {
+                await update.downloadAndInstall();
+                const { relaunch } = await import("@tauri-apps/plugin-process");
+                await relaunch();
+              } catch (error) {
+                setState({
+                  kind: "error",
+                  message:
+                    error instanceof Error ? error.message : String(error),
+                });
+              }
             },
           });
         } catch (error) {
@@ -50,12 +64,18 @@ export function UpdateNotice(): JSX.Element | null {
     };
   }, []);
 
-  if (state.kind === "checking" || state.kind === "current" || state.kind === "error") return null;
+  if (state.kind === "checking" || state.kind === "current") return null;
 
   return (
     <aside className="client-update-notice" aria-live="polite">
-      {state.kind === "installing" ? (
-        <strong>Installing the update. AHDClient will restart when it is ready.</strong>
+      {state.kind === "error" ? (
+        <strong>
+          Update stopped: {state.message}. Try again from Settings.
+        </strong>
+      ) : state.kind === "installing" ? (
+        <strong>
+          Installing the update. AHDClient will restart when it is ready.
+        </strong>
       ) : (
         <>
           <span>

@@ -85,6 +85,8 @@ fn help_destination(route_id: &str) -> Option<HelpDestination> {
     "help.wiki" => Some(HelpDestination::External("https://wiki.ahousedividedgame.com")),
     "help.about" => Some(HelpDestination::Online("/about")),
     "help.profile" => Some(HelpDestination::Online("/profile")),
+    "help.account" => Some(HelpDestination::Online("/settings")),
+    "help.report-issue" => Some(HelpDestination::External("https://github.com/Egg3901/AHDClient/issues/new?labels=bug&title=%5B2.0.4%5D%20&body=What%20happened%3F%0A%0ASteps%20to%20reproduce%3A%0A1.%20")),
     "help.suggestions" => Some(HelpDestination::Online("/feedback")),
     "help.discord" => Some(HelpDestination::External("https://discord.gg/DmF8zJJuqN")),
     "help.patreon" => Some(HelpDestination::External(
@@ -372,6 +374,8 @@ async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String) -> Resu
 
   let script = node_path::path_for_node(&launcher_script(&app)?);
   let launch_dir = script.parent().ok_or("game resource directory is missing")?;
+  let runtime_home = app.path().app_data_dir().map_err(|e| e.to_string())?.join("runtime");
+  fs::create_dir_all(&runtime_home).map_err(|e| format!("cannot create {}: {e}", runtime_home.display()))?;
   let port = free_port()?;
   let mut mongo_port = free_port()?;
   while mongo_port == port { mongo_port = free_port()?; }
@@ -390,6 +394,8 @@ async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String) -> Resu
       &mongo_port.to_string(),
       "--home",
       node_path::path_for_node(&home).to_string_lossy().as_ref(),
+      "--runtime-home",
+      node_path::path_for_node(&runtime_home).to_string_lossy().as_ref(),
       "--no-browser",
       "--parent-pid",
       &std::process::id().to_string(),
@@ -578,6 +584,20 @@ async fn submit_statistics(app: AppHandle, consent: State<'_, StatisticsConsent>
       .send_string(&body).map_err(|_| "statistics delivery unavailable")?;
     if response.status() == 202 { Ok(()) } else { Err("statistics delivery unavailable".into()) }
   }).await.map_err(|_| "statistics delivery failed")?
+}
+
+#[tauri::command]
+async fn submit_diagnostics(report: serde_json::Value) -> Result<(), String> {
+  let body = serde_json::to_string(&report).map_err(|_| "invalid diagnostic report")?;
+  if body.len() > 40_000 { return Err("diagnostic report is too large".into()); }
+  tauri::async_runtime::spawn_blocking(move || {
+    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(10)).redirects(0).build();
+    let response = agent.post("https://ahousedividedgame.com/api/client/diagnostics")
+      .set("Content-Type", "application/json")
+      .set("User-Agent", "AHDClient/2")
+      .send_string(&body).map_err(|_| "diagnostic delivery unavailable")?;
+    if response.status() == 202 { Ok(()) } else { Err("diagnostic delivery unavailable".into()) }
+  }).await.map_err(|_| "diagnostic delivery failed")?
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -869,6 +889,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       set_statistics_consent,
       submit_statistics,
+      submit_diagnostics,
       linked_account,
       link_account,
       close_embedded_game,
