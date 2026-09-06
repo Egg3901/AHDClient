@@ -254,6 +254,27 @@ describe("queue bounds, TTL, and persistence", () => {
   });
 });
 
+describe("autonomy allowlist", () => {
+  /**
+   * The client validates a report before uploading it. A tier the game accepts
+   * but this set does not means a world the player was allowed to create
+   * silently stops reporting — the failure is invisible from both ends.
+   */
+  it("accepts every tier the game defines, including v5", () => {
+    for (const autonomy of ["off", "v0", "v1", "v2", "v3", "v4", "v5"]) {
+      const input = validInput();
+      input.setup.autonomy = autonomy;
+      expect(buildStatisticsReport(input, { nowMs: NOW, appVersion: "2.0.1" }).ok).toBe(true);
+    }
+  });
+
+  it("still refuses a tier that does not exist", () => {
+    const input = validInput();
+    input.setup.autonomy = "v6";
+    expect(buildStatisticsReport(input, { nowMs: NOW, appVersion: "2.0.1" }).ok).toBe(false);
+  });
+});
+
 describe("identifier hygiene", () => {
   it("emits no stable installation identifier and unique per report ids", () => {
     const report = builtReport();

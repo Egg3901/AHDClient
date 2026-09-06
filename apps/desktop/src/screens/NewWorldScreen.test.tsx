@@ -38,7 +38,41 @@ describe("NewWorldScreen", () => {
 
     expect(onCreate.mock.calls[0]?.[2]).toMatchObject({ mode: "head-of-state", difficulty: "hard", autonomyLevel: "v3" });
     expect(screen.getByRole("option", { name: /Easy/ })).toBeTruthy();
-    expect(screen.queryByRole("option", { name: /v5/i })).toBeNull();
+    // Only tiers the game's setup route accepts are offered. v5 is now one of
+    // them; v6 is the guard that this list is not just "whatever we typed".
+    expect(screen.queryByRole("option", { name: /v6/i })).toBeNull();
+  });
+
+  it("offers the v5 tier and submits it, without making it the default", async () => {
+    const onCreate = vi.fn();
+    render(<NewWorldScreen era={era} taken={[]} onBack={vi.fn()} onCreate={onCreate} />);
+
+    expect((screen.getByLabelText("Autonomy") as HTMLSelectElement).value).toBe("v4");
+    await userEvent.selectOptions(screen.getByLabelText("Autonomy"), "v5");
+    await userEvent.click(screen.getByRole("button", { name: /Create and play/ }));
+    expect(onCreate.mock.calls[0]?.[2]).toMatchObject({ autonomyLevel: "v5" });
+  });
+
+  it("restores a stored v5 preference instead of silently downgrading it", async () => {
+    const onCreate = vi.fn();
+    localStorage.setItem(
+      SETUP_OPTIONS_STORAGE_KEY,
+      JSON.stringify({ mode: "normal", difficulty: "normal", autonomyLevel: "v5", featureFlags: {} })
+    );
+    render(<NewWorldScreen era={era} taken={[]} onBack={vi.fn()} onCreate={onCreate} />);
+    expect((screen.getByLabelText("Autonomy") as HTMLSelectElement).value).toBe("v5");
+  });
+
+  /**
+   * Autonomy is what the politicians may do; difficulty is how well they do it.
+   * The resource advantage is stated as a resource advantage, never dressed up
+   * as skill.
+   */
+  it("tells the player which axis is which, and discloses the resource bonus", () => {
+    render(<NewWorldScreen era={era} taken={[]} onBack={vi.fn()} onCreate={vi.fn()} />);
+    expect(screen.getByText(/allowed to do\. Each step adds activities, not skill/)).toBeTruthy();
+    expect(screen.getByText(/never changes what they are allowed to do/)).toBeTruthy();
+    expect(screen.getByText(/same action points and funding as you do/)).toBeTruthy();
   });
 
   it("starts worldsim mode when requested and does not show a character field", () => {
