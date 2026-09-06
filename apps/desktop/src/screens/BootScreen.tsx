@@ -17,13 +17,15 @@ interface Props {
 }
 
 const TIPS = [
-  "Political capital is finite. Use the early turns to build durable support before attempting contentious reforms.",
-  "A strong treasury can still be fragile when inflation, debt servicing, and confidence move in different directions.",
-  "Parties respond to ideology, institutions, and local conditions. Winning one election does not guarantee the next.",
-  "Corporations affect employment, investment, and public confidence. Their interests do not always match the government’s.",
-  "Credit booms can conceal weak balance sheets. Watch leverage, liquidity, and asset prices together.",
-  "Coalitions are agreements between competing interests. A narrow majority needs more maintenance than a broad one.",
-  "Trade, energy, and security shocks cross borders quickly. Domestic policy rarely stays domestic for long.",
+  "Build political capital before proposing contentious legislation. A failed vote can cost more than waiting one turn.",
+  "Check inflation alongside growth. A booming economy can still punish households and weaken approval.",
+  "State and regional politics can diverge sharply from national polling. Local organization matters.",
+  "Corporations create jobs and tax revenue, but concentrated market power can become a political liability.",
+  "High leverage amplifies both growth and losses. Review liquidity before expanding through debt.",
+  "Coalition partners have their own priorities. Keep enough common ground to survive confidence votes.",
+  "Energy shortages travel through production chains. Strategic reserves buy time, not a permanent solution.",
+  "Your cabinet is more than decoration. Strong appointments improve the government’s ability to deliver policy.",
+  "Read the election calendar before spending campaign resources. Timing can matter as much as total spending.",
 ];
 
 /** Shown while the local server (and on first run, MongoDB) comes up. */
@@ -41,7 +43,7 @@ export function BootScreen({
     const timer = window.setInterval(() => {
       setCardVisible(false);
       swapTimer = window.setTimeout(() => {
-        setSlide((value) => (value + 1) % ERAS.length);
+        setSlide((value) => (value + 1) % TIPS.length);
         window.requestAnimationFrame(() => setCardVisible(true));
       }, 380);
     }, 5500);
@@ -50,7 +52,7 @@ export function BootScreen({
       if (swapTimer !== undefined) window.clearTimeout(swapTimer);
     };
   }, []);
-  const era = ERAS[slide]!;
+  const era = ERAS[slide % ERAS.length]!;
   const photo = ERA_PHOTOS[era.id]!;
   const progress = liveProgress?.progress ?? Math.min(18, 6 + lines.length * 2);
   return (
@@ -112,17 +114,18 @@ export function BootScreen({
                 {era.label} · {era.subtitle}
               </p>
               <h2>{era.subtitle}</h2>
+              <span className="boot-hint-label">Gameplay hint</span>
               <p>{TIPS[slide]}</p>
             </div>
           </article>
           <div className="boot-card-track" aria-label="Loading stories">
-            {ERAS.map((item, index) => (
+            {TIPS.map((_tip, index) => (
               <span
-                key={item.id}
+                key={index}
                 className={index === slide ? "active" : ""}
                 aria-current={index === slide ? "true" : undefined}
               >
-                {item.label}
+                {index + 1}
               </span>
             ))}
           </div>

@@ -186,6 +186,17 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+.boot-hint-label {
+  width: fit-content;
+  padding: 0.24rem 0.48rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
 @media (max-width: 580px) {
   .boot-story {
     grid-template-columns: 1fr;
