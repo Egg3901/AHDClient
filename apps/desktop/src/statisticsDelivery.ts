@@ -1,7 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { game } from "./worlds.js";
-import { deserializeQueue, maybeBuildAndQueue, serializeQueue, validateReport } from "./simulationStatistics.js";
+import {
+  deserializeQueue,
+  maybeBuildAndQueue,
+  serializeQueue,
+  validateReport,
+} from "./simulationStatistics.js";
 import type { StatisticsQueue } from "./simulationStatistics.js";
+import desktopPackage from "../package.json";
 
 const KEY = "ahdclient.statistics.queue.v1";
 let consent = false;
@@ -10,19 +16,32 @@ let sending = false;
 let collecting = false;
 const recorded = new Map<string, number>();
 function load(): StatisticsQueue {
-  try { return deserializeQueue(localStorage.getItem(KEY), Date.now()); }
-  catch { return { pending: [] }; }
+  try {
+    return deserializeQueue(localStorage.getItem(KEY), Date.now());
+  } catch {
+    return { pending: [] };
+  }
 }
 function save(queue: StatisticsQueue): void {
-  try { localStorage.setItem(KEY, serializeQueue(queue)); } catch { /* A full disk must not block gameplay. */ }
+  try {
+    localStorage.setItem(KEY, serializeQueue(queue));
+  } catch {
+    /* A full disk must not block gameplay. */
+  }
 }
 export function setStatisticsConsent(enabled: boolean): Promise<void> {
   consent = enabled;
   if (!enabled) {
     recorded.clear();
-    try { localStorage.removeItem(KEY); } catch { /* Native consent still blocks sending. */ }
+    try {
+      localStorage.removeItem(KEY);
+    } catch {
+      /* Native consent still blocks sending. */
+    }
   }
-  consentSync = consentSync.catch(() => {}).then(() => invoke<void>("set_statistics_consent", { enabled: consent }));
+  consentSync = consentSync
+    .catch(() => {})
+    .then(() => invoke<void>("set_statistics_consent", { enabled: consent }));
   return consentSync;
 }
 export async function flushStatistics(): Promise<void> {
@@ -39,20 +58,43 @@ export async function flushStatistics(): Promise<void> {
       if (!consent) break;
       save({ pending: load().pending.filter((entry) => entry.id !== item.id) });
     }
-  } catch { /* Offline: leave unsent reports bounded by the queue TTL. */ }
-  finally { sending = false; }
+  } catch {
+    /* Offline: leave unsent reports bounded by the queue TTL. */
+  } finally {
+    sending = false;
+  }
 }
-export async function captureStatistics(slot: string, force = false): Promise<void> {
+export async function captureStatistics(
+  slot: string,
+  force = false,
+): Promise<void> {
   if (!consent || collecting) return;
   collecting = true;
   try {
     const status = await game.singleplayerStatus();
-    if (!consent || status.turn === null || recorded.get(slot) === status.turn || (!force && status.turn % 12 !== 0)) return;
-    const input: unknown = await game.request("GET", "/api/singleplayer/statistics");
+    if (
+      !consent ||
+      status.turn === null ||
+      recorded.get(slot) === status.turn ||
+      (!force && status.turn % 12 !== 0)
+    )
+      return;
+    const input: unknown = await game.request(
+      "GET",
+      "/api/singleplayer/statistics",
+    );
     if (!consent) return;
-    const queued = maybeBuildAndQueue(load(), consent, input, Date.now(), { appVersion: "2.0.1" });
-    if (queued.accepted) { save(queued.queue); recorded.set(slot, status.turn); }
+    const queued = maybeBuildAndQueue(load(), consent, input, Date.now(), {
+      appVersion: desktopPackage.version,
+    });
+    if (queued.accepted) {
+      save(queued.queue);
+      recorded.set(slot, status.turn);
+    }
     void flushStatistics();
-  } catch { /* Statistics are optional and never block saving or turn completion. */ }
-  finally { collecting = false; }
+  } catch {
+    /* Statistics are optional and never block saving or turn completion. */
+  } finally {
+    collecting = false;
+  }
 }

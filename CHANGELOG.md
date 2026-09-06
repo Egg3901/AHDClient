@@ -2,6 +2,16 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.0.3] - 2026-09-06
+
+- Fix linked-account recognition for environment-scoped production sessions and replace the inert account-management action with clear Profile or Link account controls.
+- Replace the launcher settings panel with a universal Esc menu containing clearer preferences and a signed check, download, update and restart flow.
+- Add a thin singleplayer game-version selector for immutable game releases from 1.6.0 onward, including verified downloads and offline access to installed versions.
+- Keep the command globe fixed between launcher views and strengthen the animated atmospheric background.
+- Show real first-run setup phases, smooth progress and stall detection while a local world is built instead of freezing on a buffered setup request.
+- Reduce local world creation and turn time by skipping production-only audits while retaining compact opt-in performance analytics.
+- Add a dismissible in-game turn progress toast with the A House Divided mark, plain-English phase descriptions and a smooth progress bar.
+
 ## [2.0.2]
 
 - Fix the packaged Windows game server by retaining the hashed external module aliases emitted by the Next.js standalone build.
