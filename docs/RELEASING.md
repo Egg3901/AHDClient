@@ -187,6 +187,11 @@ iOS builds run only on macOS, so the `mobile bundles` workflow does them on
   until the developer account and the App Store listing exist. Do not call
   `xcodebuild` directly: the Xcode build phase needs the options file the
   Tauri CLI writes for the build.
+- The same unsigned run also tries `--target aarch64 --no-sign --archive-only`
+  and zips the device app into the `ahdclient-ios-unsigned-ipa` artifact.
+  Sideloadly or AltStore can sign that with a free Apple ID for a seven-day
+  install on your own iPhone, no membership required. With a Mac, `npx tauri
+  ios dev --open` and a personal team in Xcode does the same.
 
 The overlay `tauri.ios.conf.json` mirrors the Android one and sets iOS 14 as
 the minimum system version. The bundle identifier is the shared

@@ -158,6 +158,31 @@ jobs:
           npm run tauri --workspace apps/desktop -- ios build --ci --target aarch64-sim --no-sign
           find apps/desktop/src-tauri/gen/apple/build -maxdepth 3 -name '*.app' -print
 
+      # Best effort: an unsigned device build that Sideloadly or AltStore can
+      # sign with a free Apple ID for on-device testing before the developer
+      # membership and the App Store listing exist.
+      - name: Build the unsigned device IPA
+        if: steps.signing.outputs.mode == 'simulator'
+        continue-on-error: true
+        env:
+          APPLE_DEVELOPMENT_TEAM: XXXXXXXXXX
+        run: |
+          npm run tauri --workspace apps/desktop -- ios build --ci --target aarch64 --no-sign --archive-only
+          app=$(find apps/desktop/src-tauri/gen/apple/build -type d -path '*.xcarchive/Products/Applications/*.app' | head -n1)
+          test -n "$app"
+          rm -rf "$RUNNER_TEMP/ipa" && mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$app" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qr "$GITHUB_WORKSPACE/AHDClient-unsigned.ipa" Payload)
+          ls -la "$GITHUB_WORKSPACE/AHDClient-unsigned.ipa"
+
+      - name: Upload the unsigned device IPA
+        if: steps.signing.outputs.mode == 'simulator'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ahdclient-ios-unsigned-ipa
+          path: AHDClient-unsigned.ipa
+          if-no-files-found: warn
+
       - name: Upload the IPA
         if: steps.signing.outputs.mode == 'store'
         uses: actions/upload-artifact@v4
