@@ -76,14 +76,16 @@ signature proves the installer was produced with the Lakeside release key; it
 is separate from Windows Authenticode publisher signing.
 
 Set `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` in the
-release environment. Never commit or publish the private key. Tauri emits an
-`.exe.sig` beside the NSIS installer. Build `latest.json` after the artifact is
-at its final URL:
+release environment. Never commit or publish the private key. Tauri emits
+signed updater artifacts for Windows, Linux and macOS. Build `latest.json`
+after every artifact is at its final URL:
 
 ```bash
 node scripts/generate-update-manifest.mjs \
-  https://ops.lakesidegames.net/downloads/ahdclient/AHDClient_2.0.2_x64-setup.exe \
-  apps/desktop/src-tauri/target/release/bundle/nsis/AHDClient_2.0.2_x64-setup.exe.sig
+  --platform windows-x86_64 https://ops.lakesidegames.net/downloads/ahdclient/AHDClient_2.0.4_x64-setup.exe windows.sig \
+  --platform linux-x86_64 https://ops.lakesidegames.net/downloads/ahdclient/AHDClient_2.0.4_amd64.AppImage linux.sig \
+  --platform darwin-aarch64 https://ops.lakesidegames.net/downloads/ahdclient/AHDClient_aarch64.app.tar.gz mac-arm.sig \
+  --platform darwin-x86_64 https://ops.lakesidegames.net/downloads/ahdclient/AHDClient_x64.app.tar.gz mac-x64.sig
 ```
 
 Publish the installer first and `latest.json` last. This prevents a client
@@ -100,7 +102,6 @@ do not block CI or packaging. Rust CI is path-filtered to changes under
 `npm run build:web --workspace apps/desktop` and `cargo check` in
 `apps/desktop/src-tauri` to pass before a packaging run. Begin every release
 candidate check with `npm run release:check`.
-
 
 ## Web preview publish
 

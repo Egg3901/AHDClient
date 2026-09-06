@@ -31,12 +31,20 @@ fn parse_version(value: &str) -> Option<(u64, u64, u64)> {
 
 fn valid_version(value: &str) -> bool { parse_version(value).is_some_and(|version| version >= MIN_VERSION) }
 
-fn target_name() -> &'static str {
-  if cfg!(target_os = "windows") { "windows-x86_64" }
-  else if cfg!(all(target_os = "macos", target_arch = "aarch64")) { "macos-aarch64" }
-  else if cfg!(target_os = "macos") { "macos-x86_64" }
-  else if cfg!(target_arch = "aarch64") { "linux-aarch64" }
-  else { "linux-x86_64" }
+fn target_name_for(os: &str, arch: &str) -> Option<&'static str> {
+  match (os, arch) {
+    ("windows", "x86_64") => Some("windows-x86_64"),
+    ("macos", "aarch64") => Some("macos-aarch64"),
+    ("macos", "x86_64") => Some("macos-x86_64"),
+    ("linux", "aarch64") => Some("linux-aarch64"),
+    ("linux", "x86_64") => Some("linux-x86_64"),
+    _ => None,
+  }
+}
+
+fn target_name() -> Result<&'static str, String> {
+  target_name_for(std::env::consts::OS, std::env::consts::ARCH)
+    .ok_or_else(|| format!("Game downloads do not support {}/{}.", std::env::consts::OS, std::env::consts::ARCH))
 }
 
 fn root(app: &AppHandle) -> Result<PathBuf, String> {
@@ -95,7 +103,7 @@ pub fn list(app: &AppHandle) -> Result<Vec<GameVersion>, String> {
 fn release_asset(version: &str) -> Result<(String, String), String> {
   let release = fetch_releases()?.into_iter().find(|release| release.tag_name == format!("game-v{version}"))
     .ok_or_else(|| format!("Game {version} is not published."))?;
-  let archive_name = format!("ahd-singleplayer-v{version}-{}.tar.gz", target_name());
+  let archive_name = format!("ahd-singleplayer-v{version}-{}.tar.gz", target_name()?);
   let archive = release.assets.iter().find(|asset| asset.name == archive_name)
     .ok_or_else(|| format!("Game {version} is not available for this computer."))?;
   let checksum = release.assets.iter().find(|asset| asset.name == format!("{archive_name}.sha256"))
@@ -158,7 +166,7 @@ pub fn select(app: &AppHandle, version: Option<&str>) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-  use super::{parse_version, valid_version};
+  use super::{parse_version, target_name_for, valid_version};
   #[test]
   fn accepts_only_complete_versions_at_or_after_1_6_0() {
     assert!(!valid_version("1.5.99"));
@@ -166,5 +174,15 @@ mod tests {
     assert!(valid_version("2.0.0"));
     assert!(!valid_version("1.6"));
     assert_eq!(parse_version("game-v1.6.3"), Some((1, 6, 3)));
+  }
+
+  #[test]
+  fn maps_every_packaged_desktop_target_to_its_release_asset() {
+    assert_eq!(target_name_for("windows", "x86_64"), Some("windows-x86_64"));
+    assert_eq!(target_name_for("macos", "aarch64"), Some("macos-aarch64"));
+    assert_eq!(target_name_for("macos", "x86_64"), Some("macos-x86_64"));
+    assert_eq!(target_name_for("linux", "aarch64"), Some("linux-aarch64"));
+    assert_eq!(target_name_for("linux", "x86_64"), Some("linux-x86_64"));
+    assert_eq!(target_name_for("windows", "aarch64"), None);
   }
 }
