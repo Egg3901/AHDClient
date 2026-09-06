@@ -12,6 +12,7 @@ All notable AHDClient changes are recorded here.
 - Add optional anonymous aggregate reports with bounded offline retention and immediate opt-out.
 - Adapt Windows resource paths before passing them to bundled Node and isolate database ports.
 - Guard process startup and stale exit events; pause launcher animation while hidden.
+- Stop the game supervisor through its control pipe so stopping a world also closes its child processes.
 
 ## [2.0.0] - 2026-09-05
 

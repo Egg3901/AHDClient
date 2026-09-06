@@ -297,9 +297,14 @@ fn launcher_script(app: &AppHandle) -> Result<PathBuf, String> {
 
 fn stop_locked(inner: &mut GameInner) {
   inner.generation = inner.generation.wrapping_add(1);
-  if let Some(child) = inner.child.take() {
-    // SIGTERM on Unix, TerminateProcess on Windows. The launcher polls our
-    // pid as well, so MongoDB goes down either way.
+  if let Some(mut child) = inner.child.take() {
+    // Ask the Node supervisor to stop its server and MongoDB first. A direct
+    // kill terminates only the supervisor and can strand the world processes.
+    if child.write(b"shutdown\n").is_ok() {
+      std::thread::sleep(Duration::from_millis(1800));
+    }
+    // The supervisor exits after its bounded shutdown window. This is only
+    // a fallback for a supervisor that stopped responding to its control pipe.
     let _ = child.kill();
   }
   inner.port = None;
