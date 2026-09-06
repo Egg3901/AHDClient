@@ -209,7 +209,7 @@ describe("desktop platform configuration", () => {
       "macos-latest",
       "android build --apk --aab",
       "ios build --export-method app-store-connect",
-      "CODE_SIGNING_ALLOWED=NO",
+      "ios build --ci --target aarch64-sim --no-sign",
       "ahdclient-android",
       "ahdclient-ios",
     ]) {
