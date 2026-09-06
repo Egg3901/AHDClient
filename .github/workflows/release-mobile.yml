@@ -113,7 +113,10 @@ jobs:
 
       - name: Generate the Xcode project
         env:
-          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+          # The Tauri CLI refuses to generate a project without a team id. A
+          # placeholder is fine for the unsigned simulator build; the real
+          # team arrives with the App Store secrets.
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM || 'XXXXXXXXXX' }}
         run: |
           if [ ! -d apps/desktop/src-tauri/gen/apple ]; then
             npm run tauri --workspace apps/desktop -- ios init --ci
