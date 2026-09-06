@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-game-versions"
+description = "Enables the list_game_versions command without any pre-configured scope."
+commands.allow = ["list_game_versions"]
+
+[[permission]]
+identifier = "deny-list-game-versions"
+description = "Denies the list_game_versions command without any pre-configured scope."
+commands.deny = ["list_game_versions"]

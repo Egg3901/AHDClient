@@ -22,6 +22,9 @@ fn main() {
       "create_world",
       "touch_world",
       "delete_world",
+      "list_game_versions",
+      "install_game_version",
+      "select_game_version",
     ])),
   )
   .expect("failed to run tauri-build");

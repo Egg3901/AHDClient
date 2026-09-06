@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-install-game-version"
+description = "Enables the install_game_version command without any pre-configured scope."
+commands.allow = ["install_game_version"]
+
+[[permission]]
+identifier = "deny-install-game-version"
+description = "Denies the install_game_version command without any pre-configured scope."
+commands.deny = ["install_game_version"]

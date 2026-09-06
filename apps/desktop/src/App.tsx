@@ -12,6 +12,7 @@ import type {
   GameInfo,
   LinkedAccount,
   OnlineTarget,
+  SetupProgress,
   WorldMeta,
 } from "./worlds.js";
 import "./screens/screens.css";
@@ -28,6 +29,8 @@ import {
   hasCachedSingleplayerEntitlement,
 } from "./entitlement.js";
 import { UpdateNotice } from "./UpdateNotice.js";
+import { AccountControl } from "./AccountControl.js";
+import { GameVersionBar } from "./GameVersionBar.js";
 
 type Screen =
   | "launcher"
@@ -66,6 +69,7 @@ export function App(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [bootTitle, setBootTitle] = useState("Starting");
+  const [bootProgress, setBootProgress] = useState<SetupProgress | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const cancelled = useRef(false);
   const bootId = useRef(0);
@@ -74,6 +78,7 @@ export function App(): JSX.Element {
   const [account, setAccount] = useState<LinkedAccount | null>(null);
   const [accountChecked, setAccountChecked] = useState(false);
   const [embedded, setEmbedded] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [accountNotice, setAccountNotice] = useState(
     () => !accountNoticeSeen(),
   );
@@ -89,6 +94,15 @@ export function App(): JSX.Element {
     };
     window.addEventListener("online", retry);
     return () => window.removeEventListener("online", retry);
+  }, []);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setSettingsOpen((open) => !open);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
   const changeSettings = (next: ClientSettings) => {
     // Clear pending data before saving an opt-out so a storage error cannot
@@ -202,6 +216,7 @@ export function App(): JSX.Element {
       listen("game:window-closed", () => {
         void recordProgress();
       }),
+      listen("client:settings", () => setSettingsOpen((open) => !open)),
     ];
     return () => {
       for (const subscription of subscriptions)
@@ -244,6 +259,7 @@ export function App(): JSX.Element {
     setBusy(true);
     setError(null);
     setLog([]);
+    setBootProgress(null);
     setBootTitle(fresh ? "Building the world" : "Starting the world");
     setScreen("booting");
     try {
@@ -257,7 +273,29 @@ export function App(): JSX.Element {
             "Seeding countries, parties, markets and the electorate",
           ].slice(-LOG_LINES),
         );
-        await game.setup(fresh.preset, fresh.setup, fresh.displayName);
+        let polling = true;
+        const pollProgress = async () => {
+          while (
+            polling &&
+            !cancelled.current &&
+            generation === bootId.current
+          ) {
+            try {
+              const nextProgress = await game.setupProgress();
+              if (polling && generation === bootId.current)
+                setBootProgress(nextProgress);
+            } catch {
+              // The setup POST is authoritative; progress is supplemental.
+            }
+            await new Promise((resolve) => window.setTimeout(resolve, 750));
+          }
+        };
+        void pollProgress();
+        try {
+          await game.setup(fresh.preset, fresh.setup, fresh.displayName);
+        } finally {
+          polling = false;
+        }
         if (cancelled.current || generation !== bootId.current) return;
       }
       let status = await game.singleplayerStatus();
@@ -304,6 +342,7 @@ export function App(): JSX.Element {
       setInfo(IDLE);
     }
     setBusy(false);
+    setBootProgress(null);
     setScreen("launcher");
   };
 
@@ -433,18 +472,35 @@ export function App(): JSX.Element {
     setScreen("launcher");
   };
   const settingsControl = (
+    <button
+      className="client-settings-trigger"
+      type="button"
+      onClick={() => setSettingsOpen(true)}
+    >
+      Settings
+    </button>
+  );
+  const accountControl = (
+    <AccountControl
+      checked={accountChecked}
+      linked={Boolean(account)}
+      onLink={linkAccount}
+      onProfile={() => void online.help("help.profile").catch(fail)}
+    />
+  );
+  const settingsMenu = (
     <SettingsMenu
+      open={settingsOpen}
       settings={settings}
       onChange={changeSettings}
-      onLinkAccount={linkAccount}
-      accountLabel={
-        account
-          ? `${account.displayName}${account.supporter ? " · Supporter" : ""}`
-          : accountChecked
-            ? undefined
-            : "Account status unavailable offline"
-      }
+      onClose={() => setSettingsOpen(false)}
     />
+  );
+  const withSettings = (content: JSX.Element) => (
+    <>
+      {content}
+      {settingsMenu}
+    </>
   );
   const latest = allWorlds[0] ?? null;
   const sandboxGate = !accountChecked
@@ -459,51 +515,54 @@ export function App(): JSX.Element {
     (screen === "playing" || screen === "online" || screen === "linking")
   ) {
     return (
-      <main>
-        <nav className="client-game-toolbar" aria-label="Client controls">
-          <button onClick={() => void returnToLauncher().catch(fail)}>
-            Launcher
-          </button>
-          <strong>
-            {screen === "linking"
-              ? "Link your game account"
-              : "A House Divided"}
-          </strong>
-          {screen === "playing" && runningWorldsim && (
-            <button
-              onClick={() => {
-                void game.closeEmbedded().then(() => {
-                  setEmbedded(false);
-                  setScreen("worldsim");
-                });
-              }}
-            >
-              World statistics
+      <>
+        <main>
+          <nav className="client-game-toolbar" aria-label="Client controls">
+            <button onClick={() => void returnToLauncher().catch(fail)}>
+              Launcher
             </button>
-          )}
-          {screen === "playing" && (
-            <button onClick={() => void handleStop()}>Save and stop</button>
-          )}
-        </nav>
-      </main>
+            <strong>
+              {screen === "linking"
+                ? "Link your game account"
+                : "A House Divided"}
+            </strong>
+            {screen === "playing" && runningWorldsim && (
+              <button
+                onClick={() => {
+                  void game.closeEmbedded().then(() => {
+                    setEmbedded(false);
+                    setScreen("worldsim");
+                  });
+                }}
+              >
+                World statistics
+              </button>
+            )}
+            {screen === "playing" && (
+              <button onClick={() => void handleStop()}>Save and stop</button>
+            )}
+          </nav>
+        </main>
+        {settingsMenu}
+      </>
     );
   }
   if (screen === "linking") {
-    return (
+    return withSettings(
       <main className="launcher-scope screen-scope">
         <h1>Link your game account</h1>
         <p>
           Complete sign-in in the game window. Your session stays in the app.
         </p>
         <button onClick={() => setScreen("launcher")}>Back to launcher</button>
-      </main>
+      </main>,
     );
   }
 
   if (screen === "newWorld" && pendingEra) {
     const era = eraById(pendingEra);
     if (era) {
-      return (
+      return withSettings(
         <NewWorldScreen
           era={era}
           initialWorldsim={pendingWorldsim}
@@ -514,13 +573,13 @@ export function App(): JSX.Element {
           taken={allWorlds.map((w) => w.name)}
           onBack={() => setScreen("launcher")}
           onCreate={handleCreate}
-        />
+        />,
       );
     }
   }
 
   if (screen === "worldsim" && info.running && info.slot) {
-    return (
+    return withSettings(
       <WorldsimScreen
         name={
           allWorlds.find((world) => world.slot === info.slot)?.name ??
@@ -538,11 +597,11 @@ export function App(): JSX.Element {
             })
             .catch(fail);
         }}
-      />
+      />,
     );
   }
   if (screen === "worlds") {
-    return (
+    return withSettings(
       <WorldsScreen
         worlds={allWorlds}
         runningSlot={info.running ? info.slot : null}
@@ -551,37 +610,38 @@ export function App(): JSX.Element {
         onPlay={handleContinue}
         onDelete={handleDelete}
         onBack={() => setScreen("launcher")}
-      />
+      />,
     );
   }
 
   if (screen === "booting") {
-    return (
+    return withSettings(
       <BootScreen
         title={bootTitle}
         lines={log}
         onCancel={cancelBoot}
         showDebug={settings.showBootLogs}
-      />
+        progress={bootProgress}
+      />,
     );
   }
 
   if (screen === "playing" && info.running) {
     const world = allWorlds.find((w) => w.slot === info.slot) ?? null;
-    return (
+    return withSettings(
       <PlayingScreen
         world={world}
         lines={log}
         onResume={() => handleContinue(info.slot!)}
         onStop={handleStop}
-      />
+      />,
     );
   }
 
   return (
     <>
       <UpdateNotice />
-      {accountNotice && !account && (
+      {accountChecked && accountNotice && !account && (
         <aside className="client-account-notice">
           <span>
             Link an entitled game account to use Singleplayer and Worldsim.
@@ -600,6 +660,8 @@ export function App(): JSX.Element {
       )}
       <Launcher
         settingsControl={settingsControl}
+        accountControl={accountControl}
+        gameVersionControl={<GameVersionBar />}
         onPhotoSource={(eraId) => {
           void online.help(`help.era-photo-${eraId}`).catch(fail);
         }}
@@ -618,6 +680,7 @@ export function App(): JSX.Element {
           void online.help("help.patreon").catch(fail);
         }}
       />
+      {settingsMenu}
     </>
   );
 }

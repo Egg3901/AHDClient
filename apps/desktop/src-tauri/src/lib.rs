@@ -11,6 +11,7 @@
 //! all and are plain webviews pointed at an origin we chose.
 
 mod node_path;
+mod game_versions;
 
 use std::fs;
 use std::net::TcpListener;
@@ -36,6 +37,24 @@ const AUXILIARY_ONLINE_HOSTS: &[&str] = &[
   "accounts.google.com",
   "www.google.com",
 ];
+const SETTINGS_SHORTCUT_SCRIPT: &str = r#"
+document.addEventListener('keydown', function (event) {
+  if (event.key === 'Escape' && !event.repeat) {
+    event.preventDefault();
+    window.location.href = 'ahdclient://settings';
+  }
+}, true);
+"#;
+
+fn handle_settings_shortcut(app: &AppHandle, url: &Url) -> bool {
+  if url.scheme() != "ahdclient" || url.host_str() != Some("settings") { return false; }
+  let _ = app.emit("client:settings", ());
+  if let Some(main) = app.get_webview_window("main") {
+    let _ = main.show();
+    let _ = main.set_focus();
+  }
+  true
+}
 
 /// How long a start may take before we give up. The first run downloads
 /// MongoDB (30 to 100 MB), so this has to survive a slow connection.
@@ -65,6 +84,7 @@ fn help_destination(route_id: &str) -> Option<HelpDestination> {
     "help.era-photo-2023" => Some(HelpDestination::External("https://commons.wikimedia.org/wiki/File:P20230106AS-0338_(52644827761).jpg")),
     "help.wiki" => Some(HelpDestination::External("https://wiki.ahousedividedgame.com")),
     "help.about" => Some(HelpDestination::Online("/about")),
+    "help.profile" => Some(HelpDestination::Online("/profile")),
     "help.suggestions" => Some(HelpDestination::Online("/feedback")),
     "help.discord" => Some(HelpDestination::External("https://discord.gg/DmF8zJJuqN")),
     "help.patreon" => Some(HelpDestination::External(
@@ -285,7 +305,7 @@ fn free_port() -> Result<u16, String> {
 }
 
 fn launcher_script(app: &AppHandle) -> Result<PathBuf, String> {
-  let path = app.path().resource_dir().map_err(|e| e.to_string())?.join("game").join("launch.mjs");
+  let path = game_versions::game_dir(app)?.join("launch.mjs");
   if !path.exists() {
     return Err(format!(
       "game resources are missing ({}). This build was packaged without the game.",
@@ -577,6 +597,12 @@ struct SingleplayerEntitlement {
   expires_at: Option<String>,
 }
 
+fn is_account_session_cookie(name: &str) -> bool {
+  matches!(name, "auth-token" | "authjs.session-token" | "__Secure-authjs.session-token" | "next-auth.session-token" | "__Secure-next-auth.session-token")
+    || name.strip_prefix("auth-token-").is_some_and(|suffix| !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+    || ["authjs.session-token.", "__Secure-authjs.session-token.", "next-auth.session-token.", "__Secure-next-auth.session-token."].iter().any(|prefix| name.strip_prefix(prefix).is_some_and(|suffix| !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit())))
+}
+
 #[tauri::command]
 async fn linked_account(app: AppHandle) -> Result<Option<LinkedAccount>, String> {
   // Read the platform WebView cookie store. Credentials never cross IPC or
@@ -591,8 +617,7 @@ async fn linked_account(app: AppHandle) -> Result<Option<LinkedAccount>, String>
   let url: Url = format!("{ONLINE_URL}/api/client/account").parse().map_err(|_| "invalid account URL")?;
   let cookies = view.cookies_for_url(url).map_err(|_| "cannot access the app session")?;
   let header = cookies.iter()
-    .filter(|cookie| matches!(cookie.name(), "auth-token" | "authjs.session-token" | "__Secure-authjs.session-token" | "next-auth.session-token" | "__Secure-next-auth.session-token")
-      || ["authjs.session-token.", "__Secure-authjs.session-token.", "next-auth.session-token.", "__Secure-next-auth.session-token."].iter().any(|prefix| cookie.name().strip_prefix(prefix).is_some_and(|suffix| !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit()))))
+    .filter(|cookie| is_account_session_cookie(cookie.name()))
     .map(|cookie| format!("{}={}", cookie.name(), cookie.value()))
     .collect::<Vec<_>>().join("; ");
   if header.is_empty() { return Ok(None); }
@@ -639,7 +664,9 @@ fn open_embedded(app: &AppHandle, url: Url, local_port: Option<u16>) -> Result<(
   let popup_app = app.clone();
   let label = if local_port.is_some() { "game-embedded" } else { "online-embedded" };
   let builder = WebviewBuilder::new(label, WebviewUrl::External(url))
+    .initialization_script(SETTINGS_SHORTCUT_SCRIPT)
     .on_navigation(move |url| {
+      if handle_settings_shortcut(&nav_app, url) { return false; }
       let allowed = match local_port {
         Some(port) => is_local_game_url(url, port),
         None => is_online_navigation_allowed(url),
@@ -694,11 +721,13 @@ async fn open_game_window(app: AppHandle, game: State<'_, Game>, path: Option<St
   let new_window_app = app.clone();
   let close_app = app.clone();
   let window = WebviewWindowBuilder::new(&app, "game", WebviewUrl::External(url))
+    .initialization_script(SETTINGS_SHORTCUT_SCRIPT)
     .title("A House Divided")
     .inner_size(1440.0, 900.0)
     .center()
     .resizable(true)
     .on_navigation(move |url| {
+      if handle_settings_shortcut(&nav_app, url) { return false; }
       if is_local_game_url(url, port) {
         true
       } else {
@@ -764,11 +793,13 @@ async fn open_online_url(app: AppHandle, url: Url) -> Result<(), String> {
     "A House Divided: Online"
   };
   let window = WebviewWindowBuilder::new(&app, "online", WebviewUrl::External(url))
+    .initialization_script(SETTINGS_SHORTCUT_SCRIPT)
     .title(title)
     .inner_size(1280.0, 800.0)
     .center()
     .resizable(true)
     .on_navigation(move |url| {
+      if handle_settings_shortcut(&nav_app, url) { return false; }
       if is_online_navigation_allowed(url) {
         true
       } else {
@@ -804,6 +835,23 @@ async fn open_help_destination(app: AppHandle, route_id: String) -> Result<(), S
   }
 }
 
+#[tauri::command]
+async fn list_game_versions(app: AppHandle) -> Result<Vec<game_versions::GameVersion>, String> {
+  tauri::async_runtime::spawn_blocking(move || game_versions::list(&app)).await.map_err(|_| "Game version check failed.".to_string())?
+}
+
+#[tauri::command]
+async fn install_game_version(app: AppHandle, game: State<'_, Game>, version: String) -> Result<(), String> {
+  if game.0.lock().map_err(|_| "game state poisoned")?.child.is_some() { return Err("Stop the local game before changing versions.".into()); }
+  tauri::async_runtime::spawn_blocking(move || game_versions::install(&app, &version)).await.map_err(|_| "Game installation failed.".to_string())?
+}
+
+#[tauri::command]
+fn select_game_version(app: AppHandle, game: State<'_, Game>, version: Option<String>) -> Result<(), String> {
+  if game.0.lock().map_err(|_| "game state poisoned")?.child.is_some() { return Err("Stop the local game before changing versions.".into()); }
+  game_versions::select(&app, version.as_deref())
+}
+
 // ---------------------------------------------------------------------------
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -835,6 +883,9 @@ pub fn run() {
       create_world,
       touch_world,
       delete_world,
+      list_game_versions,
+      install_game_version,
+      select_game_version,
     ])
     .on_window_event(|window, event| {
       if window.label() == "main" && matches!(event, WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. }) {
@@ -865,7 +916,7 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
   use super::{
-    help_destination, is_local_game_url, is_online_navigation_allowed, is_online_origin, valid_slot, HelpDestination,
+    help_destination, is_account_session_cookie, is_local_game_url, is_online_navigation_allowed, is_online_origin, valid_slot, HelpDestination,
   };
   use tauri::Url;
 
@@ -876,11 +927,20 @@ mod tests {
       Some(HelpDestination::External("https://wiki.ahousedividedgame.com")),
     );
     assert_eq!(help_destination("help.about"), Some(HelpDestination::Online("/about")));
+    assert_eq!(help_destination("help.profile"), Some(HelpDestination::Online("/profile")));
     assert_eq!(
       help_destination("help.discord"),
       Some(HelpDestination::External("https://discord.gg/DmF8zJJuqN")),
     );
     assert_eq!(help_destination("help.not-real"), None);
+  }
+
+  #[test]
+  fn account_cookie_filter_accepts_environment_scoped_game_sessions() {
+    assert!(is_account_session_cookie("auth-token-production"));
+    assert!(is_account_session_cookie("auth-token-sandbox-staging"));
+    assert!(!is_account_session_cookie("auth-token-"));
+    assert!(!is_account_session_cookie("auth-token-production.copy"));
   }
 
   #[test]
