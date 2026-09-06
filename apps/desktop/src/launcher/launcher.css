@@ -55,7 +55,7 @@
   inset: -30%;
   z-index: -1;
   pointer-events: none;
-  filter: blur(70px) saturate(120%);
+  filter: blur(70px) saturate(150%);
   will-change: transform, opacity;
   transition: background 1.8s ease;
 }
@@ -64,12 +64,12 @@
   background:
     radial-gradient(
       ellipse 42% 36% at 22% 24%,
-      rgba(var(--nebula), 0.55),
+      rgba(var(--nebula), 0.7),
       transparent 70%
     ),
     radial-gradient(
       ellipse 30% 40% at 70% 30%,
-      rgba(29, 78, 216, 0.22),
+      rgba(29, 78, 216, 0.28),
       transparent 70%
     );
   animation: nebula-drift-a 96s ease-in-out infinite alternate;
@@ -79,12 +79,12 @@
   background:
     radial-gradient(
       ellipse 38% 32% at 78% 76%,
-      rgba(220, 38, 38, 0.26),
+      rgba(220, 38, 38, 0.33),
       transparent 70%
     ),
     radial-gradient(
       ellipse 28% 30% at 34% 78%,
-      rgba(var(--nebula), 0.35),
+      rgba(var(--nebula), 0.45),
       transparent 70%
     );
   animation: nebula-drift-b 131s ease-in-out infinite alternate;
@@ -94,7 +94,7 @@
   background:
     radial-gradient(
       ellipse 34% 34% at 50% 50%,
-      rgba(var(--nebula), 0.28),
+      rgba(var(--nebula), 0.36),
       transparent 70%
     ),
     radial-gradient(
@@ -913,6 +913,13 @@
   }
 }
 
+/* The controls above the globe change by mode; keep the globe on one visual
+   anchor instead of letting those conditional rows push it around. */
+@media (min-width: 701px) and (max-width: 1099px) {
+  .launcher-console { position: relative; min-height: 650px; }
+  .launcher-globe-wrap { position: absolute; top: 220px; left: 50%; transform: translateX(-50%); }
+}
+
 @media (max-width: 390px) {
   .launcher-stage {
     gap: 11px;
@@ -1026,7 +1033,13 @@
   top: 18px;
   right: 24px;
   z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+.client-game-version-bar { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: flex-end; gap: 9px; }
+.client-game-version-bar select { max-width: 170px; border: 1px solid var(--line-strong); border-radius: 5px; background: #11111a; color: var(--ink); padding: 4px 8px; }
+.client-game-version-bar small { max-width: 230px; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .launcher-stage {
   justify-content: flex-start;
   padding-top: 44px;

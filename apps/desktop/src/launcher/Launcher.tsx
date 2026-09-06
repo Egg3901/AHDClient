@@ -14,6 +14,8 @@ export type OnlineTarget = "live" | "sandbox";
 
 interface Props {
   settingsControl?: ReactNode;
+  accountControl?: ReactNode;
+  gameVersionControl?: ReactNode;
   onPhotoSource?: (eraId: string) => void;
   onNewWorld: (eraId: string, worldsim?: boolean) => void;
   onContinue: (slot: string) => void;
@@ -50,6 +52,8 @@ function writePreference(key: string, value: string): void {
 
 export function Launcher({
   settingsControl,
+  accountControl,
+  gameVersionControl,
   onPhotoSource,
   onNewWorld,
   onContinue,
@@ -120,8 +124,11 @@ export function Launcher({
               A historical political simulation
             </p>
           </div>
-          {settingsControl && (
-            <div className="launcher-settings">{settingsControl}</div>
+          {(accountControl || settingsControl) && (
+            <div className="launcher-settings">
+              {accountControl}
+              {settingsControl}
+            </div>
           )}
         </header>
 
@@ -370,7 +377,7 @@ export function Launcher({
 
       <footer className="launcher-footer">
         <span>AHDClient {desktopPackage.version}</span>
-        <span>Singleplayer worlds stay on this device</span>
+        {gameVersionControl}
       </footer>
     </main>
   );

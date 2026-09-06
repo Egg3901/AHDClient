@@ -31,6 +31,20 @@ export interface LinkedAccount {
   singleplayer: { entitled: boolean; expiresAt: string | null };
 }
 
+export interface GameVersion {
+  version: string;
+  installed: boolean;
+  selected: boolean;
+}
+
+export const gameVersions = {
+  list: () => invoke<GameVersion[]>("list_game_versions"),
+  install: (version: string) =>
+    invoke<void>("install_game_version", { version }),
+  select: (version: string | null) =>
+    invoke<void>("select_game_version", { version }),
+};
+
 /** What the game reports about a world once its server is up. */
 export interface SingleplayerStatus {
   hasWorld: boolean;
@@ -39,6 +53,16 @@ export interface SingleplayerStatus {
   preset: string | null;
   hasCharacter: boolean;
   characterName: string | null;
+}
+
+export interface SetupProgress {
+  active: boolean;
+  phase: string;
+  label: string;
+  detail: string;
+  progress: number;
+  updatedAt: string;
+  stalled: boolean;
 }
 
 export interface Era {
@@ -215,6 +239,8 @@ export const game = {
       ...setup,
       ...(displayName ? { displayName } : {}),
     }),
+  setupProgress: () =>
+    game.request<SetupProgress>("GET", "/api/singleplayer/setup/progress"),
   newGame: (preset: string, displayName?: string) =>
     game.request<{ ok: boolean }>("POST", "/api/singleplayer/new-game", {
       preset,

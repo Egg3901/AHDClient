@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     stop: vi.fn(),
     status: vi.fn(),
     setup: vi.fn(),
+    setupProgress: vi.fn(),
     singleplayerStatus: vi.fn(),
     openWindow: vi.fn(),
     closeEmbedded: vi.fn(),
@@ -124,6 +125,15 @@ function prepare(status = normalStatus) {
   mocks.game.status.mockResolvedValue(idle);
   mocks.game.start.mockResolvedValue(running);
   mocks.game.setup.mockResolvedValue({ ok: true });
+  mocks.game.setupProgress.mockResolvedValue({
+    active: true,
+    phase: "building",
+    label: "Building the world",
+    detail: "Seeding institutions",
+    progress: 42,
+    updatedAt: new Date().toISOString(),
+    stalled: false,
+  });
   mocks.game.singleplayerStatus.mockResolvedValue(status);
   mocks.game.openWindow.mockResolvedValue(undefined);
   mocks.stats.captureStatistics.mockResolvedValue(undefined);
@@ -211,7 +221,9 @@ describe("App singleplayer integration", () => {
     render(<App />);
     await userEvent.click(screen.getByRole("button", { name: "New world" }));
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("not enabled");
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "not enabled",
+    );
     expect(mocks.game.start).not.toHaveBeenCalled();
   });
 });

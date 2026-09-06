@@ -64,11 +64,37 @@ export const ALLOWED_MODES = ["normal", "head-of-state", "worldsim"] as const;
 export type SimulationMode = (typeof ALLOWED_MODES)[number];
 
 /** Short opaque tokens (era, difficulty, autonomy): no free text. */
-const ALLOWED_ERAS = new Set(["1953", "1979", "1991", "1999", "2007", "2019", "2023"]);
+const ALLOWED_ERAS = new Set([
+  "1953",
+  "1979",
+  "1991",
+  "1999",
+  "2007",
+  "2019",
+  "2023",
+]);
 const ALLOWED_DIFFICULTIES = new Set(["easy", "normal", "hard"]);
-const ALLOWED_AUTONOMY = new Set(["off", "v0", "v1", "v2", "v3", "v4"]);
+const ALLOWED_AUTONOMY = new Set(["off", "v0", "v1", "v2", "v3", "v4", "v5"]);
 const ALLOWED_FLAGS = new Set<string>(FEATURE_OPTIONS.map((flag) => flag.key));
-const ALLOWED_SECTORS = new Set(["financial", "media", "manufacturing", "chemical_industries", "healthcare", "retail", "automobiles", "technology", "energy", "agriculture", "real_estate", "construction", "defense", "telecommunications", "entertainment", "logistics", "extraction"]);
+const ALLOWED_SECTORS = new Set([
+  "financial",
+  "media",
+  "manufacturing",
+  "chemical_industries",
+  "healthcare",
+  "retail",
+  "automobiles",
+  "technology",
+  "energy",
+  "agriculture",
+  "real_estate",
+  "construction",
+  "defense",
+  "telecommunications",
+  "entertainment",
+  "logistics",
+  "extraction",
+]);
 const TOKEN_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _.\-]{0,31}$/;
 const MAP_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.\-]{0,63}$/;
 const REPORT_ID_PATTERN = /^[A-Za-z0-9_.\-]{1,64}$/;
@@ -103,6 +129,8 @@ const NUMERIC_SPECS: Record<string, NumericSpec> = {
   averageStability: { min: 0, max: 100, integer: false },
   minStability: { min: 0, max: 100, integer: false },
   maxStability: { min: 0, max: 100, integer: false },
+  lastTurnDurationMs: { min: 0, max: 3_600_000, integer: true },
+  lastTurnWarningCount: { min: 0, max: 100_000, integer: true },
 };
 
 const NUMERIC_FIELDS = Object.keys(NUMERIC_SPECS);
@@ -136,6 +164,8 @@ export interface ValidatedMetrics {
   readonly averageStability?: number;
   readonly minStability?: number;
   readonly maxStability?: number;
+  readonly lastTurnDurationMs?: number;
+  readonly lastTurnWarningCount?: number;
 }
 
 export interface StatisticsReport {
@@ -220,13 +250,32 @@ export function createReportId(nowMs: number): string {
   return `r-${time.toString(36)}-${rand}`;
 }
 
-const TOP_LEVEL_KEYS = new Set(["setup", "metrics", "turn", "version", "createdAt", "appMajorVersion"]);
-const SETUP_KEYS = new Set(["era", "mode", "difficulty", "autonomy", "featureFlags"]);
+const TOP_LEVEL_KEYS = new Set([
+  "setup",
+  "metrics",
+  "turn",
+  "version",
+  "createdAt",
+  "appMajorVersion",
+]);
+const SETUP_KEYS = new Set([
+  "era",
+  "mode",
+  "difficulty",
+  "autonomy",
+  "featureFlags",
+]);
 const METRIC_KEYS = new Set([...NUMERIC_FIELDS, "revenueBySector"]);
 
-function rejectUnknownKeys(value: Record<string, unknown>, allowed: ReadonlySet<string>, where: string, errors: string[]): void {
+function rejectUnknownKeys(
+  value: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+  where: string,
+  errors: string[],
+): void {
   for (const key of Object.keys(value)) {
-    if (!allowed.has(key)) errors.push(`rejected key "${key}" in ${where}: not on the allowlist`);
+    if (!allowed.has(key))
+      errors.push(`rejected key "${key}" in ${where}: not on the allowlist`);
   }
 }
 
@@ -254,14 +303,21 @@ function checkNumericField(
   out[field] = raw;
 }
 
-function checkSectorMap(value: unknown, errors: string[]): Record<string, number> | null {
+function checkSectorMap(
+  value: unknown,
+  errors: string[],
+): Record<string, number> | null {
   if (!isRecord(value)) {
-    errors.push('metric "revenueBySector" must be an object of sector to revenue');
+    errors.push(
+      'metric "revenueBySector" must be an object of sector to revenue',
+    );
     return null;
   }
   const keys = Object.keys(value);
   if (keys.length > MAX_SECTOR_ENTRIES) {
-    errors.push(`metric "revenueBySector" exceeds ${MAX_SECTOR_ENTRIES} sectors`);
+    errors.push(
+      `metric "revenueBySector" exceeds ${MAX_SECTOR_ENTRIES} sectors`,
+    );
     return null;
   }
   const out: Record<string, number> = {};
@@ -272,7 +328,9 @@ function checkSectorMap(value: unknown, errors: string[]): Record<string, number
     }
     const amount = value[key];
     if (!isFiniteNumber(amount) || amount < 0 || amount > 1e15) {
-      errors.push(`sector "${key}" revenue must be a finite number in [0, 1e15]`);
+      errors.push(
+        `sector "${key}" revenue must be a finite number in [0, 1e15]`,
+      );
       continue;
     }
     out[key] = amount;
@@ -280,7 +338,10 @@ function checkSectorMap(value: unknown, errors: string[]): Record<string, number
   return out;
 }
 
-function checkFeatureFlags(value: unknown, errors: string[]): Record<string, boolean> | null {
+function checkFeatureFlags(
+  value: unknown,
+  errors: string[],
+): Record<string, boolean> | null {
   if (value === undefined) return {};
   if (!isRecord(value)) {
     errors.push("setup.featureFlags must be an object of flag name to boolean");
@@ -307,10 +368,18 @@ function checkFeatureFlags(value: unknown, errors: string[]): Record<string, boo
   return out;
 }
 
-function checkTurn(value: unknown, errors: string[]): number | null | undefined {
+function checkTurn(
+  value: unknown,
+  errors: string[],
+): number | null | undefined {
   if (value === undefined || value === null) return null;
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 1_000_000) {
-    errors.push('turn must be an integer in [0, 1000000] or null');
+  if (
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value < 0 ||
+    value > 1_000_000
+  ) {
+    errors.push("turn must be an integer in [0, 1000000] or null");
     return undefined;
   }
   return value;
@@ -323,20 +392,32 @@ function checkTurn(value: unknown, errors: string[]): number | null | undefined 
  */
 export function validateReport(input: unknown): BuildResult {
   const errors: string[] = [];
-  if (!isRecord(input)) return { ok: false, errors: ["report must be an object"] };
+  if (!isRecord(input))
+    return { ok: false, errors: ["report must be an object"] };
   rejectUnknownKeys(input, TOP_LEVEL_KEYS, "report", errors);
 
-  if (input["version"] !== REPORT_VERSION) errors.push(`report version must be ${REPORT_VERSION}`);
+  if (input["version"] !== REPORT_VERSION)
+    errors.push(`report version must be ${REPORT_VERSION}`);
 
   const createdAt = input["createdAt"];
-  if (typeof createdAt !== "string" || !Number.isFinite(Date.parse(createdAt))) {
+  if (
+    typeof createdAt !== "string" ||
+    !Number.isFinite(Date.parse(createdAt))
+  ) {
     errors.push("report createdAt must be an ISO date string");
   }
 
   const major = input["appMajorVersion"];
   if (major !== null && major !== undefined) {
-    if (typeof major !== "number" || !Number.isInteger(major) || major < 0 || major > 999) {
-      errors.push("report appMajorVersion must be an integer in [0, 999] or null");
+    if (
+      typeof major !== "number" ||
+      !Number.isInteger(major) ||
+      major < 0 ||
+      major > 999
+    ) {
+      errors.push(
+        "report appMajorVersion must be an integer in [0, 999] or null",
+      );
     }
   }
 
@@ -347,17 +428,30 @@ export function validateReport(input: unknown): BuildResult {
   } else {
     rejectUnknownKeys(rawSetup, SETUP_KEYS, "setup", errors);
     const era = checkToken(rawSetup["era"]);
-    if (era === null || !ALLOWED_ERAS.has(era)) errors.push("setup.era must be a short token (1-32 chars, letters/digits/space/underscore/dot/dash)");
+    if (era === null || !ALLOWED_ERAS.has(era))
+      errors.push(
+        "setup.era must be a short token (1-32 chars, letters/digits/space/underscore/dot/dash)",
+      );
     const mode = rawSetup["mode"];
     if (mode !== "normal" && mode !== "head-of-state" && mode !== "worldsim") {
-      errors.push('setup.mode must be one of "normal", "head-of-state", "worldsim"');
+      errors.push(
+        'setup.mode must be one of "normal", "head-of-state", "worldsim"',
+      );
     }
     const difficulty = checkToken(rawSetup["difficulty"]);
-    if (difficulty === null || !ALLOWED_DIFFICULTIES.has(difficulty)) errors.push("setup.difficulty must be a short token (1-32 chars)");
+    if (difficulty === null || !ALLOWED_DIFFICULTIES.has(difficulty))
+      errors.push("setup.difficulty must be a short token (1-32 chars)");
     const autonomy = checkToken(rawSetup["autonomy"]);
-    if (autonomy === null || !ALLOWED_AUTONOMY.has(autonomy)) errors.push("setup.autonomy must be a short token (1-32 chars)");
+    if (autonomy === null || !ALLOWED_AUTONOMY.has(autonomy))
+      errors.push("setup.autonomy must be a short token (1-32 chars)");
     const flags = checkFeatureFlags(rawSetup["featureFlags"], errors);
-    if (era !== null && (mode === "normal" || mode === "head-of-state" || mode === "worldsim") && difficulty !== null && autonomy !== null && flags !== null) {
+    if (
+      era !== null &&
+      (mode === "normal" || mode === "head-of-state" || mode === "worldsim") &&
+      difficulty !== null &&
+      autonomy !== null &&
+      flags !== null
+    ) {
       setup = { era, mode, difficulty, autonomy, featureFlags: flags };
     }
   }
@@ -389,7 +483,8 @@ export function validateReport(input: unknown): BuildResult {
     if (min !== undefined && max !== undefined && min > max) {
       errors.push("metrics minStability must not exceed maxStability");
     }
-    metrics = sectors === undefined ? { ...out } : { ...out, revenueBySector: sectors };
+    metrics =
+      sectors === undefined ? { ...out } : { ...out, revenueBySector: sectors };
   }
 
   const turn = checkTurn(input["turn"], errors);
@@ -414,7 +509,10 @@ export function validateReport(input: unknown): BuildResult {
     return { ok: false, errors: ["report is not JSON serializable"] };
   }
   if (size > MAX_REPORT_JSON_BYTES) {
-    return { ok: false, errors: [`report exceeds ${MAX_REPORT_JSON_BYTES} bytes serialized`] };
+    return {
+      ok: false,
+      errors: [`report exceeds ${MAX_REPORT_JSON_BYTES} bytes serialized`],
+    };
   }
   return { ok: true, report };
 }
@@ -424,19 +522,26 @@ export function validateReport(input: unknown): BuildResult {
  * read; every other key (identifiers, names, text, nested extras) fails the
  * build instead of being copied. Returns errors, never throws.
  */
-export function buildStatisticsReport(input: unknown, options?: BuildOptions): BuildResult {
+export function buildStatisticsReport(
+  input: unknown,
+  options?: BuildOptions,
+): BuildResult {
   const errors: string[] = [];
-  if (!isRecord(input)) return { ok: false, errors: ["input must be an object"] };
+  if (!isRecord(input))
+    return { ok: false, errors: ["input must be an object"] };
   const allowedInput = new Set(["setup", "metrics", "turn"]);
   rejectUnknownKeys(input, allowedInput, "input", errors);
   if (errors.length > 0) return { ok: false, errors };
 
   const nowMs = options?.nowMs ?? Date.now();
-  if (!Number.isFinite(nowMs)) return { ok: false, errors: ["nowMs must be finite"] };
+  if (!Number.isFinite(nowMs))
+    return { ok: false, errors: ["nowMs must be finite"] };
 
   const candidate = {
     version: REPORT_VERSION,
-    createdAt: new Date(Math.floor(nowMs / 86_400_000) * 86_400_000).toISOString(),
+    createdAt: new Date(
+      Math.floor(nowMs / 86_400_000) * 86_400_000,
+    ).toISOString(),
     appMajorVersion: parseAppMajorVersion(options?.appVersion ?? null),
     setup: input["setup"] ?? null,
     metrics: input["metrics"] ?? {},
@@ -454,7 +559,10 @@ export function createEmptyQueue(): StatisticsQueue {
  * Apply a consent change. Opt out (false) clears every pending report.
  * Returns a new queue; the input is not mutated.
  */
-export function setConsentEnabled(queue: StatisticsQueue, enabled: boolean): StatisticsQueue {
+export function setConsentEnabled(
+  queue: StatisticsQueue,
+  enabled: boolean,
+): StatisticsQueue {
   if (enabled) return { pending: [...queue.pending] };
   return { pending: [] };
 }
@@ -466,13 +574,28 @@ function asQueue(value: unknown): StatisticsQueue | null {
 }
 
 /** Drop expired entries. Pure; returns a new queue. */
-export function pruneExpiredReports(queue: StatisticsQueue, nowMs: number): StatisticsQueue {
+export function pruneExpiredReports(
+  queue: StatisticsQueue,
+  nowMs: number,
+): StatisticsQueue {
   const now = Number.isFinite(nowMs) ? nowMs : 0;
-  return { pending: queue.pending.filter((item) => isRecord(item) && item["expiresAt"] !== undefined && typeof item["expiresAt"] === "number" && item["expiresAt"] > now) };
+  return {
+    pending: queue.pending.filter(
+      (item) =>
+        isRecord(item) &&
+        item["expiresAt"] !== undefined &&
+        typeof item["expiresAt"] === "number" &&
+        item["expiresAt"] > now,
+    ),
+  };
 }
 
 function isFresh(item: QueuedReport, nowMs: number): boolean {
-  return Number.isFinite(item.queuedAt) && Number.isFinite(item.expiresAt) && item.expiresAt > nowMs;
+  return (
+    Number.isFinite(item.queuedAt) &&
+    Number.isFinite(item.expiresAt) &&
+    item.expiresAt > nowMs
+  );
 }
 
 /**
@@ -487,25 +610,54 @@ export function enqueueValidatedReport(
   id?: string,
 ): EnqueueResult {
   if (!Number.isFinite(nowMs)) {
-    return { queue, accepted: false, reportId: null, droppedId: null, errors: ["nowMs must be finite"] };
+    return {
+      queue,
+      accepted: false,
+      reportId: null,
+      droppedId: null,
+      errors: ["nowMs must be finite"],
+    };
   }
   const checked = validateReport(report);
   if (!checked.ok) {
-    return { queue, accepted: false, reportId: null, droppedId: null, errors: [...checked.errors] };
+    return {
+      queue,
+      accepted: false,
+      reportId: null,
+      droppedId: null,
+      errors: [...checked.errors],
+    };
   }
-  const fresh = pruneExpiredReports(queue, nowMs).pending.filter((item) => validateReport(item.report).ok);
-  let reportId = typeof id === "string" && REPORT_ID_PATTERN.test(id) ? id : createReportId(nowMs);
-  if (fresh.some((item) => item.id === reportId)) reportId = createReportId(nowMs + 1);
+  const fresh = pruneExpiredReports(queue, nowMs).pending.filter(
+    (item) => validateReport(item.report).ok,
+  );
+  let reportId =
+    typeof id === "string" && REPORT_ID_PATTERN.test(id)
+      ? id
+      : createReportId(nowMs);
+  if (fresh.some((item) => item.id === reportId))
+    reportId = createReportId(nowMs + 1);
   const next = [
     ...fresh,
-    { id: reportId, report: checked.report, queuedAt: Math.floor(nowMs), expiresAt: Math.floor(nowMs) + REPORT_TTL_MS },
+    {
+      id: reportId,
+      report: checked.report,
+      queuedAt: Math.floor(nowMs),
+      expiresAt: Math.floor(nowMs) + REPORT_TTL_MS,
+    },
   ];
   let droppedId: string | null = null;
   while (next.length > MAX_QUEUE_LENGTH) {
     const dropped = next.shift();
     if (dropped) droppedId = dropped.id;
   }
-  return { queue: { pending: next }, accepted: true, reportId, droppedId, errors: [] };
+  return {
+    queue: { pending: next },
+    accepted: true,
+    reportId,
+    droppedId,
+    errors: [],
+  };
 }
 
 /**
@@ -520,21 +672,44 @@ export function maybeBuildAndQueue(
   options?: BuildOptions,
 ): BuildAndQueueResult {
   if (!consentEnabled) {
-    return { queue, accepted: false, reportId: null, errors: ["consent disabled: report not built or queued"] };
+    return {
+      queue,
+      accepted: false,
+      reportId: null,
+      errors: ["consent disabled: report not built or queued"],
+    };
   }
-  const built = buildStatisticsReport(input, { nowMs, appVersion: options?.appVersion ?? null });
+  const built = buildStatisticsReport(input, {
+    nowMs,
+    appVersion: options?.appVersion ?? null,
+  });
   if (!built.ok) {
-    return { queue, accepted: false, reportId: null, errors: [...built.errors] };
+    return {
+      queue,
+      accepted: false,
+      reportId: null,
+      errors: [...built.errors],
+    };
   }
   const enqueued = enqueueValidatedReport(queue, built.report, nowMs);
-  return { queue: enqueued.queue, accepted: enqueued.accepted, reportId: enqueued.reportId, errors: [...enqueued.errors] };
+  return {
+    queue: enqueued.queue,
+    accepted: enqueued.accepted,
+    reportId: enqueued.reportId,
+    errors: [...enqueued.errors],
+  };
 }
 
 /** Serialize the queue for local persistence. Only valid reports are kept. */
 export function serializeQueue(queue: StatisticsQueue, nowMs?: number): string {
   const now = nowMs ?? Date.now();
-  const clean = pruneExpiredReports(queue, now).pending.filter((item) => validateReport(item.report).ok);
-  return JSON.stringify({ version: 1, pending: clean.slice(0, MAX_QUEUE_LENGTH) });
+  const clean = pruneExpiredReports(queue, now).pending.filter(
+    (item) => validateReport(item.report).ok,
+  );
+  return JSON.stringify({
+    version: 1,
+    pending: clean.slice(0, MAX_QUEUE_LENGTH),
+  });
 }
 
 /**
@@ -542,7 +717,10 @@ export function serializeQueue(queue: StatisticsQueue, nowMs?: number): string {
  * invalid or expired entries all yield fewer (or zero) pending items.
  * Every restored report is revalidated before it is trusted.
  */
-export function deserializeQueue(serialized: unknown, nowMs: number): StatisticsQueue {
+export function deserializeQueue(
+  serialized: unknown,
+  nowMs: number,
+): StatisticsQueue {
   const now = Number.isFinite(nowMs) ? nowMs : 0;
   if (typeof serialized !== "string") return createEmptyQueue();
   let parsed: unknown;
@@ -556,9 +734,17 @@ export function deserializeQueue(serialized: unknown, nowMs: number): Statistics
   const pending: QueuedReport[] = [];
   for (const item of holder.pending) {
     if (!isRecord(item)) continue;
-    if (typeof item["id"] !== "string" || !REPORT_ID_PATTERN.test(item["id"])) continue;
-    if (!isFiniteNumber(item["queuedAt"]) || !isFiniteNumber(item["expiresAt"])) continue;
-    if ((item["expiresAt"] as number) <= now || (item["expiresAt"] as number) > (item["queuedAt"] as number) + REPORT_TTL_MS || (item["queuedAt"] as number) > now) continue;
+    if (typeof item["id"] !== "string" || !REPORT_ID_PATTERN.test(item["id"]))
+      continue;
+    if (!isFiniteNumber(item["queuedAt"]) || !isFiniteNumber(item["expiresAt"]))
+      continue;
+    if (
+      (item["expiresAt"] as number) <= now ||
+      (item["expiresAt"] as number) >
+        (item["queuedAt"] as number) + REPORT_TTL_MS ||
+      (item["queuedAt"] as number) > now
+    )
+      continue;
     const checked = validateReport(item["report"]);
     if (!checked.ok) continue;
     pending.push({
@@ -588,7 +774,8 @@ export function drainDueReports(
   if (!consentEnabled) return { queue, due: [] };
   const now = Number.isFinite(nowMs) ? nowMs : 0;
   const cap = limit === undefined ? MAX_QUEUE_LENGTH : limit;
-  if (!Number.isInteger(cap) || cap <= 0) return { queue: pruneExpiredReports(queue, now), due: [] };
+  if (!Number.isInteger(cap) || cap <= 0)
+    return { queue: pruneExpiredReports(queue, now), due: [] };
   const due: QueuedReport[] = [];
   const rest: QueuedReport[] = [];
   for (const item of queue.pending) {

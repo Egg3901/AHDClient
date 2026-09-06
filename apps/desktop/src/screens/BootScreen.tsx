@@ -8,6 +8,12 @@ interface Props {
   lines: string[];
   onCancel: () => void;
   showDebug: boolean;
+  progress?: {
+    label: string;
+    detail: string;
+    progress: number;
+    stalled: boolean;
+  } | null;
 }
 
 const TIPS = [
@@ -26,6 +32,7 @@ export function BootScreen({
   lines,
   onCancel,
   showDebug,
+  progress: liveProgress,
 }: Props): JSX.Element {
   const [slide, setSlide] = useState(0);
   const [cardVisible, setCardVisible] = useState(true);
@@ -45,7 +52,7 @@ export function BootScreen({
   }, []);
   const era = ERAS[slide]!;
   const photo = ERA_PHOTOS[era.id]!;
-  const progress = Math.min(92, 16 + lines.length * 4);
+  const progress = liveProgress?.progress ?? Math.min(18, 6 + lines.length * 2);
   return (
     <main className="launcher-scope screen-scope">
       <div className="launcher-pattern" aria-hidden="true">
@@ -65,13 +72,27 @@ export function BootScreen({
         </header>
         <div className="screen-console">
           <div className="boot-progress-wrap">
+            <div className="boot-current" aria-live="polite">
+              <strong>
+                {liveProgress?.label ?? "Starting the local game"}
+              </strong>
+              <span>
+                {liveProgress?.detail ?? "Loading the server and database"}
+              </span>
+              {liveProgress?.stalled && (
+                <em>
+                  Still waiting. The last setup step has not reported progress
+                  for 30 seconds.
+                </em>
+              )}
+            </div>
             <div
               className="boot-progress"
               role="progressbar"
               aria-label="Building world"
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-valuenow={progress}
+              aria-valuenow={Math.round(progress)}
             >
               <span style={{ width: `${progress}%` }} />
             </div>
