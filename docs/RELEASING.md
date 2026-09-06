@@ -181,9 +181,12 @@ iOS builds run only on macOS, so the `mobile bundles` workflow does them on
   the workflow runs `tauri ios build --export-method app-store-connect` and
   uploads the IPA from `gen/apple/build/arm64/`. Upload it with
   `xcrun altool --upload-app` or Transporter.
-- Without them it builds the unsigned simulator app with `xcodebuild` and
-  uploads that, which proves the iOS compile until the developer account and
-  the App Store listing exist.
+- Without them it runs `tauri ios build --ci --target aarch64-sim --no-sign`
+  with a placeholder team id and uploads the unsigned simulator app from
+  `gen/apple/build/arm64-sim/AHDClient.app`, which proves the iOS compile
+  until the developer account and the App Store listing exist. Do not call
+  `xcodebuild` directly: the Xcode build phase needs the options file the
+  Tauri CLI writes for the build.
 
 The overlay `tauri.ios.conf.json` mirrors the Android one and sets iOS 14 as
 the minimum system version. The bundle identifier is the shared
