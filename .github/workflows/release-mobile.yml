@@ -1,0 +1,200 @@
+name: mobile bundles
+
+# Android APK and AAB on Linux; iOS on macOS. Both jobs also run on pull
+# requests that touch the client so the mobile targets cannot silently rot.
+# Store signing is optional: with no secrets the Android bundle is unsigned
+# and iOS builds for the simulator, which still proves the native compile.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+  pull_request:
+    paths:
+      - ".github/workflows/release-mobile.yml"
+      - "apps/desktop/**"
+      - "package-lock.json"
+      - "package.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - run: npm ci
+      - run: npm run release:check
+      - run: npm run typecheck
+      - run: npm test --workspace apps/desktop
+
+      - name: Install the upload keystore
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "No ANDROID_KEYSTORE_BASE64 secret: building unsigned."
+            exit 0
+          fi
+          dir=apps/desktop/src-tauri/gen/android
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          {
+            echo "keyAlias=upload"
+            echo "password=$ANDROID_KEYSTORE_PASSWORD"
+            echo "storeFile=$RUNNER_TEMP/upload.jks"
+          } > "$dir/keystore.properties"
+
+      - name: Build the APK and the Play bundle
+        run: npm run tauri --workspace apps/desktop -- android build --apk --aab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ahdclient-android
+          path: |
+            apps/desktop/src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+            apps/desktop/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
+          if-no-files-found: error
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - run: npm ci
+      - run: npm run release:check
+      - run: npm run typecheck
+
+      - name: Generate the Xcode project
+        env:
+          # The Tauri CLI refuses to generate a project without a team id. A
+          # placeholder is fine for the unsigned simulator build; the real
+          # team arrives with the App Store secrets.
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM || 'XXXXXXXXXX' }}
+        run: |
+          if [ ! -d apps/desktop/src-tauri/gen/apple ]; then
+            npm run tauri --workspace apps/desktop -- ios init --ci
+          fi
+          ls apps/desktop/src-tauri/gen/apple
+
+      - name: Decide how to sign
+        id: signing
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ] && [ -n "$APPLE_API_ISSUER" ] && [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_KEY_CONTENT" ] && [ -n "$APPLE_DEVELOPMENT_TEAM" ]; then
+            mkdir -p "$RUNNER_TEMP/private_keys"
+            echo "$APPLE_API_KEY_CONTENT" | base64 -d > "$RUNNER_TEMP/private_keys/AuthKey_$APPLE_API_KEY.p8"
+            echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/private_keys/AuthKey_$APPLE_API_KEY.p8" >> "$GITHUB_ENV"
+            echo "mode=store" >> "$GITHUB_OUTPUT"
+          else
+            echo "No App Store Connect signing secrets: building for the simulator."
+            echo "mode=simulator" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the App Store archive
+        if: steps.signing.outputs.mode == 'store'
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+        run: npm run tauri --workspace apps/desktop -- ios build --export-method app-store-connect
+
+      - name: Build for the simulator (unsigned)
+        if: steps.signing.outputs.mode == 'simulator'
+        env:
+          APPLE_DEVELOPMENT_TEAM: XXXXXXXXXX
+        run: |
+          npm run tauri --workspace apps/desktop -- ios build --help
+          npm run tauri --workspace apps/desktop -- ios build --ci --target aarch64-sim --no-sign
+          find apps/desktop/src-tauri/gen/apple/build -maxdepth 3 -name '*.app' -print
+
+      # Best effort: an unsigned device build that Sideloadly or AltStore can
+      # sign with a free Apple ID for on-device testing before the developer
+      # membership and the App Store listing exist.
+      - name: Build the unsigned device IPA
+        if: steps.signing.outputs.mode == 'simulator'
+        continue-on-error: true
+        env:
+          APPLE_DEVELOPMENT_TEAM: XXXXXXXXXX
+        run: |
+          npm run tauri --workspace apps/desktop -- ios build --ci --target aarch64 --no-sign --archive-only
+          app=$(find apps/desktop/src-tauri/gen/apple/build -type d -path '*.xcarchive/Products/Applications/*.app' | head -n1)
+          test -n "$app"
+          rm -rf "$RUNNER_TEMP/ipa" && mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$app" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qr "$GITHUB_WORKSPACE/AHDClient-unsigned.ipa" Payload)
+          ls -la "$GITHUB_WORKSPACE/AHDClient-unsigned.ipa"
+
+      - name: Upload the unsigned device IPA
+        if: steps.signing.outputs.mode == 'simulator'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ahdclient-ios-unsigned-ipa
+          path: AHDClient-unsigned.ipa
+          if-no-files-found: warn
+
+      - name: Upload the IPA
+        if: steps.signing.outputs.mode == 'store'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ahdclient-ios
+          path: apps/desktop/src-tauri/gen/apple/build/arm64/*.ipa
+          if-no-files-found: error
+
+      - name: Upload the simulator app
+        if: steps.signing.outputs.mode == 'simulator'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ahdclient-ios-simulator
+          path: apps/desktop/src-tauri/gen/apple/build/**/*.app
+          if-no-files-found: error

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-submit-diagnostics"
+description = "Enables the submit_diagnostics command without any pre-configured scope."
+commands.allow = ["submit_diagnostics"]
+
+[[permission]]
+identifier = "deny-submit-diagnostics"
+description = "Denies the submit_diagnostics command without any pre-configured scope."
+commands.deny = ["submit_diagnostics"]

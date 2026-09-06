@@ -2,6 +2,14 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.0.6] - 2026-09-06
+
+- Add Android and iOS builds of the launcher: the same lander, settings and account linking, with Multiplayer and Sandbox opening the live game inside the app. Singleplayer and Worldsim stay desktop only, since they run the game on the player's machine.
+- Return to the launcher from any online page on mobile with the AHD mark in the corner, or the system back button on Android.
+- Keep ad slots, consent prompts and the cookie banner out of the mobile app webview by identifying it to the game as AHDClient-Mobile.
+- Add a mobile bundles workflow that produces the Android APK and Play bundle and the iOS archive, with store signing supplied through repository secrets and an unsigned build otherwise.
+- Fix diagnostics reports never leaving the desktop launcher: the command lacked a permission grant.
+
 ## [2.0.5] - 2026-09-06
 
 - Fix Windows local worlds never becoming ready: the game server was started on the launcher's own input and output handles, which on Windows left it accepting connections without answering. It now runs on captured output and a fresh world is ready in seconds.

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": []
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "externalBin": null,
+    "resources": null,
+    "iOS": {
+      "minimumSystemVersion": "14.0"
+    }
+  },
+  "plugins": {
+    "updater": null
+  }
+}

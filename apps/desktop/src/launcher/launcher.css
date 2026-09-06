@@ -1157,3 +1157,28 @@
     width: 28px;
   }
 }
+
+/* Mobile: two modes, and the header controls stay clear of the notch and
+   status bar (iOS reports them through env(); Android pads the webview). */
+.launcher-toggle[data-modes="2"] {
+  grid-template-columns: 1fr 1fr;
+  width: min(100%, 410px);
+}
+.launcher-toggle[data-modes="2"] .launcher-toggle-thumb {
+  width: calc((100% - 6px) / 2);
+}
+.launcher-toggle[data-modes="2"][data-mode="mp"] .launcher-toggle-thumb {
+  transform: translateX(0);
+}
+.launcher-toggle[data-modes="2"][data-mode="sandbox"] .launcher-toggle-thumb {
+  transform: translateX(100%);
+}
+@media (max-width: 700px) {
+  .launcher-settings {
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+  }
+  .launcher-stage {
+    padding-top: max(14px, env(safe-area-inset-top));
+  }
+}

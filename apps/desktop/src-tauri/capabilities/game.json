@@ -2,6 +2,11 @@
   "$schema": "https://schema.tauri.app/config/2/capability",
   "identifier": "game",
   "description": "Desktop singleplayer window, deliberately empty. It loads the local game server on loopback and must never get Tauri IPC, fs, dialog, or shell; the game talks to its own server over HTTP like the browser would.",
+  "platforms": [
+    "linux",
+    "macOS",
+    "windows"
+  ],
   "permissions": [],
   "webviews": [
     "game",

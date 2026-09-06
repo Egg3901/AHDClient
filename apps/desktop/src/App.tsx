@@ -33,6 +33,7 @@ import { AccountControl } from "./AccountControl.js";
 import { GameVersionBar } from "./GameVersionBar.js";
 import { DiagnosticPrompt } from "./DiagnosticPrompt.js";
 import { submitDiagnostics, type DiagnosticReason } from "./diagnostics.js";
+import { mobile } from "./platform.js";
 
 type Screen =
   | "launcher"
@@ -88,6 +89,7 @@ export function App(): JSX.Element {
   );
   useEffect(() => {
     applySettings(settings);
+    if (mobile) return;
     void setStatisticsConsent(settings.shareStatistics)
       .then(() => flushStatistics())
       .catch(() => {});
@@ -186,6 +188,7 @@ export function App(): JSX.Element {
   }, [screen, checkAccount]);
 
   const refreshWorlds = useCallback(async () => {
+    if (mobile) return;
     try {
       setAllWorlds(await worlds.list());
     } catch (e) {
@@ -194,6 +197,7 @@ export function App(): JSX.Element {
   }, []);
 
   useEffect(() => {
+    if (mobile) return;
     void refreshWorlds();
     void game
       .status()
@@ -466,6 +470,13 @@ export function App(): JSX.Element {
     setScreen("launcher");
   };
 
+  // On mobile the site replaces the launcher in the same webview, so there
+  // is no embedded state to track: the page unloads as soon as it navigates.
+  const showOnline = () => {
+    if (mobile) return;
+    setEmbedded(!settings.separateWindow);
+    if (!settings.separateWindow) setScreen("online");
+  };
   const handlePlayOnline = (target: OnlineTarget) => {
     setError(null);
     if (target === "sandbox") {
@@ -475,10 +486,7 @@ export function App(): JSX.Element {
           setAccount(linked?.linked ? linked : null);
           setAccountChecked(true);
           if (!linked?.linked || !linked.supporter) return;
-          return online.open(target, settings.separateWindow).then(() => {
-            setEmbedded(!settings.separateWindow);
-            if (!settings.separateWindow) setScreen("online");
-          });
+          return online.open(target, settings.separateWindow).then(showOnline);
         })
         .catch(() =>
           setError("Connect to the internet to check sandbox access."),
@@ -487,10 +495,7 @@ export function App(): JSX.Element {
     }
     void online
       .open(target, settings.separateWindow)
-      .then(() => {
-        setEmbedded(!settings.separateWindow);
-        if (!settings.separateWindow) setScreen("online");
-      })
+      .then(showOnline)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   };
 
@@ -499,6 +504,7 @@ export function App(): JSX.Element {
     void online
       .link(settings.separateWindow)
       .then(() => {
+        if (mobile) return;
         setEmbedded(!settings.separateWindow);
         setScreen("linking");
       })
@@ -532,6 +538,7 @@ export function App(): JSX.Element {
   );
   const settingsMenu = (
     <SettingsMenu
+      mobile={mobile}
       open={settingsOpen}
       settings={settings}
       onChange={changeSettings}
@@ -704,7 +711,7 @@ export function App(): JSX.Element {
   return (
     <>
       <UpdateNotice />
-      {accountChecked && accountNotice && !account && (
+      {!mobile && accountChecked && accountNotice && !account && (
         <aside className="client-account-notice">
           <span>
             Link an entitled game account to use Singleplayer and Worldsim.
@@ -722,9 +729,10 @@ export function App(): JSX.Element {
         </aside>
       )}
       <Launcher
+        mobile={mobile}
         settingsControl={settingsControl}
         accountControl={accountControl}
-        gameVersionControl={<GameVersionBar />}
+        gameVersionControl={mobile ? undefined : <GameVersionBar />}
         onPhotoSource={(eraId) => {
           void online.help(`help.era-photo-${eraId}`).catch(fail);
         }}

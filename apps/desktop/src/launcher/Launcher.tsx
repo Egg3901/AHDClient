@@ -10,9 +10,15 @@ import "./launcher.css";
 
 type Mode = "sp" | "mp" | "sandbox" | "worldsim";
 
+const DESKTOP_MODES: readonly Mode[] = ["sp", "mp", "sandbox", "worldsim"];
+/** Phones and tablets run no local game: the live site and the sandbox only. */
+const MOBILE_MODES: readonly Mode[] = ["mp", "sandbox"];
+
 export type OnlineTarget = "live" | "sandbox";
 
 interface Props {
+  /** Android or iOS: hides every local-game mode and control. */
+  mobile?: boolean;
   settingsControl?: ReactNode;
   accountControl?: ReactNode;
   gameVersionControl?: ReactNode;
@@ -51,6 +57,7 @@ function writePreference(key: string, value: string): void {
 }
 
 export function Launcher({
+  mobile = false,
   settingsControl,
   accountControl,
   gameVersionControl,
@@ -72,11 +79,11 @@ export function Launcher({
   onUpgradeSupporter,
 }: Props): JSX.Element {
   const eras = useMemo(() => ERAS, []);
+  const modes = mobile ? MOBILE_MODES : DESKTOP_MODES;
   const [mode, setMode] = useState<Mode>(() => {
     const saved = readPreference(MODE_STORAGE_KEY);
-    return saved === "mp" || saved === "sandbox" || saved === "worldsim"
-      ? saved
-      : "sp";
+    const known = modes.find((candidate) => candidate === saved);
+    return known ?? modes[0]!;
   });
   const [eraId, setEraId] = useState<string>(() => {
     const saved = readPreference(ERA_STORAGE_KEY);
@@ -139,16 +146,19 @@ export function Launcher({
           <div
             className="launcher-toggle"
             data-mode={mode}
+            data-modes={modes.length}
             aria-label="Play mode"
           >
             <div className="launcher-toggle-thumb" aria-hidden="true" />
-            <button
-              className={mode === "sp" ? "active" : ""}
-              onClick={() => setMode("sp")}
-              aria-pressed={mode === "sp"}
-            >
-              Singleplayer <span className="client-beta">Beta</span>
-            </button>
+            {!mobile && (
+              <button
+                className={mode === "sp" ? "active" : ""}
+                onClick={() => setMode("sp")}
+                aria-pressed={mode === "sp"}
+              >
+                Singleplayer <span className="client-beta">Beta</span>
+              </button>
+            )}
             <button
               className={mode === "mp" ? "active" : ""}
               onClick={() => setMode("mp")}
@@ -163,16 +173,18 @@ export function Launcher({
             >
               Sandbox
             </button>
-            <button
-              className={mode === "worldsim" ? "active" : ""}
-              onClick={() => {
-                setMode("worldsim");
-                setChoosingEra(false);
-              }}
-              aria-pressed={mode === "worldsim"}
-            >
-              Worldsim <span className="client-beta">Beta</span>
-            </button>
+            {!mobile && (
+              <button
+                className={mode === "worldsim" ? "active" : ""}
+                onClick={() => {
+                  setMode("worldsim");
+                  setChoosingEra(false);
+                }}
+                aria-pressed={mode === "worldsim"}
+              >
+                Worldsim <span className="client-beta">Beta</span>
+              </button>
+            )}
           </div>
 
           {error && (
@@ -194,7 +206,9 @@ export function Launcher({
                 <small>
                   {mode === "sandbox"
                     ? "A separate world for trying things out. Nothing here touches the main game."
-                    : "Your account and session stay together in the app."}
+                    : mobile
+                      ? "Your session stays in the app. Tap the AHD mark on any page to come back here."
+                      : "Your account and session stay together in the app."}
                 </small>
               </span>
               {mode === "sandbox" && sandboxGate === "unlinked" && (

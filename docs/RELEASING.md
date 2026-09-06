@@ -129,3 +129,81 @@ node scripts/prepare-game.mjs --game-dir ../AHDGame
 The game build is large (roughly 550 MB unpacked) and takes several minutes;
 `--skip-game-build` reuses an existing `dist/singleplayer` in the checkout.
 Nothing staged is committed.
+
+## Android
+
+The `mobile bundles` workflow (`.github/workflows/release-mobile.yml`) builds a
+universal release APK and a Play bundle on `ubuntu-22.04` for every `v*` tag
+and on demand, and runs on pull requests that touch the client. The Android
+project under `apps/desktop/src-tauri/gen/android` is committed; regenerate it
+with `npx tauri android init` only when the Tauri CLI template changes, then
+re-apply `MainActivity.kt` (user agent marker and system bar insets), the
+signing block in `app/build.gradle.kts`, and the window background colour.
+
+Local build, with the SDK, NDK 27 and JDK 21 installed:
+
+```bash
+export ANDROID_HOME=<sdk> NDK_HOME=<sdk>/ndk/27.0.12077973 JAVA_HOME=<jdk 21>
+cd apps/desktop
+npx tauri android build --apk --aab            # every ABI
+npx tauri android build --apk --target aarch64 # arm64 only, faster
+```
+
+Outputs land under `gen/android/app/build/outputs/apk/universal/release/` and
+`.../bundle/universalRelease/`. The mobile config overlay
+`tauri.android.conf.json` removes the Node sidecar, the game resources and the
+desktop updater from the bundle; Android runs the launcher and the live site
+only.
+
+Release signing reads `gen/android/keystore.properties` (gitignored):
+
+```
+keyAlias=upload
+password=<store and key password>
+storeFile=<absolute path to the upload keystore>
+```
+
+Without the file the release build is unsigned. The upload keystore lives
+outside every checkout. CI signs when the `ANDROID_KEYSTORE_BASE64` and
+`ANDROID_KEYSTORE_PASSWORD` repository secrets are set; the alias is `upload`.
+Play requires the bundle, sideload testers take the APK. `versionCode` is
+derived by Tauri from the version (`major*1000000 + minor*1000 + patch`), so
+every release bump is also a Play version bump.
+
+## iOS
+
+iOS builds run only on macOS, so the `mobile bundles` workflow does them on
+`macos-latest`. The Xcode project is generated on the runner by
+`npx tauri ios init --ci` (it is gitignored under `gen/apple`), then:
+
+- With App Store Connect secrets set (`APPLE_API_ISSUER`, `APPLE_API_KEY`,
+  `APPLE_API_KEY_CONTENT` as the base64 `.p8`, and `APPLE_DEVELOPMENT_TEAM`)
+  the workflow runs `tauri ios build --export-method app-store-connect` and
+  uploads the IPA from `gen/apple/build/arm64/`. Upload it with
+  `xcrun altool --upload-app` or Transporter.
+- Without them it runs `tauri ios build --ci --target aarch64-sim --no-sign`
+  with a placeholder team id and uploads the unsigned simulator app from
+  `gen/apple/build/arm64-sim/AHDClient.app`, which proves the iOS compile
+  until the developer account and the App Store listing exist. Do not call
+  `xcodebuild` directly: the Xcode build phase needs the options file the
+  Tauri CLI writes for the build.
+- The same unsigned run also tries `--target aarch64 --no-sign --archive-only`
+  and zips the device app into the `ahdclient-ios-unsigned-ipa` artifact.
+  Sideloadly or AltStore can sign that with a free Apple ID for a seven-day
+  install on your own iPhone, no membership required. With a Mac, `npx tauri
+  ios dev --open` and a personal team in Xcode does the same.
+
+The overlay `tauri.ios.conf.json` mirrors the Android one and sets iOS 14 as
+the minimum system version. The bundle identifier is the shared
+`net.lakesidegames.ahdclient`; register it in the developer portal before the
+first signed build. On a Mac with Xcode, `npx tauri ios dev` opens the app in a
+simulator.
+
+## What mobile ships
+
+Android and iOS ship the launcher, its settings and account linking, with
+Multiplayer and Sandbox loading the live game in the app's single webview.
+Singleplayer and Worldsim are desktop only: they run the game server on the
+player's machine. The app webview identifies itself to the game with an
+`AHDClient-Mobile/<version>` user agent marker so the site keeps ad slots,
+consent prompts and the cookie banner out of the app.
