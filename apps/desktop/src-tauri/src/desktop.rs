@@ -7,7 +7,7 @@
 use std::fs;
 use std::net::TcpListener;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
@@ -201,6 +201,9 @@ pub(crate) fn delete_world(app: AppHandle, game: State<'_, Game>, slot: String) 
 struct GameInner {
   generation: u64,
   child: Option<CommandChild>,
+  /// Set by the output drain when the supervisor process terminates, so a
+  /// stop can wait for the real exit instead of guessing with a sleep.
+  exited: Option<Arc<AtomicBool>>,
   port: Option<u16>,
   slot: Option<String>,
 }
@@ -251,17 +254,32 @@ fn launcher_script(app: &AppHandle) -> Result<PathBuf, String> {
   Ok(path)
 }
 
+/// How long a stop waits for the supervisor to finish on its own. It stops
+/// MongoDB through the database's own shutdown command and waits for the
+/// checkpoint, which is what keeps the last turn on disk; killing it early
+/// would only be needed for a supervisor that stopped answering its pipe.
+const STOP_TIMEOUT: Duration = Duration::from_secs(20);
+
 fn stop_locked(inner: &mut GameInner) {
   inner.generation = inner.generation.wrapping_add(1);
+  let exited = inner.exited.take();
   if let Some(mut child) = inner.child.take() {
     // Ask the Node supervisor to stop its server and MongoDB first. A direct
     // kill terminates only the supervisor and can strand the world processes.
     if child.write(b"shutdown\n").is_ok() {
-      std::thread::sleep(Duration::from_millis(1800));
+      let started = std::time::Instant::now();
+      while started.elapsed() < STOP_TIMEOUT {
+        if exited.as_ref().is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+          break;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+      }
     }
-    // The supervisor exits after its bounded shutdown window. This is only
-    // a fallback for a supervisor that stopped responding to its control pipe.
-    let _ = child.kill();
+    // Fallback for a supervisor that never exited: kill is harmless once it
+    // has already gone.
+    if !exited.as_ref().is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+      let _ = child.kill();
+    }
   }
   inner.port = None;
   inner.slot = None;
@@ -340,6 +358,7 @@ pub(crate) async fn game_start(app: AppHandle, game: State<'_, Game>, slot: Stri
   }
 
   let (mut rx, child) = command.spawn().map_err(|e| format!("could not start the game: {e}"))?;
+  let exited = Arc::new(AtomicBool::new(false));
   {
     let mut inner = game.0.lock().map_err(|_| "game state poisoned")?;
     if inner.generation != generation {
@@ -347,6 +366,7 @@ pub(crate) async fn game_start(app: AppHandle, game: State<'_, Game>, slot: Stri
       return Err("world start cancelled".into());
     }
     inner.child = Some(child);
+    inner.exited = Some(exited.clone());
     inner.port = Some(port);
     inner.slot = Some(slot.clone());
   }
@@ -388,6 +408,7 @@ pub(crate) async fn game_start(app: AppHandle, game: State<'_, Game>, slot: Stri
         }
       }
       CommandEvent::Terminated(status) => {
+        exited.store(true, Ordering::SeqCst);
         fail_start(&app, &game, &tail, generation);
         return Err(format!(
           "the game exited with code {:?} before it was ready:\n{}",
@@ -414,6 +435,7 @@ pub(crate) async fn game_start(app: AppHandle, game: State<'_, Game>, slot: Stri
           }
         }
         CommandEvent::Terminated(status) => {
+          exited.store(true, Ordering::SeqCst);
           if let Some(game) = drain_app.try_state::<Game>() {
             if let Ok(mut inner) = game.0.lock() {
               if inner.generation != generation { break; }
