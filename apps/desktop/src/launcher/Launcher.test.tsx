@@ -31,6 +31,7 @@ function renderLauncher(overrides: Partial<Parameters<typeof Launcher>[0]> = {})
     latestWorld: null,
     runningSlot: null,
     continueBusy: false,
+    sandboxGate: null,
     ...overrides,
   };
   render(<Launcher {...props} />);

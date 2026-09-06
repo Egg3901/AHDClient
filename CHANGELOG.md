@@ -2,6 +2,14 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.0.2]
+
+- Fix the packaged Windows game server by retaining the hashed external module aliases emitted by the Next.js standalone build.
+- Complete account linking by reading the authenticated game webview session and require a server-granted Singleplayer entitlement with a bounded seven-day offline grace period.
+- Gate Sandbox on a linked Supporter account and show the exact link or upgrade action when access is unavailable.
+- Replace raw world-start logs with a historical loading slideshow and practical era tips; technical logs remain available through Settings.
+- Add signed in-client updates from the Lakeside download portal and keep each client release paired with its bundled AHDGame build.
+
 ## [2.0.1]
 
 - Mark Singleplayer and Worldsim as Beta and add a playerless simulation entry.

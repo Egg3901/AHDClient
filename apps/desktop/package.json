@@ -1,6 +1,6 @@
 {
   "name": "@ahdclient/desktop",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-process": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.0.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },

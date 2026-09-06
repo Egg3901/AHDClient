@@ -18,6 +18,8 @@
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
+    "process:allow-restart",
+    "updater:default",
     "allow-close-embedded-game",
     "allow-linked-account",
     "allow-link-account",

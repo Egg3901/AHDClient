@@ -68,30 +68,27 @@ The `tauri icon` command generates icons for every platform. This repo commits
 the desktop set and the Android resources copied into `gen/android`; iOS and
 MSIX-only outputs are not release inputs.
 
-## Auto-updates (credential-blocked, disabled)
+## Auto-updates
 
-`tauri-plugin-updater` is **not** wired in yet. The release channel (where
-signed update manifests get hosted) and the signing keypair are an owner
-decision, not made here. What's staged for when that decision lands:
+Version 2.0.2 and later check the signed stable manifest at
+`https://ops.lakesidegames.net/downloads/AHDClient-latest.json`. The updater
+signature proves the installer was produced with the Lakeside release key; it
+is separate from Windows Authenticode publisher signing.
 
-- `apps/desktop/src-tauri/Cargo.toml` has a commented dependency line:
-  `# tauri-plugin-updater = "2"`
-- `apps/desktop/src-tauri/tauri.conf.updater.example.json` has the
-  `plugins.updater` config block to copy into `tauri.conf.json`
-  (`pubkey` + `endpoints`), with `TBD` placeholders for the host and key
+Set `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` in the
+release environment. Never commit or publish the private key. Tauri emits an
+`.exe.sig` beside the NSIS installer. Build `latest.json` after the artifact is
+at its final URL:
 
-To enable:
+```bash
+node scripts/generate-update-manifest.mjs \
+  https://ops.lakesidegames.net/downloads/ahdclient/AHDClient_2.0.2_x64-setup.exe \
+  apps/desktop/src-tauri/target/release/bundle/nsis/AHDClient_2.0.2_x64-setup.exe.sig
+```
 
-1. Pick and stand up an update-manifest host (owner decision).
-2. `npx tauri signer generate` — keep the private key out of the repo (secret
-   store / CI secret), commit only the public key into the config.
-3. Uncomment `tauri-plugin-updater` in `Cargo.toml`, add
-   `.plugin(tauri_plugin_updater::Builder::new().build())` in
-   `apps/desktop/src-tauri/src/lib.rs`.
-4. Merge the `plugins.updater` block from `tauri.conf.updater.example.json`
-   into `tauri.conf.json` with the real endpoint and pubkey.
-5. CI publishes a signed `latest.json` per target alongside each release
-   build, matching the endpoint template.
+Publish the installer first and `latest.json` last. This prevents a client
+from discovering an update whose artifact is not available yet. Every staged
+game includes `AHD_BUILD.json` with the client version and exact AHDGame commit.
 
 ## Verification before a release build
 

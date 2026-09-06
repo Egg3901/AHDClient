@@ -27,6 +27,7 @@ import {
   cacheSingleplayerEntitlement,
   hasCachedSingleplayerEntitlement,
 } from "./entitlement.js";
+import { UpdateNotice } from "./UpdateNotice.js";
 
 type Screen =
   | "launcher"
@@ -579,6 +580,7 @@ export function App(): JSX.Element {
 
   return (
     <>
+      <UpdateNotice />
       {accountNotice && !account && (
         <aside className="client-account-notice">
           <span>

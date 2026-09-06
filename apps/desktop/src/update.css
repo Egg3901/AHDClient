@@ -1,0 +1,21 @@
+.client-update-notice {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 24px;
+  border-bottom: 1px solid #8f692b;
+  background: #302818;
+  color: #f4ead8;
+  font-size: 14px;
+}
+
+.client-update-notice span { flex: 1; }
+.client-update-notice button {
+  padding: 8px 12px;
+  border: 1px solid #c99a4c;
+  border-radius: 5px;
+  background: #c39242;
+  color: #16120b;
+  cursor: pointer;
+  font-weight: 700;
+}
