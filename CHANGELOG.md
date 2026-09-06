@@ -2,7 +2,7 @@
 
 All notable AHDClient changes are recorded here.
 
-## [2.1.0] - 2026-09-06
+## [2.0.6] - 2026-09-06
 
 - Add Android and iOS builds of the launcher: the same lander, settings and account linking, with Multiplayer and Sandbox opening the live game inside the app. Singleplayer and Worldsim stay desktop only, since they run the game on the player's machine.
 - Return to the launcher from any online page on mobile with the AHD mark in the corner, or the system back button on Android.

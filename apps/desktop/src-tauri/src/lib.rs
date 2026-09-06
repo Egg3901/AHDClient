@@ -64,7 +64,7 @@ fn help_destination(route_id: &str) -> Option<HelpDestination> {
     "help.about" => Some(HelpDestination::Online("/about")),
     "help.profile" => Some(HelpDestination::Online("/profile")),
     "help.account" => Some(HelpDestination::Online("/settings")),
-    "help.report-issue" => Some(HelpDestination::External("https://github.com/Egg3901/AHDClient/issues/new?labels=bug&title=%5B2.1.0%5D%20&body=What%20happened%3F%0A%0ASteps%20to%20reproduce%3A%0A1.%20")),
+    "help.report-issue" => Some(HelpDestination::External("https://github.com/Egg3901/AHDClient/issues/new?labels=bug&title=%5B2.0.6%5D%20&body=What%20happened%3F%0A%0ASteps%20to%20reproduce%3A%0A1.%20")),
     "help.suggestions" => Some(HelpDestination::Online("/feedback")),
     "help.discord" => Some(HelpDestination::External("https://discord.gg/DmF8zJJuqN")),
     "help.patreon" => Some(HelpDestination::External(
