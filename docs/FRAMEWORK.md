@@ -88,3 +88,8 @@ route and its 30-day expiry index before enabling collection in a release.
 Windows release CI runs the bundled Node against a canonical long path through
 the same adapter used at launch. Linux tests cannot validate Windows runtime
 behavior. Game-side changes must land before the desktop release is packaged.
+
+The Node supervisor accepts `shutdown\n` on its stdin control pipe. Desktop
+stop sends this command before a bounded fallback kill so the supervisor can
+terminate the game server and MongoDB, including on Windows. Package the matching
+launcher script with the desktop; older supervisors do not implement this command.
