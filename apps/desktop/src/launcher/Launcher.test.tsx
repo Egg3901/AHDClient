@@ -40,11 +40,37 @@ function renderLauncher(overrides: Partial<Parameters<typeof Launcher>[0]> = {})
 describe("Launcher", () => {
   afterEach(cleanup);
 
-  it("offers every era and starts a new world in the chosen one", async () => {
+  it("keeps singleplayer actions together until New Game opens era selection", async () => {
     const props = renderLauncher();
-    await userEvent.click(screen.getByRole("button", { name: "2007" }));
-    await userEvent.click(screen.getByRole("button", { name: /New world/ }));
-    expect(props.onNewWorld).toHaveBeenCalledWith("2007");
+    expect(screen.getByRole("button", { name: "New Game" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Load Game" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Next era" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "New Game" }));
+    expect(screen.getByText("Cold War dawn")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Next era" }));
+    expect(screen.getByText("Late Cold War")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Previous era" }));
+    await userEvent.click(screen.getByRole("button", { name: /Start new game/ }));
+    expect(props.onNewWorld).toHaveBeenCalledWith("1953");
+  });
+
+  it("starts a new world in the selected era", async () => {
+    const props = renderLauncher();
+    await userEvent.click(screen.getByRole("button", { name: "New Game" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next era" }));
+    await userEvent.click(screen.getByRole("button", { name: /Start new game/ }));
+    expect(props.onNewWorld).toHaveBeenCalledWith("1979");
+  });
+
+  it("keeps era photography hidden until New Game and delegates source opening", async () => {
+    localStorage.removeItem("ahdclient.launcher.era");
+    const onPhotoSource = vi.fn();
+    renderLauncher({ onPhotoSource });
+    expect(screen.queryByAltText(/Eisenhower's 1953/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "New Game" }));
+    expect(screen.getByAltText(/Eisenhower's 1953/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Photo source" }));
+    expect(onPhotoSource).toHaveBeenCalledWith("1953");
   });
 
   it("continues the most recent world by slot", async () => {

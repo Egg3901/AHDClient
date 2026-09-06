@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { LAND_DOTS } from "../landDots.js";
+import topology from "../assets/countries-110m.json";
 
 export interface EraTheme {
   phosphor: string;
@@ -34,6 +34,37 @@ const CAPITALS: readonly { name: string; lat: number; lon: number }[] = [
 
 const DEG = Math.PI / 180;
 
+type TopologyArc = number[][];
+type CountryGeometry = { type: "Polygon" | "MultiPolygon"; arcs: number[][] | number[][][] };
+type CountryTopology = { arcs: TopologyArc[]; objects: { countries: { geometries: CountryGeometry[] } }; transform: { scale: [number, number]; translate: [number, number] } };
+
+function buildLandRings(source: CountryTopology): readonly (readonly [number, number][])[] {
+  const [sx, sy] = source.transform.scale;
+  const [tx, ty] = source.transform.translate;
+  const decoded = source.arcs.map((arc) => {
+    let x = 0;
+    let y = 0;
+    return arc.map(([dx, dy]) => {
+      x += dx!;
+      y += dy!;
+      return [x * sx + tx, y * sy + ty] as [number, number];
+    });
+  });
+  const ring = (indices: readonly number[]) => indices.flatMap((index) => {
+    // TopoJSON encodes reversed arcs as bitwise complements, not negatives.
+    const arc = decoded[index >= 0 ? index : ~index] ?? [];
+    return index >= 0 ? arc : [...arc].reverse();
+  });
+  return source.objects.countries.geometries.flatMap((geometry) => {
+    const polygons = geometry.type === "Polygon" ? [geometry.arcs as number[][]] : geometry.arcs as number[][][];
+    return polygons.map((polygon) => ring(polygon[0] ?? []));
+  });
+}
+
+const LAND_RINGS = buildLandRings(topology as unknown as CountryTopology);
+
+type ProjectedPoint = { x: number; y: number; z: number };
+
 interface Props {
   eraId: string;
   live?: boolean;
@@ -51,7 +82,7 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
     if (!ctx) return;
 
     const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let reduceMotion = mql.matches;
+    let reduceMotion = mql.matches || document.documentElement.dataset.animations === "off";
 
     let S = 0;
     let R = 0;
@@ -59,6 +90,7 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
     let raf = 0;
     let rot = 0;
     let last = performance.now();
+    let hidden = document.hidden;
 
     function resize(): void {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -79,56 +111,73 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
       ctx!.beginPath();
       ctx!.arc(cx, cy, R + S * 0.055, 0, Math.PI * 2);
       ctx!.clip();
-      ctx!.fillStyle = "#eee8dc";
+      // Keep the globe close to the main game's deep blue world treatment. The
+      // land remains deliberately quiet so the launcher reads as a setting,
+      // rather than a diagnostic display.
+      ctx!.fillStyle = "#081b2c";
       ctx!.fillRect(0, 0, S, S);
 
-      ctx!.strokeStyle = `rgba(${era.dim},0.18)`;
-      ctx!.lineWidth = 1;
-      for (let p = -60; p <= 60; p += 30) {
-        const lat = p * DEG;
-        const y = cy - R * Math.sin(lat);
-        const rx = R * Math.cos(lat);
-        ctx!.beginPath();
-        ctx!.ellipse(cx, y, rx, rx * 0.16, 0, 0, Math.PI * 2);
-        ctx!.stroke();
-      }
-      for (let m = 0; m < 12; m++) {
-        const lon0 = rot + (m * Math.PI) / 6;
-        ctx!.beginPath();
-        let started = false;
-        for (let t = -90; t <= 90; t += 4) {
-          const lat = t * DEG;
-          const x3 = Math.cos(lat) * Math.sin(lon0);
-          const y3 = Math.sin(lat);
-          const z3 = Math.cos(lat) * Math.cos(lon0);
-          if (z3 < 0) {
-            started = false;
-            continue;
-          }
-          const x = cx + R * x3;
-          const y = cy - R * y3;
-          if (!started) {
-            ctx!.moveTo(x, y);
-            started = true;
-          } else ctx!.lineTo(x, y);
-        }
-        ctx!.stroke();
-      }
-
-      for (let i = 0; i < LAND_DOTS.length; i++) {
-        const dot = LAND_DOTS[i]!;
-        const lon = dot[0] * DEG + rot;
-        const lat = dot[1] * DEG;
+      const project = (longitude: number, latitude: number): ProjectedPoint => {
+        const lon = longitude * DEG + rot;
+        const lat = latitude * DEG;
         const cosLat = Math.cos(lat);
         const x3 = cosLat * Math.sin(lon);
         const y3 = Math.sin(lat);
-        const z3 = cosLat * Math.cos(lon);
-        if (z3 < 0.02) continue;
-        ctx!.fillStyle = era.phosphor;
-        ctx!.globalAlpha = 0.24 + z3 * 0.58;
+        return { x: cx + R * x3, y: cy - R * y3, z: cosLat * Math.cos(lon) };
+      };
+
+      const horizonPoint = (
+        from: readonly [number, number],
+        to: readonly [number, number],
+        fromZ: number,
+      ): ProjectedPoint => {
+        let lo = 0;
+        let hi = 1;
+        // A short binary search gives a stable, smooth intersection at the
+        // sphere rim even when a country edge crosses it between vertices.
+        for (let i = 0; i < 8; i += 1) {
+          const t = (lo + hi) / 2;
+          const point = project(from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t);
+          if ((fromZ >= 0) === (point.z >= 0)) lo = t;
+          else hi = t;
+        }
+        const t = (lo + hi) / 2;
+        return project(from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t);
+      };
+
+      for (const land of LAND_RINGS) {
+        if (land.length < 2) continue;
         ctx!.beginPath();
-        ctx!.arc(cx + R * x3, cy - R * y3, 0.9 + z3 * 1.15, 0, Math.PI * 2);
+        let previous = land[land.length - 1]!;
+        let previousPoint = project(previous[0], previous[1]);
+        let started = false;
+        for (const current of land) {
+          const currentPoint = project(current[0], current[1]);
+          const previousVisible = previousPoint.z >= 0;
+          const currentVisible = currentPoint.z >= 0;
+          if (currentVisible !== previousVisible) {
+            const edge = horizonPoint(previous, current, previousPoint.z);
+            if (currentVisible) ctx!.moveTo(edge.x, edge.y);
+            else ctx!.lineTo(edge.x, edge.y);
+            started = currentVisible;
+          }
+          if (currentVisible) {
+            if (!started) ctx!.moveTo(currentPoint.x, currentPoint.y);
+            else ctx!.lineTo(currentPoint.x, currentPoint.y);
+            started = true;
+          } else {
+            started = false;
+          }
+          previous = current;
+          previousPoint = currentPoint;
+        }
+        ctx!.fillStyle = era.phosphor;
+        ctx!.globalAlpha = 0.72;
         ctx!.fill();
+        ctx!.globalAlpha = 0.38;
+        ctx!.strokeStyle = `rgba(${era.dim},0.72)`;
+        ctx!.lineWidth = 0.7;
+        ctx!.stroke();
       }
       ctx!.globalAlpha = 1;
 
@@ -153,9 +202,10 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
         ctx!.globalAlpha = 1;
       }
 
-      const vg = ctx!.createRadialGradient(cx, cy, R * 0.45, cx, cy, R * 1.08);
-      vg.addColorStop(0, "rgba(0,0,0,0)");
-      vg.addColorStop(1, `rgba(${era.dim},0.1)`);
+      const vg = ctx!.createRadialGradient(cx - R * 0.25, cy - R * 0.28, R * 0.2, cx, cy, R * 1.08);
+      vg.addColorStop(0, "rgba(255,255,255,0.05)");
+      vg.addColorStop(0.62, "rgba(0,0,0,0.08)");
+      vg.addColorStop(1, "rgba(0,0,0,0.52)");
       ctx!.fillStyle = vg;
       ctx!.fillRect(0, 0, S, S);
 
@@ -163,6 +213,11 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
       ctx!.lineWidth = 1.4;
       ctx!.beginPath();
       ctx!.arc(cx, cy, R, 0, Math.PI * 2);
+      ctx!.stroke();
+      ctx!.strokeStyle = "rgba(133,181,213,0.24)";
+      ctx!.lineWidth = Math.max(2, S * 0.012);
+      ctx!.beginPath();
+      ctx!.arc(cx, cy, R + S * 0.018, Math.PI * 0.86, Math.PI * 1.82);
       ctx!.stroke();
       ctx!.restore();
     }
@@ -176,14 +231,14 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
       last = now;
       if (!reduceMotion) rot += dt * 0.035;
       drawFrame();
-      if (!reduceMotion) {
+      if (!reduceMotion && !hidden) {
         raf = requestAnimationFrame(frame);
       }
     }
 
     resize();
     drawFrame();
-    if (!reduceMotion) {
+    if (!reduceMotion && !hidden) {
       raf = requestAnimationFrame(frame);
     }
     const handleResize = () => {
@@ -191,6 +246,19 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
       drawFrame();
     };
     window.addEventListener("resize", handleResize);
+    const onVisibilityChange = () => {
+      hidden = document.hidden;
+      if (hidden) cancelAnimationFrame(raf);
+      else if (!reduceMotion) { last = performance.now(); raf = requestAnimationFrame(frame); }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const onSettingsChange = () => {
+      reduceMotion = mql.matches || document.documentElement.dataset.animations === "off";
+      cancelAnimationFrame(raf);
+      if (!reduceMotion && !hidden) { last = performance.now(); raf = requestAnimationFrame(frame); }
+      else drawFrame();
+    };
+    document.addEventListener("ahdclient:settings", onSettingsChange);
 
     const onMotionChange = (e: MediaQueryListEvent) => {
       reduceMotion = e.matches;
@@ -209,6 +277,8 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", handleResize);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      document.removeEventListener("ahdclient:settings", onSettingsChange);
       if (typeof mql.removeEventListener === "function") {
         mql.removeEventListener("change", onMotionChange);
       }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-statistics-consent"
+description = "Enables the set_statistics_consent command without any pre-configured scope."
+commands.allow = ["set_statistics_consent"]
+
+[[permission]]
+identifier = "deny-set-statistics-consent"
+description = "Denies the set_statistics_consent command without any pre-configured scope."
+commands.deny = ["set_statistics_consent"]

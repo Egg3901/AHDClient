@@ -23,9 +23,11 @@ describe("desktop security configuration", () => {
   });
 
   it("keeps both remote-content windows capability-empty", () => {
-    expect(onlineCapability.windows).toEqual(["online"]);
+    expect(defaultCapability.webviews).toEqual(["main"]);
+    expect("windows" in defaultCapability).toBe(false);
+    expect(onlineCapability.webviews).toEqual(["online", "online-embedded"]);
     expect(onlineCapability.permissions).toEqual([]);
-    expect(gameCapability.windows).toEqual(["game"]);
+    expect(gameCapability.webviews).toEqual(["game", "game-embedded"]);
     expect(gameCapability.permissions).toEqual([]);
     for (const capability of [defaultCapability, onlineCapability, gameCapability]) {
       expect("remote" in capability).toBe(false);

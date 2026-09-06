@@ -51,3 +51,40 @@ A change to any of these is a change to this contract and lands in both reposito
 ## Verification
 
 `npm run verify` from the repo root (typecheck plus the bounded test suite) is the merge gate. Rust changes run `cargo test` in `apps/desktop/src-tauri` with a staged Node sidecar (`node scripts/prepare-game.mjs --node-only`). A release bundle requires the game staged as well (`node scripts/prepare-game.mjs --game-dir <AHDGame checkout>`), which the release workflow does from a fresh AHDGame checkout.
+
+## 2.0.1 integration
+
+Singleplayer and Worldsim are Beta. New worlds use `POST /api/singleplayer/setup`
+with `{preset, mode, difficulty, autonomyLevel, featureFlags?, displayName?}`.
+Modes are `normal`, `head-of-state`, and `worldsim`; difficulty is independent
+of the existing autonomy ladder. Normal players enter `/create-character`
+before `/profile`; simulations do not create a character. Status includes mode.
+The client stores setup choices with world metadata to recover interrupted setup.
+
+Worldsim advances through `POST /api/singleplayer/worldsim/advance {turns: 1}`
+in a client-owned, bounded loop. Cancellation finishes the current turn.
+`GET /api/singleplayer/worldsim/stats` returns native headline statistics;
+`/singleplayer/worldsim` is the optional spectator view. All these game routes
+must enforce `requireSingleplayer`, never hosted admin authorization.
+
+Gameplay defaults to a child webview inside the main native window, leaving a
+64px launcher toolbar. Separate windows remain optional. Capabilities target
+webview labels, not the containing window: only `main` has launcher IPC, and
+embedded/standalone game content has none. Resizing keeps the toolbar exposed.
+
+Account linking opens `/client/link`; Rust reads the platform WebView session
+cookie and requests `/api/client/account` on the fixed official HTTPS origin.
+Cookies are never returned over IPC or written to launcher storage. Offline
+play does not require an account; online entitlements are checked online.
+
+Statistics use `/api/singleplayer/statistics` for local allowlisted aggregates
+and `/api/client/statistics` for anonymous ingress. The HTTP sender is separate
+from the authenticated webview and sends no cookies or authorization. Sharing
+can be disabled in Settings or setup, which clears pending reports and gates
+native delivery. The offline queue is limited to 10 reports and 24 hours.
+Deploy the receiving endpoint with access-log IP retention disabled for this
+route and its 30-day expiry index before enabling collection in a release.
+
+Windows release CI runs the bundled Node against a canonical long path through
+the same adapter used at launch. Linux tests cannot validate Windows runtime
+behavior. Game-side changes must land before the desktop release is packaged.

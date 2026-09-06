@@ -2,6 +2,17 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.0.1]
+
+- Mark Singleplayer and Worldsim as Beta and add a playerless simulation entry.
+- Show New Game, Load Game and Continue before era selection; add historical era photos and a larger globe.
+- Add normal and Head of State setup, independent NPP difficulty/autonomy, and world feature controls.
+- Default gameplay to the launcher window, with a separate-window preference.
+- Add game account linking and supporter checks for Sandbox.
+- Add optional anonymous aggregate reports with bounded offline retention and immediate opt-out.
+- Adapt Windows resource paths before passing them to bundled Node and isolate database ports.
+- Guard process startup and stale exit events; pause launcher animation while hidden.
+
 ## [2.0.0] - 2026-09-05
 
 ### Changed

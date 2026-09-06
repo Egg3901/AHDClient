@@ -1,18 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import desktopPackage from "../../package.json";
 import ahdLogo from "../assets/ahd-logo.png";
 import { ERAS, eraForPreset } from "../worlds.js";
 import type { WorldMeta } from "../worlds.js";
 import { CommandGlobe, themeForEra } from "./CommandGlobe.js";
+import { ERA_PHOTOS } from "./eraPhotos.js";
 import "./launcher.css";
 
-type Mode = "sp" | "mp" | "sandbox";
+type Mode = "sp" | "mp" | "sandbox" | "worldsim";
 
 export type OnlineTarget = "live" | "sandbox";
 
 interface Props {
-  onNewWorld: (eraId: string) => void;
+  settingsControl?: ReactNode;
+  onPhotoSource?: (eraId: string) => void;
+  onNewWorld: (eraId: string, worldsim?: boolean) => void;
   onContinue: (slot: string) => void;
   onLoad: () => void;
   onPlayOnline: (target: OnlineTarget) => void;
@@ -43,6 +46,8 @@ function writePreference(key: string, value: string): void {
 }
 
 export function Launcher({
+  settingsControl,
+  onPhotoSource,
   onNewWorld,
   onContinue,
   onLoad,
@@ -56,12 +61,13 @@ export function Launcher({
   const eras = useMemo(() => ERAS, []);
   const [mode, setMode] = useState<Mode>(() => {
     const saved = readPreference(MODE_STORAGE_KEY);
-    return saved === "mp" || saved === "sandbox" ? saved : "sp";
+    return saved === "mp" || saved === "sandbox" || saved === "worldsim" ? saved : "sp";
   });
   const [eraId, setEraId] = useState<string>(() => {
     const saved = readPreference(ERA_STORAGE_KEY);
     return saved && eras.some(({ id }) => id === saved) ? saved : eras[0]?.id ?? "1953";
   });
+  const [choosingEra, setChoosingEra] = useState(false);
 
   useEffect(() => {
     if (eras.length > 0 && !eras.some((era) => era.id === eraId)) {
@@ -72,14 +78,15 @@ export function Launcher({
   useEffect(() => writePreference(MODE_STORAGE_KEY, mode), [mode]);
   useEffect(() => writePreference(ERA_STORAGE_KEY, eraId), [eraId]);
 
-  const multiplayer = mode !== "sp";
+  const multiplayer = mode === "mp" || mode === "sandbox";
   const onlineTarget: OnlineTarget = mode === "sandbox" ? "sandbox" : "live";
   const selectedEra = eras.find((era) => era.id === eraId) ?? eras[0];
   const latestEra = latestWorld ? eraForPreset(latestWorld.preset) : undefined;
   const latestRunning = latestWorld !== null && runningSlot === latestWorld.slot;
+  const selectedPhoto = selectedEra ? ERA_PHOTOS[selectedEra.id] : undefined;
 
   return (
-    <main className="launcher-scope" data-mode={mode}>
+    <main className="launcher-scope" data-mode={mode} data-choosing-era={choosingEra && !multiplayer}>
       <div
         className="launcher-pattern"
         aria-hidden="true"
@@ -96,6 +103,7 @@ export function Launcher({
             <h1 id="launcher-title">A House Divided</h1>
             <p className="launcher-subtitle">A historical political simulation</p>
           </div>
+          {settingsControl && <div className="launcher-settings">{settingsControl}</div>}
         </header>
 
         <div className="launcher-console">
@@ -106,7 +114,7 @@ export function Launcher({
               onClick={() => setMode("sp")}
               aria-pressed={mode === "sp"}
             >
-              Singleplayer
+              Singleplayer <span className="client-beta">Beta</span>
             </button>
             <button
               className={mode === "mp" ? "active" : ""}
@@ -121,6 +129,10 @@ export function Launcher({
               aria-pressed={mode === "sandbox"}
             >
               Sandbox
+            </button>
+            <button className={mode === "worldsim" ? "active" : ""}
+              onClick={() => { setMode("worldsim"); setChoosingEra(false); }} aria-pressed={mode === "worldsim"}>
+              Worldsim <span className="client-beta">Beta</span>
             </button>
           </div>
 
@@ -143,42 +155,49 @@ export function Launcher({
                 </small>
               </span>
             </div>
-          ) : (
-            <div className="launcher-era-panel">
+          ) : choosingEra ? (
+            <div className="launcher-era-panel" aria-label="New game setup">
               <div className="launcher-panel-label">
+                <button className="launcher-back" onClick={() => setChoosingEra(false)}>Back</button>
                 <span>Choose a starting era</span>
                 <span>{eras.length} eras</span>
               </div>
-              <div className="launcher-era-row">
-                {eras.map((era) => {
-                  const active = era.id === eraId;
-                  const theme = themeForEra(era.id);
-                  return (
-                    <button
-                      key={era.id}
-                      className={`launcher-era-chip${active ? " active" : ""}`}
-                      onClick={() => setEraId(era.id)}
-                      aria-pressed={active}
-                      title={era.subtitle}
-                    >
-                      <span
-                        className="launcher-era-swatch"
-                        style={{ backgroundColor: active ? theme.phosphor : undefined }}
-                        aria-hidden="true"
-                      />
-                      <span>{era.id}</span>
-                    </button>
-                  );
+              <div className="launcher-era-carousel">
+                {[-1, 1].map((offset) => {
+                  const era = eras[(eras.findIndex((item) => item.id === eraId) + offset + eras.length) % eras.length]!;
+                  return <div key={offset} className={`launcher-era-preview ${offset < 0 ? "previous" : "next"}`} aria-hidden="true">
+                    <img src={ERA_PHOTOS[era.id]?.src} alt="" /><span>{era.label}</span>
+                  </div>;
                 })}
+                <button className="launcher-era-arrow" aria-label="Previous era" onClick={() => {
+                  const index = eras.findIndex((era) => era.id === eraId);
+                  setEraId(eras[(index - 1 + eras.length) % eras.length]!.id);
+                }}>‹</button>
+                <div className="launcher-era-card" aria-live="polite">
+                  {selectedPhoto && (
+                    <img className="launcher-era-photo" src={selectedPhoto.src} alt={selectedPhoto.alt} />
+                  )}
+                  <span className="launcher-era-year">{selectedEra?.label}</span>
+                  <strong>{selectedEra?.subtitle}</strong>
+                  <span>{selectedEra?.startDate}</span>
+                  <p>{selectedEra?.description}</p>
+                  <p className="launcher-playable"><strong>Playable nations</strong><br />{selectedEra?.playableNations?.join(" · ") || "Availability is checked during setup"}</p>
+                  {selectedPhoto && (
+                    <div className="launcher-era-attribution">
+                      <span>{selectedPhoto.credit} · {selectedPhoto.license}</span>
+                      {onPhotoSource ? (
+                        <button type="button" onClick={() => onPhotoSource(selectedEra!.id)}>Photo source</button>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+                <button className="launcher-era-arrow" aria-label="Next era" onClick={() => {
+                  const index = eras.findIndex((era) => era.id === eraId);
+                  setEraId(eras[(index + 1) % eras.length]!.id);
+                }}>›</button>
               </div>
-              <dl className="launcher-era-facts" aria-live="polite">
-                <div><dt>Period</dt><dd>{selectedEra?.subtitle ?? "Unknown"}</dd></div>
-                <div><dt>Begins</dt><dd>{selectedEra?.startDate ?? "Unknown"}</dd></div>
-              </dl>
             </div>
-          )}
-
-          <CommandGlobe eraId={eraId} live={multiplayer} />
+          ) : null}
 
           <div className="launcher-actions">
             {multiplayer ? (
@@ -190,13 +209,23 @@ export function Launcher({
                 >
                   {mode === "sandbox" ? "Enter sandbox" : "Enter multiplayer"} <span aria-hidden="true">&#8599;</span>
                 </button>
-                <p className="launcher-caption">Opens in its own window.</p>
+
               </>
             ) : (
               <>
+                <button
+                  className="launcher-btn launcher-btn-primary"
+                  onClick={() => choosingEra ? (mode === "worldsim" ? onNewWorld(eraId, true) : onNewWorld(eraId)) : setChoosingEra(true)}
+                  disabled={continueBusy}
+                >
+                  {choosingEra ? "Start new game" : "New Game"} <span aria-hidden="true">&#8594;</span>
+                </button>
+                <button className="launcher-btn launcher-btn-secondary" onClick={onLoad} disabled={continueBusy}>
+                  Load Game
+                </button>
                 {latestWorld && (
                   <button
-                    className="launcher-btn launcher-btn-primary launcher-btn-continue"
+                    className="launcher-btn launcher-btn-secondary launcher-btn-continue"
                     onClick={() => onContinue(latestWorld.slot)}
                     disabled={continueBusy}
                     aria-busy={continueBusy}
@@ -213,19 +242,11 @@ export function Launcher({
                     <span aria-hidden="true">&#8594;</span>
                   </button>
                 )}
-                <button
-                  className={`launcher-btn ${latestWorld ? "launcher-btn-secondary" : "launcher-btn-primary"}`}
-                  onClick={() => onNewWorld(eraId)}
-                  disabled={continueBusy}
-                >
-                  New world <span aria-hidden="true">&#8594;</span>
-                </button>
-                <button className="launcher-btn launcher-btn-secondary" onClick={onLoad} disabled={continueBusy}>
-                  All worlds
-                </button>
               </>
             )}
           </div>
+
+          <CommandGlobe eraId={eraId} live={multiplayer} />
         </div>
       </section>
 
