@@ -11,7 +11,9 @@ if (!artifact || !signatureFile) {
 const version = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).version;
 const changelog = readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
 const escaped = version.replaceAll(".", "\\.");
-const notes = changelog.match(new RegExp(`## \\[${escaped}\\]\\n\\n([\\s\\S]*?)(?=\\n## |$)`))?.[1]?.trim();
+const notes = changelog.match(
+  new RegExp(`## \\[${escaped}\\](?:[^\\n]*)\\n\\n([\\s\\S]*?)(?=\\n## |$)`),
+)?.[1]?.trim();
 if (!notes) throw new Error(`CHANGELOG.md has no notes for ${version}`);
 
 writeFileSync(
