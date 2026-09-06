@@ -163,6 +163,18 @@ export async function stageGame(gameDir, triple, { skipBuild = false } = {}) {
   // Keep exactly the target platform's native modules. Foreign ones are dead
   // weight, and linuxdeploy refuses an AppDir holding an ELF linked to musl.
   await stageNativeVariants(staging, triple);
+  const revision = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd: gameDir,
+    encoding: "utf8",
+  });
+  if (revision.status !== 0) {
+    throw new Error(`could not record the bundled AHDGame revision for ${gameDir}`);
+  }
+  const clientVersion = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
+  writeFileSync(
+    path.join(staging, "AHD_BUILD.json"),
+    `${JSON.stringify({ clientVersion, gameCommit: revision.stdout.trim() }, null, 2)}\n`,
+  );
   rmSync(dest, { recursive: true, force: true });
   renameSync(staging, dest);
   // tauri-build copies resources next to the binary at compile time and
