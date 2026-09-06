@@ -8,22 +8,51 @@ import { WorldsimScreen } from "./screens/WorldsimScreen.js";
 import type { SetupOptions } from "./screens/setupOptions.js";
 import { PlayingScreen } from "./screens/PlayingScreen.js";
 import { eraById, game, online, slugForWorld, worlds } from "./worlds.js";
-import type { GameInfo, OnlineTarget, WorldMeta } from "./worlds.js";
+import type {
+  GameInfo,
+  LinkedAccount,
+  OnlineTarget,
+  WorldMeta,
+} from "./worlds.js";
 import "./screens/screens.css";
-import { captureStatistics, flushStatistics, setStatisticsConsent } from "./statisticsDelivery.js";
+import {
+  captureStatistics,
+  flushStatistics,
+  setStatisticsConsent,
+} from "./statisticsDelivery.js";
 import { SettingsMenu } from "./SettingsMenu.js";
 import { applySettings, readSettings, writeSettings } from "./settings.js";
 import type { ClientSettings } from "./settings.js";
+import {
+  cacheSingleplayerEntitlement,
+  hasCachedSingleplayerEntitlement,
+} from "./entitlement.js";
 
-type Screen = "launcher" | "newWorld" | "worlds" | "booting" | "playing" | "online" | "linking" | "worldsim";
+type Screen =
+  | "launcher"
+  | "newWorld"
+  | "worlds"
+  | "booting"
+  | "playing"
+  | "online"
+  | "linking"
+  | "worldsim";
 
 const IDLE: GameInfo = { running: false, port: null, slot: null, url: null };
 const LOG_LINES = 14;
 function accountNoticeSeen(): boolean {
-  try { return localStorage.getItem("ahdclient.accountNotice") === "seen"; } catch { return false; }
+  try {
+    return localStorage.getItem("ahdclient.accountNotice") === "seen";
+  } catch {
+    return false;
+  }
 }
 function rememberAccountNotice(): void {
-  try { localStorage.setItem("ahdclient.accountNotice", "seen"); } catch { /* Session state still remembers dismissal. */ }
+  try {
+    localStorage.setItem("ahdclient.accountNotice", "seen");
+  } catch {
+    /* Session state still remembers dismissal. */
+  }
 }
 
 export function App(): JSX.Element {
@@ -41,16 +70,22 @@ export function App(): JSX.Element {
   const bootId = useRef(0);
   const creating = useRef(false);
   const [settings, setSettings] = useState(readSettings);
-  const [account, setAccount] = useState<{ displayName: string; supporter: boolean } | null>(null);
+  const [account, setAccount] = useState<LinkedAccount | null>(null);
   const [accountChecked, setAccountChecked] = useState(false);
   const [embedded, setEmbedded] = useState(false);
-  const [accountNotice, setAccountNotice] = useState(() => !accountNoticeSeen());
+  const [accountNotice, setAccountNotice] = useState(
+    () => !accountNoticeSeen(),
+  );
   useEffect(() => {
     applySettings(settings);
-    void setStatisticsConsent(settings.shareStatistics).then(() => flushStatistics()).catch(() => {});
+    void setStatisticsConsent(settings.shareStatistics)
+      .then(() => flushStatistics())
+      .catch(() => {});
   }, [settings]);
   useEffect(() => {
-    const retry = () => { void flushStatistics(); };
+    const retry = () => {
+      void flushStatistics();
+    };
     window.addEventListener("online", retry);
     return () => window.removeEventListener("online", retry);
   }, []);
@@ -59,17 +94,53 @@ export function App(): JSX.Element {
     // leave previously queued reports available for transmission.
     if (!next.shareStatistics) void setStatisticsConsent(false).catch(() => {});
     setSettings(next);
-    try { writeSettings(next); } catch { setError("Settings could not be saved on this device."); }
+    try {
+      writeSettings(next);
+    } catch {
+      setError("Settings could not be saved on this device.");
+    }
   };
   const checkAccount = useCallback(async () => {
     try {
       const linked = await online.account();
+      if (linked?.singleplayer)
+        cacheSingleplayerEntitlement(linked.singleplayer);
       setAccount(linked?.linked ? linked : null);
       setAccountChecked(true);
       return linked;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }, []);
-  useEffect(() => { void checkAccount(); }, [checkAccount]);
+  const requireSingleplayerEntitlement =
+    useCallback(async (): Promise<boolean> => {
+      try {
+        const linked = await online.account();
+        setAccount(linked?.linked ? linked : null);
+        setAccountChecked(true);
+        if (linked?.singleplayer.entitled) {
+          cacheSingleplayerEntitlement(linked.singleplayer);
+          return true;
+        }
+        setError(
+          linked
+            ? "Singleplayer access is not enabled for this account."
+            : "Link an entitled game account to use singleplayer.",
+        );
+        setScreen("launcher");
+        return false;
+      } catch {
+        if (hasCachedSingleplayerEntitlement()) return true;
+        setError(
+          "Singleplayer needs an entitled account. Connect once to validate access.",
+        );
+        setScreen("launcher");
+        return false;
+      }
+    }, []);
+  useEffect(() => {
+    void checkAccount();
+  }, [checkAccount]);
   useEffect(() => {
     if (screen !== "linking") return;
     let active = true;
@@ -85,10 +156,14 @@ export function App(): JSX.Element {
         setScreen("launcher");
         setAccountNotice(false);
         rememberAccountNotice();
-      } else if (Date.now() < deadline) timer = setTimeout(() => void poll(), 2500);
+      } else if (Date.now() < deadline)
+        timer = setTimeout(() => void poll(), 2500);
     };
     void poll();
-    return () => { active = false; clearTimeout(timer); };
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [screen, checkAccount]);
 
   const refreshWorlds = useCallback(async () => {
@@ -101,7 +176,10 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     void refreshWorlds();
-    void game.status().then(setInfo).catch(() => setInfo(IDLE));
+    void game
+      .status()
+      .then(setInfo)
+      .catch(() => setInfo(IDLE));
   }, [refreshWorlds]);
 
   useEffect(() => {
@@ -125,7 +203,8 @@ export function App(): JSX.Element {
       }),
     ];
     return () => {
-      for (const subscription of subscriptions) void subscription.then((unlisten) => unlisten());
+      for (const subscription of subscriptions)
+        void subscription.then((unlisten) => unlisten());
     };
     // recordProgress reads the latest info through a ref-free closure below;
     // re-subscribing on every info change would drop events mid-boot.
@@ -155,7 +234,10 @@ export function App(): JSX.Element {
    * game window. The boot screen shows the server's own log lines so a
    * first-run MongoDB download reads as progress rather than a hang.
    */
-  const boot = async (slot: string, fresh: { preset: string; displayName?: string; setup: SetupOptions } | null) => {
+  const boot = async (
+    slot: string,
+    fresh: { preset: string; displayName?: string; setup: SetupOptions } | null,
+  ) => {
     const generation = ++bootId.current;
     cancelled.current = false;
     setBusy(true);
@@ -168,20 +250,29 @@ export function App(): JSX.Element {
       if (cancelled.current || generation !== bootId.current) return;
       setInfo(started);
       if (fresh) {
-        setLog((lines) => [...lines, "Seeding countries, parties, markets and the electorate"].slice(-LOG_LINES));
+        setLog((lines) =>
+          [
+            ...lines,
+            "Seeding countries, parties, markets and the electorate",
+          ].slice(-LOG_LINES),
+        );
         await game.setup(fresh.preset, fresh.setup, fresh.displayName);
         if (cancelled.current || generation !== bootId.current) return;
       }
       let status = await game.singleplayerStatus();
       if (!status.hasWorld) {
         const saved = allWorlds.find((world) => world.slot === slot);
-        if (!saved?.setup) throw new Error("This world did not finish setup. Start a new game to create it.");
+        if (!saved?.setup)
+          throw new Error(
+            "This world did not finish setup. Start a new game to create it.",
+          );
         await game.setup(saved.preset, saved.setup);
         status = await game.singleplayerStatus();
       }
       if (cancelled.current || generation !== bootId.current) return;
       await worlds.touch(slot, status.turn, status.characterName);
-      const simulation = status.mode === "worldsim" || fresh?.setup.mode === "worldsim";
+      const simulation =
+        status.mode === "worldsim" || fresh?.setup.mode === "worldsim";
       setRunningWorldsim(simulation);
       if (simulation) {
         await refreshWorlds();
@@ -189,7 +280,10 @@ export function App(): JSX.Element {
         setScreen("worldsim");
         return;
       }
-      await game.openWindow(status.hasCharacter ? "/profile" : "/create-character", settings.separateWindow);
+      await game.openWindow(
+        status.hasCharacter ? "/profile" : "/create-character",
+        settings.separateWindow,
+      );
       setEmbedded(!settings.separateWindow);
       await refreshWorlds();
       setScreen("playing");
@@ -219,12 +313,20 @@ export function App(): JSX.Element {
     setScreen("newWorld");
   };
 
-  const handleCreate = async (name: string, displayName: string, setup: SetupOptions) => {
+  const handleCreate = async (
+    name: string,
+    displayName: string,
+    setup: SetupOptions,
+  ) => {
     if (creating.current) return;
+    if (!(await requireSingleplayerEntitlement())) return;
     const era = eraById(pendingEra ?? "");
     if (!era) return fail(new Error("Pick an era first."));
     creating.current = true;
-    const slot = slugForWorld(name, allWorlds.map((w) => w.slot));
+    const slot = slugForWorld(
+      name,
+      allWorlds.map((w) => w.slot),
+    );
     try {
       await worlds.create(slot, name.trim() || era.label, era.preset, setup);
       await refreshWorlds();
@@ -233,17 +335,36 @@ export function App(): JSX.Element {
       return fail(e);
     }
     const trimmed = displayName.trim();
-    try { await boot(slot, { preset: era.preset, setup, ...(trimmed ? { displayName: trimmed } : {}) }); }
-    finally { creating.current = false; }
+    try {
+      await boot(slot, {
+        preset: era.preset,
+        setup,
+        ...(trimmed ? { displayName: trimmed } : {}),
+      });
+    } finally {
+      creating.current = false;
+    }
   };
 
   const handleContinue = (slot: string) => {
-    if (info.running && info.slot === slot) {
-      if (runningWorldsim) { setScreen("worldsim"); return; }
-      void game.openWindow("/profile", settings.separateWindow).then(() => { setEmbedded(!settings.separateWindow); setScreen("playing"); }).catch(fail);
-      return;
-    }
-    void boot(slot, null);
+    void (async () => {
+      if (!(await requireSingleplayerEntitlement())) return;
+      if (info.running && info.slot === slot) {
+        if (runningWorldsim) {
+          setScreen("worldsim");
+          return;
+        }
+        void game
+          .openWindow("/profile", settings.separateWindow)
+          .then(() => {
+            setEmbedded(!settings.separateWindow);
+            setScreen("playing");
+          })
+          .catch(fail);
+        return;
+      }
+      void boot(slot, null);
+    })();
   };
 
   const handleDelete = async (slot: string) => {
@@ -268,18 +389,41 @@ export function App(): JSX.Element {
 
   const handlePlayOnline = (target: OnlineTarget) => {
     setError(null);
-    void online.open(target, settings.separateWindow).then(() => {
-      setEmbedded(!settings.separateWindow);
-      if (!settings.separateWindow) setScreen("online");
-    }).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    if (target === "sandbox") {
+      void online
+        .account()
+        .then((linked) => {
+          setAccount(linked?.linked ? linked : null);
+          setAccountChecked(true);
+          if (!linked?.linked || !linked.supporter) return;
+          return online.open(target, settings.separateWindow).then(() => {
+            setEmbedded(!settings.separateWindow);
+            if (!settings.separateWindow) setScreen("online");
+          });
+        })
+        .catch(() =>
+          setError("Connect to the internet to check sandbox access."),
+        );
+      return;
+    }
+    void online
+      .open(target, settings.separateWindow)
+      .then(() => {
+        setEmbedded(!settings.separateWindow);
+        if (!settings.separateWindow) setScreen("online");
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   };
 
   const linkAccount = () => {
     setError(null);
-    void online.link(settings.separateWindow).then(() => {
-      setEmbedded(!settings.separateWindow);
-      setScreen("linking");
-    }).catch(fail);
+    void online
+      .link(settings.separateWindow)
+      .then(() => {
+        setEmbedded(!settings.separateWindow);
+        setScreen("linking");
+      })
+      .catch(fail);
   };
   const returnToLauncher = async () => {
     await game.closeEmbedded();
@@ -287,21 +431,72 @@ export function App(): JSX.Element {
     await recordProgress();
     setScreen("launcher");
   };
-  const settingsControl = <SettingsMenu settings={settings} onChange={changeSettings}
-    onLinkAccount={linkAccount} accountLabel={account ? `${account.displayName}${account.supporter ? " · Supporter" : ""}` : accountChecked ? undefined : "Account status unavailable offline"} />;
+  const settingsControl = (
+    <SettingsMenu
+      settings={settings}
+      onChange={changeSettings}
+      onLinkAccount={linkAccount}
+      accountLabel={
+        account
+          ? `${account.displayName}${account.supporter ? " · Supporter" : ""}`
+          : accountChecked
+            ? undefined
+            : "Account status unavailable offline"
+      }
+    />
+  );
   const latest = allWorlds[0] ?? null;
-  if (embedded && (screen === "playing" || screen === "online" || screen === "linking")) {
-    return <main><nav className="client-game-toolbar" aria-label="Client controls">
-      <button onClick={() => void returnToLauncher().catch(fail)}>Launcher</button>
-      <strong>{screen === "linking" ? "Link your game account" : "A House Divided"}</strong>
-      {screen === "playing" && runningWorldsim && <button onClick={() => { void game.closeEmbedded().then(() => { setEmbedded(false); setScreen("worldsim"); }); }}>World statistics</button>}
-      {screen === "playing" && <button onClick={() => void handleStop()}>Save and stop</button>}
-    </nav></main>;
+  const sandboxGate = !accountChecked
+    ? null
+    : !account
+      ? "unlinked"
+      : !account.supporter
+        ? "upgrade"
+        : null;
+  if (
+    embedded &&
+    (screen === "playing" || screen === "online" || screen === "linking")
+  ) {
+    return (
+      <main>
+        <nav className="client-game-toolbar" aria-label="Client controls">
+          <button onClick={() => void returnToLauncher().catch(fail)}>
+            Launcher
+          </button>
+          <strong>
+            {screen === "linking"
+              ? "Link your game account"
+              : "A House Divided"}
+          </strong>
+          {screen === "playing" && runningWorldsim && (
+            <button
+              onClick={() => {
+                void game.closeEmbedded().then(() => {
+                  setEmbedded(false);
+                  setScreen("worldsim");
+                });
+              }}
+            >
+              World statistics
+            </button>
+          )}
+          {screen === "playing" && (
+            <button onClick={() => void handleStop()}>Save and stop</button>
+          )}
+        </nav>
+      </main>
+    );
   }
   if (screen === "linking") {
-    return <main className="launcher-scope screen-scope"><h1>Link your game account</h1>
-      <p>Complete sign-in in the game window. Your session stays in the app.</p>
-      <button onClick={() => setScreen("launcher")}>Back to launcher</button></main>;
+    return (
+      <main className="launcher-scope screen-scope">
+        <h1>Link your game account</h1>
+        <p>
+          Complete sign-in in the game window. Your session stays in the app.
+        </p>
+        <button onClick={() => setScreen("launcher")}>Back to launcher</button>
+      </main>
+    );
   }
 
   if (screen === "newWorld" && pendingEra) {
@@ -312,7 +507,9 @@ export function App(): JSX.Element {
           era={era}
           initialWorldsim={pendingWorldsim}
           shareStatistics={settings.shareStatistics}
-          onStatisticsChange={(shareStatistics) => changeSettings({ ...settings, shareStatistics })}
+          onStatisticsChange={(shareStatistics) =>
+            changeSettings({ ...settings, shareStatistics })
+          }
           taken={allWorlds.map((w) => w.name)}
           onBack={() => setScreen("launcher")}
           onCreate={handleCreate}
@@ -322,10 +519,26 @@ export function App(): JSX.Element {
   }
 
   if (screen === "worldsim" && info.running && info.slot) {
-    return <WorldsimScreen name={allWorlds.find((world) => world.slot === info.slot)?.name ?? "World simulation"}
-      onBack={() => setScreen("launcher")} onStop={handleStop}
-      onTurnCompleted={() => captureStatistics(info.slot!)}
-      onView={() => { void game.openWindow("/singleplayer/worldsim", settings.separateWindow).then(() => { setEmbedded(!settings.separateWindow); if (!settings.separateWindow) setScreen("playing"); }).catch(fail); }} />;
+    return (
+      <WorldsimScreen
+        name={
+          allWorlds.find((world) => world.slot === info.slot)?.name ??
+          "World simulation"
+        }
+        onBack={() => setScreen("launcher")}
+        onStop={handleStop}
+        onTurnCompleted={() => captureStatistics(info.slot!)}
+        onView={() => {
+          void game
+            .openWindow("/singleplayer/worldsim", settings.separateWindow)
+            .then(() => {
+              setEmbedded(!settings.separateWindow);
+              if (!settings.separateWindow) setScreen("playing");
+            })
+            .catch(fail);
+        }}
+      />
+    );
   }
   if (screen === "worlds") {
     return (
@@ -342,7 +555,14 @@ export function App(): JSX.Element {
   }
 
   if (screen === "booting") {
-    return <BootScreen title={bootTitle} lines={log} onCancel={cancelBoot} />;
+    return (
+      <BootScreen
+        title={bootTitle}
+        lines={log}
+        onCancel={cancelBoot}
+        showDebug={settings.showBootLogs}
+      />
+    );
   }
 
   if (screen === "playing" && info.running) {
@@ -359,20 +579,43 @@ export function App(): JSX.Element {
 
   return (
     <>
-    {accountNotice && !account && <aside className="client-account-notice"><span>Link your game account for multiplayer and supporter access. Singleplayer works offline.</span><button onClick={linkAccount}>Link account</button><button onClick={() => { setAccountNotice(false); rememberAccountNotice(); }}>Later</button></aside>}
-    <Launcher
-      settingsControl={settingsControl}
-      onPhotoSource={(eraId) => { void online.help(`help.era-photo-${eraId}`).catch(fail); }}
-      onNewWorld={handleNewWorld}
-      onContinue={handleContinue}
-      onLoad={() => setScreen("worlds")}
-      onPlayOnline={handlePlayOnline}
-      error={error}
-      onClearError={() => setError(null)}
-      latestWorld={latest}
-      runningSlot={info.running ? info.slot : null}
-      continueBusy={busy}
-    />
+      {accountNotice && !account && (
+        <aside className="client-account-notice">
+          <span>
+            Link an entitled game account to use Singleplayer and Worldsim.
+            After validation, access works offline for a limited period.
+          </span>
+          <button onClick={linkAccount}>Link account</button>
+          <button
+            onClick={() => {
+              setAccountNotice(false);
+              rememberAccountNotice();
+            }}
+          >
+            Later
+          </button>
+        </aside>
+      )}
+      <Launcher
+        settingsControl={settingsControl}
+        onPhotoSource={(eraId) => {
+          void online.help(`help.era-photo-${eraId}`).catch(fail);
+        }}
+        onNewWorld={handleNewWorld}
+        onContinue={handleContinue}
+        onLoad={() => setScreen("worlds")}
+        onPlayOnline={handlePlayOnline}
+        error={error}
+        onClearError={() => setError(null)}
+        latestWorld={latest}
+        runningSlot={info.running ? info.slot : null}
+        continueBusy={busy}
+        sandboxGate={sandboxGate}
+        onLinkAccount={linkAccount}
+        onUpgradeSupporter={() => {
+          void online.help("help.patreon").catch(fail);
+        }}
+      />
     </>
   );
 }

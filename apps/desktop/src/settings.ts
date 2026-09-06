@@ -2,11 +2,13 @@ export interface ClientSettings {
   separateWindow: boolean;
   animations: boolean;
   shareStatistics: boolean;
+  showBootLogs: boolean;
 }
 export const DEFAULT_SETTINGS: ClientSettings = {
   separateWindow: false,
   animations: true,
   shareStatistics: true,
+  showBootLogs: false,
 };
 const KEY = "ahdclient.settings.v1";
 export function readSettings(): ClientSettings {
@@ -19,12 +21,20 @@ export function readSettings(): ClientSettings {
       if (typeof value === "boolean") result[key] = value;
     }
     return result;
-  } catch { return { ...DEFAULT_SETTINGS }; }
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
 }
 export function writeSettings(settings: ClientSettings): void {
-  try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* Keep current-session settings when storage is unavailable. */ }
+  try {
+    localStorage.setItem(KEY, JSON.stringify(settings));
+  } catch {
+    /* Keep current-session settings when storage is unavailable. */
+  }
 }
 export function applySettings(settings: ClientSettings): void {
-  document.documentElement.dataset.animations = settings.animations ? "on" : "off";
+  document.documentElement.dataset.animations = settings.animations
+    ? "on"
+    : "off";
   window.dispatchEvent(new CustomEvent("ahdclient:settings"));
 }

@@ -566,13 +566,28 @@ struct LinkedAccount {
   linked: bool,
   display_name: String,
   supporter: bool,
+  #[serde(default)]
+  singleplayer: SingleplayerEntitlement,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct SingleplayerEntitlement {
+  entitled: bool,
+  expires_at: Option<String>,
 }
 
 #[tauri::command]
 async fn linked_account(app: AppHandle) -> Result<Option<LinkedAccount>, String> {
   // Read the platform WebView cookie store. Credentials never cross IPC or
   // enter launcher storage, telemetry, URLs or log messages.
-  let view = app.get_webview("main").ok_or("launcher is missing")?;
+  // A new link is completed inside the online child WebView. Reading only the
+  // launcher cookie jar made a successful sign-in invisible until restart.
+  let view = app
+    .get_webview("online-embedded")
+    .or_else(|| app.get_webview("online"))
+    .or_else(|| app.get_webview("main"))
+    .ok_or("launcher is missing")?;
   let url: Url = format!("{ONLINE_URL}/api/client/account").parse().map_err(|_| "invalid account URL")?;
   let cookies = view.cookies_for_url(url).map_err(|_| "cannot access the app session")?;
   let header = cookies.iter()
