@@ -28,7 +28,10 @@ export const FEATURE_OPTIONS = [
   { key: "seasonRecapEnabled", label: "Season recaps", description: "Show a recap of major events at the end of each season.", category: "Player systems", defaultValue: true },
   { key: "corpDealsEnabled", label: "Corporate deals", description: "Enable acquisitions and other corporation-to-corporation deals.", category: "Economy", defaultValue: true },
   { key: "intOrgAlignmentEnabled", label: "International organization alignment", description: "Enable alignment and influence in international organizations.", category: "Politics", defaultValue: true },
-  { key: "nppCorpStrategyEnabled", label: "NPP corporate strategy (V5)", description: "Allow autonomous countries to run corporate strategy at the current core level.", category: "Advanced world settings", defaultValue: true },
+  // Deliberately NOT labelled "(V5)". That digit is the fifth iteration of the
+// game's CORPORATE brain and has nothing to do with the autonomy ladder's v5
+// tier, which is now a selectable option two fields up on the same screen.
+{ key: "nppCorpStrategyEnabled", label: "NPP corporate strategy", description: "Allow autonomous countries to run corporate strategy for the companies they own.", category: "Advanced world settings", defaultValue: true },
   { key: "livingConflictsEnabled", label: "Living conflicts", description: "Keep conflicts active through persistent campaigns and responses.", category: "World systems", defaultValue: true },
   { key: "nppOffensiveInitiationEnabled", label: "NPP offensive initiation", description: "Allow autonomous countries to initiate military offensives.", category: "Advanced world settings", defaultValue: false },
   { key: "nppOffensiveJoinEnabled", label: "NPP offensive support", description: "Allow autonomous countries to join another country's offensive.", category: "Advanced world settings", defaultValue: false },

@@ -20,6 +20,15 @@ interface Props {
   onStatisticsChange?: (share: boolean) => void;
 }
 
+/**
+ * Autonomy is WHAT the world's politicians do; difficulty is HOW WELL they do
+ * it. Keeping the two descriptions honest matters more here than anywhere else
+ * in the client, because this screen is the only place a player is told which
+ * is which.
+ */
+const AUTONOMY_HELP =
+  "What the world's politicians are allowed to do. Each step adds activities, not skill.";
+
 const AUTONOMY_OPTIONS: readonly { value: SetupAutonomy; label: string; description: string }[] = [
   { value: "off", label: "Off", description: "Countries follow authored rules only." },
   { value: "v0", label: "V0", description: "Light autonomous political activity." },
@@ -27,12 +36,55 @@ const AUTONOMY_OPTIONS: readonly { value: SetupAutonomy; label: string; descript
   { value: "v2", label: "V2", description: "Active autonomous political activity." },
   { value: "v3", label: "V3", description: "Strong autonomous political activity." },
   { value: "v4", label: "V4", description: "Full autonomous political activity." },
+  { value: "v5", label: "V5 (beta)", description: "Governments hold long-term goals and follow through on them." },
 ];
 
-const DIFFICULTIES: readonly { value: SetupDifficulty; label: string; description: string }[] = [
-  { value: "easy", label: "Easy", description: "More forgiving conditions while you learn." },
-  { value: "normal", label: "Normal", description: "The intended balance for a first campaign." },
-  { value: "hard", label: "Hard", description: "Tighter conditions and less room for error." },
+/**
+ * Difficulty changes two things and the copy says both. NPP skill is a decision
+ * difference: how far ahead they plan, how many options they weigh, how readily
+ * they change course. The resources line is a resource bonus and is labelled as
+ * one, because calling a funding advantage "smarter AI" is a lie a player will
+ * eventually catch.
+ */
+const DIFFICULTY_HELP =
+  "How well the world's politicians play. This never changes what they are allowed to do.";
+
+interface DifficultyOption {
+  value: SetupDifficulty;
+  label: string;
+  description: string;
+  /** How the world's politicians decide. A skill difference, never an entitlement. */
+  skill: string;
+  /** What the world's politicians are given. Always stated as a resource bonus. */
+  resources: string;
+}
+
+/** Also the stored default, and the fallback for the description panel. */
+const NORMAL_DIFFICULTY: DifficultyOption = {
+  value: "normal",
+  label: "Normal",
+  description: "The intended balance for a first campaign.",
+  skill: "Rivals play at the standard level.",
+  resources: "Rivals receive the same action points and funding as you do.",
+};
+
+const DIFFICULTIES: readonly DifficultyOption[] = [
+  {
+    value: "easy",
+    label: "Easy",
+    description: "More forgiving conditions while you learn.",
+    skill: "Rivals plan a shorter way ahead, weigh fewer options, and drop goals sooner.",
+    resources: "Rivals also receive fewer action points and less funding than you do.",
+  },
+  NORMAL_DIFFICULTY,
+  {
+    value: "hard",
+    label: "Hard",
+    description: "Tighter conditions and less room for error.",
+    skill:
+      "Rivals plan further ahead, hold to their goals, pass on weak opportunities, keep money in reserve, and vote together more reliably.",
+    resources: "Rivals also receive more action points and more funding than you do.",
+  },
 ];
 
 /** Configure a world. Character creation happens in the game after the server starts. */
@@ -50,6 +102,8 @@ export function NewWorldScreen({
   const [mode, setMode] = useState<SetupMode>(initialWorldsim ? "worldsim" : savedSetup.mode);
   const [difficulty, setDifficulty] = useState<SetupDifficulty>(savedSetup.difficulty);
   const [autonomyLevel, setAutonomyLevel] = useState<SetupAutonomy>(savedSetup.autonomyLevel);
+  const selectedDifficulty: DifficultyOption =
+    DIFFICULTIES.find((option) => option.value === difficulty) ?? NORMAL_DIFFICULTY;
   const [featureFlags, setFeatureFlags] = useState<Record<FeatureFlagKey, boolean>>(savedSetup.featureFlags);
   const [localShareStatistics, setLocalShareStatistics] = useState(true);
   const duplicate = taken.some((existing) => existing.trim().toLowerCase() === name.trim().toLowerCase());
@@ -108,8 +162,19 @@ export function NewWorldScreen({
             <label><input type="radio" name="play-mode" value="worldsim" checked={worldsim} onChange={() => setMode("worldsim")} /> <strong>Worldsim <span className="client-beta">Beta</span></strong><small>Simulate the world without creating a character.</small></label>
           </fieldset>
 
-          <label className="screen-field"><span>Difficulty</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value as SetupDifficulty)}>{DIFFICULTIES.map((option) => <option key={option.value} value={option.value}>{option.label} · {option.description}</option>)}</select></label>
-          <label className="screen-field"><span>Autonomy</span><select value={autonomyLevel} onChange={(event) => setAutonomyLevel(event.target.value as SetupAutonomy)}>{AUTONOMY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label} · {option.description}</option>)}</select></label>
+          {/* The help text sits OUTSIDE the label: inside it, it becomes part of
+              the select's accessible name, so "Difficulty" would no longer
+              address the control for a screen reader or a test. */}
+          <div className="screen-field-group">
+            <label className="screen-field"><span>Difficulty</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value as SetupDifficulty)}>{DIFFICULTIES.map((option) => <option key={option.value} value={option.value}>{option.label} · {option.description}</option>)}</select></label>
+            <small>{DIFFICULTY_HELP}</small>
+            <small>{selectedDifficulty.skill}</small>
+            <small>{selectedDifficulty.resources}</small>
+          </div>
+          <div className="screen-field-group">
+            <label className="screen-field"><span>Autonomy</span><select value={autonomyLevel} onChange={(event) => setAutonomyLevel(event.target.value as SetupAutonomy)}>{AUTONOMY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label} · {option.description}</option>)}</select></label>
+            <small>{AUTONOMY_HELP}</small>
+          </div>
 
           <section className="screen-features" aria-labelledby="feature-settings-title">
             <h2 id="feature-settings-title">World settings</h2>

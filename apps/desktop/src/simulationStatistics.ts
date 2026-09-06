@@ -74,6 +74,9 @@ const ALLOWED_ERAS = new Set([
   "2023",
 ]);
 const ALLOWED_DIFFICULTIES = new Set(["easy", "normal", "hard"]);
+// Kept in step with the game's own allowlist (src/lib/clientStatistics.ts) and
+// with SetupAutonomy. A tier this set is missing fails validation here, before
+// upload, so a world the player was allowed to create silently stops reporting.
 const ALLOWED_AUTONOMY = new Set(["off", "v0", "v1", "v2", "v3", "v4", "v5"]);
 const ALLOWED_FLAGS = new Set<string>(FEATURE_OPTIONS.map((flag) => flag.key));
 const ALLOWED_SECTORS = new Set([
