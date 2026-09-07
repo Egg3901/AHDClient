@@ -13,10 +13,16 @@ type UpdateState =
   | { kind: "installing" }
   | { kind: "error"; message: string };
 
-export function UpdateNotice(): JSX.Element | null {
+interface Props {
+  /** App-store builds update through their store and have no updater ACL. */
+  enabled?: boolean;
+}
+
+export function UpdateNotice({ enabled = true }: Props): JSX.Element | null {
   const [state, setState] = useState<UpdateState>({ kind: "checking" });
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       void (async () => {
@@ -62,7 +68,7 @@ export function UpdateNotice(): JSX.Element | null {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [enabled]);
 
   if (state.kind === "checking" || state.kind === "current") return null;
 

@@ -119,7 +119,7 @@ describe("desktop security configuration", () => {
       expect(config.plugins.updater).toBeNull();
     }
     expect(androidConfig.bundle.android.minSdkVersion).toBe(24);
-    expect(iosConfig.bundle.iOS.minimumSystemVersion).toBe("14.0");
+    expect(iosConfig.bundle.iOS.minimumSystemVersion).toBe("15.0");
     const mobileRust = read("../src-tauri/src/mobile.rs");
     expect(mobileRust).toMatch(/fn is_app_origin\(/);
     expect(mobileRust).toMatch(/is_online_navigation_allowed\(url\)/);

@@ -34,6 +34,7 @@ import { GameVersionBar } from "./GameVersionBar.js";
 import { DiagnosticPrompt } from "./DiagnosticPrompt.js";
 import { submitDiagnostics, type DiagnosticReason } from "./diagnostics.js";
 import { mobile } from "./platform.js";
+import { reportIssueRoute } from "./help.js";
 
 type Screen =
   | "launcher"
@@ -543,7 +544,9 @@ export function App(): JSX.Element {
       settings={settings}
       onChange={changeSettings}
       onClose={() => setSettingsOpen(false)}
-      onReportIssue={() => void online.help("help.report-issue").catch(fail)}
+      onReportIssue={() =>
+        void online.help(reportIssueRoute(mobile)).catch(fail)
+      }
     />
   );
   const diagnosticPrompt = (
@@ -710,7 +713,7 @@ export function App(): JSX.Element {
 
   return (
     <>
-      <UpdateNotice />
+      <UpdateNotice enabled={!mobile} />
       {!mobile && accountChecked && accountNotice && !account && (
         <aside className="client-account-notice">
           <span>
