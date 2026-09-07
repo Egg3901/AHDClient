@@ -125,6 +125,13 @@ describe("desktop security configuration", () => {
     expect(mobileRust).toMatch(/is_online_navigation_allowed\(url\)/);
     expect(mobileRust).toContain("ahdclient://launcher");
   });
+
+  it("generates the canonical logo into both native mobile projects", () => {
+    const workflow = read("../../../.github/workflows/release-mobile.yml");
+    const iconCommand = "icon src/assets/ahd-logo.png --ios-color '#ffffff'";
+    expect(workflow.split(iconCommand)).toHaveLength(3);
+    expect(workflow.indexOf("ios init --ci")).toBeLessThan(workflow.lastIndexOf(iconCommand));
+  });
 });
 
 describe("desktop platform configuration", () => {

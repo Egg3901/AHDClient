@@ -32,7 +32,8 @@ import { UpdateNotice } from "./UpdateNotice.js";
 import { AccountControl } from "./AccountControl.js";
 import { GameVersionBar } from "./GameVersionBar.js";
 import { DiagnosticPrompt } from "./DiagnosticPrompt.js";
-import { submitDiagnostics, type DiagnosticReason } from "./diagnostics.js";
+import { DiagnosticPanel } from "./DiagnosticPanel.js";
+import { recordDiagnostic, submitDiagnostics, type DiagnosticReason } from "./diagnostics.js";
 import { mobile } from "./platform.js";
 import { reportIssueRoute } from "./help.js";
 
@@ -85,6 +86,7 @@ export function App(): JSX.Element {
   const [accountChecked, setAccountChecked] = useState(false);
   const [embedded, setEmbedded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [accountNotice, setAccountNotice] = useState(
     () => !accountNoticeSeen(),
   );
@@ -209,6 +211,7 @@ export function App(): JSX.Element {
   useEffect(() => {
     const subscriptions = [
       listen<{ line: string }>("game:log", (event) => {
+        recordDiagnostic("native", event.payload.line);
         setLog((lines) => [...lines, event.payload.line].slice(-LOG_LINES));
       }),
       listen<{ line: string }>("game:exited", (event) => {
@@ -547,6 +550,18 @@ export function App(): JSX.Element {
       onReportIssue={() =>
         void online.help(reportIssueRoute(mobile)).catch(fail)
       }
+      onOpenDiagnostics={() => {
+        setSettingsOpen(false);
+        setDiagnosticsOpen(true);
+      }}
+    />
+  );
+  const diagnosticPanel = (
+    <DiagnosticPanel
+      open={diagnosticsOpen}
+      screen={screen}
+      game={mobile ? "remote only" : info.running ? "local game running" : "local game stopped"}
+      onClose={() => setDiagnosticsOpen(false)}
     />
   );
   const diagnosticPrompt = (
@@ -571,6 +586,7 @@ export function App(): JSX.Element {
     <>
       {content}
       {settingsMenu}
+      {diagnosticPanel}
       {diagnosticPrompt}
     </>
   );
@@ -616,6 +632,7 @@ export function App(): JSX.Element {
           </nav>
         </main>
         {settingsMenu}
+        {diagnosticPanel}
         {diagnosticPrompt}
       </>
     );
@@ -755,6 +772,7 @@ export function App(): JSX.Element {
         }}
       />
       {settingsMenu}
+      {diagnosticPanel}
       {diagnosticPrompt}
     </>
   );

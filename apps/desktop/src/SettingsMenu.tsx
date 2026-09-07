@@ -10,9 +10,10 @@ interface Props {
   onChange: (settings: ClientSettings) => void;
   onClose: () => void;
   onReportIssue: () => void;
+  onOpenDiagnostics: () => void;
 }
 
-export function SettingsMenu({ mobile = false, open, settings, onChange, onClose, onReportIssue }: Props): JSX.Element | null {
+export function SettingsMenu({ mobile = false, open, settings, onChange, onClose, onReportIssue, onOpenDiagnostics }: Props): JSX.Element | null {
   if (!open) return null;
   if (mobile) return (
     <div className="client-settings-backdrop" role="presentation" onMouseDown={onClose}>
@@ -24,6 +25,7 @@ export function SettingsMenu({ mobile = false, open, settings, onChange, onClose
         <div className="client-settings-options">
           <label><span><strong>Launcher animation</strong><small>Animate the globe and atmospheric background.</small></span><input type="checkbox" checked={settings.animations} onChange={(event) => onChange({ ...settings, animations: event.target.checked })} /></label>
         </div>
+        <div className="client-support-control"><div><strong>Developer diagnostics</strong><small>View console output and runtime information.</small></div><button type="button" onClick={onOpenDiagnostics}>Open</button></div>
         <div className="client-support-control"><div><strong>Found a problem?</strong><small>Open a GitHub report with the client version prefilled.</small></div><button type="button" onClick={onReportIssue}>Report issue</button></div>
         <footer><span>Updates arrive through the app store</span><button type="button" onClick={onClose}>Done</button></footer>
       </section>
@@ -43,6 +45,7 @@ export function SettingsMenu({ mobile = false, open, settings, onChange, onClose
           <label><span><strong>Technical startup logs</strong><small>Show detailed logs while diagnosing a launch issue.</small></span><input type="checkbox" checked={settings.showBootLogs} onChange={(event) => onChange({ ...settings, showBootLogs: event.target.checked })} /></label>
         </div>
         <UpdateControl />
+        <div className="client-support-control"><div><strong>Developer diagnostics</strong><small>View console output and runtime information.</small></div><button type="button" onClick={onOpenDiagnostics}>Open</button></div>
         <div className="client-support-control"><div><strong>Found a problem?</strong><small>Open a GitHub report with the client version prefilled.</small></div><button type="button" onClick={onReportIssue}>Report issue</button></div>
         <footer><span>Press Esc to close</span><button type="button" onClick={onClose}>Done</button></footer>
       </section>

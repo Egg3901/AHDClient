@@ -13,19 +13,21 @@ describe("SettingsMenu", () => {
 
   it("shows the local game and updater preferences on desktop", () => {
     render(
-      <SettingsMenu open settings={DEFAULT_SETTINGS} onChange={vi.fn()} onClose={vi.fn()} onReportIssue={vi.fn()} />,
+      <SettingsMenu open settings={DEFAULT_SETTINGS} onChange={vi.fn()} onClose={vi.fn()} onReportIssue={vi.fn()} onOpenDiagnostics={vi.fn()} />,
     );
     expect(screen.getByText("Separate gameplay window")).toBeTruthy();
     expect(screen.getByText("Technical startup logs")).toBeTruthy();
     expect(screen.getByText("Desktop updates")).toBeTruthy();
+    expect(screen.getByText("Developer diagnostics")).toBeTruthy();
   });
 
   it("keeps only animation and issue reporting on mobile", () => {
     render(
-      <SettingsMenu mobile open settings={DEFAULT_SETTINGS} onChange={vi.fn()} onClose={vi.fn()} onReportIssue={vi.fn()} />,
+      <SettingsMenu mobile open settings={DEFAULT_SETTINGS} onChange={vi.fn()} onClose={vi.fn()} onReportIssue={vi.fn()} onOpenDiagnostics={vi.fn()} />,
     );
     expect(screen.getByText("Launcher animation")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Report issue" })).toBeTruthy();
+    expect(screen.getByText("Developer diagnostics")).toBeTruthy();
     expect(screen.queryByText("Separate gameplay window")).toBeNull();
     expect(screen.queryByText("Anonymous simulation statistics")).toBeNull();
     expect(screen.queryByText("Technical startup logs")).toBeNull();
