@@ -2,6 +2,13 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.0.8] - 2026-09-07
+
+- Stop mobile builds from calling the desktop updater, which produced an ACL error banner on iOS.
+- Keep mobile issue reports inside the app through the feedback screen, while keeping versioned GitHub reports on desktop.
+- Reserve a separate mobile header row for Link account and Settings so the controls no longer cover the A House Divided masthead.
+- Raise the iOS minimum version to 15.0 ahead of Apple's 2027 upload requirement.
+
 ## [2.0.7] - 2026-09-07
 
 - Fix the Windows installer header artwork clipping the A House Divided name.

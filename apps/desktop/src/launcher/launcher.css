@@ -775,7 +775,9 @@
 
   .launcher-mast {
     position: relative;
+    width: 100%;
     gap: 14px;
+    padding-top: 58px;
   }
 
   .launcher-settings {
@@ -1175,8 +1177,9 @@
 }
 @media (max-width: 700px) {
   .launcher-settings {
-    top: max(10px, env(safe-area-inset-top));
-    right: max(10px, env(safe-area-inset-right));
+    position: absolute;
+    top: 0;
+    right: 0;
   }
   .launcher-stage {
     padding-top: max(14px, env(safe-area-inset-top));
