@@ -31,6 +31,19 @@
 .client-settings-dialog > footer button { padding: 10px 14px; border: 1px solid #ef3540; border-radius: 7px; background: #d91d27; color: white; cursor: pointer; white-space: nowrap; }
 .client-update-control button:disabled { opacity: .6; cursor: wait; }
 .client-settings-dialog > footer { display: flex; align-items: center; justify-content: space-between; padding: 16px 26px 22px; color: #85899b; font-size: 12px; }
+.client-diagnostics-privacy { margin: 18px 26px 12px; color: #adb0c0; font-size: 13px; line-height: 1.5; }
+.client-runtime-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0 26px 18px; overflow: hidden; border: 1px solid #ffffff16; border-radius: 10px; background: #ffffff16; }
+.client-runtime-grid > div { min-width: 0; padding: 10px 12px; background: #11131d; }
+.client-runtime-grid > div.wide { grid-column: 1 / -1; }
+.client-runtime-grid dt { color: #85899b; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.client-runtime-grid dd { margin: 4px 0 0; overflow-wrap: anywhere; font: 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.client-console-heading { display: flex; justify-content: space-between; align-items: baseline; margin: 0 26px 8px; }
+.client-console-heading small { color: #85899b; }
+.client-console-output { min-height: 150px; max-height: 280px; margin: 0 26px; padding: 14px; overflow: auto; border: 1px solid #ffffff16; border-radius: 10px; background: #090b12; color: #d8dbe7; font: 11px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.client-diagnostics-status { margin: 10px 26px 0; color: #d8dbe7; font-size: 12px; }
+.client-settings-dialog > footer.client-diagnostics-actions { gap: 10px; }
+.client-diagnostics-actions > span { flex: 1; }
+.client-diagnostics-actions button.secondary { border-color: #50505b; background: transparent; }
 .client-game-toolbar { height: 64px; box-sizing: border-box; display: flex; align-items: center; gap: 16px; padding: 8px 18px; background: #14141c; color: #e8e8ef; }
 .client-game-toolbar > strong { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .client-game-toolbar > button { background: #272735; border: 1px solid #50505b; color: inherit; border-radius: 5px; padding: 9px 14px; cursor: pointer; }
@@ -52,4 +65,11 @@ html[data-animations="off"] .launcher-nebula { animation: none; }
   .client-settings-dialog > header,
   .client-settings-options { padding-left: 18px; padding-right: 18px; }
   .client-update-control { margin-left: 18px; margin-right: 18px; align-items: stretch; flex-direction: column; }
+  .client-support-control { margin-left: 18px; margin-right: 18px; align-items: stretch; flex-direction: column; }
+  .client-runtime-grid { grid-template-columns: 1fr; margin-left: 18px; margin-right: 18px; }
+  .client-runtime-grid > div.wide { grid-column: auto; }
+  .client-diagnostics-privacy,
+  .client-console-heading,
+  .client-console-output,
+  .client-diagnostics-status { margin-left: 18px; margin-right: 18px; }
 }

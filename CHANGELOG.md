@@ -2,6 +2,12 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.0.9] - 2026-09-07
+
+- Generate the A House Divided Liberty Bell icon into the iOS and Android native projects so TestFlight and installed mobile apps no longer use placeholder artwork.
+- Add Developer diagnostics to Settings on iOS, Android and desktop with runtime details and a bounded live console.
+- Let players copy, clear or explicitly send redacted diagnostics while keeping user paths, world names, email addresses and credentials out of reports.
+
 ## [2.0.8] - 2026-09-07
 
 - Stop mobile builds from calling the desktop updater, which produced an ACL error banner on iOS.

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildDiagnosticReport } from "./diagnostics";
+import {
+  buildDiagnosticReport,
+  clearDiagnostics,
+  diagnosticEntries,
+  recordDiagnostic,
+} from "./diagnostics";
 
 describe("diagnostic reports", () => {
   it("redacts usernames and world names and bounds logs", () => {
@@ -11,5 +16,31 @@ describe("diagnostic reports", () => {
     expect(json).not.toContain("rainf");
     expect(json).not.toContain("my-private-save");
     expect(report.logLines).toHaveLength(60);
+  });
+
+  it("redacts identities and credentials before retaining console output", () => {
+    clearDiagnostics();
+    recordDiagnostic("error", {
+      email: "player@example.com",
+      authorization: "Bearer private-token",
+      password: "hunter2",
+      displayName: "Real Name",
+      accessToken: "abc123",
+    });
+    const json = JSON.stringify(diagnosticEntries());
+    expect(json).not.toContain("player@example.com");
+    expect(json).not.toContain("private-token");
+    expect(json).not.toContain("hunter2");
+    expect(json).not.toContain("Real Name");
+    expect(json).not.toContain("abc123");
+    expect(json).toContain("[email]");
+    expect(json).toContain("[redacted]");
+  });
+
+  it("keeps only the latest 200 console entries", () => {
+    clearDiagnostics();
+    for (let index = 0; index < 205; index += 1) recordDiagnostic("log", `line ${index}`);
+    expect(diagnosticEntries()).toHaveLength(200);
+    expect(diagnosticEntries()[0]?.message).toBe("line 5");
   });
 });

@@ -66,6 +66,11 @@ jobs:
       - run: npm run typecheck
       - run: npm test --workspace apps/desktop
 
+      - name: Generate native app icons
+        run: |
+          npm run tauri --workspace apps/desktop -- icon src/assets/ahd-logo.png --ios-color '#ffffff'
+          test -s apps/desktop/src-tauri/gen/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
       - name: Install the upload keystore
         if: ${{ github.event_name != 'pull_request' }}
         env:
@@ -128,6 +133,11 @@ jobs:
             npm run tauri --workspace apps/desktop -- ios init --ci
           fi
           ls apps/desktop/src-tauri/gen/apple
+
+      - name: Generate native app icons
+        run: |
+          npm run tauri --workspace apps/desktop -- icon src/assets/ahd-logo.png --ios-color '#ffffff'
+          test -s apps/desktop/src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
 
       - name: Decide how to sign
         id: signing
