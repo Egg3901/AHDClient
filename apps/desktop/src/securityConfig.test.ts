@@ -131,6 +131,7 @@ describe("desktop security configuration", () => {
     const iconCommand = "icon src/assets/ahd-logo.png --ios-color '#ffffff'";
     expect(workflow.split(iconCommand)).toHaveLength(3);
     expect(workflow.indexOf("ios init --ci")).toBeLessThan(workflow.lastIndexOf(iconCommand));
+    expect(workflow).toContain("sips -g hasAlpha");
   });
 });
 
