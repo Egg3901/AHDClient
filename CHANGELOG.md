@@ -2,6 +2,12 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.0.7] - 2026-09-07
+
+- Fix the Windows installer header artwork clipping the A House Divided name.
+- Bundle A House Divided 1.8.0, including player-paced singleplayer turns,
+  optional custom turn timers and the focused player interface.
+
 ## [2.0.6] - 2026-09-06
 
 - Add Android and iOS builds of the launcher: the same lander, settings and account linking, with Multiplayer and Sandbox opening the live game inside the app. Singleplayer and Worldsim stay desktop only, since they run the game on the player's machine.
