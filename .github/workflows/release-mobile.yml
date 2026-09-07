@@ -7,6 +7,12 @@ name: mobile bundles
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_testflight:
+        description: Upload the signed iOS IPA to TestFlight
+        required: false
+        default: false
+        type: boolean
   push:
     tags:
       - "v*"
@@ -148,6 +154,25 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
         run: npm run tauri --workspace apps/desktop -- ios build --export-method app-store-connect
+
+      # TestFlight uploads are explicit manual releases. A normal tag build
+      # still creates the signed IPA, but cannot accidentally submit it to
+      # App Store Connect.
+      - name: Upload the signed IPA to TestFlight
+        if: >-
+          steps.signing.outputs.mode == 'store' &&
+          github.event_name == 'workflow_dispatch' &&
+          inputs.upload_testflight
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+        run: |
+          ipa=$(find apps/desktop/src-tauri/gen/apple/build/arm64 -type f -name '*.ipa' -print -quit)
+          test -n "$ipa"
+          key_dir="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$key_dir"
+          cp "$APPLE_API_KEY_PATH" "$key_dir/AuthKey_${APPLE_API_KEY}.p8"
+          xcrun altool --upload-app --type ios --file "$ipa" --apiKey "$APPLE_API_KEY" --apiIssuer "$APPLE_API_ISSUER"
 
       - name: Build for the simulator (unsigned)
         if: steps.signing.outputs.mode == 'simulator'
