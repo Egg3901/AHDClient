@@ -1,0 +1,28 @@
+name: Lakeside TestFlight delivery
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Inspect builds or invite the configured personal tester
+        type: choice
+        options: [status, invite]
+        default: status
+permissions:
+  contents: read
+concurrency:
+  group: lakeside-testflight-delivery
+  cancel-in-progress: false
+jobs:
+  delivery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Apple processing and manage personal invitation
+        env:
+          ACTION: ${{ inputs.action }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          LAKESIDE_TESTFLIGHT_EMAIL: ${{ secrets.LAKESIDE_TESTFLIGHT_EMAIL }}
+        run: python3 scripts/lakeside-testflight.py
