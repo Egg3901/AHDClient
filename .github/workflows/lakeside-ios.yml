@@ -43,6 +43,12 @@ jobs:
           xcodegen generate
       - name: Build and test on iPhone simulator
         run: bash scripts/simulator.sh '${{ matrix.app }}'
+      - name: Export simulator screenshots
+        if: always()
+        run: |
+          if [ -d 'build/${{ matrix.app }}.xcresult' ]; then
+            xcrun xcresulttool export attachments --path 'build/${{ matrix.app }}.xcresult' --output-path 'build/${{ matrix.app }}-screenshots'
+          fi
       - name: Save simulator build and test screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -51,6 +57,7 @@ jobs:
           path: |
             apps/lakeside-ios/build/${{ matrix.app }}/Build/Products/Debug-iphonesimulator/${{ matrix.app }}.app
             apps/lakeside-ios/build/${{ matrix.app }}.xcresult
+            apps/lakeside-ios/build/${{ matrix.app }}-screenshots
           if-no-files-found: warn
 
   testflight:

@@ -1,0 +1,49 @@
+#if DEBUG
+import Foundation
+
+/// Isolated UI-test transport. It never contacts a server and is absent in Release.
+final class FixtureProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        guard let url = request.url else { return }
+        let isAsk = url.host?.hasPrefix("ask.") == true
+        var value: Any = ["error": "No test fixture for this endpoint"]
+        var status = 200
+        switch url.path {
+        case "/api/me":
+            value = isAsk ? ["identity": ["username": "Test operator"], "entitlement": ["allowed": true, "label": "Staff"], "usage": ["remaining": 199]] : ["email": "operator@example.test", "role": "admin"]
+        case "/api/conversations": value = ["conversations": [["id": "fixture-conversation", "title": "How does inflation work?", "updated": 1788825600000]]]
+        case "/api/games": value = ["games": [["id": "ahd", "name": "A House Divided"]]]
+        case "/api/conversation": value = ["turns": [["id": 42, "question": "How does inflation work?", "answer": "## Inflation\n\nPrices respond to supply and demand.", "citations": [["label": "Economy reference", "url": "https://example.test/economy"]]]]]
+        case "/api/ask":
+            let body = #"""
+event: meta
+data: {"convId":"fixture-conversation","reqId":"fixture-request","status":"Reading sources"}
+
+event: delta
+data: "A partial draft"
+
+event: done
+data: {"convId":"fixture-conversation","answerId":43,"answer":"Verified final answer from the server.","citations":[{"label":"Verified source","url":"https://example.test/source"}]}
+
+"""# + "\n"
+            deliver(Data(body.utf8), url: url, status: 200, type: "text/event-stream"); return
+        case "/api/status": value = ["services": [["id": "game", "name": "Game server", "current": "operational", "latencyMs": 42, "uptime24h": 99.9, "history": [["date": "2026-09-07", "pct": 99.9]]]]]
+        case "/api/game/summary": value = ["turn": 123, "year": 1960, "activePlayers": 42]
+        case "/api/code/sessions": value = ["sessions": [["sessionId": "tmux:test-agent", "tmuxName": "test-agent", "title": "Test agent", "statusLine": "Waiting for input", "needsInput": true]]]
+        case "/api/code/tmux/test-agent/capture": value = ["transcript": ["turns": [["user": "Check the deployment", "blocks": [["type": "text", "text": "Deployment checks passed."]]]]]]
+        case "/api/code/tmux/test-agent/message": value = ["ok": true, "queued": true]
+        case "/api/tickets": value = ["items": [["_id": "ticket-1", "ticketNumber": 123, "title": "Example ticket", "description": "A reproducible issue", "status": "open"]], "page": 1, "totalPages": 1]
+        case "/api/logout", "/auth/logout", "/api/answer/feedback", "/api/ask/stop": value = ["ok": true]
+        default: status = 404
+        }
+        deliver((try? JSONSerialization.data(withJSONObject: value)) ?? Data(), url: url, status: status, type: "application/json")
+    }
+    private func deliver(_ data: Data, url: URL, status: Int, type: String) {
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": type])!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+#endif

@@ -184,6 +184,7 @@ struct AskConversation: View {
     private func send() {
         let question = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !streaming, (5...500).contains(question.utf16.count) else { return }
+        if conversationID.isEmpty { conversationID = String(UUID().uuidString.prefix(18)) }
         draft = ""; error = nil; followups = []; focused = false; streaming = true; requestID = ""; status = "Thinking…"
         let turnID = UUID().uuidString; turns.append(ChatTurn(id: turnID, question: question, answer: ""))
         let body: [String: JSONValue] = ["question": .string(question), "convId": .string(conversationID), "game": .string(game), "useMcp": .bool(live), "length": .string(length), "tz": .string(TimeZone.current.identifier)]

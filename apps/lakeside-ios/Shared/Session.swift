@@ -63,10 +63,19 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
     init(_ surface: Surface) {
         self.surface = surface
         let config = URLSessionConfiguration.ephemeral
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--uitest-fixtures") { config.protocolClasses = [FixtureProtocol.self] }
+#endif
         config.httpShouldSetCookies = false; config.httpCookieStorage = nil; config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         config.timeoutIntervalForRequest = 90; config.timeoutIntervalForResource = 900
         transport = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--uitest-fixtures") {
+            credential = Credential(value: "ui-test-session", expires: nil)
+            return
+        }
+#endif
         if let data = Vault.read(), let saved = try? JSONDecoder().decode(Credential.self, from: data),
            saved.expires.map({ $0 > Date() }) ?? true { credential = saved }
     }
@@ -84,6 +93,7 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         credential = Credential(value: cookie.value, expires: cookie.expiresDate)
         do {
             let me = try await get("/api/me")
+            try Task.checkCancellation()
             try Vault.write(JSONEncoder().encode(credential!))
             profile = me; error = nil; signedIn = true
         } catch { credential = nil; throw error }
@@ -129,6 +139,7 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
     func stream(_ body: [String: JSONValue], onEvent: (SSEEvent) throws -> Void) async throws {
         var r = try request("/api/ask", body: body); r.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         let (bytes, response) = try await transport.bytes(for: r)
+        defer { bytes.task.cancel() }
         if (response as? HTTPURLResponse)?.statusCode != 200 || response.mimeType != "text/event-stream" {
             var data = Data()
             for try await byte in bytes { data.append(byte); if data.count > 65536 { break } }

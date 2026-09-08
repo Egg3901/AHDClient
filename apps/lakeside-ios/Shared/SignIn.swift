@@ -48,7 +48,7 @@ private struct LoginBrowser: UIViewRepresentable {
     }
     func updateUIView(_ uiView: WKWebView, context: Context) {}
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
-        uiView.stopLoading(); coordinator.active = false; coordinator.store?.remove(coordinator)
+        uiView.stopLoading(); coordinator.active = false; coordinator.signInTask?.cancel(); coordinator.store?.remove(coordinator)
     }
     @MainActor final class Coordinator: NSObject, WKNavigationDelegate, WKHTTPCookieStoreObserver {
         let session: AppSession
@@ -56,6 +56,7 @@ private struct LoginBrowser: UIViewRepresentable {
         var store: WKHTTPCookieStore?
         var accepting = false
         var active = true
+        var signInTask: Task<Void, Never>?
         init(session: AppSession, done: @escaping () -> Void) { self.session = session; self.done = done }
         func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
             guard active, !accepting else { return }
@@ -63,9 +64,9 @@ private struct LoginBrowser: UIViewRepresentable {
                 guard let self, self.active, !self.accepting else { return }
                 guard let cookie = cookies.first(where: { $0.name == self.session.surface.cookie && !$0.value.isEmpty }) else { return }
                 self.accepting = true
-                Task { @MainActor in
+                self.signInTask = Task { @MainActor in
                     do { try await self.session.accept(cookie); if self.active { self.done() } }
-                    catch { self.session.error = error.localizedDescription; self.accepting = false; if self.active { self.done() } }
+                    catch { if !Task.isCancelled { self.session.error = error.localizedDescription }; self.accepting = false; if self.active { self.done() } }
                 }
             }
         }
