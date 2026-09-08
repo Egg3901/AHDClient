@@ -1,0 +1,88 @@
+name: Lakeside native iOS
+
+on:
+  pull_request:
+    paths: ['apps/lakeside-ios/**', '.github/workflows/lakeside-ios.yml']
+  push:
+    branches: [feat/lakeside-native-ios]
+    paths: ['apps/lakeside-ios/**', '.github/workflows/lakeside-ios.yml']
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Build signed archives and upload if App Store Connect records exist
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lakeside-ios-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  simulator:
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [LakesideAsk, LakesideOps]
+    defaults:
+      run:
+        working-directory: apps/lakeside-ios
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Test shared protocols
+        run: swift test --package-path Core
+      - name: Generate native projects and icons
+        run: |
+          swift scripts/icons.swift
+          xcodegen generate
+      - name: Build and test on iPhone simulator
+        run: bash scripts/simulator.sh '${{ matrix.app }}'
+      - name: Save simulator build and test screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-simulator
+          path: |
+            apps/lakeside-ios/build/${{ matrix.app }}/Build/Products/Debug-iphonesimulator/${{ matrix.app }}.app
+            apps/lakeside-ios/build/${{ matrix.app }}.xcresult
+          if-no-files-found: warn
+
+  testflight:
+    if: github.event_name == 'workflow_dispatch' && inputs.release
+    needs: simulator
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/lakeside-ios
+    env:
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+      APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Generate native projects and icons
+        run: |
+          swift scripts/icons.swift
+          xcodegen generate
+      - name: Build and deliver both apps
+        run: bash scripts/release.sh
+      - name: Save release status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lakeside-release-status
+          path: apps/lakeside-ios/build/release-status.json
+          if-no-files-found: warn
+      - name: Remove temporary Apple key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/lakeside-signing.p8"
