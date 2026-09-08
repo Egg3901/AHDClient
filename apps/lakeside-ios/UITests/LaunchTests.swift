@@ -16,7 +16,7 @@ final class LaunchTests: XCTestCase {
             XCTAssertTrue(conversation.waitForExistence(timeout: 10)); conversation.tap()
             XCTAssertTrue(app.staticTexts["Prices respond to supply and demand."].waitForExistence(timeout: 10))
             capture(app, "Native Ask conversation")
-            let composer = app.textViews.firstMatch
+            let composer = app.textFields["ask-composer"].exists ? app.textFields["ask-composer"] : app.textViews["ask-composer"]
             XCTAssertTrue(composer.waitForExistence(timeout: 5)); composer.tap(); composer.typeText("What changes prices?")
             app.buttons["Send question"].tap()
             XCTAssertTrue(app.staticTexts["Verified final answer from the server."].waitForExistence(timeout: 10))

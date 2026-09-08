@@ -68,11 +68,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/lakeside-ios
-    env:
-      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-      APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
-      APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
     steps:
       - uses: actions/checkout@v4
       - name: Install project generator
@@ -82,6 +77,11 @@ jobs:
           swift scripts/icons.swift
           xcodegen generate
       - name: Build and deliver both apps
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
         run: bash scripts/release.sh
       - name: Save release status
         if: always()

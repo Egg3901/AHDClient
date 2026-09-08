@@ -10,7 +10,9 @@ export APPLE_API_KEY_PATH="$RUNNER_TEMP/lakeside-signing.p8"
 python3 - <<'PY'
 import base64, os
 from pathlib import Path
-Path(os.environ['APPLE_API_KEY_PATH']).write_bytes(base64.b64decode(os.environ['APPLE_API_KEY_CONTENT'], validate=True))
+content = os.environ['APPLE_API_KEY_CONTENT'].strip()
+key = content.encode() if content.startswith('-----BEGIN PRIVATE KEY-----') else base64.b64decode(''.join(content.split()), validate=True)
+Path(os.environ['APPLE_API_KEY_PATH']).write_bytes(key)
 PY
 trap 'rm -f "$APPLE_API_KEY_PATH"' EXIT
 python3 scripts/apple.py

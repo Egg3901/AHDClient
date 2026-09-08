@@ -161,6 +161,7 @@ struct AskConversation: View {
         VStack(spacing: 5) {
             HStack(alignment: .bottom, spacing: 12) {
                 TextField("Ask a question…", text: $draft, axis: .vertical).lineLimit(1...6).focused($focused)
+                    .accessibilityIdentifier("ask-composer")
                     .padding(12).background(.quaternary, in: RoundedRectangle(cornerRadius: 16)).disabled(streaming)
                 if streaming {
                     Button { Task { await stop() } } label: { Image(systemName: "stop.circle.fill").font(.title) }.disabled(stopping).accessibilityLabel("Stop answer")
