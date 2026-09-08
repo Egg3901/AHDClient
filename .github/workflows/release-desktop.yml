@@ -37,7 +37,7 @@ jobs:
               apps/desktop/src-tauri/target/release/bundle/nsis/*.exe.sig
           - platform: macos-latest
             target: aarch64-apple-darwin
-            args: --target aarch64-apple-darwin --bundles dmg
+            args: --target aarch64-apple-darwin --bundles app,dmg
             artifact: ahdclient-macos-aarch64
             paths: |
               apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
@@ -45,7 +45,7 @@ jobs:
               apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
           - platform: macos-latest
             target: x86_64-apple-darwin
-            args: --target x86_64-apple-darwin --bundles dmg
+            args: --target x86_64-apple-darwin --bundles app,dmg
             artifact: ahdclient-macos-x86_64
             paths: |
               apps/desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
@@ -109,8 +109,12 @@ jobs:
       - name: Verify packaged macOS Node runtime
         if: startsWith(matrix.platform, 'macos')
         run: |
-          app=$(find apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos -maxdepth 1 -type d -name '*.app' -print -quit)
-          node="$app/Contents/MacOS/ahd-node"
+          archive=$(find apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos -maxdepth 1 -type f -name '*.app.tar.gz' -print -quit)
+          test -n "$archive"
+          extract="$RUNNER_TEMP/ahd-mac-smoke-${{ matrix.target }}"
+          mkdir -p "$extract"
+          tar -xzf "$archive" -C "$extract"
+          node=$(find "$extract" -type f -path '*.app/Contents/MacOS/ahd-node' -print -quit)
           test -x "$node"
           "$node" -e "for (let i = 0; i < 100000; i++) Math.sqrt(i); console.log('ahd-node-jit-ok')" | grep -q ahd-node-jit-ok
 
