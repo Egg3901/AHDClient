@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="profile" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/shortcut_profile">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="net.lakesidegames.ahdclient" android:targetClass="net.lakesidegames.ahdclient.MainActivity" android:data="ahdclient://briefing/profile" />
+    </shortcut>
+    <shortcut android:shortcutId="election" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/shortcut_election">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="net.lakesidegames.ahdclient" android:targetClass="net.lakesidegames.ahdclient.MainActivity" android:data="ahdclient://briefing/election" />
+    </shortcut>
+    <shortcut android:shortcutId="corporation" android:enabled="true" android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/shortcut_corporation">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="net.lakesidegames.ahdclient" android:targetClass="net.lakesidegames.ahdclient.MainActivity" android:data="ahdclient://briefing/corporation" />
+    </shortcut>
+</shortcuts>

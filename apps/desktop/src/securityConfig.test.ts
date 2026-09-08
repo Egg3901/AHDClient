@@ -9,6 +9,7 @@ import defaultCapability from "../src-tauri/capabilities/default.json";
 import onlineCapability from "../src-tauri/capabilities/online.json";
 import gameCapability from "../src-tauri/capabilities/game.json";
 import mobileCapability from "../src-tauri/capabilities/mobile.json";
+import briefingCapability from "../src-tauri/capabilities/briefing.json";
 import androidConfig from "../src-tauri/tauri.android.conf.json";
 import iosConfig from "../src-tauri/tauri.ios.conf.json";
 
@@ -16,6 +17,14 @@ const here = dirname(fileURLToPath(import.meta.url));
 const read = (relative: string) => readFileSync(join(here, relative), "utf8");
 
 describe("desktop security configuration", () => {
+  it("limits PiP to the local briefing and its read-only commands", () => {
+    expect(briefingCapability.webviews).toEqual(["briefing"]);
+    expect("remote" in briefingCapability).toBe(false);
+    expect([...briefingCapability.permissions].sort()).toEqual([
+      "core:default", "allow-get-briefing", "allow-open-briefing-page", "allow-set-briefing-pinned",
+    ].sort());
+    expect(read("../src-tauri/src/briefing.rs")).toContain(".redirects(0)");
+  });
   it("ships a local-only CSP for the launcher window", () => {
     expect(tauriConfig.app.security.csp).toEqual({
       "default-src": "'self'",
@@ -105,6 +114,8 @@ describe("desktop security configuration", () => {
         "allow-linked-account",
         "allow-link-account",
         "allow-submit-diagnostics",
+        "allow-get-briefing",
+        "allow-open-briefing-page",
       ].sort(),
     );
     expect(defaultCapability.platforms).toEqual(["linux", "macOS", "windows"]);

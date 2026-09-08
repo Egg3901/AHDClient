@@ -84,8 +84,29 @@ fn main_webview(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
   app.get_webview_window("main").ok_or_else(|| "the app webview is missing".to_string())
 }
 
-fn navigate_main(app: &AppHandle, url: Url) -> Result<(), String> {
+pub(crate) fn navigate_main(app: &AppHandle, url: Url) -> Result<(), String> {
   main_webview(app)?.navigate(url).map_err(|e| e.to_string())
+}
+
+pub(crate) fn open_widget_link(app: &AppHandle, url: &Url) {
+  if url.scheme() != "ahdclient" || url.host_str() != Some("briefing") { return; }
+  let section = match url.path() {
+    "/profile" => crate::briefing::Section::Profile,
+    "/election" => crate::briefing::Section::Election,
+    "/corporation" => crate::briefing::Section::Corporation,
+    _ => return,
+  };
+  let app = app.clone();
+  tauri::async_runtime::spawn(async move {
+    // A cold launch may deliver the URL just before the main view is ready.
+    for _ in 0..50 {
+      if app.get_webview("main").is_some() {
+        let _ = crate::briefing::open_briefing_page(app, section).await;
+        return;
+      }
+      tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+  });
 }
 
 /// Leave the remote page for the launcher. Deferred off the navigation
@@ -224,6 +245,8 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
     .manage(LauncherHome(Mutex::new(None)))
     .manage(LinkWatch(AtomicU64::new(0)))
     .invoke_handler(tauri::generate_handler![
+      crate::briefing::get_briefing,
+      crate::briefing::open_briefing_page,
       crate::submit_diagnostics,
       crate::linked_account,
       link_account,

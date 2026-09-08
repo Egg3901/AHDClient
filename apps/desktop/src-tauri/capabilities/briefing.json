@@ -1,0 +1,8 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capability",
+  "identifier": "briefing",
+  "description": "Local desktop briefing: read multiplayer stats, open a fixed game section, and pin this window.",
+  "platforms": ["linux", "macOS", "windows"],
+  "webviews": ["briefing"],
+  "permissions": ["core:default", "allow-get-briefing", "allow-open-briefing-page", "allow-set-briefing-pinned"]
+}

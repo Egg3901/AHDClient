@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="14dp" android:background="@drawable/briefing_background">
+    <LinearLayout android:id="@+id/briefing_content_area" android:layout_width="match_parent"
+        android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical">
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="AHD · MULTIPLAYER" android:textColor="#BDB6A8" android:textSize="10sp" />
+        <TextView android:id="@+id/briefing_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#F2EDE5" android:textStyle="bold" android:textSize="18sp" android:maxLines="1" android:ellipsize="end" />
+        <TextView android:id="@+id/briefing_content" android:layout_width="match_parent" android:layout_height="0dp"
+            android:layout_weight="1" android:layout_marginTop="8dp" android:textColor="#E5C17A" android:textSize="14sp"
+            android:lineSpacingExtra="4dp" android:maxLines="5" android:ellipsize="end" />
+        <TextView android:id="@+id/briefing_updated" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#BDB6A8" android:textSize="11sp" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="44dp" android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/briefing_previous" android:layout_width="44dp" android:layout_height="44dp" android:gravity="center"
+            android:text="‹" android:textSize="24sp" android:textColor="#F2EDE5" android:contentDescription="Previous card" />
+        <TextView android:id="@+id/briefing_section" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:gravity="center" android:textColor="#BDB6A8" android:textSize="12sp" />
+        <TextView android:id="@+id/briefing_next" android:layout_width="44dp" android:layout_height="44dp" android:gravity="center"
+            android:text="›" android:textSize="24sp" android:textColor="#F2EDE5" android:contentDescription="Next card" />
+        <TextView android:id="@+id/briefing_refresh" android:layout_width="64dp" android:layout_height="44dp" android:gravity="center"
+            android:text="Refresh" android:textSize="12sp" android:textColor="#E5C17A" android:contentDescription="Refresh stats" />
+    </LinearLayout>
+</LinearLayout>

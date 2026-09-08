@@ -7,6 +7,10 @@ fn main() {
   // capabilities/mobile.json.
   tauri_build::try_build(
     tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
+      "get_briefing",
+      "open_briefing_page",
+      "open_briefing_window",
+      "set_briefing_pinned",
       "set_statistics_consent",
       "submit_statistics",
       "submit_diagnostics",

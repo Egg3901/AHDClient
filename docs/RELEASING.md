@@ -193,11 +193,31 @@ iOS builds run only on macOS, so the `mobile bundles` workflow does them on
   install on your own iPhone, no membership required. With a Mac, `npx tauri
   ios dev --open` and a personal team in Xcode does the same.
 
-The overlay `tauri.ios.conf.json` mirrors the Android one and sets iOS 14 as
+The overlay `tauri.ios.conf.json` mirrors the Android one and sets iOS 15 as
 the minimum system version. The bundle identifier is the shared
 `net.lakesidegames.ahdclient`; register it in the developer portal before the
 first signed build. On a Mac with Xcode, `npx tauri ios dev` opens the app in a
 simulator.
+
+### Widget extension in 2.1.0
+
+After `tauri ios init --ci`, run `ruby scripts/configure-ios-widgets.rb` from
+the repository root. It adds `AHDWidgets` to the generated XcodeGen spec and
+regenerates the Xcode project. The mobile workflow runs this automatically.
+The extension embeds in the app and carries the same release/build version.
+
+Register the `net.lakesidegames.ahdclient.widgets` extension bundle ID with the
+same Apple team as the app. Enable App Groups for both targets and associate
+`group.net.lakesidegames.ahdclient`. Both provisioning profiles must include
+that group and the shared Keychain access group
+`$(AppIdentifierPrefix)net.lakesidegames.ahdclient.widgets`. Xcode automatic
+signing can create profiles after the capabilities exist in the team.
+
+Unsigned simulator builds validate the extension compile and embedding.
+Device validation must check adding all three widgets, stacking equal-size
+widgets, sign-in and sign-out, cold-start links, refresh after a turn, and
+stale/offline states. A signed device build is required to validate the shared
+App Group and Keychain entitlements; an unsigned compile cannot prove those.
 
 ## What mobile ships
 

@@ -4,6 +4,8 @@
   "description": "Android and iOS: the single app webview while it shows the launcher. It may open the live site in place, read the linked account through Rust, and send diagnostics. No filesystem, shell, dialog, or updater. Remote pages loaded into this same webview get nothing: Tauri never exposes IPC to origins outside the app.",
   "platforms": ["android", "iOS"],
   "permissions": [
+    "allow-get-briefing",
+    "allow-open-briefing-page",
     "core:default",
     "allow-open-online-window",
     "allow-open-help-destination",

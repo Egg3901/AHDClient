@@ -23,6 +23,7 @@ mod game_versions;
 mod mobile;
 #[cfg(desktop)]
 mod node_path;
+mod briefing;
 
 use std::time::Duration;
 
@@ -162,7 +163,10 @@ async fn linked_account(app: AppHandle) -> Result<Option<LinkedAccount>, String>
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init());
+  let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init())
+    .manage(briefing::BriefingState::default());
+  #[cfg(target_os = "ios")]
+  let builder = builder.plugin(tauri_plugin_briefing_widgets::init());
   #[cfg(desktop)]
   let builder = desktop::configure(builder);
   #[cfg(mobile)]
@@ -176,7 +180,9 @@ pub fn run() {
         desktop::on_exit(app);
       }
       #[cfg(mobile)]
-      let _ = (app, event);
+      if let tauri::RunEvent::Opened { urls } = event {
+        for url in urls { mobile::open_widget_link(app, &url); }
+      }
     });
 }
 

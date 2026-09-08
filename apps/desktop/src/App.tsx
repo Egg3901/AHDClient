@@ -36,6 +36,8 @@ import { DiagnosticPanel } from "./DiagnosticPanel.js";
 import { recordDiagnostic, submitDiagnostics, type DiagnosticReason } from "./diagnostics.js";
 import { mobile } from "./platform.js";
 import { reportIssueRoute } from "./help.js";
+import { Briefing } from "./briefing/Briefing.js";
+import { briefing } from "./briefing/briefingApi.js";
 
 type Screen =
   | "launcher"
@@ -45,6 +47,7 @@ type Screen =
   | "playing"
   | "online"
   | "linking"
+  | "briefing"
   | "worldsim";
 
 const IDLE: GameInfo = { running: false, port: null, slot: null, url: null };
@@ -108,11 +111,12 @@ export function App(): JSX.Element {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
+      if (screen === "briefing") { setScreen("launcher"); return; }
       setSettingsOpen((open) => !open);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [screen]);
   const changeSettings = (next: ClientSettings) => {
     // Clear pending data before saving an opt-out so a storage error cannot
     // leave previously queued reports available for transmission.
@@ -521,6 +525,8 @@ export function App(): JSX.Element {
     setScreen("launcher");
   };
   const settingsControl = (
+    <>
+    <button className="client-settings-trigger" type="button" onClick={() => setScreen("briefing")}>Briefing</button>
     <button
       className="client-settings-trigger"
       type="button"
@@ -528,6 +534,7 @@ export function App(): JSX.Element {
     >
       Settings
     </button>
+    </>
   );
   const accountControl = (
     <AccountControl
@@ -614,6 +621,7 @@ export function App(): JSX.Element {
                 ? "Link your game account"
                 : "A House Divided"}
             </strong>
+            <button title="Multiplayer briefing in picture-in-picture" onClick={() => void briefing.popOut().catch(fail)}>PiP</button>
             {screen === "playing" && runningWorldsim && (
               <button
                 onClick={() => {
@@ -648,6 +656,8 @@ export function App(): JSX.Element {
       </main>,
     );
   }
+
+  if (screen === "briefing") return <Briefing mobile={mobile} onBack={() => setScreen("launcher")} />;
 
   if (screen === "newWorld" && pendingEra) {
     const era = eraById(pendingEra);
