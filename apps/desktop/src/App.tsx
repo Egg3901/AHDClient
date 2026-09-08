@@ -37,7 +37,7 @@ import { recordDiagnostic, submitDiagnostics, type DiagnosticReason } from "./di
 import { mobile } from "./platform.js";
 import { reportIssueRoute } from "./help.js";
 import { Briefing } from "./briefing/Briefing.js";
-import { briefing } from "./briefing/briefing.js";
+import { briefing } from "./briefing/briefingApi.js";
 
 type Screen =
   | "launcher"

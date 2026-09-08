@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { briefing, freshness, money, nextSection, number, percent, readSection, saveSection, SECTIONS, SECTION_LABELS } from "./briefing.js";
-import type { Section, Snapshot } from "./briefing.js";
+import { briefing, freshness, money, nextSection, number, percent, readSection, saveSection, SECTIONS, SECTION_LABELS } from "./briefingApi.js";
+import type { Section, Snapshot } from "./briefingApi.js";
 import "./briefing.css";
 
 function Stats({ items }: { items: [string, string][] }): JSX.Element {

@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Briefing } from "./Briefing.js";
-import { briefing, freshness, money, number, readSection } from "./briefing.js";
-import type { Snapshot } from "./briefing.js";
+import { briefing, freshness, money, number, readSection } from "./briefingApi.js";
+import type { Snapshot } from "./briefingApi.js";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const ready: Snapshot = {

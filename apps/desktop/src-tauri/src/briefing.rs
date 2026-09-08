@@ -199,7 +199,7 @@ pub(crate) async fn open_briefing_window(app: AppHandle) -> Result<(), String> {
   }
   tauri::WebviewWindowBuilder::new(&app, "briefing", tauri::WebviewUrl::App("index.html?view=briefing".into()))
     .title("AHDClient · Multiplayer briefing")
-    .inner_size(380.0, 560.0).min_inner_size(320.0, 460.0)
+    .inner_size(380.0, 600.0).min_inner_size(320.0, 460.0)
     .always_on_top(true).resizable(true).center()
     .background_color(tauri::window::Color(0x14, 0x14, 0x1c, 0xff))
     .on_navigation(|url| (url.scheme() == "tauri" && url.host_str() == Some("localhost"))
