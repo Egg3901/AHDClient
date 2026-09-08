@@ -178,7 +178,7 @@ describe("desktop platform configuration", () => {
       "macos-latest",
       "--bundles appimage,deb",
       "--bundles nsis",
-      "--bundles dmg",
+      "--bundles app,dmg",
       "actions/upload-artifact@v4",
       "ahdclient-windows-x86_64",
       "bundle/nsis/*.exe",
@@ -188,6 +188,8 @@ describe("desktop platform configuration", () => {
     expect(workflow).not.toContain("uploadWorkflowArtifacts");
     expect(workflow).toContain("APPLE_SIGNING_IDENTITY: ${{ startsWith(matrix.platform, 'macos') && '-' || '' }}");
     expect(workflow).toContain("console.log('ahd-node-jit-ok')");
+    expect(workflow).toContain("-name '*.app.tar.gz'");
+    expect(workflow).toContain("tar -xzf \"$archive\"");
   });
 
   it("retains signed updater artifacts for every desktop platform", () => {
