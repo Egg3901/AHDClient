@@ -20,6 +20,7 @@ interface Props {
 
 export function UpdateNotice({ enabled = true }: Props): JSX.Element | null {
   const [state, setState] = useState<UpdateState>({ kind: "checking" });
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     if (!enabled) return;
@@ -70,26 +71,88 @@ export function UpdateNotice({ enabled = true }: Props): JSX.Element | null {
     };
   }, [enabled]);
 
-  if (state.kind === "checking" || state.kind === "current") return null;
+  if (state.kind === "checking" || state.kind === "current" || dismissed)
+    return null;
+
+  const notes =
+    state.kind === "available"
+      ? state.notes
+          .split("\n")
+          .map((note) => note.trim().replace(/^[-*]\s+/, ""))
+          .filter(Boolean)
+      : [];
 
   return (
-    <aside className="client-update-notice" aria-live="polite">
+    <aside className="client-update-notice" role="status" aria-live="polite">
       {state.kind === "error" ? (
-        <strong>
-          Update stopped: {state.message}. Try again from Settings.
-        </strong>
+        <>
+          <div className="client-update-heading">
+            <span className="client-update-mark" aria-hidden="true">
+              !
+            </span>
+            <div>
+              <strong>Update stopped</strong>
+              <p>{state.message}. Try again from Settings.</p>
+            </div>
+          </div>
+          <button
+            className="client-update-later"
+            type="button"
+            onClick={() => setDismissed(true)}
+          >
+            Dismiss
+          </button>
+        </>
       ) : state.kind === "installing" ? (
-        <strong>
-          Installing the update. AHDClient will restart when it is ready.
-        </strong>
+        <div className="client-update-heading">
+          <span
+            className="client-update-mark client-update-mark-pulse"
+            aria-hidden="true"
+          >
+            &#8593;
+          </span>
+          <div>
+            <strong>Installing update</strong>
+            <p>AHDClient will restart when it is ready.</p>
+          </div>
+        </div>
       ) : (
         <>
-          <span>
-            <strong>AHDClient {state.version} is ready.</strong> {state.notes}
-          </span>
-          <button type="button" onClick={() => void state.install()}>
-            Update and restart
-          </button>
+          <div className="client-update-heading">
+            <span className="client-update-mark" aria-hidden="true">
+              &#8593;
+            </span>
+            <div>
+              <strong>AHDClient {state.version} is ready</strong>
+              <p>A new client and paired game build are available.</p>
+            </div>
+          </div>
+          {notes.length > 0 && (
+            <details className="client-update-details">
+              <summary>What's new</summary>
+              <ul>
+                {notes.map((note, index) => (
+                  <li key={`${index}-${note}`}>{note}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+          <div className="client-update-actions">
+            <button
+              className="client-update-primary"
+              type="button"
+              onClick={() => void state.install()}
+            >
+              Update and restart
+            </button>
+            <button
+              className="client-update-later"
+              type="button"
+              onClick={() => setDismissed(true)}
+            >
+              Later
+            </button>
+          </div>
         </>
       )}
     </aside>
