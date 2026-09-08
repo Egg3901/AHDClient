@@ -5,6 +5,7 @@ import LakesideCore
     @Published var conversations: [JSONValue] = []
     @Published var turns: [JSONValue] = []
     @Published var workers: [JSONValue] = []
+    @Published var staff: [JSONValue] = []
     @Published var providers: [JSONValue] = []
     @Published var usage: [JSONValue] = []
     @Published var conversation = ""
@@ -31,14 +32,15 @@ import LakesideCore
                 cursor = boot["cursor"].string
                 conversations = boot["conversations"].array
                 workers = boot["workers"].array
+                staff = boot["staff"].array
                 if conversation.isEmpty { conversation = boot["conversation"]["id"].string }
                 try await loadTurns(session)
                 connected = true; error = nil; delay = 1
                 try await session.events("/api/ops/events", query: ["after": cursor]) { event in
                     let envelope = try JSONValue.parse(event.data)
                     let data = envelope["data"]
-                    if event.name == "worker.updated" {
-                        self.workers = try await session.get("/api/ops/workers")["workers"].array
+                    if event.name == "worker.updated" || event.name == "staff.updated" {
+                        await self.refreshTeam(session)
                     } else if event.name == "turn.updated", data["conversationId"].string == self.conversation {
                         let selected = self.conversation
                         let update = try await session.get("/api/ops/turns/\(data["turnId"].string)")
@@ -148,6 +150,14 @@ import LakesideCore
             async let measured = session.get("/api/ops/usage")
             let (a, b) = try await (inventory, measured)
             providers = a["providers"].array; usage = b["providers"].array
+        } catch { self.error = error.localizedDescription }
+    }
+    func refreshTeam(_ session: AppSession) async {
+        do {
+            async let a = session.get("/api/ops/workers")
+            async let b = session.get("/api/ops/staff")
+            let (runs, people) = try await (a, b)
+            workers = runs["workers"].array; staff = people["staff"].array
         } catch { self.error = error.localizedDescription }
     }
     func workerAction(_ id: String, _ action: String, _ session: AppSession) async {
@@ -337,6 +347,8 @@ struct OpsTeam: View {
     @ObservedObject var model: OpsWorkspaceModel
     @State private var filter = "All"
     @State private var search = ""
+    @State private var newWorker = false
+    @State private var newStaff = false
     private var filtered: [JSONValue] { model.workers.filter {
         let terminal = ["completed", "failed", "cancelled"].contains($0["job_status"].string)
         let matches = filter == "All" || (filter == "Active" && !terminal) || (filter == "Finished" && terminal) || (filter == "Needs you" && !$0["permissions"].array.isEmpty)
@@ -350,10 +362,24 @@ struct OpsTeam: View {
                     VStack(alignment: .leading, spacing: 4) { Text("Ops assistant").font(.headline); Text("Main agent · Codex / Muse").font(.caption).foregroundStyle(.secondary) }
                     Spacer()
                 }.padding(.vertical, 8)
-                Text("Delegated work").font(.title2.weight(.semibold))
-                Text("Follow progress, review results, and resolve requests from your team.").font(.callout).foregroundStyle(.secondary)
+                Text("Your team").font(.title2.weight(.semibold))
+                Text("Keep a standing team, launch specialists, and step into their work.").font(.callout).foregroundStyle(.secondary)
                 Picker("Filter workers", selection: $filter) { ForEach(["All", "Active", "Needs you", "Finished"], id: \.self) { Text($0) } }.pickerStyle(.segmented)
             }.listRowBackground(Color.clear).listRowSeparator(.hidden)
+            Section("Staff") {
+                ForEach(model.staff.filter { search.isEmpty || ($0["name"].string + " " + $0["role"].string).localizedCaseInsensitiveContains(search) }, id: \.["id"].string) { member in
+                    NavigationLink { OpsStaffDetail(model: model, staff: member) } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label(member["name"].string, systemImage: "person.crop.circle").font(.headline)
+                            Text(member["role"].string).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                            let count = model.workers.filter { $0["staff_id"].string == member["id"].string && !["completed", "failed", "cancelled"].contains($0["job_status"].string) }.count
+                            Text(count == 0 ? "Available for assignments" : "\(count) active assignments").font(.caption2).foregroundStyle(OpsTheme.mint)
+                        }.padding(.vertical, 6)
+                    }.listRowBackground(OpsTheme.surface)
+                }
+                Button { newStaff = true } label: { Label("Add team member", systemImage: "person.badge.plus") }
+            }
+            Section { Text("Assignments").font(.headline) }.listRowBackground(Color.clear)
             if filtered.isEmpty { ContentUnavailableView("No matching workers", systemImage: "person.2", description: Text("Ask your assistant to delegate a task, or choose another filter.")) }
             ForEach(filtered, id: \.["id"].string) { worker in
                 NavigationLink { OpsWorkerDetail(worker: worker, model: model) } label: {
@@ -364,7 +390,11 @@ struct OpsTeam: View {
                     }.padding(.vertical, 8)
                 }.listRowBackground(OpsTheme.surface)
             }
-        }.opsScreen().navigationTitle("Team").searchable(text: $search, prompt: "Search delegated work")
+        }.opsScreen().navigationTitle("Team").searchable(text: $search, prompt: "Search staff and assignments")
+            .toolbar { Button { newWorker = true } label: { Image(systemName: "plus") }.accessibilityLabel("New worker") }
+            .sheet(isPresented: $newWorker) { OpsNewAssignment(model: model) }
+            .sheet(isPresented: $newStaff) { OpsStaffEditor(model: model) }
+            .refreshable { await model.refreshTeam(session) }
     }
 }
 
@@ -380,17 +410,53 @@ struct OpsWorkerDetail: View {
     @ObservedObject var model: OpsWorkspaceModel
     @State private var detail: JSONValue = .null
     @State private var activityLog = ""
+    @State private var activityLoading = false
+    @State private var activityError: String?
+    @State private var activityRefresh = 0
+    @State private var activityUpdated: Date?
+    @State private var message = ""
+    @State private var messageID = UUID().uuidString
+    @State private var submittedMessage: String?
+    @State private var messages: [JSONValue] = []
+    @State private var sendingMessage = false
+    @State private var messageError: String?
     @State private var showActivity = false
     @Environment(\.scenePhase) private var phase
     private var current: JSONValue {
         let summary = model.workers.first { $0["id"] == worker["id"] } ?? worker
         var fields = summary.object
-        if detail != .null { fields["brief"] = detail["brief"]; fields["result"] = detail["result"] }
+        if detail != .null {
+            for (key, value) in detail.object where fields[key] == nil { fields[key] = value }
+            fields["brief"] = detail["brief"]; fields["result"] = detail["result"]
+        }
         return .object(fields)
     }
     var body: some View {
         List {
-            Section("Task") { LabeledContent("Reports to", value: "Ops assistant"); Text(current["brief"].string); LabeledContent("Status", value: current["job_status"].string.capitalized) }
+            Section("Assignment") {
+                Text(current["brief"].string)
+                LabeledContent("Status", value: current["job_status"].string.capitalized)
+                LabeledContent("Assigned by", value: current["origin"].string == "owner" ? "You" : "Ops assistant")
+                LabeledContent("Reports to", value: "Ops assistant")
+                if !current["created_at"].string.isEmpty { LabeledContent("Created", value: opsDate(current["created_at"].string)) }
+                if !current["job_updated_at"].string.isEmpty { LabeledContent("Last update", value: opsDate(current["job_updated_at"].string)) }
+                LabeledContent("Provider", value: current.first("runtime_provider", "provider").capitalized)
+                if !current["runtime_model"].string.isEmpty { LabeledContent("Model", value: current["runtime_model"].string) }
+            }
+            Section("Join the conversation") {
+                ForEach(messages, id: \.["id"].string) { item in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(item["text"].string)
+                        Text(item["status"].string.replacingOccurrences(of: "_", with: " ").capitalized).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                if !["completed", "failed", "cancelled"].contains(current["job_status"].string) {
+                    TextField("Give this worker direction", text: $message, axis: .vertical).lineLimit(2...6).disabled(sendingMessage || submittedMessage != nil)
+                    Text("Your message is queued for the worker's next turn. Ops continues to oversee the assignment.").font(.caption).foregroundStyle(.secondary)
+                    Button(submittedMessage == nil ? "Send to worker" : "Retry message") { Task { await sendMessage() } }.disabled(sendingMessage || message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                } else { Text("This assignment has finished. Start another assignment from the team to continue the work.").font(.caption).foregroundStyle(.secondary) }
+                if let messageError { Text(messageError).font(.caption).foregroundStyle(.orange) }
+            }
             ForEach(current["permissions"].array, id: \.["id"].string) { permission in
                 Section("Needs your decision") {
                     Text(permission.first("title", "name")).font(.headline)
@@ -405,9 +471,19 @@ struct OpsWorkerDetail: View {
                 }
             }
             Section {
-                DisclosureGroup("Live activity", isExpanded: $showActivity) {
-                    if activityLog.isEmpty { Text("Loading activity…").foregroundStyle(.secondary) }
-                    else { NativeMarkdown(text: activityLog) }
+                DisclosureGroup("Conversation & tools", isExpanded: $showActivity) {
+                    if activityLoading && activityLog.isEmpty { ProgressView("Loading activity") }
+                    else if activityLog.isEmpty && activityError == nil { Text("No activity reported yet.").foregroundStyle(.secondary) }
+                    if !activityLog.isEmpty {
+                        ScrollView { NativeMarkdown(text: activityLog).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 380)
+                    }
+                    if let activityError { Text(activityError).font(.caption).foregroundStyle(.orange) }
+                    HStack {
+                        if let activityUpdated { Text("Updated \(activityUpdated.formatted(date: .omitted, time: .shortened))").font(.caption2).foregroundStyle(.secondary) }
+                        Spacer()
+                        Button("Refresh") { activityRefresh += 1 }.disabled(activityLoading)
+                        Button { UIPasteboard.general.string = activityLog } label: { Image(systemName: "doc.on.doc") }.disabled(activityLog.isEmpty).accessibilityLabel("Copy worker activity")
+                    }.buttonStyle(.borderless)
                 }
             }
             if !current["workspace_id"].string.isEmpty {
@@ -423,20 +499,42 @@ struct OpsWorkerDetail: View {
             }
             if let error = model.error { Text(error).foregroundStyle(.orange) }
         }.opsScreen().navigationTitle(current["name"].string)
-            .task(id: "\(showActivity)-\(phase == .active)") {
+            .task(id: "\(showActivity)-\(phase == .active)-\(activityRefresh)-\(current["job_status"].string)") {
                 guard showActivity && phase == .active else { return }
                 while !Task.isCancelled {
                     do {
-                        activityLog = try await session.get("/api/ops/workers/\(worker["id"].string)/activity")["content"].string
+                        activityLoading = true
+                        async let a = session.get("/api/ops/workers/\(worker["id"].string)/activity")
+                        async let b = session.get("/api/ops/workers/\(worker["id"].string)/messages")
+                        let (result, inbox) = try await (a, b)
+                        try Task.checkCancellation()
+                        messages = inbox["messages"].array
+                        activityLog = result["content"].string; activityError = nil; activityUpdated = Date(); activityLoading = false
                         if ["completed", "failed", "cancelled"].contains(current["job_status"].string) { return }
                         try await Task.sleep(for: .seconds(3))
-                    } catch { if !Task.isCancelled { model.error = error.localizedDescription }; return }
+                    } catch { if !Task.isCancelled { activityError = error.localizedDescription }; activityLoading = false; return }
                 }
             }
-            .task(id: model.workers.first { $0["id"] == worker["id"] }?["updated_at"].string) {
-                do { detail = try await session.get("/api/ops/workers/\(worker["id"].string)")["worker"] }
+            .task(id: model.workers.first { $0["id"] == worker["id"] }?["job_updated_at"].string) {
+                do {
+                    async let a = session.get("/api/ops/workers/\(worker["id"].string)")
+                    async let b = session.get("/api/ops/workers/\(worker["id"].string)/messages")
+                    let (result, inbox) = try await (a, b)
+                    detail = result["worker"]; messages = inbox["messages"].array
+                }
                 catch { model.error = error.localizedDescription }
             }
+    }
+    private func sendMessage() async {
+        sendingMessage = true; defer { sendingMessage = false }
+        let text = submittedMessage ?? message
+        submittedMessage = text
+        do {
+            _ = try await session.post("/api/ops/workers/\(worker["id"].string)/messages", ["requestId": .string(messageID), "text": .string(text)])
+            submittedMessage = nil; message = ""; messageID = UUID().uuidString; messageError = nil
+            messages = try await session.get("/api/ops/workers/\(worker["id"].string)/messages")["messages"].array
+            showActivity = true; activityRefresh += 1
+        } catch { messageError = error.localizedDescription }
     }
 }
 

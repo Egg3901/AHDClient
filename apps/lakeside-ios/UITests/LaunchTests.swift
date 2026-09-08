@@ -91,6 +91,29 @@ final class LaunchTests: XCTestCase {
         capture(app, "Ops schedule controls")
         XCTAssertEqual(app.webViews.count, 0)
     }
+    func testOpsStaffAndActivity() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
+        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops staff") }
+        let activity = app.buttons["ops-activity"]
+        XCTAssertTrue(activity.waitForExistence(timeout: 10)); activity.tap()
+        let search = app.textFields["ops-activity-search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap(); search.typeText("missing-command")
+        XCTAssertTrue(app.staticTexts["No matching activity"].waitForExistence(timeout: 5))
+        capture(app, "Ops searchable activity")
+        app.tabBars.buttons["Team"].tap()
+        XCTAssertTrue(app.staticTexts["Release engineer"].waitForExistence(timeout: 5))
+        capture(app, "Ops staff and assignments")
+        app.staticTexts["Release engineer"].tap()
+        XCTAssertTrue(app.staticTexts["Verify exports before release."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Export repair"].exists)
+        capture(app, "Ops persistent staff profile")
+        app.buttons["Assign work"].tap()
+        XCTAssertTrue(app.textFields["ops-assignment-title"].waitForExistence(timeout: 5))
+        capture(app, "Ops new assignment")
+        app.buttons["Cancel"].tap()
+        XCTAssertEqual(app.webViews.count, 0)
+    }
     private func capture(_ app: XCUIApplication, _ name: String) {
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = name; screenshot.lifetime = .keepAlways; add(screenshot)
     }

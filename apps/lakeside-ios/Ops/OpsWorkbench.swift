@@ -18,26 +18,104 @@ extension View {
     }
 }
 
+private struct OpsActivityEntry: Identifiable {
+    let id: String
+    let value: JSONValue
+    var state: String {
+        if let exit = value["exitCode"].number, exit != 0 { return "failed" }
+        return value["state"].string.nonempty ?? "recorded"
+    }
+    var title: String { value.first("label", "name").nonempty ?? "Tool activity" }
+    var searchable: String { [title, value["command"].string, value["output"].string].joined(separator: "\n") }
+}
+
 struct OpsActivity: View {
     var actions: [JSONValue]
+    @State private var search = ""
+    @State private var filter = "All"
+    private var entries: [OpsActivityEntry] {
+        actions.enumerated().map { index, value in
+            OpsActivityEntry(id: value["id"].string.nonempty ?? "step-\(index)", value: value)
+        }
+    }
+    private var visible: [OpsActivityEntry] {
+        entries.filter { (filter == "All" || $0.state == filter.lowercased()) &&
+            (search.isEmpty || $0.searchable.localizedCaseInsensitiveContains(search)) }
+    }
     var body: some View {
         if !actions.isEmpty {
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 14) {
-                    ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
-                        DisclosureGroup {
-                            if !action["command"].string.isEmpty { Text(action["command"].string).font(.caption.monospaced()).textSelection(.enabled) }
-                            if !action["output"].string.isEmpty { Text(action["output"].string).font(.caption.monospaced()).textSelection(.enabled) }
-                            if !action["ts"].string.isEmpty { Text(action["ts"].string).font(.caption2).foregroundStyle(.secondary) }
-                        } label: {
-                            Label(action.first("label", "name"), systemImage: action["name"].string == "bash" ? "terminal" : "wrench.and.screwdriver")
-                                .font(.caption).lineLimit(2)
-                        }
+                    TextField("Search commands and output", text: $search)
+                        .font(.callout).textFieldStyle(.roundedBorder).autocorrectionDisabled()
+                        .textInputAutocapitalization(.never).accessibilityIdentifier("ops-activity-search")
+                    Picker("Activity filter", selection: $filter) {
+                        ForEach(["All", "Running", "Failed"], id: \.self) { Text($0) }
+                    }.pickerStyle(.segmented)
+                    if visible.isEmpty { Text("No matching activity").font(.caption).foregroundStyle(.secondary) }
+                    ForEach(visible) { entry in
+                        OpsActivityStep(entry: entry)
                     }
                 }.padding(.top, 12)
-            } label: { Label("Activity · \(actions.count) \(actions.count == 1 ? "step" : "steps")", systemImage: "list.bullet.rectangle").font(.caption.weight(.medium)) }
-            .foregroundStyle(.secondary)
+            } label: {
+                HStack(spacing: 8) {
+                    Label("Activity · \(actions.count) \(actions.count == 1 ? "step" : "steps")", systemImage: "list.bullet.rectangle")
+                    Spacer()
+                    let failed = entries.filter { $0.state == "failed" }.count
+                    if failed > 0 { Text("\(failed) failed").foregroundStyle(.orange) }
+                }.font(.caption.weight(.medium))
+            }.foregroundStyle(.secondary).accessibilityIdentifier("ops-activity")
         }
+    }
+}
+
+private struct OpsActivityStep: View {
+    let entry: OpsActivityEntry
+    @State private var expanded = false
+    private var icon: String {
+        switch entry.state {
+        case "running": return "circle.dotted"
+        case "completed": return "checkmark.circle"
+        case "failed": return "exclamationmark.circle"
+        default: return entry.value["name"].string == "bash" ? "terminal" : "wrench.and.screwdriver"
+        }
+    }
+    private var color: Color { entry.state == "failed" ? .orange : entry.state == "completed" ? OpsTheme.mint : .secondary }
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded) {
+            if expanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    if !entry.value["command"].string.isEmpty { detail("Command", entry.value["command"].string) }
+                    if !entry.value["output"].string.isEmpty { detail("Output", entry.value["output"].string) }
+                    if entry.value["command"].string.isEmpty && entry.value["output"].string.isEmpty {
+                        Text("No additional detail reported.").font(.caption)
+                    }
+                    if let exit = entry.value["exitCode"].number { Text("Exit code \(Int(exit))").font(.caption.monospaced()) }
+                    if !entry.value["ts"].string.isEmpty { Text(entry.value["ts"].string).font(.caption2) }
+                }.padding(.vertical, 8)
+            }
+        } label: {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: icon).foregroundStyle(color)
+                Text(entry.title).lineLimit(2).foregroundStyle(OpsTheme.ink)
+                Spacer(minLength: 4)
+                Text(entry.state.capitalized).foregroundStyle(color)
+            }.font(.caption)
+        }
+    }
+    private func detail(_ title: String, _ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title).font(.caption2.weight(.semibold))
+                Spacer()
+                Button { UIPasteboard.general.string = text } label: { Image(systemName: "doc.on.doc") }
+                    .buttonStyle(.plain).accessibilityLabel("Copy \(title.lowercased())")
+            }
+            ScrollView([.horizontal, .vertical]) {
+                Text(text).font(.caption.monospaced()).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }.frame(maxHeight: 240)
+        }.padding(10).background(OpsTheme.surface, in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
