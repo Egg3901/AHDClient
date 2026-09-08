@@ -59,6 +59,15 @@ def main():
         detail = api('builds/' + build['id'] + '/buildBetaDetail')['data']['attributes']
         print(bundle, 'build', build['attributes']['version'], build['attributes']['processingState'],
               'internal:', detail.get('internalBuildState'), 'external:', detail.get('externalBuildState'))
+        access_groups = listed('betaGroups', **{'filter[app]': app_id, 'limit': 200})
+        configured_testers = listed('betaTesters', **{'filter[email]': email})
+        for access_group in access_groups:
+            if access_group['attributes']['name'] != 'Personal iOS' or not access_group['attributes']['isInternalGroup']:
+                continue
+            member_ids = {t['id'] for t in api('betaGroups/' + access_group['id'] + '/relationships/betaTesters?limit=200')['data']}
+            build_ids = {b['id'] for b in api('betaGroups/' + access_group['id'] + '/relationships/builds?limit=200')['data']}
+            print(bundle, 'configured tester in internal group:', any(t['id'] in member_ids for t in configured_testers),
+                  'latest build assigned:', build['id'] in build_ids)
         if not invite:
             continue
         if not users:
