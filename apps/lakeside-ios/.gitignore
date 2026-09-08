@@ -1,0 +1,7 @@
+Core/.build/
+Core/.swiftpm/
+Lakeside.xcodeproj/
+build/
+Ask/Assets.xcassets/
+Ops/Assets.xcassets/
+*.xcresult
