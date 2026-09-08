@@ -184,7 +184,7 @@ struct OpsConversation: View {
                                 Text(model.liveText.isEmpty ? "Thinking…" : model.liveText).textSelection(.enabled)
                                 if !model.activity.isEmpty { Text(model.activity).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
                             } else {
-                                Text(turn["body"].string.isEmpty ? turn["status"].string.capitalized : turn["body"].string).textSelection(.enabled)
+                                NativeMarkdown(text: turn["body"].string.isEmpty ? turn["status"].string.capitalized : turn["body"].string)
                                 if !turn["error"].string.isEmpty { Text(turn["error"].string).font(.caption).foregroundStyle(.orange) }
                             }
                         }.frame(maxWidth: .infinity, alignment: .leading).brandCard()
@@ -269,7 +269,7 @@ struct OpsWorkerDetail: View {
                     }
                 }
             }
-            if !current["result"].string.isEmpty { Section("Worker report") { Text(current["result"].string).textSelection(.enabled) } }
+            if !current["result"].string.isEmpty { Section("Worker report") { NativeMarkdown(text: current["result"].string) } }
             Section {
                 if ["completed", "failed", "cancelled"].contains(current["job_status"].string) {
                     Button("Archive worker") { Task { await model.workerAction(current["id"].string, "archive", session) } }
