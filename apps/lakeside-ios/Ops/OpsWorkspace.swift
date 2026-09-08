@@ -8,6 +8,8 @@ import LakesideCore
     @Published var providers: [JSONValue] = []
     @Published var usage: [JSONValue] = []
     @Published var conversation = ""
+    @Published var selectedTab = 0
+    @Published var fileQuestion = ""
     @Published var connected = false
     @Published var error: String?
     @Published var sending = false
@@ -159,13 +161,14 @@ struct OpsWorkspace: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model = OpsWorkspaceModel()
     var body: some View {
-        TabView {
-            NavigationStack { OpsConversation(model: model) }.tabItem { Label("Assistant", systemImage: "bubble.left.and.text.bubble.right") }
-            NavigationStack { OpsTeam(model: model) }.tabItem { Label("Team", systemImage: "person.2") }
-            NavigationStack { OpsCapacity(model: model) }.tabItem { Label("Usage", systemImage: "chart.pie.fill") }
-            NavigationStack { OpsFiles() }.tabItem { Label("Files", systemImage: "folder") }
-            NavigationStack { OpsHubTools() }.tabItem { Label("Hub", systemImage: "square.grid.2x2") }
+        TabView(selection: $model.selectedTab) {
+            NavigationStack { OpsConversation(model: model) }.tabItem { Label("Assistant", systemImage: "bubble.left.and.text.bubble.right") }.tag(0)
+            NavigationStack { OpsTeam(model: model) }.tabItem { Label("Team", systemImage: "person.2") }.tag(1)
+            NavigationStack { OpsCapacity(model: model) }.tabItem { Label("Usage", systemImage: "chart.pie.fill") }.tag(2)
+            NavigationStack { OpsFiles() }.tabItem { Label("Files", systemImage: "folder") }.tag(3)
+            NavigationStack { OpsHubTools() }.tabItem { Label("Hub", systemImage: "square.grid.2x2") }.tag(4)
         }
+        .environmentObject(model)
         .tint(OpsTheme.sky)
         .toolbarBackground(OpsTheme.background, for: .tabBar).toolbarBackground(.visible, for: .tabBar)
         .task(id: scenePhase) { if scenePhase == .active { await model.connect(session) } }
@@ -246,6 +249,7 @@ struct OpsConversation: View {
                 ToolbarItem(placement: .principal) { BrandHeader(surface: .hub) }
                 ToolbarItem(placement: .topBarTrailing) { Button { Task { await model.newConversation(session) } } label: { Image(systemName: "square.and.pencil") }.accessibilityLabel("New conversation") }
             }
+            .onChange(of: model.fileQuestion) { _, question in if !question.isEmpty { draft = question; model.fileQuestion = ""; composing = true } }
             .sheet(isPresented: $history) { OpsHistory(model: model) }
     }
 }
@@ -334,6 +338,11 @@ struct OpsTeam: View {
     var body: some View {
         List {
             Section {
+                HStack(spacing: 12) {
+                    BrandMark(surface: .hub, size: 30)
+                    VStack(alignment: .leading, spacing: 4) { Text("Ops assistant").font(.headline); Text("Main agent · Codex / Muse").font(.caption).foregroundStyle(.secondary) }
+                    Spacer()
+                }.padding(.vertical, 8)
                 Text("Delegated work").font(.title2.weight(.semibold))
                 Text("Follow progress, review results, and resolve requests from your team.").font(.callout).foregroundStyle(.secondary)
                 Picker("Filter workers", selection: $filter) { ForEach(["All", "Active", "Needs you", "Finished"], id: \.self) { Text($0) } }.pickerStyle(.segmented)
@@ -374,7 +383,7 @@ struct OpsWorkerDetail: View {
     }
     var body: some View {
         List {
-            Section("Task") { Text(current["brief"].string); LabeledContent("Status", value: current["job_status"].string.capitalized) }
+            Section("Task") { LabeledContent("Reports to", value: "Ops assistant"); Text(current["brief"].string); LabeledContent("Status", value: current["job_status"].string.capitalized) }
             ForEach(current["permissions"].array, id: \.["id"].string) { permission in
                 Section("Needs your decision") {
                     Text(permission.first("title", "name")).font(.headline)

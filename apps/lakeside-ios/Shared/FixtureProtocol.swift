@@ -29,7 +29,8 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         case "/api/nextcost": value = ["cost": 0.5, "followup": 1, "followupsLeft": 2]
         case "/api/conversation/share": value = ["ok": true, "url": "https://example.test/shared-conversation"]
         case "/api/conversations":
-            value = isAsk ? ["conversations": [["id": "fixture-conversation", "title": "How does inflation work?", "updated": 1788825600000]]] : ["conversations": [["id": 1, "title": "Build the studio hub"]], "conversation": ["id": 1]]
+            if isAsk { value = ["conversations": [["id": "fixture-conversation", "title": "How does inflation work?", "updated": 1788825600000]]] }
+            else { value = ["conversations": [["id": 1, "title": "Build the studio hub"]], "conversation": ["id": 1]] }
         case "/api/ops/workspaces": value = ["workspaces": [["workspaceId": "w1", "title": "Studio hub", "isolation": "worktree"]]]
         case "/api/ops/files": value = ["entries": [["name": "app.swift", "path": "app.swift", "directory": false]]]
         case "/api/ops/files/read": value = ["content": "// Studio hub\nlet version = \"1.3.0\"", "size": 40]

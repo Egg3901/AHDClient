@@ -99,6 +99,7 @@ struct OpsDirectory: View {
 }
 
 struct OpsFilePreview: View {
+    @EnvironmentObject private var model: OpsWorkspaceModel
     @EnvironmentObject private var session: AppSession
     let workspace: JSONValue
     let path: String
@@ -126,7 +127,15 @@ struct OpsFilePreview: View {
                 } else { Text(content).font(.system(size: 12, design: .monospaced)).textSelection(.enabled).padding() }
             }
         }.opsScreen().navigationTitle((path as NSString).lastPathComponent).navigationBarTitleDisplayMode(.inline)
-            .toolbar { ShareLink(item: content) { Image(systemName: "square.and.arrow.up") }.disabled(content.isEmpty) }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Ask about file") { model.fileQuestion = "Review \(path) in workspace \(workspace["workspaceId"].string). "; model.selectedTab = 0 }
+                        Button("Copy path") { UIPasteboard.general.string = path }
+                        ShareLink(item: content) { Label("Share file", systemImage: "square.and.arrow.up") }.disabled(content.isEmpty)
+                    } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("File actions")
+                }
+            }
             .task(id: mode) {
                 loading = true; error = nil; note = ""; content = ""; defer { loading = false }
                 do {
