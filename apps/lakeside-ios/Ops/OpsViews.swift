@@ -107,6 +107,7 @@ struct AgentsView: View {
     @State private var error: String?
     @State private var query = ""
     @State private var loading = false
+    @State private var launching = false
     var body: some View {
         List {
             if let error { FailureBanner(message: error) }
@@ -123,6 +124,8 @@ struct AgentsView: View {
                 }
             }
         }.navigationTitle("Agents").searchable(text: $query)
+        .toolbar { Button { launching = true } label: { Image(systemName: "plus") }.accessibilityLabel("Launch agent") }
+        .sheet(isPresented: $launching, onDismiss: { Task { await refresh() } }) { NavigationStack { LaunchAgentView() } }
         .overlay { if loading && agents.isEmpty { ProgressView() } }
         .overlay { if !loading && agents.isEmpty && error == nil { ContentUnavailableView("No agents", systemImage: "terminal") } }
         .refreshable { await refresh() }
@@ -154,7 +157,9 @@ struct AgentView: View {
             LazyVStack(alignment: .leading, spacing: 20) {
                 if let error { FailureBanner(message: error) }
                 if let delivery { Label(delivery, systemImage: "checkmark.circle").font(.callout).foregroundStyle(.secondary) }
-                if snapshot["pendingQuestion"] != .null { JSONCard(title: "Waiting for input", value: snapshot["pendingQuestion"]) }
+                if snapshot["pendingQuestion"] != .null && !tmux.isEmpty {
+                    AgentQuestionView(tmux: tmux, question: snapshot["pendingQuestion"]) { Task { await refresh() } }.id(snapshot["pendingQuestion"].pretty)
+                }
                 if !snapshot["transcript"]["turns"].array.isEmpty {
                     ForEach(Array(snapshot["transcript"]["turns"].array.enumerated()), id: \.offset) { _, turn in
                         if !turn["user"].string.isEmpty { Text(turn["user"].string).font(.headline).padding().frame(maxWidth: .infinity, alignment: .leading).background(.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 14)) }
@@ -298,6 +303,7 @@ struct OpsMoreView: View {
     var body: some View {
         List {
             Section("Operations") {
+                NavigationLink { FinderView() } label: { Label("Projects and files", systemImage: "folder") }
                 NavigationLink { ReportsView() } label: { Label("Daily reports", systemImage: "doc.richtext") }
                 NavigationLink { RemoteList(title: "Backups", path: "/api/backups", key: "backups") } label: { Label("Backups", systemImage: "externaldrive") }
                 NavigationLink { KnowledgeView() } label: { Label("Knowledge", systemImage: "books.vertical") }

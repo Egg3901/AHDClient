@@ -4,7 +4,7 @@ on:
   pull_request:
     paths: ['apps/lakeside-ios/**', '.github/workflows/lakeside-ios.yml']
   push:
-    branches: [feat/lakeside-native-ios]
+    branches: [main]
     paths: ['apps/lakeside-ios/**', '.github/workflows/lakeside-ios.yml']
   workflow_dispatch:
     inputs:
@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   simulator:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -63,7 +63,7 @@ jobs:
   testflight:
     if: github.event_name == 'workflow_dispatch' && inputs.release
     needs: simulator
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 30
     defaults:
       run:

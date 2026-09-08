@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 umask 077
+sdk_major=$(xcrun --sdk iphoneos --show-sdk-version | cut -d. -f1)
+if [ "$sdk_major" -lt 26 ]; then echo 'Apple uploads require the iOS 26 SDK or newer.' >&2; exit 1; fi
 for variable in APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_CONTENT APPLE_DEVELOPMENT_TEAM; do
   if [ -z "${!variable:-}" ]; then echo "Missing repository secret: $variable" >&2; exit 1; fi
 done
