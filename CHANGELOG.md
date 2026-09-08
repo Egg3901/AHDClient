@@ -2,6 +2,13 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.1.1] - 2026-09-08
+
+- Keep iOS briefing widgets signed in by sharing the session and current briefing through an entitled Keychain group.
+- Give iOS widgets a branded A House Divided layout with clearer Profile, Election and Corporation cards.
+- Let the bundled Node runtime use JIT memory and native modules on macOS so local singleplayer can start under the hardened runtime.
+- Publish updater archives for both Apple silicon and Intel Macs.
+
 ## [2.1.0] - 2026-09-08
 
 - Add opt-in native push notifications on Android and iOS, with private previews and inbox links.
