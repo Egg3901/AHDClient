@@ -307,7 +307,7 @@ struct OpsCapacity: View {
                         }.padding(.vertical, 8)
                     }
                     if provider["allowances"].array.isEmpty {
-                        Text("Subscription remaining: not reported").font(.caption).foregroundStyle(.secondary)
+                        Text(provider["billing"].string == "free" ? "Free model routing" : "Subscription remaining: not reported").font(.caption).foregroundStyle(.secondary)
                     }
                     ForEach(provider["allowances"].array, id: \.["id"].string) { allowance in
                         VStack(alignment: .leading, spacing: 8) {

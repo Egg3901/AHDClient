@@ -21,7 +21,7 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         case "/api/ops/bootstrap": value = ["cursor": 0, "conversation": ["id": 1], "conversations": [["id": 1, "title": "Build the studio hub"]], "workers": [["id": "worker-1", "name": "Export repair", "brief": "Repair and verify the export flow.", "job_status": "completed", "runtime_provider": "codex", "permissions": [], "result": "Export fixed. All checks passed."]]]
         case "/api/chat/turns": value = ["turns": [["id": 1, "role": "owner", "body": "Help me build the studio hub.", "status": "done"], ["id": 2, "role": "assistant", "body": "The export worker has finished. I am checking the changes before accepting them.", "status": "done", "route": ["label": "Muse"]]]]
         case "/api/ops/events":
-            deliver(Data(": connected\n\n".utf8), url: url, status: 200, type: "text/event-stream"); return
+            deliver(Data(": connected\n\n".utf8), url: url, status: 200, type: "text/event-stream", finish: false); return
         case "/api/ops/workers/worker-1": value = ["worker": ["brief": "Repair and verify the export flow.", "result": "Export fixed. All checks passed."]]
         case "/api/ops/providers": value = ["providers": [["id": "codex", "label": "Codex", "status": "available"], ["id": "muse", "label": "Muse", "status": "available"], ["id": "grok", "label": "Grok", "status": "available"]]]
         case "/api/ops/usage": value = ["providers": [["provider": "codex", "attempts": 3, "input_tokens": 12000, "output_tokens": 3000, "unmeasured_token_attempts": 1]]]
@@ -74,9 +74,9 @@ data: {"convId":"fixture-conversation","answerId":43,"answer":"Verified final an
         }
         deliver((try? JSONSerialization.data(withJSONObject: value)) ?? Data(), url: url, status: status, type: "application/json")
     }
-    private func deliver(_ data: Data, url: URL, status: Int, type: String) {
+    private func deliver(_ data: Data, url: URL, status: Int, type: String, finish: Bool = true) {
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": type])!, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
+        client?.urlProtocol(self, didLoad: data); if finish { client?.urlProtocolDidFinishLoading(self) }
     }
     override func stopLoading() {}
 }
