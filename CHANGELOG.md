@@ -5,6 +5,8 @@ All notable AHDClient changes are recorded here.
 ## [2.1.2] - 2026-09-08
 
 - Replace the overflowing update changelog strip with a compact branded card that keeps release notes collapsed, stays clear of launcher controls and can be dismissed until the next launch.
+- Clear hosted maintenance state from local singleplayer after a fresh world reset, and repair affected 2.1.1 worlds when the launcher checks their status.
+- Restore manual diagnostic submission with the launcher's bounded, redacted runtime context.
 
 ## [2.1.1] - 2026-09-08
 
