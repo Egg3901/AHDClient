@@ -22,6 +22,7 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         case "/api/chat/turns": value = ["turns": [["id": 1, "role": "owner", "body": "Help me build the studio hub.", "status": "done"], ["id": 2, "role": "assistant", "body": "The export worker has finished. I am checking the changes before accepting them.", "status": "done", "route": ["label": "Muse"]]]]
         case "/api/ops/events":
             deliver(Data(": connected\n\n".utf8), url: url, status: 200, type: "text/event-stream"); return
+        case "/api/ops/workers/worker-1": value = ["worker": ["brief": "Repair and verify the export flow.", "result": "Export fixed. All checks passed."]]
         case "/api/ops/providers": value = ["providers": [["id": "codex", "label": "Codex", "status": "available"], ["id": "muse", "label": "Muse", "status": "available"], ["id": "grok", "label": "Grok", "status": "available"]]]
         case "/api/ops/usage": value = ["providers": [["provider": "codex", "attempts": 3, "input_tokens": 12000, "output_tokens": 3000, "unmeasured_token_attempts": 1]]]
         case "/api/ops/memory": value = ["body": "Keep each implementation worker in a separate worktree. Verify results before accepting them.", "version": "fixture-version"]

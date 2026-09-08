@@ -20,7 +20,7 @@ import LakesideCore
     private var pendingText = ""
 
     func connect(_ session: AppSession) async {
-        defer { connected = false; replyTask?.cancel(); flushTask?.cancel() }
+        defer { connected = false; replyTask?.cancel(); flushTask?.cancel(); flushTask = nil }
         var delay = 1.0
         while !Task.isCancelled {
             do {
@@ -37,7 +37,14 @@ import LakesideCore
                     if event.name == "worker.updated" {
                         self.workers = try await session.get("/api/ops/workers")["workers"].array
                     } else if event.name == "turn.updated", data["conversationId"].string == self.conversation {
-                        try await self.loadTurns(session)
+                        let selected = self.conversation
+                        let update = try await session.get("/api/ops/turns/\(data["turnId"].string)")
+                        guard selected == self.conversation else { return }
+                        let turn = update["turn"]
+                        if turn["deleted"].bool { self.turns.removeAll { $0["id"] == turn["id"] } }
+                        else if let index = self.turns.firstIndex(where: { $0["id"] == turn["id"] }) { self.turns[index] = turn }
+                        else { self.turns.append(turn); self.turns.sort { ($0["id"].number ?? 0) < ($1["id"].number ?? 0) } }
+                        if turn["status"].string == "running", turn["role"].string == "assistant" { self.attach(turn["id"].string, session) }
                     }
                     if !envelope["seq"].string.isEmpty { self.cursor = envelope["seq"].string }
                 }
@@ -60,7 +67,7 @@ import LakesideCore
         }
     }
     func select(_ id: String, _ session: AppSession) async {
-        replyTask?.cancel(); flushTask?.cancel(); streamingID = ""; liveText = ""; pendingText = ""
+        replyTask?.cancel(); flushTask?.cancel(); flushTask = nil; streamingID = ""; liveText = ""; pendingText = ""
         conversation = id; turns = []
         do { try await loadTurns(session) } catch { self.error = error.localizedDescription }
     }
@@ -84,7 +91,7 @@ import LakesideCore
     }
     private func attach(_ id: String, _ session: AppSession) {
         guard streamingID != id else { return }
-        replyTask?.cancel(); flushTask?.cancel()
+        replyTask?.cancel(); flushTask?.cancel(); flushTask = nil
         streamingID = id; pendingText = ""; liveText = ""; activity = "Working"
         replyTask = Task {
             do {
@@ -134,7 +141,7 @@ struct OpsWorkspace: View {
         TabView {
             NavigationStack { OpsConversation(model: model) }.tabItem { Label("Assistant", systemImage: "sparkles") }
             NavigationStack { OpsTeam(model: model) }.tabItem { Label("Team", systemImage: "person.3.sequence.fill") }
-            NavigationStack { OpsCapacity(model: model) }.tabItem { Label("Usage", systemImage: "chart.donut") }
+            NavigationStack { OpsCapacity(model: model) }.tabItem { Label("Usage", systemImage: "chart.pie.fill") }
             NavigationStack { OpsHubTools() }.tabItem { Label("Hub", systemImage: "square.grid.2x2") }
         }
         .toolbarBackground(Brand.surface, for: .tabBar).toolbarBackground(.visible, for: .tabBar)
@@ -239,7 +246,13 @@ struct OpsWorkerDetail: View {
     @EnvironmentObject private var session: AppSession
     let worker: JSONValue
     @ObservedObject var model: OpsWorkspaceModel
-    private var current: JSONValue { model.workers.first { $0["id"] == worker["id"] } ?? worker }
+    @State private var detail: JSONValue = .null
+    private var current: JSONValue {
+        let summary = model.workers.first { $0["id"] == worker["id"] } ?? worker
+        var fields = summary.object
+        if detail != .null { fields["brief"] = detail["brief"]; fields["result"] = detail["result"] }
+        return .object(fields)
+    }
     var body: some View {
         List {
             Section("Task") { Text(current["brief"].string); LabeledContent("Status", value: current["job_status"].string.capitalized) }
@@ -266,6 +279,10 @@ struct OpsWorkerDetail: View {
             }
             if let error = model.error { Text(error).foregroundStyle(.orange) }
         }.lakesideScreen().navigationTitle(current["name"].string)
+            .task(id: model.workers.first { $0["id"] == worker["id"] }?["updated_at"].string) {
+                do { detail = try await session.get("/api/ops/workers/\(worker["id"].string)")["worker"] }
+                catch { model.error = error.localizedDescription }
+            }
     }
 }
 
@@ -274,7 +291,7 @@ struct OpsCapacity: View {
     @ObservedObject var model: OpsWorkspaceModel
     var body: some View {
         List {
-            Section { Text("Know where the work goes.").font(.title2.bold()); Text("Today's measured worker usage. Subscription capacity is shown only when the provider reports it.").font(.callout).foregroundStyle(.secondary) }
+            Section { Text("Know where the work goes.").font(.title2.bold()); Text("Today's measured assistant and worker usage. Subscription capacity is shown only when the provider reports it.").font(.callout).foregroundStyle(.secondary) }
             ForEach(model.providers, id: \.["id"].string) { provider in
                 Section(provider["label"].string) {
                     LabeledContent("Runtime", value: provider["status"].string.capitalized)
@@ -289,7 +306,18 @@ struct OpsCapacity: View {
                             }
                         }.padding(.vertical, 8)
                     }
-                    Text("Subscription remaining: not reported").font(.caption).foregroundStyle(.secondary)
+                    if provider["allowances"].array.isEmpty {
+                        Text("Subscription remaining: not reported").font(.caption).foregroundStyle(.secondary)
+                    }
+                    ForEach(provider["allowances"].array, id: \.["id"].string) { allowance in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack { Text(allowance["label"].string); Spacer(); Text("\(Int(allowance["remainingPercent"].number ?? 0))% left").monospacedDigit() }.font(.caption)
+                            ProgressView(value: allowance["remainingPercent"].number ?? 0, total: 100).tint(Brand.mint)
+                            if let observed = allowance["observedAt"].number {
+                                Text("Reported \(Date(timeIntervalSince1970: observed / 1000).formatted(date: .omitted, time: .shortened))").font(.caption2).foregroundStyle(.secondary)
+                            }
+                        }.padding(.vertical, 4)
+                    }
                     if let count = measured["unmeasured_token_attempts"].number, count > 0 { Text("\(Int(count)) attempts have no token measurement.").font(.caption).foregroundStyle(.secondary) }
                 }
             }
