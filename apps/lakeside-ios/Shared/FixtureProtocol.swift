@@ -19,7 +19,7 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
             }
             value = isAsk ? ["identity": ["username": "Test operator"], "entitlement": ["allowed": true, "label": "Staff"], "usage": ["used": 46.5, "limit": 200, "remaining": 153.5, "mcpLimit": 40, "mcpRemaining": 12, "vizLimit": 10, "vizRemaining": 8, "resetAt": 1788912000000, "tier": "Staff"]] : ["email": "operator@example.test", "role": "admin"]
         case "/api/ops/bootstrap": value = ["cursor": 0, "conversation": ["id": 1], "conversations": [["id": 1, "title": "Build the studio hub"]], "workers": [["id": "worker-1", "name": "Export repair", "brief": "Repair and verify the export flow.", "job_status": "completed", "runtime_provider": "codex", "permissions": [], "result": "Export fixed. All checks passed."]]]
-        case "/api/chat/turns": value = ["turns": [["id": 1, "role": "owner", "body": "Help me build the studio hub.", "status": "done"], ["id": 2, "role": "assistant", "body": "The export worker has finished. I am checking the changes before accepting them.", "status": "done", "route": ["label": "Muse"]]]]
+        case "/api/chat/turns": value = ["turns": [["id": 1, "role": "owner", "body": "Help me build the studio hub.", "status": "done"], ["id": 2, "role": "assistant", "body": "The export worker has finished. I am checking the changes before accepting them.", "status": "done", "route": ["label": "Muse"], "actions": [["name": "bash", "label": "Run export checks", "command": "npm test", "output": "All 12 checks passed", "state": "completed"]]]]]
         case "/api/ops/events":
             deliver(Data(": connected\n\n".utf8), url: url, status: 200, type: "text/event-stream", finish: false); return
         case "/api/ops/workers/worker-1": value = ["worker": ["brief": "Repair and verify the export flow.", "result": "Export fixed. All checks passed."]]
@@ -28,7 +28,19 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         case "/api/ops/memory": value = ["body": "Keep each implementation worker in a separate worktree. Verify results before accepting them.", "version": "fixture-version"]
         case "/api/nextcost": value = ["cost": 0.5, "followup": 1, "followupsLeft": 2]
         case "/api/conversation/share": value = ["ok": true, "url": "https://example.test/shared-conversation"]
-        case "/api/conversations": value = ["conversations": [["id": "fixture-conversation", "title": "How does inflation work?", "updated": 1788825600000]]]
+        case "/api/conversations":
+            if isAsk { value = ["conversations": [["id": "fixture-conversation", "title": "How does inflation work?", "updated": 1788825600000]]] }
+            else { value = ["conversations": [["id": 1, "title": "Build the studio hub"]], "conversation": ["id": 1]] }
+        case "/api/ops/workspaces": value = ["workspaces": [["workspaceId": "w1", "title": "Studio hub", "isolation": "worktree"]]]
+        case "/api/ops/files": value = ["entries": [["name": "app.swift", "path": "app.swift", "directory": false]]]
+        case "/api/ops/files/changes": value = ["entries": [["name": "app.swift", "path": "app.swift", "status": " M", "deleted": false, "untracked": false]]]
+        case "/api/ops/files/read": value = ["content": "// Studio hub\nlet version = \"1.3.0\"", "size": 40]
+        case "/api/ops/files/diff": value = ["content": "-let version = 1.2\n+let version = 1.3"]
+        case "/api/ops/workers/worker-1/activity": value = ["content": "Ran export checks. All 12 checks passed.", "updateCount": 3]
+        case "/api/schedules": value = ["schedules": [["id": 1, "title": "Morning review", "brief": "Review overnight activity", "cadence": "daily", "enabled": 1]]]
+        case "/api/tasks": value = ["tasks": [["id": 1, "title": "Review deployment", "status": "completed", "brief": "Check the release"]]]
+        case "/api/tasks/1": value = ["task": ["id": 1, "status": "completed", "result": "Release verified."]]
+
         case "/api/games": value = ["games": [["id": "ahd", "name": "A House Divided"]]]
         case "/api/map/render":
             let svg = ##"<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760"><rect width="1200" height="760" fill="#111827"/><path d="M100 160 L480 100 L540 500 L180 550 Z" fill="#38bdf8"/><path d="M560 180 L990 130 L1060 580 L600 500 Z" fill="#21c8a0"/><text x="80" y="70" fill="#ffffff" font-size="32">Fixture regions</text></svg>"##
