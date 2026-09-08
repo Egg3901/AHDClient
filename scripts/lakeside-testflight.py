@@ -27,7 +27,8 @@ def api(path, body=None):
     except urllib.error.HTTPError as error:
         # Apple errors may echo a tester email. Never write their raw payload to public logs.
         details = json.loads(error.read()).get('errors', [])
-        raise RuntimeError('Apple HTTP %s: %s' % (error.code, ', '.join(x.get('code', 'UNKNOWN') for x in details))) from None
+        categories = [word for word in ['external', 'internal', 'already', 'permission', 'access'] if any(word in x.get('detail', '').lower() for x in details)]
+        raise RuntimeError('Apple HTTP %s: %s (%s)' % (error.code, ', '.join(x.get('code', 'UNKNOWN') for x in details), ', '.join(categories))) from None
 
 
 def listed(path, **filters):
