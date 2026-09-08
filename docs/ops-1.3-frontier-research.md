@@ -36,3 +36,36 @@ These are engineering recommendations rather than benchmark claims from the sour
 ## Scope honesty
 
 The strongest achievable direction is a polished remote agent workspace with inspectable work and concrete artifacts. This research does not establish that Ops currently has provider-internal subagent discovery, arbitrary session import, APNS notifications, inline editing, or full terminal interaction. Those require runtime and security contracts beyond adding UI. Expose supported features well rather than simulating missing capabilities.
+
+## Visual research: first-party screens
+
+The following observations come from images actually downloaded and visually inspected, linked from the first-party pages. They are reference material, not assets to copy into the product. Marketing examples can differ from the currently installed app; no private vendor accounts were accessed.
+
+| Reference viewed | Visible design choices | Application to Ops |
+| --- | --- | --- |
+| [Cursor Agents Window](https://cursor.com/docs/agent/agents-window), specifically its [file-view screenshot](https://cursor.com/docs-static/images/agent/file-agents-window-final.png) | The conversation occupies roughly 30% of the pictured window and the code area roughly 70%. A thin vertical separator divides them. The file pane has a compact toolbar, breadcrumb path, line numbers, and syntax color. The conversation contains summary and validation evidence above a bottom composer. Global navigation is hidden in this focused view. | Let review mode give files most of the width. Keep conversation available for follow-up and make the inspector dismissible. Files should feel like a working document surface, with structure and selectable text. |
+| [Claude Code product page](https://claude.com/product/claude-code), specifically its [web screenshot](https://cdn.sanity.io/images/4zrzovbb/claude-com/050b07bf101bc4712abb3a7e1ba6f4d8dde33fcd-920x920.webp) | Warm pale surfaces, a large plain composer, a repository selector directly below it, and a searchable branch popover. Session entries use title and secondary repository context. The image is a crop, so it does not establish full-window proportions. | Make workspace selection visible near task entry. Reuse Ask's calm surface direction, with identity expressed through typography and a small mark rather than repeated illustrations. |
+| [OpenAI desktop app documentation](https://learn.chatgpt.com/docs/app), specifically its [Codex demo poster](https://learn.chatgpt.com/images/codex/video-posters/proactive-teammate-v2.webp) | A neutral, nearly empty canvas centers one prompt heading, a small workspace chip, and a wide rounded composer. Attachment/access controls sit at its lower left, model controls and one solid send button at the lower right. There are no decorative metric cards around task entry. | Empty state should invite a concrete task. Let the composer be the visual anchor; move secondary usage detail to its own destination. This poster does not demonstrate the active conversation layout. |
+| [Linear Inbox](https://linear.app/docs/inbox), specifically its [first-party image](https://webassets.linear.app/images/ornj730p/production/b442b340278740de70919c868dce1afca4335fe7-3600x2080.png?w=1440) | Priority and Other tabs carry counts. Each notification has one title, one quieter description, and a right-aligned status/time. Neutral dark surfaces and subtle boundaries keep attention on the rows. | Use this density for a Needs attention queue and completed worker list. Keep color for status; titles and supporting metadata should carry most of the hierarchy. |
+
+### Concrete web layout recommendation
+
+These dimensions are proposed Ops starting values, not measured vendor specifications:
+
+- At desktop widths, use a 232 to 256 px collapsible sidebar, a 52 to 56 px workspace toolbar, and a central conversation column capped around 760 px. Keep 24 to 32 px horizontal breathing room around reading content.
+- The sidebar should contain a compact Lakeside Ops identity, new conversation, recent conversations, and stable destinations for Agents, Files, and Usage. Show attention counts only where actionable. Put account/settings at the bottom.
+- Opening a worker or file should reveal a 360 to 440 px inspector when space permits. Full review mode should expand the artifact to about 60 to 70% of the available content area, matching the task's needs. Collapse navigation before squeezing code into a narrow gutter.
+- Below about 1100 px, prefer a drawer or full detail destination over three cramped columns. Below about 760 px, use one content pane and explicit Back navigation. Preserve conversation, selected workspace, file, and scroll position while switching.
+- Use one sans-serif family for navigation and conversation. Start at 15 to 16 px body with 1.5 line height, 13 to 14 px secondary information, and 13 px monospace code. Use weight and spacing before adding color or boxes. Use Ask's actual font and token choices where already established.
+- Use a 4/8 px spacing rhythm, 8 to 12 px control radii, and subtle one-pixel separators. Reserve stronger elevation for the composer, menus, and sheets. Avoid putting every message, metric, and activity row in its own raised card.
+- A turn's activity summary should be one 36 to 40 px row with disclosure, current action, and elapsed time. Expanded rows should share a quiet timeline surface. Keep approval controls close to the exact action requiring input.
+
+### Native iOS interpretation
+
+- Use Ask's native font hierarchy and surface palette with a small Ops mark. Keep the top bar compact and let the conversation fill the screen. A normal completed answer should read as text, not a large padded status card.
+- Keep a persistent bottom composer that respects the keyboard and safe area. Show workspace context compactly above or within it. Route advanced provider choices through a menu instead of filling the composer with chips.
+- Use a single-column agent list grouped by attention state. A tap opens a detail destination with Activity, Report, and Files. Preserve the parent breadcrumb and provide clear return navigation.
+- Expand short tool activity inline; open long output, file content, or a diff in a full-height detail view. Use a unified diff on phone and make horizontal scrolling local to code. Keep Copy and Ask about file accessible from the detail toolbar.
+- Use at least 44 pt hit regions, Dynamic Type, text selection, and VoiceOver status labels. The compact visual style must not shrink touch targets. On iPad, restore a sidebar and detail/inspector arrangement when width supports it.
+
+The common visual direction is clear: a quiet shell, one primary task surface, concise attention signals, and deep detail revealed on demand. The recommendations above translate that direction to Ops while preserving its own Lakeside identity.

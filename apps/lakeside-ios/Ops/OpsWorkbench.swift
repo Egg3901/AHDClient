@@ -79,6 +79,7 @@ struct OpsDirectory: View {
     @State private var truncated = false
     var body: some View {
         List {
+            Section { NavigationLink { OpsChanges(workspace: workspace, path: path) } label: { Label("Review changes", systemImage: "arrow.triangle.branch") } }
             ForEach(entries.filter { search.isEmpty || $0["name"].string.localizedCaseInsensitiveContains(search) }, id: \.["path"].string) { entry in
                 NavigationLink {
                     if entry["directory"].bool { OpsDirectory(workspace: workspace, path: entry["path"].string) }
@@ -105,6 +106,7 @@ struct OpsFilePreview: View {
     let path: String
     @State private var content = ""
     @State private var mode = "Source"
+    var startWithChanges = false
     @State private var error: String?
     @State private var note = ""
     @State private var loading = true
@@ -136,6 +138,7 @@ struct OpsFilePreview: View {
                     } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("File actions")
                 }
             }
+            .onAppear { if startWithChanges { mode = "Changes" } }
             .task(id: mode) {
                 loading = true; error = nil; note = ""; content = ""; defer { loading = false }
                 do {
@@ -230,5 +233,31 @@ struct OpsTaskDetail: View {
                 do { detail = try await session.get("/api/tasks/\(task["id"].string)")["task"] }
                 catch { self.error = error.localizedDescription }
             }
+    }
+}
+
+struct OpsChanges: View {
+    @EnvironmentObject private var session: AppSession
+    let workspace: JSONValue
+    let path: String
+    @State private var entries: [JSONValue] = []
+    @State private var error: String?
+    @State private var loaded = false
+    var body: some View {
+        List {
+            Section { Text("Working tree and index against HEAD").font(.caption).foregroundStyle(.secondary) }
+            ForEach(entries, id: \.["path"].string) { entry in
+                NavigationLink { OpsFilePreview(workspace: workspace, path: entry["path"].string, startWithChanges: !entry["untracked"].bool) } label: {
+                    HStack { Text(entry["name"].string).font(.subheadline); Spacer(); Text(entry["untracked"].bool ? "New" : entry["deleted"].bool ? "Deleted" : entry["status"].string).font(.caption.monospaced()).foregroundStyle(OpsTheme.sky) }
+                }.listRowBackground(OpsTheme.surface)
+            }
+            if loaded && entries.isEmpty && error == nil { ContentUnavailableView("No changes", systemImage: "checkmark.circle", description: Text("This folder has no working tree changes.")) }
+            if let error { Text(error).font(.callout).foregroundStyle(.orange) }
+        }.opsScreen().navigationTitle("Changes").navigationBarTitleDisplayMode(.inline).task { await load() }.refreshable { await load() }
+    }
+    private func load() async {
+        do { entries = try await session.get("/api/ops/files/changes", query: ["workspace": workspace["workspaceId"].string, "path": path])["entries"].array; error = nil }
+        catch { self.error = error.localizedDescription }
+        loaded = true
     }
 }

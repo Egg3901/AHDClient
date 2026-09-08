@@ -33,6 +33,7 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
             else { value = ["conversations": [["id": 1, "title": "Build the studio hub"]], "conversation": ["id": 1]] }
         case "/api/ops/workspaces": value = ["workspaces": [["workspaceId": "w1", "title": "Studio hub", "isolation": "worktree"]]]
         case "/api/ops/files": value = ["entries": [["name": "app.swift", "path": "app.swift", "directory": false]]]
+        case "/api/ops/files/changes": value = ["entries": [["name": "app.swift", "path": "app.swift", "status": " M", "deleted": false, "untracked": false]]]
         case "/api/ops/files/read": value = ["content": "// Studio hub\nlet version = \"1.3.0\"", "size": 40]
         case "/api/ops/files/diff": value = ["content": "-let version = 1.2\n+let version = 1.3"]
         case "/api/ops/workers/worker-1/activity": value = ["content": "Ran export checks. All 12 checks passed.", "updateCount": 3]

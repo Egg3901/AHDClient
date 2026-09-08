@@ -226,6 +226,13 @@ struct OpsConversation: View {
                     }
                 }
             }
+            ForEach(model.workers.filter { !$0["permissions"].array.isEmpty }, id: \.["id"].string) { worker in
+                NavigationLink { OpsWorkerDetail(worker: worker, model: model) } label: {
+                    HStack { Image(systemName: "hand.raised"); Text("\(worker["name"].string) needs a decision").lineLimit(1); Spacer(); Image(systemName: "chevron.right") }
+                        .font(.caption.weight(.medium)).foregroundStyle(.orange).padding(12)
+                        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                }.padding(.horizontal, 16).padding(.bottom, 8)
+            }
             if let error = model.error { Text(error).font(.caption).foregroundStyle(.orange).padding(.horizontal).lineLimit(3) }
             HStack(alignment: .bottom, spacing: 12) {
                 TextField("Message Ops", text: $draft, axis: .vertical).lineLimit(1...6).focused($composing)
