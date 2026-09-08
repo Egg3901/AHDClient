@@ -4,6 +4,8 @@ All notable AHDClient changes are recorded here.
 
 ## [2.1.0] - 2026-09-08
 
+- Add opt-in native push notifications on Android and iOS, with private previews and inbox links.
+
 - Add a multiplayer briefing with swipeable Profile, Election and Corporation cards.
 - Add an always-on-top desktop picture-in-picture briefing with quick page links.
 - Add native Android home-screen widgets, refresh controls and app shortcuts.

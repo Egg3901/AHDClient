@@ -71,6 +71,13 @@ jobs:
           npm run tauri --workspace apps/desktop -- icon src/assets/ahd-logo.png --ios-color '#ffffff'
           test -s apps/desktop/src-tauri/gen/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
+      - name: Install Firebase Android configuration
+        env:
+          FIREBASE_ANDROID_CONFIG: ${{ secrets.FIREBASE_ANDROID_CONFIG }}
+        run: |
+          if [ -n "$FIREBASE_ANDROID_CONFIG" ]; then
+            printf '%s' "$FIREBASE_ANDROID_CONFIG" > apps/desktop/src-tauri/gen/android/app/google-services.json
+          fi
       - name: Install the upload keystore
         if: ${{ github.event_name != 'pull_request' }}
         env:
@@ -146,6 +153,9 @@ jobs:
             apps/desktop/src-tauri/plugins/briefing-widgets/ios/Sources/BriefingStore.swift \
             apps/desktop/src-tauri/ios-widgets/AHDWidgets.swift
 
+      - name: Check native push Swift sources
+        run: |
+          xcrun swiftc -typecheck -parse-as-library -swift-version 5 -target arm64-apple-ios15.0-simulator -sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" apps/desktop/src-tauri/plugins/briefing-widgets/ios/Sources/BriefingStore.swift apps/desktop/src-tauri/plugins/briefing-widgets/ios/Sources/NativePush.swift
       - name: Generate native app icons
         run: |
           npm run tauri --workspace apps/desktop -- icon src/assets/ahd-logo.png --ios-color '#ffffff'

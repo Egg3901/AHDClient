@@ -8,6 +8,8 @@ vi.mock("./UpdateControl.js", () => ({
   UpdateControl: () => <p>Desktop updates</p>,
 }));
 
+vi.mock("./PushControl.js", () => ({ PushControl: () => <p>Push notifications</p> }));
+
 describe("SettingsMenu", () => {
   afterEach(cleanup);
 
@@ -21,10 +23,11 @@ describe("SettingsMenu", () => {
     expect(screen.getByText("Developer diagnostics")).toBeTruthy();
   });
 
-  it("keeps only animation and issue reporting on mobile", () => {
+  it("shows mobile push and animation settings", () => {
     render(
       <SettingsMenu mobile open settings={DEFAULT_SETTINGS} onChange={vi.fn()} onClose={vi.fn()} onReportIssue={vi.fn()} onOpenDiagnostics={vi.fn()} />,
     );
+    expect(screen.getByText("Push notifications")).toBeTruthy();
     expect(screen.getByText("Launcher animation")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Report issue" })).toBeTruthy();
     expect(screen.getByText("Developer diagnostics")).toBeTruthy();

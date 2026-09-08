@@ -227,3 +227,34 @@ Singleplayer and Worldsim are desktop only: they run the game server on the
 player's machine. The app webview identifies itself to the game with an
 `AHDClient-Mobile/<version>` user agent marker so the site keeps ad slots,
 consent prompts and the cookie banner out of the app.
+
+### Native push (2.1.0)
+
+Mobile Settings includes an explicit push opt-in. Android uses FCM; iOS uses
+APNs. Remote game pages have no notification IPC. Tokens and session cookies
+stay in native storage and requests to the fixed multiplayer origin.
+
+- Android: supply `FIREBASE_ANDROID_CONFIG` in GitHub Actions, containing the
+  `google-services.json` for `net.lakesidegames.ahdclient`. For local builds,
+  place that ignored file in `apps/desktop/src-tauri/gen/android/app/`.
+  Builds without it report that push is unavailable.
+- iOS: enable Push Notifications on the app identifier and regenerate signing
+  profiles. `configure-ios-widgets.rb` adds the APNs entitlement using
+  development for Debug and production for Release/TestFlight. The existing
+  widget App Group and keychain entitlements are still required.
+- Game server: deploy `/api/push/device` and its inbox dispatcher before
+  enabling delivery. Configure `NATIVE_PUSH_ENABLED=true`; Android requires
+  `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`; iOS requires
+  `APNS_TEAM_ID`, `APNS_KEY_ID`, `APNS_PRIVATE_KEY`. An App Store Connect upload
+  key is not an APNs key. Keep all private keys in the deployment secret store.
+- Push is off initially. The OS prompt appears only after Turn on. Existing
+  inbox mutes and snoozes apply; routine turn income stays in the inbox.
+  Lock-screen previews are generic and taps open `/notifications`.
+- On signed-in device tests, verify permission denial, enabling, disabling,
+  background delivery, a tap from a terminated app, token rotation, sign-out,
+  and switching accounts. Revocation must complete before binding a different
+  account. Queued provider deliveries have a five-minute lifetime.
+
+Unsigned CI builds validate compilation, not APNs provisioning or actual
+provider delivery. Android delivery requires Google Play services. Physical
+APNs/FCM delivery remains a release check with the configured providers.

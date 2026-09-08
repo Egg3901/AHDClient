@@ -1,10 +1,29 @@
+use serde::Deserialize;
+use tauri::{plugin::PluginHandle, Manager, Runtime};
+
+#[cfg(target_os = "ios")]
 tauri::ios_plugin_binding!(init_plugin_briefing_widgets);
 
-/// Native lifecycle observer only. There are no JavaScript commands.
-pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+pub struct NativeCompanion<R: Runtime>(PluginHandle<R>);
+impl<R: Runtime> NativeCompanion<R> {
+  pub fn status<T: for<'de> Deserialize<'de>>(&self) -> Result<T, String> {
+    self.0.run_mobile_plugin("pushStatus", ()).map_err(|_| "Could not read push settings".to_string())
+  }
+  pub fn configure<T: for<'de> Deserialize<'de>>(&self, enabled: bool) -> Result<T, String> {
+    self.0.run_mobile_plugin("configurePush", serde_json::json!({ "enabled": enabled }))
+      .map_err(|_| "Could not update push settings".to_string())
+  }
+}
+
+/// The launcher calls two narrow app commands. No remote page gets plugin IPC.
+pub fn init<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
   tauri::plugin::Builder::new("briefing-widgets")
-    .setup(|_app, api| {
-      api.register_ios_plugin(init_plugin_briefing_widgets)?;
+    .setup(|app, api| {
+      #[cfg(target_os = "ios")]
+      let handle = api.register_ios_plugin(init_plugin_briefing_widgets)?;
+      #[cfg(target_os = "android")]
+      let handle = api.register_android_plugin("net.lakesidegames.briefing", "BriefingPlugin")?;
+      app.manage(NativeCompanion(handle));
       Ok(())
     })
     .build()

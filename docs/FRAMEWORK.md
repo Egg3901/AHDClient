@@ -131,3 +131,13 @@ in a system stack. In-app cards support horizontal swipes; Android home-screen
 widgets use previous/next controls because launchers own horizontal swipes.
 The UI always displays an update time. Continuous background updates are not
 part of the mobile-widget contract.
+
+### Native push
+
+Mobile launcher commands `get_push_status` and `configure_push(enabled)` call
+only the bundled native companion plugin. Status returns booleans and a short
+message; device tokens, installation secrets and cookies never cross IPC.
+Native code handles permissions, token changes, account revocation and fixed
+inbox navigation. No remote-page capabilities are granted. The server reads
+new inbox activity outside the turn loop and respects existing mute/snooze
+preferences. Provider errors cannot affect turn processing.

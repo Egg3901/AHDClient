@@ -77,3 +77,5 @@ html[data-animations="off"] .launcher-nebula { animation: none; }
   .client-console-output,
   .client-diagnostics-status { margin-left: 18px; margin-right: 18px; }
 }
+
+.client-push-status { margin: 0 0 10px; font-size: 12px; line-height: 1.5; color: var(--text-muted, #a7a9b6); }

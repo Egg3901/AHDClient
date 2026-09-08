@@ -165,7 +165,7 @@ async fn linked_account(app: AppHandle) -> Result<Option<LinkedAccount>, String>
 pub fn run() {
   let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init())
     .manage(briefing::BriefingState::default());
-  #[cfg(target_os = "ios")]
+  #[cfg(mobile)]
   let builder = builder.plugin(tauri_plugin_briefing_widgets::init());
   #[cfg(desktop)]
   let builder = desktop::configure(builder);
