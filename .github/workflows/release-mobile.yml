@@ -134,6 +134,9 @@ jobs:
           fi
           ls apps/desktop/src-tauri/gen/apple
 
+      - name: Add the WidgetKit extension
+        run: ruby scripts/configure-ios-widgets.rb
+
       - name: Generate native app icons
         run: |
           npm run tauri --workspace apps/desktop -- icon src/assets/ahd-logo.png --ios-color '#ffffff'

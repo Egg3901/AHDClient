@@ -8,6 +8,9 @@
     "windows"
   ],
   "permissions": [
+    "allow-get-briefing",
+    "allow-open-briefing-page",
+    "allow-open-briefing-window",
     "core:default",
     "allow-open-online-window",
     "allow-open-help-destination",

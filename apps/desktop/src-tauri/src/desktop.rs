@@ -733,6 +733,21 @@ async fn open_online_url(app: AppHandle, url: Url) -> Result<(), String> {
   Ok(())
 }
 
+pub(crate) async fn open_briefing_url(app: AppHandle, url: Url) -> Result<(), String> {
+  if let Some(view) = app.get_webview("online-embedded") {
+    // A sandbox view must keep its own world and session.
+    if view.url().ok().is_some_and(|u| u.host_str() == Some(crate::ONLINE_HOST)) {
+      view.navigate(url).map_err(|_| "Cannot open game page.")?;
+      if let Some(window) = app.get_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+      }
+      return Ok(());
+    }
+  }
+  open_online_url(app, url).await
+}
+
 #[tauri::command]
 pub(crate) async fn open_help_destination(app: AppHandle, route_id: String) -> Result<(), String> {
   match help_destination(&route_id) {
@@ -780,6 +795,10 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
     .manage(Game(Mutex::new(GameInner::default()), tokio::sync::Mutex::new(())))
     .manage(StatisticsConsent(AtomicBool::new(false)))
     .invoke_handler(tauri::generate_handler![
+      crate::briefing::get_briefing,
+      crate::briefing::open_briefing_page,
+      crate::briefing::open_briefing_window,
+      crate::briefing::set_briefing_pinned,
       set_statistics_consent,
       submit_statistics,
       crate::submit_diagnostics,

@@ -2,6 +2,14 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.1.0] - 2026-09-08
+
+- Add a multiplayer briefing with swipeable Profile, Election and Corporation cards.
+- Add an always-on-top desktop picture-in-picture briefing with quick page links.
+- Add native Android home-screen widgets, refresh controls and app shortcuts.
+- Add iOS Profile, Election and Corporation widgets for the Home Screen and widget stacks.
+- Remember the selected briefing card, refresh on resume and reconnect, and show the age of saved stats.
+
 ## [2.0.9] - 2026-09-07
 
 - Generate the A House Divided Liberty Bell icon into the iOS and Android native projects so TestFlight and installed mobile apps no longer use placeholder artwork.

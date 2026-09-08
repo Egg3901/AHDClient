@@ -93,3 +93,41 @@ The Node supervisor accepts `shutdown\n` on its stdin control pipe. Desktop
 stop sends this command before a bounded fallback kill so the supervisor can
 terminate the game server and MongoDB, including on Windows. Package the matching
 launcher script with the desktop; older supervisors do not implement this command.
+
+## 2.1.0 briefing and native widgets
+
+The read-only Multiplayer briefing consumes `GET /api/client-status?layout=full`
+on the fixed official HTTPS origin. It uses the existing active-character,
+election-tally and corporation fields. No game rules are implemented here.
+Server-provided currency codes accompany local-currency balances; missing
+values remain unavailable. This contract is already served by AHDGame.
+
+`src-tauri/src/briefing.rs` reads the native cookie store, makes a bounded
+request without redirects, and returns an allowlisted projection to React.
+Requests coalesce across launcher and PiP and successful snapshots are reused
+for 30 seconds. The `briefing` webview loads only local UI and has only read,
+open-section and pin commands. Remote game webviews retain zero capabilities.
+No credential or personal snapshot is put in launcher localStorage.
+
+Android widgets use the same fixed endpoint from a JobService and the WebView
+CookieManager. Shared native stats live in `noBackupFilesDir`, include a session
+fingerprint, expire after 24 hours, and are discarded after sign-out or session
+change. Widgets expose navigation and refresh, never game mutations. Their
+explicit activity intents accept only three section names. OS updates request
+a 30-minute interval; app resume and pause also schedule a refresh when widgets
+exist. A pending job coalesces requests from multiple widget instances.
+
+iOS uses the local `briefing-widgets` Tauri plugin, with no JavaScript commands.
+It observes native cookies and app lifecycle, storing an allowlisted snapshot
+in the App Group and the session in a shared Keychain group using
+AfterFirstUnlockThisDeviceOnly. The WidgetKit extension compiles the same
+`BriefingStore.swift`, fetches on timeline requests, refuses redirects, and
+checks the session fingerprint before displaying cached data. Snapshot files
+are excluded from backup. The view is privacy-sensitive. Widget links accept
+only `ahdclient://briefing/profile`, `/election`, and `/corporation`.
+
+The three iOS widget kinds support small and medium families and can be placed
+in a system stack. In-app cards support horizontal swipes; Android home-screen
+widgets use previous/next controls because launchers own horizontal swipes.
+The UI always displays an update time. Continuous background updates are not
+part of the mobile-widget contract.

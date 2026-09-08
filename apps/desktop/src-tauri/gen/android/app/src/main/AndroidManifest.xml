@@ -16,6 +16,7 @@
             android:label="@string/main_activity_title"
             android:name=".MainActivity"
             android:exported="true">
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/briefing_shortcuts" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -23,6 +24,20 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver android:name=".ProfileWidget" android:label="AHD Profile" android:exported="false">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/briefing_widget" />
+        </receiver>
+        <receiver android:name=".ElectionWidget" android:label="AHD Election" android:exported="false">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/briefing_widget" />
+        </receiver>
+        <receiver android:name=".CorporationWidget" android:label="AHD Corporation" android:exported="false">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/briefing_widget" />
+        </receiver>
+        <service android:name=".BriefingRefreshJob" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false" />
 
         <provider
           android:name="androidx.core.content.FileProvider"

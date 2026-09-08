@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-briefing-page"
+description = "Enables the open_briefing_page command without any pre-configured scope."
+commands.allow = ["open_briefing_page"]
+
+[[permission]]
+identifier = "deny-open-briefing-page"
+description = "Denies the open_briefing_page command without any pre-configured scope."
+commands.deny = ["open_briefing_page"]

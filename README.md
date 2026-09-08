@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/Egg3901/AHDClient/actions/workflows/verify.yml"><img src="https://github.com/Egg3901/AHDClient/actions/workflows/verify.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/version-2.0.6-informational" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.1.0-informational" alt="Version">
   <img src="https://img.shields.io/badge/license-proprietary-red" alt="License">
 </p>
 
@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black" alt="React 18">
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white" alt="TypeScript 5">
   <img src="https://img.shields.io/badge/Android-SDK_24+-3DDC84?logo=android&logoColor=white" alt="Android SDK 24 and later">
-  <img src="https://img.shields.io/badge/iOS-14+-000000?logo=apple&logoColor=white" alt="iOS 14 and later">
+  <img src="https://img.shields.io/badge/iOS-15+-000000?logo=apple&logoColor=white" alt="iOS 15 and later">
 </p>
 
 ---
@@ -31,6 +31,30 @@ AHDClient is the native client for [A House Divided](https://ahousedividedgame.c
 Singleplayer is not a port. The client ships the game's own server build and a Node runtime, finds or downloads MongoDB once, and runs both on loopback. A world is a folder in your app data; you can keep several and switch between them from the launcher.
 
 On Android and iOS the same launcher, settings and account linking ship without the local game: Multiplayer and Sandbox open the live site inside the app, where your session stays. Singleplayer and Worldsim need a desktop operating system.
+
+## Multiplayer briefing
+
+Open **Briefing** from the launcher to check Profile, Election and Corporation
+stats. Swipe between cards, use the tabs, or use the arrow keys. Your selected
+card is remembered. **Open profile**, **Open election** and **Open corporation**
+take you to the corresponding game page.
+
+On desktop, **Picture-in-picture** opens the briefing in a small window that
+stays above other apps. Toggle **Pinned** to let other windows cover it. The
+game toolbar also has a **PiP** button. This briefing always shows Multiplayer.
+
+On Android, add AHD Profile, AHD Election or AHD Corporation from the Home
+Screen widget picker. Each widget has previous/next and refresh controls.
+Long-press the app icon for Profile, My election and My corporation shortcuts.
+
+On iOS, add the same three widgets from the widget gallery. Stack widgets of
+the same size to swipe between them using the system widget stack. Tap a widget
+to open its game page. Sign in to Multiplayer in the app first.
+
+The app refreshes visible cards every minute and on resume or reconnect. Home
+Screen widgets request updates every 30 minutes; the OS decides when those
+requests run. All cards show their update time, and saved stats expire after
+24 hours. Widgets do not continuously stream live data.
 
 ## Download
 
