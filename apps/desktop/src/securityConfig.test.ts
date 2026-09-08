@@ -239,5 +239,7 @@ describe("desktop platform configuration", () => {
     ]) {
       expect(workflow).toContain(needle);
     }
+    expect(workflow).toContain("Remove signed iOS material");
+    expect(workflow).not.toContain("name: ahdclient-ios\n");
   });
 });
