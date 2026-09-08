@@ -20,6 +20,19 @@ import XCTest
         XCTAssertEqual(app.profile["role"].string, "admin")
         await app.signOut()
     }
+    func testPublicSuffixCookieCannotSignIn() async throws {
+        let cookie = try XCTUnwrap(HTTPCookie(properties: [.name: "ops_session", .value: "fixture-login", .domain: ".net", .path: "/", .secure: "TRUE"]))
+        let app = session()
+        do { try await app.accept(cookie); XCTFail("Public suffix accepted") } catch {}
+        XCTAssertFalse(app.signedIn)
+    }
+    func testAskStillRequiresItsSecureCookie() async throws {
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [FixtureProtocol.self]
+        let app = AppSession(.ask, configuration: config)
+        let cookie = try XCTUnwrap(HTTPCookie(properties: [.name: "ask_session", .value: "fixture-login", .domain: ".lakesidegames.net", .path: "/"]))
+        do { try await app.accept(cookie); XCTFail("Ask accepted an insecure cookie") } catch {}
+        XCTAssertFalse(app.signedIn)
+    }
     func testUnrelatedCookieCannotSignIn() async throws {
         let cookie = try XCTUnwrap(HTTPCookie(properties: [.name: "ops_session", .value: "fixture", .domain: "attacker.example", .path: "/", .secure: "TRUE"]))
         let app = session()

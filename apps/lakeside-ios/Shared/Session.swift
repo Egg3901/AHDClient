@@ -86,10 +86,12 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         catch { self.error = error.localizedDescription }
     }
     func accept(_ cookie: HTTPCookie) async throws {
-        guard cookie.name == surface.cookie, !cookie.value.isEmpty, cookie.isSecure,
+        // Ops currently omits the Secure attribute. Its cookie is still sent only
+        // to the pinned HTTPS API origin; redirects never forward credentials.
+        guard cookie.name == surface.cookie, !cookie.value.isEmpty, (surface == .ops || cookie.isSecure),
               cookie.expiresDate.map({ $0 > Date() }) ?? true else { throw AppFailure(message: "Sign-in did not return a valid session.") }
         let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
-        guard surface.host == domain || surface.host.hasSuffix("." + domain) else { throw AppFailure(message: "Unexpected sign-in domain.") }
+        guard domain == surface.host || domain == "lakesidegames.net" else { throw AppFailure(message: "Unexpected sign-in domain.") }
         credential = Credential(value: cookie.value, expires: cookie.expiresDate)
         do {
             let me = try await get("/api/me")
@@ -97,6 +99,14 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
             try Vault.write(JSONEncoder().encode(credential!))
             profile = me; error = nil; signedIn = true
         } catch { credential = nil; throw error }
+    }
+    func updateUsage(_ usage: JSONValue) {
+        guard !usage.object.isEmpty else { return }
+        var fields = profile.object; fields["usage"] = usage; profile = .object(fields)
+    }
+    func refreshProfile() async {
+        do { profile = try await get("/api/me"); error = nil }
+        catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     }
     func signOut() async {
         if surface == .ops { _ = try? await post("/api/logout", [:]) }
@@ -122,6 +132,7 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
             throw AppFailure(message: "Your session expired. Sign in again.")
         }
         guard (200..<300).contains(http.statusCode) else {
+            if let data, let payload = try? JSONDecoder().decode(JSONValue.self, from: data) { updateUsage(payload["usage"]) }
             let message = data.flatMap { try? JSONDecoder().decode(JSONValue.self, from: $0)["error"].string }
             throw AppFailure(message: message.flatMap { $0.isEmpty ? nil : $0 } ?? "The server returned HTTP \(http.statusCode).")
         }
@@ -135,6 +146,14 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         try validate(response, data: data)
         guard response.mimeType == "application/json" else { throw AppFailure(message: "The server returned a login page instead of data. Please sign in again.") }
         return try JSONDecoder().decode(JSONValue.self, from: data)
+    }
+    func renderMap(_ specification: JSONValue) async throws -> Data {
+        var r = try request("/api/map/render", body: specification.object)
+        r.setValue("image/svg+xml", forHTTPHeaderField: "Accept")
+        let (data, response) = try await transport.data(for: r)
+        try validate(response, data: data)
+        guard response.mimeType == "image/svg+xml", data.count <= 5_000_000 else { throw AppFailure(message: "The map could not be loaded.") }
+        return data
     }
     func stream(_ body: [String: JSONValue], onEvent: (SSEEvent) throws -> Void) async throws {
         var r = try request("/api/ask", body: body); r.setValue("text/event-stream", forHTTPHeaderField: "Accept")

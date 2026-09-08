@@ -9,7 +9,7 @@ struct OpsHome: View {
             NavigationStack { AgentsView() }.tabItem { Label("Agents", systemImage: "terminal") }
             NavigationStack { TicketsView() }.tabItem { Label("Tickets", systemImage: "tray.full") }
             NavigationStack { OpsMoreView() }.tabItem { Label("More", systemImage: "square.grid.2x2") }
-        }
+        }.toolbarBackground(Brand.surface, for: .tabBar).toolbarBackground(.visible, for: .tabBar)
     }
 }
 
@@ -23,6 +23,22 @@ struct OverviewView: View {
     @State private var loading = false
     var body: some View {
         List {
+            Section {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack { Text("Studio overview.").font(.system(size: 32, weight: .bold, design: .rounded)).tracking(-1); Spacer(); BrandMark(surface: .ops) }
+                    Text("The pulse of Lakeside Games").font(.callout).foregroundStyle(.secondary)
+                    if !services.isEmpty {
+                        let healthy = services.filter { $0["current"].string == "operational" }.count
+                        HStack(spacing: 14) {
+                            UsageRing(fraction: Double(healthy) / Double(services.count), color: healthy == services.count ? Brand.mint : .orange, size: 44)
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(healthy == services.count ? "All systems operational" : "Services need attention").font(.headline)
+                                Text("\(healthy) of \(services.count) services healthy").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }.padding(.top, 6)
+                    }
+                }.padding(.vertical, 10)
+            }.listRowBackground(Color.clear)
             if let error { FailureBanner(message: error) }
             if summary != .null {
                 Section("Live game") {
@@ -52,8 +68,8 @@ struct OverviewView: View {
             }
             if let updated { Text("Updated \(updated.formatted(date: .omitted, time: .shortened))").font(.caption).foregroundStyle(.secondary) }
         }
-        .navigationTitle("Lakeside Ops")
-        .toolbar { NavigationLink { AccountView() } label: { Image(systemName: "person.crop.circle") }.accessibilityLabel("Account") }
+        .lakesideScreen().navigationTitle("Lakeside Ops").navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .principal) { BrandHeader(surface: .ops) }; ToolbarItem(placement: .topBarTrailing) { NavigationLink { AccountView() } label: { Image(systemName: "person.crop.circle") }.accessibilityLabel("Account") } }
         .overlay { if loading && services.isEmpty { ProgressView() } }
         .refreshable { await refresh() }
         .task(id: scenePhase) {
@@ -96,7 +112,7 @@ struct ServiceView: View {
                 }
             }
             NavigationLink("All service data") { JSONDetail(title: service["name"].string, value: service) }
-        }.navigationTitle(service["name"].string).navigationBarTitleDisplayMode(.inline)
+        }.lakesideScreen().navigationTitle(service["name"].string).navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -119,11 +135,16 @@ struct AgentsView: View {
                             if agent["needsInput"].bool { Image(systemName: "exclamationmark.bubble.fill").foregroundStyle(.orange).accessibilityLabel("Needs input") }
                         }
                         Text(agent.first("statusLine", "taskExcerpt", "activity", "status")).font(.callout).foregroundStyle(.secondary).lineLimit(2)
-                        Text(agent.first("provider", "kind", "model")).font(.caption).foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            Circle().fill(agent["needsInput"].bool ? Color.orange : Brand.mint).frame(width: 5, height: 5)
+                            Text(agent.first("provider", "kind", "model")).font(.caption.weight(.medium)).foregroundStyle(Brand.sky)
+                        }
+                        AgentUsageView(usage: agent["usage"])
+
                     }.padding(.vertical, 5)
                 }
             }
-        }.navigationTitle("Agents").searchable(text: $query)
+        }.lakesideScreen().navigationTitle("Agents").searchable(text: $query)
         .toolbar { Button { launching = true } label: { Image(systemName: "plus") }.accessibilityLabel("Launch agent") }
         .sheet(isPresented: $launching, onDismiss: { Task { await refresh() } }) { NavigationStack { LaunchAgentView() } }
         .overlay { if loading && agents.isEmpty { ProgressView() } }
@@ -155,6 +176,8 @@ struct AgentView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
+                HStack { BrandMark(surface: .ops, size: 28); Text(agent.first("provider", "kind", "model").capitalized).font(.caption.bold()).foregroundStyle(Brand.sky); Spacer() }
+                AgentUsageView(usage: snapshot["usage"] == .null ? agent["usage"] : snapshot["usage"]).brandCard()
                 if let error { FailureBanner(message: error) }
                 if let delivery { Label(delivery, systemImage: "checkmark.circle").font(.callout).foregroundStyle(.secondary) }
                 if snapshot["pendingQuestion"] != .null && !tmux.isEmpty {
@@ -162,7 +185,7 @@ struct AgentView: View {
                 }
                 if !snapshot["transcript"]["turns"].array.isEmpty {
                     ForEach(Array(snapshot["transcript"]["turns"].array.enumerated()), id: \.offset) { _, turn in
-                        if !turn["user"].string.isEmpty { Text(turn["user"].string).font(.headline).padding().frame(maxWidth: .infinity, alignment: .leading).background(.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 14)) }
+                        if !turn["user"].string.isEmpty { Text(turn["user"].string).font(.headline).padding().frame(maxWidth: .infinity, alignment: .leading).background(Brand.sky.opacity(0.12), in: RoundedRectangle(cornerRadius: 14)) }
                         ForEach(Array(turn["blocks"].array.enumerated()), id: \.offset) { _, block in
                             if !block["text"].string.isEmpty { NativeMarkdown(text: block["text"].string) }
                             else { JSONCard(title: block.first("title", "type"), value: block) }
@@ -175,7 +198,7 @@ struct AgentView: View {
                 else if loading { ProgressView() }
             }.padding()
         }
-        .navigationTitle(agent.first("title", "tmuxName", "sessionId")).navigationBarTitleDisplayMode(.inline)
+        .lakesideScreen().navigationTitle(agent.first("title", "tmuxName", "sessionId")).navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             if !tmux.isEmpty {
                 HStack(alignment: .bottom) {
@@ -246,7 +269,7 @@ struct TicketsView: View {
                     Button("Next") { page += 1 }.disabled(page >= totalPages || loading)
                 }.buttonStyle(.borderless)
             }
-        }.navigationTitle(kind.capitalized)
+        }.lakesideScreen().navigationTitle(kind.capitalized)
         .toolbar { Menu { Picker("Status", selection: $status) { ForEach(["all", "open", "in_progress", "closed"], id: \.self) { Text($0.replacingOccurrences(of: "_", with: " ").capitalized).tag($0) } } } label: { Image(systemName: "line.3.horizontal.decrease.circle") }.accessibilityLabel("Filter status") }
         .overlay { if loading && items.isEmpty { ProgressView() } }
         .overlay { if !loading && items.isEmpty && error == nil { ContentUnavailableView("No \(kind)", systemImage: "tray") } }
@@ -288,7 +311,7 @@ struct TicketView: View {
                     Button("Close ticket", role: .destructive) { confirm = true }.disabled(saving || resolution.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
-        }.navigationTitle("#\(item.first("ticketNumber", "suggestionNumber"))").navigationBarTitleDisplayMode(.inline)
+        }.lakesideScreen().navigationTitle("#\(item.first("ticketNumber", "suggestionNumber"))").navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("Close this ticket with your resolution?", isPresented: $confirm) {
             Button("Close ticket", role: .destructive) { Task {
                 saving = true; defer { saving = false }
@@ -310,7 +333,7 @@ struct OpsMoreView: View {
                 NavigationLink { CollectionsView() } label: { Label("Database", systemImage: "cylinder.split.1x2") }
             }
             NavigationLink { AccountView() } label: { Label("Account", systemImage: "person.crop.circle") }
-        }.navigationTitle("More")
+        }.lakesideScreen().navigationTitle("More")
     }
 }
 
@@ -335,10 +358,10 @@ struct ReportsView: View {
                             JSONCard(title: "Actions", value: report["actions"])
                             JSONCard(title: "Metrics", value: report["metrics"])
                         }.padding()
-                    }.navigationTitle(report["date"].string).navigationBarTitleDisplayMode(.inline)
+                    }.lakesideScreen().navigationTitle(report["date"].string).navigationBarTitleDisplayMode(.inline)
                 } label: { VStack(alignment: .leading, spacing: 6) { Text(report["headline"].string).font(.headline); Text(report["date"].string).font(.caption).foregroundStyle(.secondary) } }
             }
-        }.navigationTitle("Daily reports").task { await refresh() }.refreshable { await refresh() }
+        }.lakesideScreen().navigationTitle("Daily reports").task { await refresh() }.refreshable { await refresh() }
     }
     private func refresh() async { do { reports = try await session.get("/api/daily-reports")["reports"].array; error = nil } catch { if !Task.isCancelled { self.error = error.localizedDescription } } }
 }
@@ -358,7 +381,7 @@ struct RemoteList: View {
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                 NavigationLink(item.first("title", "name", "date", "label", "_id").nonempty ?? "Item \(index + 1)") { JSONDetail(title: title, value: item) }
             }
-        }.navigationTitle(title).overlay { if loading { ProgressView() } }
+        }.lakesideScreen().navigationTitle(title).overlay { if loading { ProgressView() } }
         .overlay { if !loading && items.isEmpty && error == nil { ContentUnavailableView("No results", systemImage: "tray") } }
         .task { await refresh() }.refreshable { await refresh() }
     }
@@ -382,7 +405,7 @@ struct KnowledgeView: View {
                     VStack(alignment: .leading, spacing: 6) { Text(result.first("title", "name", "id", "slug")).font(.headline); Text(result.first("snippet", "description", "summary")).font(.callout).lineLimit(3).foregroundStyle(.secondary) }
                 }
             }
-        }.navigationTitle("Knowledge").searchable(text: $query, prompt: "Search docs and runbooks")
+        }.lakesideScreen().navigationTitle("Knowledge").searchable(text: $query, prompt: "Search docs and runbooks")
         .overlay { if loading { ProgressView() } }
         .onSubmit(of: .search) { Task { await search() } }.task { await search() }.refreshable { await search() }
     }
@@ -404,7 +427,7 @@ struct KnowledgeEntry: View {
                 NativeMarkdown(text: (loaded == .null ? entry : loaded).first("content", "body", "text"))
                 JSONCard(title: "Entry details", value: loaded == .null ? entry : loaded)
             }.padding()
-        }.navigationTitle(entry.first("title", "id")).navigationBarTitleDisplayMode(.inline)
+        }.lakesideScreen().navigationTitle(entry.first("title", "id")).navigationBarTitleDisplayMode(.inline)
         .task { do { loaded = try await session.get("/api/knowledge/entry", query: ["kind": entry["kind"].string, "name": entry["name"].string])["entry"] } catch { self.error = error.localizedDescription } }
     }
 }
@@ -420,7 +443,7 @@ struct CollectionsView: View {
             ForEach(collections.filter { query.isEmpty || $0["name"].string.localizedCaseInsensitiveContains(query) }, id: \.["name"].string) { collection in
                 NavigationLink { DocumentsView(collection: collection["name"].string) } label: { LabeledContent(collection["name"].string, value: collection["count"].string) }
             }
-        }.navigationTitle("Database").searchable(text: $query).task { await refresh() }.refreshable { await refresh() }
+        }.lakesideScreen().navigationTitle("Database").searchable(text: $query).task { await refresh() }.refreshable { await refresh() }
     }
     private func refresh() async { do { collections = try await session.get("/api/db/collections")["collections"].array; error = nil } catch { self.error = error.localizedDescription } }
 }
@@ -441,7 +464,7 @@ struct DocumentsView: View {
                 NavigationLink(document.first("name", "title", "username", "_id").nonempty ?? "Document \(index + 1)") { JSONDetail(title: collection, value: document) }
             }
             HStack { Button("Previous") { page -= 1 }.disabled(page <= 1); Spacer(); Text("\(page) / \(max(1, totalPages))").font(.caption); Spacer(); Button("Next") { page += 1 }.disabled(page >= totalPages) }.buttonStyle(.borderless)
-        }.navigationTitle(collection).searchable(text: $filter, prompt: "Find by ID or name")
+        }.lakesideScreen().navigationTitle(collection).searchable(text: $filter, prompt: "Find by ID or name")
         .onSubmit(of: .search) { appliedFilter = filter; page = 1 }
         .task(id: "\(page)-\(appliedFilter)") { await refresh() }.refreshable { await refresh() }
     }
