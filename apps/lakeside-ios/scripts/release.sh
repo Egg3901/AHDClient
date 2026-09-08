@@ -17,7 +17,13 @@ PY
 trap 'rm -f "$APPLE_API_KEY_PATH"' EXIT
 python3 scripts/apple.py
 auth=(-allowProvisioningUpdates -authenticationKeyPath "$APPLE_API_KEY_PATH" -authenticationKeyID "$APPLE_API_KEY" -authenticationKeyIssuerID "$APPLE_API_ISSUER")
-for scheme in LakesideAsk LakesideOps; do
+case "${LAKESIDE_RELEASE_TARGET:-both}" in
+  ops) schemes=(LakesideOps) ;;
+  ask) schemes=(LakesideAsk) ;;
+  both) schemes=(LakesideAsk LakesideOps) ;;
+  *) echo 'Invalid release target' >&2; exit 1 ;;
+esac
+for scheme in "${schemes[@]}"; do
   xcodebuild archive -project Lakeside.xcodeproj -scheme "$scheme" -configuration Release \
     -destination 'generic/platform=iOS' -archivePath "build/$scheme.xcarchive" \
     CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER:-1}" CODE_SIGNING_ALLOWED=NO

@@ -4,12 +4,12 @@ import SwiftUI
 import LakesideCore
 
 enum Surface {
-    case ask, ops
+    case ask, ops, hub
     var title: String { self == .ask ? "Lakeside Ask" : "Lakeside Ops" }
-    var host: String { self == .ask ? "ask.lakesidegames.net" : "ops.lakesidegames.net" }
+    var host: String { self == .ask ? "ask.lakesidegames.net" : self == .hub ? "hub.lakesidegames.net" : "ops.lakesidegames.net" }
     var base: URL { URL(string: "https://\(host)")! }
-    var cookie: String { self == .ask ? "ask_session" : "ops_session" }
-    var login: String { self == .ask ? "/auth/login" : "/" }
+    var cookie: String { self == .ask ? "ask_session" : self == .hub ? "agency_session" : "ops_session" }
+    var login: String { self == .ask ? "/auth/login" : self == .hub ? "/auth/game" : "/" }
     var symbol: String { self == .ask ? "bubble.left.and.text.bubble.right.fill" : "waveform.path.ecg" }
 }
 
@@ -24,23 +24,23 @@ private struct Credential: Codable {
 }
 
 private enum Vault {
-    static var query: [String: Any] { [kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: Bundle.main.bundleIdentifier ?? "Lakeside", kSecAttrAccount as String: "session"] }
-    static func read() -> Data? {
-        var q = query; q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
+    static func query(_ surface: Surface) -> [String: Any] { [kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: Bundle.main.bundleIdentifier ?? "Lakeside", kSecAttrAccount as String: surface == .hub ? "session.hub" : "session"] }
+    static func read(_ surface: Surface) -> Data? {
+        var q = query(surface); q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?; guard SecItemCopyMatching(q as CFDictionary, &item) == errSecSuccess else { return nil }
         return item as? Data
     }
-    static func write(_ data: Data) throws {
+    static func write(_ data: Data, surface: Surface) throws {
         let attributes: [String: Any] = [kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
-        let updated = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let updated = SecItemUpdate(query(surface) as CFDictionary, attributes as CFDictionary)
         if updated == errSecItemNotFound {
-            let added = SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil)
+            let added = SecItemAdd(query(surface).merging(attributes) { _, new in new } as CFDictionary, nil)
             guard added == errSecSuccess else { throw AppFailure(message: "Could not securely save your sign-in (\(added)).") }
         } else if updated != errSecSuccess { throw AppFailure(message: "Could not securely save your sign-in (\(updated)).") }
     }
-    static func clear() { SecItemDelete(query as CFDictionary) }
+    static func clear(_ surface: Surface) { SecItemDelete(query(surface) as CFDictionary) }
 }
 
 /// API calls never forward the session cookie through a redirect.
@@ -76,7 +76,7 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
             return
         }
 #endif
-        if let data = Vault.read(), let saved = try? JSONDecoder().decode(Credential.self, from: data),
+        if let data = Vault.read(surface), let saved = try? JSONDecoder().decode(Credential.self, from: data),
            saved.expires.map({ $0 > Date() }) ?? true { credential = saved }
     }
     func restore() async {
@@ -96,7 +96,7 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         do {
             let me = try await get("/api/me")
             try Task.checkCancellation()
-            try Vault.write(JSONEncoder().encode(credential!))
+            try Vault.write(JSONEncoder().encode(credential!), surface: surface)
             profile = me; error = nil; signedIn = true
         } catch { credential = nil; throw error }
     }
@@ -109,9 +109,10 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     }
     func signOut() async {
-        if surface == .ops { _ = try? await post("/api/logout", [:]) }
+        if surface == .hub { _ = try? await post("/logout", [:]) }
+        else if surface == .ops { _ = try? await post("/api/logout", [:]) }
         else { _ = try? await get("/auth/logout") }
-        credential = nil; Vault.clear(); profile = .null; signedIn = false; error = nil
+        credential = nil; Vault.clear(surface); profile = .null; signedIn = false; error = nil
     }
     private func request(_ path: String, query: [String: String] = [:], body: [String: JSONValue]? = nil) throws -> URLRequest {
         var r = URLRequest(url: try Endpoint.url(base: surface.base, path: path, query: query))
@@ -128,7 +129,7 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
     private func validate(_ response: URLResponse, data: Data? = nil) throws {
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if http.statusCode == 401 {
-            credential = nil; Vault.clear(); signedIn = false; profile = .null
+            credential = nil; Vault.clear(surface); signedIn = false; profile = .null
             throw AppFailure(message: "Your session expired. Sign in again.")
         }
         guard (200..<300).contains(http.statusCode) else {
@@ -154,6 +155,22 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         try validate(response, data: data)
         guard response.mimeType == "image/svg+xml", data.count <= 5_000_000 else { throw AppFailure(message: "The map could not be loaded.") }
         return data
+    }
+    func events(_ path: String, query: [String: String] = [:], onEvent: (SSEEvent) async throws -> Void) async throws {
+        var r = try request(path, query: query)
+        r.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        let (bytes, response) = try await transport.bytes(for: r)
+        defer { bytes.task.cancel() }
+        try validate(response)
+        guard response.mimeType == "text/event-stream" else { throw AppFailure(message: "Live updates are unavailable.") }
+        var parser = SSEParser()
+        for try await byte in bytes {
+            try Task.checkCancellation()
+            if let event = try parser.feed(byte) {
+                try await onEvent(event)
+                if event.name == "final" || event.name == "resync" { return }
+            }
+        }
     }
     func stream(_ body: [String: JSONValue], onEvent: (SSEEvent) throws -> Void) async throws {
         var r = try request("/api/ask", body: body); r.setValue("text/event-stream", forHTTPHeaderField: "Accept")

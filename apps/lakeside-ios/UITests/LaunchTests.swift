@@ -3,14 +3,17 @@ import XCTest
 final class LaunchTests: XCTestCase {
     func testNativeAuthenticatedScreens() {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        if app.tabBars.buttons["Agents"].waitForExistence(timeout: 5) {
-            XCTAssertTrue(app.staticTexts["Game server"].waitForExistence(timeout: 10))
-            capture(app, "Ops overview")
-            app.tabBars.buttons["Agents"].tap()
-            let agent = app.staticTexts["Test agent"]
-            XCTAssertTrue(agent.waitForExistence(timeout: 10)); agent.tap()
-            XCTAssertTrue(app.staticTexts["Deployment checks passed."].waitForExistence(timeout: 10))
-            capture(app, "Native agent conversation")
+        if app.tabBars.buttons["Team"].waitForExistence(timeout: 5) {
+            XCTAssertTrue(app.staticTexts["Help me build the studio hub."].waitForExistence(timeout: 10))
+            capture(app, "Ops assistant")
+            app.tabBars.buttons["Team"].tap()
+            let worker = app.staticTexts["Export repair"]
+            XCTAssertTrue(worker.waitForExistence(timeout: 10)); worker.tap()
+            XCTAssertTrue(app.staticTexts["Export fixed. All checks passed."].waitForExistence(timeout: 10))
+            capture(app, "Ops worker report")
+            app.tabBars.buttons["Usage"].tap()
+            XCTAssertTrue(app.staticTexts["15,000 measured tokens"].waitForExistence(timeout: 10))
+            capture(app, "Ops measured usage")
         } else {
             let conversation = app.staticTexts["How does inflation work?"]
             XCTAssertTrue(conversation.waitForExistence(timeout: 10)); conversation.tap()
@@ -27,7 +30,7 @@ final class LaunchTests: XCTestCase {
     }
     func testAskOptionsUsageAndStarters() throws {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        if app.tabBars.buttons["Agents"].waitForExistence(timeout: 3) { throw XCTSkip("Ask features") }
+        if app.tabBars.buttons["Team"].waitForExistence(timeout: 3) { throw XCTSkip("Ask features") }
         XCTAssertTrue(app.buttons["Daily allowance"].waitForExistence(timeout: 10))
         capture(app, "Ask 1.1 home")
         app.buttons["Daily allowance"].tap()
@@ -55,7 +58,7 @@ final class LaunchTests: XCTestCase {
     }
     func testNativeAskChartAndMap() throws {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures", "--uitest-visuals"]; app.launch()
-        if app.tabBars.buttons["Agents"].waitForExistence(timeout: 3) { throw XCTSkip("Ask visualizations") }
+        if app.tabBars.buttons["Team"].waitForExistence(timeout: 3) { throw XCTSkip("Ask visualizations") }
         let conversation = app.staticTexts["How does inflation work?"]
         XCTAssertTrue(conversation.waitForExistence(timeout: 10)); conversation.tap()
         XCTAssertTrue(app.staticTexts["GDP growth"].waitForExistence(timeout: 10))

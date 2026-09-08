@@ -12,12 +12,20 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         var status = 200
         switch url.path {
         case "/api/me":
-            let expectedName = isAsk ? "ask_session" : "ops_session"
+            let expectedName = isAsk ? "ask_session" : url.host?.hasPrefix("hub.") == true ? "agency_session" : "ops_session"
             let cookie = request.value(forHTTPHeaderField: "Cookie") ?? ""
             guard ["ui-test-session", "fixture-login"].contains(where: { cookie == expectedName + "=" + $0 }) else {
                 deliver(Data("{\"error\":\"Fixture requires session cookie\"}".utf8), url: url, status: 401, type: "application/json"); return
             }
             value = isAsk ? ["identity": ["username": "Test operator"], "entitlement": ["allowed": true, "label": "Staff"], "usage": ["used": 46.5, "limit": 200, "remaining": 153.5, "mcpLimit": 40, "mcpRemaining": 12, "vizLimit": 10, "vizRemaining": 8, "resetAt": 1788912000000, "tier": "Staff"]] : ["email": "operator@example.test", "role": "admin"]
+        case "/api/ops/bootstrap": value = ["cursor": 0, "conversation": ["id": 1], "conversations": [["id": 1, "title": "Build the studio hub"]], "workers": [["id": "worker-1", "name": "Export repair", "brief": "Repair and verify the export flow.", "job_status": "completed", "runtime_provider": "codex", "permissions": [], "result": "Export fixed. All checks passed."]]]
+        case "/api/chat/turns": value = ["turns": [["id": 1, "role": "owner", "body": "Help me build the studio hub.", "status": "done"], ["id": 2, "role": "assistant", "body": "The export worker has finished. I am checking the changes before accepting them.", "status": "done", "route": ["label": "Muse"]]]]
+        case "/api/ops/events":
+            deliver(Data(": connected\n\n".utf8), url: url, status: 200, type: "text/event-stream", finish: false); return
+        case "/api/ops/workers/worker-1": value = ["worker": ["brief": "Repair and verify the export flow.", "result": "Export fixed. All checks passed."]]
+        case "/api/ops/providers": value = ["providers": [["id": "codex", "label": "Codex", "status": "available"], ["id": "muse", "label": "Muse", "status": "available"], ["id": "grok", "label": "Grok", "status": "available"]]]
+        case "/api/ops/usage": value = ["providers": [["provider": "codex", "attempts": 3, "input_tokens": 12000, "output_tokens": 3000, "unmeasured_token_attempts": 1]]]
+        case "/api/ops/memory": value = ["body": "Keep each implementation worker in a separate worktree. Verify results before accepting them.", "version": "fixture-version"]
         case "/api/nextcost": value = ["cost": 0.5, "followup": 1, "followupsLeft": 2]
         case "/api/conversation/share": value = ["ok": true, "url": "https://example.test/shared-conversation"]
         case "/api/conversations": value = ["conversations": [["id": "fixture-conversation", "title": "How does inflation work?", "updated": 1788825600000]]]
@@ -66,9 +74,9 @@ data: {"convId":"fixture-conversation","answerId":43,"answer":"Verified final an
         }
         deliver((try? JSONSerialization.data(withJSONObject: value)) ?? Data(), url: url, status: status, type: "application/json")
     }
-    private func deliver(_ data: Data, url: URL, status: Int, type: String) {
+    private func deliver(_ data: Data, url: URL, status: Int, type: String, finish: Bool = true) {
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": type])!, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
+        client?.urlProtocol(self, didLoad: data); if finish { client?.urlProtocolDidFinishLoading(self) }
     }
     override func stopLoading() {}
 }

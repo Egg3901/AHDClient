@@ -19,7 +19,7 @@ struct SessionGate<Content: View>: View {
                                 .padding(18).foregroundStyle(Brand.onAccent).background(Brand.sky, in: RoundedRectangle(cornerRadius: 16))
                         }.accessibilityIdentifier("sign-in")
                         VStack(alignment: .leading, spacing: 14) {
-                            Label(session.surface == .ask ? "Answers grounded in live code" : "Live service health", systemImage: session.surface == .ask ? "curlybraces" : "waveform.path.ecg")
+                            Label(session.surface == .ask ? "Answers grounded in live code" : session.surface == .hub ? "One assistant, persistent memory" : "Live service health", systemImage: session.surface == .ask ? "curlybraces" : "waveform.path.ecg")
                             Label(session.surface == .ask ? "Citations you can follow" : "Agent conversations and controls", systemImage: session.surface == .ask ? "doc.text" : "terminal")
                             Label(session.surface == .ask ? "Your game's current state" : "Your projects, wherever you are", systemImage: session.surface == .ask ? "bolt" : "folder")
                         }.font(.callout).foregroundStyle(.secondary)

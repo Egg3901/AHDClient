@@ -8,6 +8,11 @@ on:
     paths: ['apps/lakeside-ios/**', '.github/workflows/lakeside-ios.yml']
   workflow_dispatch:
     inputs:
+      apps:
+        description: Apps to deliver (both apps still run simulator checks)
+        type: choice
+        options: [both, ops, ask]
+        default: both
       release:
         description: Build signed archives and upload if App Store Connect records exist
         type: boolean
@@ -76,8 +81,9 @@ jobs:
         run: |
           swift scripts/icons.swift
           xcodegen generate
-      - name: Build and deliver both apps
+      - name: Build and deliver selected apps
         env:
+          LAKESIDE_RELEASE_TARGET: ${{ inputs.apps || 'both' }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
