@@ -12,6 +12,7 @@ enum Brand {
     static let surface = adaptive(0x111b26, 0xffffff)
     static let raised = adaptive(0x16222e, 0xeaf0f6)
     static let sky = adaptive(0x38bdf8, 0x0284c7)
+    static let onAccent = adaptive(0x06222f, 0xffffff)
     static let mint = adaptive(0x21c8a0, 0x0d9488)
     static let ink = adaptive(0xeaf0f6, 0x1a1d24)
 }
@@ -50,13 +51,16 @@ struct BrandMark: View {
 
 struct BrandHeader: View {
     var surface: Surface
+    var compact = false
     var body: some View {
         HStack(spacing: 10) {
             BrandMark(surface: surface, size: 30)
             Text(surface == .ask ? "Ask" : "Lakeside").font(.headline.weight(.bold))
-            Text(surface == .ask ? "LAKESIDE" : "OPS")
-                .font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(1.2).foregroundStyle(Brand.sky)
-        }.accessibilityElement(children: .combine)
+            if !compact {
+                Text(surface == .ask ? "LAKESIDE" : "OPS")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(1.2).foregroundStyle(Brand.sky)
+            }
+        }.lineLimit(1).fixedSize(horizontal: true, vertical: false).accessibilityElement(children: .combine)
     }
 }
 

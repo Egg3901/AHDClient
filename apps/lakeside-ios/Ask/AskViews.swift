@@ -17,7 +17,9 @@ struct AskHome: View {
             List {
                 Section {
                     BrandHero(surface: .ask, compact: true).padding(.vertical, 10)
-                        .listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 8, leading: 4, bottom: 20, trailing: 4))
+                        .listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 8, leading: 4, bottom: 12, trailing: 4)).listRowSeparator(.hidden)
+                }
+                Section {
                     Button { initialPrompt = ""; path.append("") } label: {
                         HStack { Label("New conversation", systemImage: "square.and.pencil").font(.headline); Spacer(); Image(systemName: "arrow.right") }.padding(.vertical, 10)
                     }.listRowBackground(Brand.sky.opacity(0.12))
@@ -134,7 +136,7 @@ struct AskConversation: View {
                             Text(turn.question).font(.headline).padding(14).frame(maxWidth: .infinity, alignment: .leading)
                                 .background(Brand.sky.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
                             HStack(spacing: 8) { BrandMark(surface: .ask, size: 22); Text("ASK").font(.caption2.bold()).tracking(1.5); Spacer(); if !turn.model.isEmpty { Text(turn.model).font(.caption2).foregroundStyle(.secondary) } }
-                            NativeMarkdown(text: turn.answer)
+                            NativeMarkdown(text: turn.answer, streaming: streaming && turn.id == turns.last?.id)
                             if !turn.citations.isEmpty {
                                 DisclosureGroup("Sources (\(turn.citations.count))") {
                                     VStack(alignment: .leading, spacing: 12) {
@@ -185,7 +187,7 @@ struct AskConversation: View {
         }
         .lakesideScreen().navigationTitle("Ask").navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) { BrandHeader(surface: .ask) }
+            ToolbarItem(placement: .principal) { BrandHeader(surface: .ask, compact: true) }
             ToolbarItem(placement: .topBarTrailing) { UsageButton() }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { options = true } label: { Image(systemName: "slider.horizontal.3") }.disabled(streaming).accessibilityLabel("Answer options")
@@ -237,7 +239,7 @@ struct AskConversation: View {
             HStack(alignment: .bottom, spacing: 12) {
                 TextField("Ask a question…", text: $draft, axis: .vertical).lineLimit(1...6).focused($focused)
                     .accessibilityIdentifier("ask-composer")
-                    .padding(12).background(.quaternary, in: RoundedRectangle(cornerRadius: 16)).disabled(streaming)
+                    .padding(12).background(Brand.surface, in: RoundedRectangle(cornerRadius: 16)).overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Brand.sky.opacity(0.15))).disabled(streaming)
                 if streaming {
                     Button { Task { await stop() } } label: { Image(systemName: "stop.circle.fill").font(.title) }.disabled(stopping).accessibilityLabel("Stop answer")
                 } else {
@@ -247,7 +249,7 @@ struct AskConversation: View {
             }
             if mode != .auto { Text(mode.hint).font(.caption2).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading) }
             if draft.utf16.count > 450 { Text("\(draft.utf16.count)/500").font(.caption2).foregroundStyle(draft.utf16.count > 500 ? .red : .secondary).frame(maxWidth: .infinity, alignment: .trailing) }
-        }.padding(.horizontal).padding(.vertical, 10).background(.bar)
+        }.padding(.horizontal).padding(.vertical, 10).background(Brand.background)
     }
     private func refreshCost() async {
         do { nextCost = try await session.get("/api/nextcost", query: ["convId": conversationID]) }

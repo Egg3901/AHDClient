@@ -16,7 +16,7 @@ struct SessionGate<Content: View>: View {
                         if let error = session.error { FailureBanner(message: error) }
                         Button { login = true } label: {
                             HStack { Text("Sign in to Lakeside").fontWeight(.semibold); Spacer(); Image(systemName: "arrow.right") }
-                                .padding(18).foregroundStyle(Color.white).background(Brand.sky, in: RoundedRectangle(cornerRadius: 16))
+                                .padding(18).foregroundStyle(Brand.onAccent).background(Brand.sky, in: RoundedRectangle(cornerRadius: 16))
                         }.accessibilityIdentifier("sign-in")
                         VStack(alignment: .leading, spacing: 14) {
                             Label(session.surface == .ask ? "Answers grounded in live code" : "Live service health", systemImage: session.surface == .ask ? "curlybraces" : "waveform.path.ecg")

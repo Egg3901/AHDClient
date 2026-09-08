@@ -8,11 +8,13 @@ struct FailureBanner: View {
 
 struct NativeMarkdown: View {
     let text: String
+    var streaming = false
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 if block.code && ["mermaid", "mmd", "ahd-map"].contains(block.language) {
-                    NativeVisualization(language: block.language, source: block.text)
+                    if block.closed || !streaming { NativeVisualization(language: block.language, source: block.text) }
+                    else { ProgressView("Preparing visualization…").font(.caption) }
                 } else if block.code {
                     ScrollView(.horizontal) { Text(block.text).font(.system(.footnote, design: .monospaced)).padding(12) }
                         .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
@@ -31,19 +33,19 @@ struct NativeMarkdown: View {
     private func inline(_ value: String) -> AttributedString {
         (try? AttributedString(markdown: value, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(value)
     }
-    private struct Block { var text: String; var code: Bool; var language: String }
+    private struct Block { var text: String; var code: Bool; var language: String; var closed: Bool }
     private var blocks: [Block] {
         var result: [Block] = []; var lines: [String] = []; var code = false; var language = ""
         for line in text.components(separatedBy: "\n") {
             if line.hasPrefix("```") {
-                if !lines.isEmpty { result.append(Block(text: lines.joined(separator: "\n"), code: code, language: language)); lines = [] }
+                if !lines.isEmpty { result.append(Block(text: lines.joined(separator: "\n"), code: code, language: language, closed: true)); lines = [] }
                 if !code { language = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces).lowercased() }
                 code.toggle()
             } else if line.isEmpty && !code {
-                if !lines.isEmpty { result.append(Block(text: lines.joined(separator: "\n"), code: false, language: "")); lines = [] }
+                if !lines.isEmpty { result.append(Block(text: lines.joined(separator: "\n"), code: false, language: "", closed: true)); lines = [] }
             } else { lines.append(line) }
         }
-        if !lines.isEmpty { result.append(Block(text: lines.joined(separator: "\n"), code: code, language: language)) }
+        if !lines.isEmpty { result.append(Block(text: lines.joined(separator: "\n"), code: code, language: language, closed: !code)) }
         return result
     }
     private func table(_ text: String) -> some View {
