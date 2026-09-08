@@ -15,6 +15,7 @@ enum Surface {
 
 struct AppFailure: LocalizedError {
     let message: String
+    var statusCode: Int? = nil
     var errorDescription: String? { message }
 }
 
@@ -130,12 +131,12 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if http.statusCode == 401 {
             credential = nil; Vault.clear(surface); signedIn = false; profile = .null
-            throw AppFailure(message: "Your session expired. Sign in again.")
+            throw AppFailure(message: "Your session expired. Sign in again.", statusCode: 401)
         }
         guard (200..<300).contains(http.statusCode) else {
             if let data, let payload = try? JSONDecoder().decode(JSONValue.self, from: data) { updateUsage(payload["usage"]) }
             let message = data.flatMap { try? JSONDecoder().decode(JSONValue.self, from: $0)["error"].string }
-            throw AppFailure(message: message.flatMap { $0.isEmpty ? nil : $0 } ?? "The server returned HTTP \(http.statusCode).")
+            throw AppFailure(message: message.flatMap { $0.isEmpty ? nil : $0 } ?? "The server returned HTTP \(http.statusCode).", statusCode: http.statusCode)
         }
     }
     func get(_ path: String, query: [String: String] = [:]) async throws -> JSONValue {

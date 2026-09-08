@@ -373,7 +373,7 @@ struct OpsTeam: View {
                             Label(member["name"].string, systemImage: "person.crop.circle").font(.headline)
                             Text(member["role"].string).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                             let count = model.workers.filter { $0["staff_id"].string == member["id"].string && !["completed", "failed", "cancelled"].contains($0["job_status"].string) }.count
-                            Text(count == 0 ? "Available for assignments" : "\(count) active assignments").font(.caption2).foregroundStyle(OpsTheme.mint)
+                            Text(count == 0 ? "Available for assignments" : "\(count) active \(count == 1 ? "assignment" : "assignments")").font(.caption2).foregroundStyle(OpsTheme.mint)
                         }.padding(.vertical, 6)
                     }.listRowBackground(OpsTheme.surface)
                 }
@@ -401,7 +401,7 @@ struct OpsTeam: View {
 struct OpsStatus: View {
     let value: String
     private var color: Color { ["failed", "waiting"].contains(value) ? .orange : value == "completed" ? OpsTheme.mint : .secondary }
-    var body: some View { Text(value.capitalized).font(.caption2.weight(.medium)).foregroundStyle(color).padding(.horizontal, 8).padding(.vertical, 4).background(color.opacity(0.09), in: Capsule()) }
+    var body: some View { Text(value == "delivery_unknown" ? "Delivery uncertain" : value.capitalized).font(.caption2.weight(.medium)).foregroundStyle(color).padding(.horizontal, 8).padding(.vertical, 4).background(color.opacity(0.09), in: Capsule()) }
 }
 
 struct OpsWorkerDetail: View {
@@ -438,7 +438,12 @@ struct OpsWorkerDetail: View {
                 LabeledContent("Status", value: current["job_status"].string.capitalized)
                 LabeledContent("Assigned by", value: current["origin"].string == "owner" ? "You" : "Ops assistant")
                 LabeledContent("Reports to", value: "Ops assistant")
+                if !current["conversation_id"].string.isEmpty {
+                    Button("Open supervising conversation") { Task { await model.select(current["conversation_id"].string, session); model.selectedTab = 0 } }
+                }
                 if !current["created_at"].string.isEmpty { LabeledContent("Created", value: opsDate(current["created_at"].string)) }
+                if !current["started_at"].string.isEmpty { LabeledContent("Started", value: opsDate(current["started_at"].string)) }
+                if !current["finished_at"].string.isEmpty { LabeledContent("Finished", value: opsDate(current["finished_at"].string)) }
                 if !current["job_updated_at"].string.isEmpty { LabeledContent("Last update", value: opsDate(current["job_updated_at"].string)) }
                 LabeledContent("Provider", value: current.first("runtime_provider", "provider").capitalized)
                 if !current["runtime_model"].string.isEmpty { LabeledContent("Model", value: current["runtime_model"].string) }
@@ -450,11 +455,11 @@ struct OpsWorkerDetail: View {
                         Text(item["status"].string.replacingOccurrences(of: "_", with: " ").capitalized).font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                if !["completed", "failed", "cancelled"].contains(current["job_status"].string) {
+                if !["completed", "failed", "cancelled", "delivery_unknown", "cancelling"].contains(current["job_status"].string) {
                     TextField("Give this worker direction", text: $message, axis: .vertical).lineLimit(2...6).disabled(sendingMessage || submittedMessage != nil)
                     Text("Your message is queued for the worker's next turn. Ops continues to oversee the assignment.").font(.caption).foregroundStyle(.secondary)
                     Button(submittedMessage == nil ? "Send to worker" : "Retry message") { Task { await sendMessage() } }.disabled(sendingMessage || message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                } else { Text("This assignment has finished. Start another assignment from the team to continue the work.").font(.caption).foregroundStyle(.secondary) }
+                } else { Text(current["job_status"].string == "delivery_unknown" ? "Delivery could not be confirmed. Cancel this assignment before starting another; the message will not be sent twice." : current["job_status"].string == "cancelling" ? "Cancellation is in progress." : "This assignment has finished. Start another assignment from the team to continue the work.").font(.caption).foregroundStyle(.secondary) }
                 if let messageError { Text(messageError).font(.caption).foregroundStyle(.orange) }
             }
             ForEach(current["permissions"].array, id: \.["id"].string) { permission in

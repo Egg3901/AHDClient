@@ -82,7 +82,10 @@ struct OpsNewAssignment: View {
             }
             _ = try await session.post("/api/ops/workers", submission ?? [:])
             await model.refreshTeam(session); dismiss()
-        } catch { self.error = error.localizedDescription }
+        } catch {
+            if let status = (error as? AppFailure)?.statusCode, (400..<500).contains(status) { submission = nil; requestID = UUID().uuidString }
+            self.error = error.localizedDescription
+        }
     }
 }
 
@@ -91,10 +94,10 @@ struct OpsProviderFields: View {
     @Binding var model: String
     let providers: [JSONValue]
     var body: some View {
-        Picker("Provider", selection: $provider) {
+        Picker("Provider", selection: Binding(get: { provider }, set: { provider = $0; model = "" })) {
             Text("Automatic").tag("auto")
             ForEach(providers.filter { $0["capabilities"].array.contains(.string("tools")) }, id: \.["id"].string) { Text($0["label"].string).tag($0["id"].string) }
-        }.onChange(of: provider) { _, _ in model = "" }
+        }
         if provider != "auto" {
             Picker("Model", selection: $model) {
                 Text("Provider default").tag("")
@@ -128,13 +131,14 @@ struct OpsStaffEditor: View {
                 Section("Runtime preference") { OpsProviderFields(provider: $provider, model: $selectedModel, providers: providers) }
                 Section("Persistent memory") {
                     TextEditor(text: $memory).frame(minHeight: 160).accessibilityLabel("Staff memory")
+                    Text("\(memory.count.formatted()) / 24,000 characters").font(.caption2).foregroundStyle(memory.count > 24000 ? Color.orange : Color.secondary)
                     Text("These notes and recent run reports carry into future assignments, including when the provider changes.").font(.caption).foregroundStyle(.secondary)
                 }
                 if let error { Text(error).foregroundStyle(.orange) }
             }.disabled(busy).opsScreen().navigationTitle(staff == .null ? "New team member" : "Edit team member").navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) }
-                    ToolbarItem(placement: .confirmationAction) { Button("Save") { Task { await save() } }.disabled(busy || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || role.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+                    ToolbarItem(placement: .confirmationAction) { Button("Save") { Task { await save() } }.disabled(busy || memory.count > 24000 || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || role.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
                 }
                 .task {
                     name = staff["name"].string; role = staff["role"].string; memory = staff["memory"].string; provider = staff["provider"].string.nonempty ?? "auto"; selectedModel = staff["model"].string
@@ -161,6 +165,8 @@ struct OpsStaffDetail: View {
     @State private var runs: [JSONValue] = []
     @State private var editing = false
     @State private var assigning = false
+    @State private var archiving = false
+    @Environment(\.dismiss) private var dismiss
     @State private var error: String?
     private var current: JSONValue { detail == .null ? staff : detail }
     var body: some View {
@@ -187,7 +193,18 @@ struct OpsStaffDetail: View {
             }
             if let error { Text(error).foregroundStyle(.orange) }
         }.opsScreen().navigationTitle(current["name"].string).navigationBarTitleDisplayMode(.inline)
-            .toolbar { Button("Edit") { editing = true } }
+            .toolbar {
+                Menu {
+                    Button("Edit profile") { editing = true }.disabled(detail == .null)
+                    Button("Archive team member", role: .destructive) { archiving = true }
+                } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Team member actions")
+            }
+            .confirmationDialog("Archive this team member? Their memory and run history will be retained.", isPresented: $archiving, titleVisibility: .visible) {
+                Button("Archive", role: .destructive) { Task {
+                    do { _ = try await session.post("/api/ops/staff/\(staff["id"].string)/archive", [:]); await model.refreshTeam(session); dismiss() }
+                    catch { self.error = error.localizedDescription }
+                } }
+            }
             .sheet(isPresented: $editing, onDismiss: { Task { await load() } }) { OpsStaffEditor(model: model, staff: current) }
             .sheet(isPresented: $assigning, onDismiss: { Task { await load() } }) { OpsNewAssignment(model: model, staff: current) }
             .task(id: model.workers.map { $0["id"].string + $0["job_updated_at"].string }.joined()) { await load() }.refreshable { await load() }
