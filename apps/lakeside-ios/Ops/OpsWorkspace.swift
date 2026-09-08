@@ -188,7 +188,7 @@ struct OpsConversation: View {
                 Circle().fill(model.connected ? OpsTheme.mint : Color.orange).frame(width: 5, height: 5)
                 Text(model.connected ? "Connected" : "Reconnecting")
                 Spacer()
-                Text("Codex / Muse").foregroundStyle(.tertiary)
+                Text("Codex / Muse").foregroundStyle(.secondary)
             }.font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.vertical, 10)
             ScrollViewReader { proxy in
                 ScrollView {
@@ -277,7 +277,7 @@ private struct OpsMessage: View {
                     BrandMark(surface: .hub, size: 22)
                     Text(turn["role"].string == "assistant" ? "Ops" : "Team").font(.subheadline.weight(.semibold))
                     Spacer()
-                    Text(turn["route"]["label"].string).font(.caption2).foregroundStyle(.tertiary)
+                    Text(turn["route"]["label"].string).font(.caption2).foregroundStyle(.secondary)
                 }
                 NativeMarkdown(text: live ? (model.liveText.isEmpty ? "Thinking…" : model.liveText) : (turn["body"].string.nonempty ?? turn["status"].string.capitalized), streaming: live)
                 OpsActivity(actions: live ? model.liveActions : turn["actions"].array)

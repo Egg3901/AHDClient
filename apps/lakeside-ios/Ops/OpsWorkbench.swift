@@ -35,7 +35,7 @@ struct OpsActivity: View {
                         }
                     }
                 }.padding(.top, 12)
-            } label: { Label("Activity · \(actions.count) steps", systemImage: "list.bullet.rectangle").font(.caption.weight(.medium)) }
+            } label: { Label("Activity · \(actions.count) \(actions.count == 1 ? "step" : "steps")", systemImage: "list.bullet.rectangle").font(.caption.weight(.medium)) }
             .foregroundStyle(.secondary)
         }
     }
@@ -117,7 +117,9 @@ struct OpsFilePreview: View {
             if loading { ProgressView().frame(maxWidth: .infinity).padding() }
             if let error { Text(error).font(.callout).foregroundStyle(.orange).padding() }
             if !note.isEmpty { Text(note).font(.caption).foregroundStyle(.secondary).padding() }
-            ScrollView([.horizontal, .vertical]) {
+            GeometryReader { geometry in
+                ScrollView([.horizontal, .vertical]) {
+                    VStack(alignment: .leading, spacing: 0) {
                 if mode == "Changes" {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(content.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in
@@ -127,6 +129,8 @@ struct OpsFilePreview: View {
                         }
                     }.padding().textSelection(.enabled)
                 } else { Text(content).font(.system(size: 12, design: .monospaced)).textSelection(.enabled).padding() }
+                    }.frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .topLeading)
+                }
             }
         }.opsScreen().navigationTitle((path as NSString).lastPathComponent).navigationBarTitleDisplayMode(.inline)
             .toolbar {
