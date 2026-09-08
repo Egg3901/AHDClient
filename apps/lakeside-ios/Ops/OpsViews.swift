@@ -177,7 +177,9 @@ struct AgentView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
                 HStack { BrandMark(surface: .ops, size: 28); Text(agent.first("provider", "kind", "model").capitalized).font(.caption.bold()).foregroundStyle(Brand.sky); Spacer() }
-                AgentUsageView(usage: snapshot["usage"] == .null ? agent["usage"] : snapshot["usage"]).brandCard()
+                if snapshot["usage"]["percent"].number != nil || agent["usage"]["percent"].number != nil {
+                    AgentUsageView(usage: snapshot["usage"] == .null ? agent["usage"] : snapshot["usage"]).brandCard()
+                }
                 if let error { FailureBanner(message: error) }
                 if let delivery { Label(delivery, systemImage: "checkmark.circle").font(.callout).foregroundStyle(.secondary) }
                 if snapshot["pendingQuestion"] != .null && !tmux.isEmpty {

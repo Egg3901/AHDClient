@@ -133,7 +133,7 @@ struct AskConversation: View {
                         VStack(alignment: .leading, spacing: 16) {
                             Text(turn.question).font(.headline).padding(14).frame(maxWidth: .infinity, alignment: .leading)
                                 .background(Brand.sky.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
-                            HStack(spacing: 8) { BrandMark(surface: .ask, size: 22); Text("ASK").font(.caption2.bold()).tracking(1.5); Spacer(); if !turn.model.isEmpty { Text(turn.model).font(.caption2).foregroundStyle(.secondary) }
+                            HStack(spacing: 8) { BrandMark(surface: .ask, size: 22); Text("ASK").font(.caption2.bold()).tracking(1.5); Spacer(); if !turn.model.isEmpty { Text(turn.model).font(.caption2).foregroundStyle(.secondary) } }
                             NativeMarkdown(text: turn.answer)
                             if !turn.citations.isEmpty {
                                 DisclosureGroup("Sources (\(turn.citations.count))") {

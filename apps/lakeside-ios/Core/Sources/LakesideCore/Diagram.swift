@@ -22,6 +22,7 @@ public struct Diagram: Sendable {
                 }
             }
             series = [Series(kind: "pie", values: values)]
+            if values.isEmpty || values.reduce(0, +) <= 0 { kind = "unsupported" }
         } else if first.hasPrefix("xychart") {
             kind = "xy"
             for line in lines.dropFirst() {
@@ -46,9 +47,11 @@ public struct Diagram: Sendable {
             }
             for line in lines.dropFirst() {
                 let clean = line.replacingOccurrences(of: #"([A-Za-z_][\w-]*)\s*[\[({]+[^\]\)}]*[\]\)}]+"#, with: "$1", options: .regularExpression)
-                if let m = Self.match(#"^\s*([\w-]+)\s*(?:-->>?|==>|-\.->|->>|-->)\s*(?:\|([^|]*)\|\s*)?([\w-]+)(?:\s*:\s*(.*))?"#, clean) {
+                // Look ahead so a shared middle node in A --> B --> C is retained.
+                for m in Self.matches(#"(?=\b([A-Za-z_][\w]*)(?:\s*)(?:-->>?|==>|-\.->|->>|-->)(?:\s*)(?:\|([^|]*)\|\s*)?([A-Za-z_][\w]*)(?:\s*:\s*([^;]*))?)"#, clean) {
                     edges.append(Edge(from: names[m[1]] ?? m[1], to: names[m[3]] ?? m[3], label: m[2].isEmpty ? m[4] : m[2]))
                 }
+
             }
             if edges.isEmpty { kind = "unsupported" }
         }

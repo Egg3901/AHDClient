@@ -53,6 +53,20 @@ final class LaunchTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Your link is ready."].waitForExistence(timeout: 5))
         XCTAssertEqual(app.webViews.count, 0)
     }
+    func testNativeAskChartAndMap() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures", "--uitest-visuals"]; app.launch()
+        if app.tabBars.buttons["Agents"].waitForExistence(timeout: 3) { throw XCTSkip("Ask visualizations") }
+        let conversation = app.staticTexts["How does inflation work?"]
+        XCTAssertTrue(conversation.waitForExistence(timeout: 10)); conversation.tap()
+        XCTAssertTrue(app.staticTexts["GDP growth"].waitForExistence(timeout: 10))
+        capture(app, "Native Ask chart")
+        app.swipeUp()
+        let expand = app.buttons["Expand game map"]
+        XCTAssertTrue(expand.waitForExistence(timeout: 10)); expand.tap()
+        XCTAssertTrue(app.navigationBars["Game map"].waitForExistence(timeout: 5))
+        capture(app, "Native Ask map")
+        XCTAssertEqual(app.webViews.count, 0)
+    }
     private func capture(_ app: XCUIApplication, _ name: String) {
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = name; screenshot.lifetime = .keepAlways; add(screenshot)
     }

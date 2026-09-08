@@ -12,6 +12,15 @@ final class DiagramTests: XCTestCase {
         let graph = Diagram("flowchart LR\nA[Demand] -->|raises| B[Price]")
         XCTAssertEqual(graph.edges.first?.from, "Demand"); XCTAssertEqual(graph.edges.first?.to, "Price"); XCTAssertEqual(graph.edges.first?.label, "raises")
     }
+    func testChainedFlowAndSequenceRetainEveryRelationship() {
+        let flow = Diagram("flowchart LR\nA[Demand] --> B[Price] --> C[Supply]")
+        XCTAssertEqual(flow.edges.count, 2)
+        XCTAssertEqual(flow.edges.last?.from, "Price")
+        XCTAssertEqual(flow.edges.last?.to, "Supply")
+        let sequence = Diagram("sequenceDiagram\nparticipant A as Player\nparticipant B as Game\nA->>B: Submit action")
+        XCTAssertEqual(sequence.edges.first?.from, "Player")
+        XCTAssertEqual(sequence.edges.first?.label, "Submit action")
+    }
     func testMismatchedSeriesIsNotSilentlyReinterpreted() {
         XCTAssertEqual(Diagram("xychart-beta\nx-axis [\"A\",\"B\"]\nbar [1]").kind, "unsupported")
     }
