@@ -60,6 +60,9 @@
         "bundleMediaFramework": true
       }
     },
+    "macOS": {
+      "entitlements": "Entitlements.mac.plist"
+    },
     "windows": {
       "nsis": {
         "sidebarImage": "installer/sidebar.bmp",

@@ -22,6 +22,8 @@ entitlements.each do |key, values|
 end
 app['entitlements']['properties']['aps-environment'] = '$(AHD_PUSH_ENVIRONMENT)'
 app['settings'] ||= {}
+app['settings']['base'] ||= {}
+app['settings']['base']['AHD_WIDGET_KEYCHAIN_GROUP'] = keychain
 app['settings']['configs'] ||= {}
 app['settings']['configs']['debug'] ||= {}
 app['settings']['configs']['release'] ||= {}

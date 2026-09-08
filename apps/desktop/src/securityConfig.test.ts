@@ -165,6 +165,15 @@ describe("desktop platform configuration", () => {
     expect(tauriConfig.bundle.externalBin).toEqual(["binaries/ahd-node"]);
     expect(tauriConfig.bundle.resources).toEqual({ "resources/game": "game" });
     expect(tauriConfig.app.windows[0]?.backgroundColor).toBe("#14141c");
+    expect(tauriConfig.bundle.macOS.entitlements).toBe("Entitlements.mac.plist");
+    const macEntitlements = read("../src-tauri/Entitlements.mac.plist");
+    for (const entitlement of [
+      "com.apple.security.cs.allow-jit",
+      "com.apple.security.cs.allow-unsigned-executable-memory",
+      "com.apple.security.cs.disable-library-validation",
+    ]) {
+      expect(macEntitlements).toContain(entitlement);
+    }
   });
 
   it("stages the game before every native bundle", () => {
