@@ -70,6 +70,27 @@ final class LaunchTests: XCTestCase {
         capture(app, "Native Ask map")
         XCTAssertEqual(app.webViews.count, 0)
     }
+    func testOpsWorkbench() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
+        guard app.tabBars.buttons["Files"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops workbench") }
+        app.buttons["Conversations"].tap()
+        XCTAssertTrue(app.staticTexts["Build the studio hub"].waitForExistence(timeout: 5))
+        capture(app, "Ops conversation history")
+        app.buttons["Done"].tap()
+        app.tabBars.buttons["Files"].tap()
+        app.staticTexts["Studio hub"].tap()
+        app.staticTexts["app.swift"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "let version")).firstMatch.waitForExistence(timeout: 5))
+        capture(app, "Ops source preview")
+        app.buttons["Changes"].tap()
+        XCTAssertTrue(app.staticTexts["+let version = 1.3"].waitForExistence(timeout: 5))
+        capture(app, "Ops file diff")
+        app.tabBars.buttons["Hub"].tap()
+        app.buttons["Schedules"].tap()
+        XCTAssertTrue(app.staticTexts["Morning review"].waitForExistence(timeout: 5))
+        capture(app, "Ops schedule controls")
+        XCTAssertEqual(app.webViews.count, 0)
+    }
     private func capture(_ app: XCUIApplication, _ name: String) {
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = name; screenshot.lifetime = .keepAlways; add(screenshot)
     }
