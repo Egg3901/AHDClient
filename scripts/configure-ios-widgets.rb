@@ -11,9 +11,10 @@ spec_path = File.join(project, 'project.yml')
 spec = YAML.load_file(spec_path)
 app_name, app = spec.fetch('targets').find { |name, target| target['type'] == 'application' && target['platform'] == 'iOS' }
 abort 'Expected one iOS app target' unless app
-group = 'group.net.lakesidegames.ahdclient'
-keychain = '$(AppIdentifierPrefix)net.lakesidegames.ahdclient.widgets'
-entitlements = { 'com.apple.security.application-groups' => [group], 'keychain-access-groups' => [keychain] }
+team = ENV.fetch('APPLE_DEVELOPMENT_TEAM', '').strip
+abort 'APPLE_DEVELOPMENT_TEAM is required to configure iOS widgets' if team.empty?
+keychain = "#{team}.net.lakesidegames.ahdclient.widgets"
+entitlements = { 'keychain-access-groups' => [keychain] }
 app['entitlements'] ||= { 'path' => "#{app_name}/#{app_name}.entitlements" }
 app['entitlements']['properties'] ||= {}
 entitlements.each do |key, values|
@@ -21,12 +22,15 @@ entitlements.each do |key, values|
 end
 app['entitlements']['properties']['aps-environment'] = '$(AHD_PUSH_ENVIRONMENT)'
 app['settings'] ||= {}
+app['settings']['base'] ||= {}
+app['settings']['base']['AHD_WIDGET_KEYCHAIN_GROUP'] = keychain
 app['settings']['configs'] ||= {}
 app['settings']['configs']['debug'] ||= {}
 app['settings']['configs']['release'] ||= {}
 app['settings']['configs']['debug']['AHD_PUSH_ENVIRONMENT'] = 'development'
 app['settings']['configs']['release']['AHD_PUSH_ENVIRONMENT'] = 'production'
 app.fetch('info').fetch('properties')['AHDPushEnvironment'] = '$(AHD_PUSH_ENVIRONMENT)'
+app.fetch('info').fetch('properties')['AHDWidgetKeychainGroup'] = keychain
 app['dependencies'] ||= []
 app['dependencies'] << { 'target' => 'AHDWidgets', 'embed' => true } unless app['dependencies'].any? { |d| d['target'] == 'AHDWidgets' }
 

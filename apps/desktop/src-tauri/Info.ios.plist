@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>AHDWidgetKeychainGroup</key>
-  <string>$(AppIdentifierPrefix)net.lakesidegames.ahdclient.widgets</string>
+  <string>$(AHD_WIDGET_KEYCHAIN_GROUP)</string>
   <key>CFBundleURLTypes</key>
   <array><dict><key>CFBundleURLName</key><string>net.lakesidegames.ahdclient.briefing</string>
     <key>CFBundleURLSchemes</key><array><string>ahdclient</string></array>

@@ -26,8 +26,19 @@ struct BriefingWidgetView: View {
   let entry: BriefingEntry
   let section: String
   @Environment(\.widgetFamily) var family
-  private let gold = Color(red: 0.9, green: 0.76, blue: 0.48)
-  private let background = Color(red: 0.078, green: 0.078, blue: 0.11)
+  private let gold = Color(red: 0.91, green: 0.72, blue: 0.32)
+  private let cream = Color(red: 0.97, green: 0.94, blue: 0.86)
+  private let navy = Color(red: 0.035, green: 0.055, blue: 0.09)
+  private let red = Color(red: 0.63, green: 0.10, blue: 0.14)
+
+  private var accent: Color {
+    section == "election" ? Color(red: 0.24, green: 0.45, blue: 0.68) :
+      section == "corporation" ? gold : red
+  }
+
+  private var sectionName: String {
+    section == "profile" ? "Profile" : section == "election" ? "Election" : "Corporation"
+  }
 
   private func number(_ value: Double?, suffix: String = "") -> String {
     guard let value = value, value.isFinite else { return "Unavailable" }
@@ -77,32 +88,60 @@ struct BriefingWidgetView: View {
   }
 
   private var content: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("AHD · MULTIPLAYER").font(.system(size: 9, weight: .semibold)).foregroundColor(.secondary)
-      Text(title).font(.headline).lineLimit(1).minimumScaleFactor(0.75)
-      if rows.isEmpty {
-        Text(emptyMessage).font(.caption).foregroundColor(.secondary)
-      } else {
-        ForEach(Array(rows.prefix(family == .systemSmall ? 2 : 4).enumerated()), id: \.offset) { _, row in
-          HStack { Text(row.0).foregroundColor(.secondary); Spacer(); Text(row.1).foregroundColor(gold).monospacedDigit() }
-            .font(.caption).lineLimit(1).minimumScaleFactor(0.65)
+    ZStack {
+      LinearGradient(colors: [navy, Color(red: 0.09, green: 0.08, blue: 0.12)], startPoint: .topLeading, endPoint: .bottomTrailing)
+      Circle().fill(accent.opacity(0.18)).frame(width: 150, height: 150).offset(x: 95, y: -85)
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 7) {
+          ZStack {
+            RoundedRectangle(cornerRadius: 6).fill(red)
+            Text("AHD").font(.system(size: 9, weight: .black, design: .serif)).foregroundColor(cream)
+          }.frame(width: 30, height: 24)
+          Text("A HOUSE DIVIDED").font(.system(size: 9, weight: .bold, design: .serif)).tracking(0.7).foregroundColor(cream)
+          Spacer(minLength: 4)
+          Text(sectionName.uppercased()).font(.system(size: 7, weight: .bold)).tracking(0.5)
+            .foregroundColor(accent).padding(.horizontal, 6).padding(.vertical, 4)
+            .background(Capsule().fill(accent.opacity(0.14)))
         }
-      }
-      Spacer(minLength: 0)
-      if let saved = entry.saved {
-        HStack(spacing: 3) { Text("Updated"); Text(saved.updatedAt, style: .relative); Text("ago") }
-          .font(.system(size: 9)).foregroundColor(.secondary).lineLimit(1)
-      }
+        Rectangle().fill(accent.opacity(0.7)).frame(height: 1)
+        Text(title).font(.system(size: 17, weight: .bold, design: .serif)).foregroundColor(cream)
+          .lineLimit(1).minimumScaleFactor(0.7)
+        if rows.isEmpty {
+          HStack(alignment: .top, spacing: 7) {
+            Image(systemName: "person.crop.circle.badge.exclamationmark").foregroundColor(accent)
+            Text(emptyMessage).font(.system(size: 11, weight: .medium)).foregroundColor(cream.opacity(0.72)).fixedSize(horizontal: false, vertical: true)
+          }
+        } else {
+          ForEach(Array(rows.prefix(family == .systemSmall ? 2 : 4).enumerated()), id: \.offset) { _, row in
+            HStack(spacing: 6) {
+              Text(row.0).foregroundColor(cream.opacity(0.62))
+              Spacer(minLength: 4)
+              Text(row.1).foregroundColor(gold).fontWeight(.semibold).monospacedDigit()
+            }
+            .font(.system(size: 11)).lineLimit(1).minimumScaleFactor(0.62)
+            .padding(.horizontal, 7).padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.045)))
+          }
+        }
+        Spacer(minLength: 0)
+        if let saved = entry.saved {
+          HStack(spacing: 4) {
+            Circle().fill(Color.green.opacity(0.85)).frame(width: 5, height: 5)
+            Text("Updated"); Text(saved.updatedAt, style: .relative); Text("ago")
+          }.font(.system(size: 8, weight: .medium)).foregroundColor(cream.opacity(0.5)).lineLimit(1)
+        } else {
+          Text("TAP TO OPEN MULTIPLAYER").font(.system(size: 8, weight: .bold)).tracking(0.5).foregroundColor(gold.opacity(0.8))
+        }
+      }.padding(12)
     }
-    .padding(14).foregroundColor(Color(red: 0.95, green: 0.93, blue: 0.9))
     .privacySensitive()
     .widgetURL(URL(string: "ahdclient://briefing/\(section)"))
   }
 
   var body: some View {
     if #available(iOSApplicationExtension 17.0, *) {
-      content.containerBackground(background, for: .widget)
-    } else { content.background(background) }
+      content.containerBackground(navy, for: .widget)
+    } else { content.background(navy) }
   }
 }
 

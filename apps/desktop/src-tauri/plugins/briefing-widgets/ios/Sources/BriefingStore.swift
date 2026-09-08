@@ -45,18 +45,12 @@ struct SavedBriefing: Codable {
 }
 
 enum BriefingStore {
-  static let group = "group.net.lakesidegames.ahdclient"
   static let endpoint = URL(string: "https://ahousedividedgame.com/api/client-status?layout=full")!
   private static let queue = DispatchQueue(label: "net.lakesidegames.ahdclient.widget-refresh")
   private static var pending = [(SavedBriefing?) -> Void]()
 
-  private static var file: URL? {
-    FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)?
-      .appendingPathComponent("multiplayer-briefing.json")
-  }
-
   static func read() -> SavedBriefing? {
-    guard let file = file, let bytes = try? Data(contentsOf: file), bytes.count <= 131072,
+    guard let bytes = item(account: "briefing"), bytes.count <= 131072,
       let value = try? JSONDecoder().decode(SavedBriefing.self, from: bytes),
       let header = session(), !header.isEmpty, value.sessionId == fingerprint(header),
       Date().timeIntervalSince(value.updatedAt) < 86400 else { return nil }
@@ -68,25 +62,30 @@ enum BriefingStore {
   }
 
   static func clear() {
-    if let file = file { try? FileManager.default.removeItem(at: file) }
+    if let request = query(account: "briefing") { SecItemDelete(request as CFDictionary) }
   }
 
-  private static func query() -> [String: Any]? {
+  private static func query(account: String) -> [String: Any]? {
     guard let accessGroup = Bundle.main.object(forInfoDictionaryKey: "AHDWidgetKeychainGroup") as? String,
       !accessGroup.contains("$("), !accessGroup.isEmpty else { return nil }
     return [kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: "net.lakesidegames.ahdclient.widgets",
-      kSecAttrAccount as String: "multiplayer",
+      kSecAttrAccount as String: account,
       kSecAttrAccessGroup as String: accessGroup]
   }
 
-  static func session() -> String? {
-    guard var request = query() else { return nil }
+  private static func item(account: String) -> Data? {
+    guard var request = query(account: account) else { return nil }
     request[kSecReturnData as String] = true
     request[kSecMatchLimit as String] = kSecMatchLimitOne
     var item: CFTypeRef?
     guard SecItemCopyMatching(request as CFDictionary, &item) == errSecSuccess,
       let data = item as? Data else { return nil }
+    return data
+  }
+
+  static func session() -> String? {
+    guard let data = item(account: "multiplayer") else { return nil }
     return String(data: data, encoding: .utf8)
   }
 
@@ -95,7 +94,7 @@ enum BriefingStore {
   }
 
   private static func updateSession(_ header: String) {
-    guard let request = query(), session() != header else { return }
+    guard let request = query(account: "multiplayer"), session() != header else { return }
     clear()
     SecItemDelete(request as CFDictionary)
     guard !header.isEmpty else { return }
@@ -105,6 +104,16 @@ enum BriefingStore {
     // An unavailable access group stays signed out instead of falling back to
     // plaintext credentials. Entitlements are installed for both targets.
     SecItemAdd(item as CFDictionary, nil)
+  }
+
+  private static func save(_ value: SavedBriefing) {
+    guard let request = query(account: "briefing"),
+      let data = try? JSONEncoder().encode(value), data.count <= 131072 else { return }
+    SecItemDelete(request as CFDictionary)
+    var record = request
+    record[kSecValueData as String] = data
+    record[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    SecItemAdd(record as CFDictionary, nil)
   }
 
   static func refresh(_ completion: @escaping (SavedBriefing?) -> Void) {
@@ -140,12 +149,7 @@ enum BriefingStore {
             data.name != nil || data.status == "no-character" else { finish(read()); return }
           data.name = data.name.map { String($0.prefix(120)) }
           let saved = SavedBriefing(updatedAt: Date(), sessionId: fingerprint(cookie), data: data)
-          if var file = file, let encoded = try? JSONEncoder().encode(saved) {
-            try? encoded.write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-            var values = URLResourceValues()
-            values.isExcludedFromBackup = true
-            try? file.setResourceValues(values)
-          }
+          save(saved)
           finish(saved)
         }
       }.resume()

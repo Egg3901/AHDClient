@@ -106,6 +106,14 @@ jobs:
           projectPath: apps/desktop
           args: ${{ matrix.args }}
 
+      - name: Verify packaged macOS Node runtime
+        if: startsWith(matrix.platform, 'macos')
+        run: |
+          app=$(find apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos -maxdepth 1 -type d -name '*.app' -print -quit)
+          node="$app/Contents/MacOS/ahd-node"
+          test -x "$node"
+          "$node" -e "for (let i = 0; i < 100000; i++) Math.sqrt(i); console.log('ahd-node-jit-ok')" | grep -q ahd-node-jit-ok
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}

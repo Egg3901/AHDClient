@@ -142,6 +142,8 @@ jobs:
           ls apps/desktop/src-tauri/gen/apple
 
       - name: Add the WidgetKit extension
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM || 'XXXXXXXXXX' }}
         run: ruby scripts/configure-ios-widgets.rb
 
       - name: Check widget Swift sources
@@ -190,6 +192,13 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
         run: npm run tauri --workspace apps/desktop -- ios build --export-method app-store-connect
+
+      - name: Verify widget sharing in the signed IPA
+        if: steps.signing.outputs.mode == 'store'
+        run: |
+          ipa=$(find apps/desktop/src-tauri/gen/apple/build/arm64 -type f -name '*.ipa' -print -quit)
+          test -n "$ipa"
+          python3 scripts/verify-ios-widget-bundle.py "$ipa"
 
       # TestFlight uploads are explicit manual releases. A normal tag build
       # still creates the signed IPA, but cannot accidentally submit it to
