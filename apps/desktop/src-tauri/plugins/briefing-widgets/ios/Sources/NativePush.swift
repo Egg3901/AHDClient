@@ -10,6 +10,7 @@ private struct PushDisk: Codable {
   var enabled = false
   var token = ""
   var registeredSession = ""
+  var observedSession = ""
   var mayBeRegistered = false
   var needsRevoke = false
 }
@@ -24,7 +25,6 @@ final class NativePush: NSObject, UNUserNotificationCenterDelegate, URLSessionTa
   private var busy = false
   private var registering = false
   private var nextAttempt = Date.distantPast
-  private var lastSession = ""
   private var message = "Turn on alerts for new inbox activity."
   private var pendingInbox = false
   private var navigationAttempts = 0
@@ -141,8 +141,8 @@ final class NativePush: NSObject, UNUserNotificationCenterDelegate, URLSessionTa
   func sync() {
     let session = (BriefingStore.session() ?? "")
     let sessionID = session.isEmpty ? "" : fingerprint(session)
-    if lastSession != sessionID {
-      lastSession = sessionID; nextAttempt = .distantPast
+    if state.observedSession != sessionID {
+      state.observedSession = sessionID; nextAttempt = .distantPast
       state.registeredSession = ""
       state.needsRevoke = state.mayBeRegistered
       save()

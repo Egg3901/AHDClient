@@ -31,7 +31,6 @@ object NativePush {
   private var busy = false
   private var tokenPending = false
   private var nextAttempt = 0L
-  private var lastSession = ""
   private var statusMessage = "Turn on alerts for new inbox activity."
 
   private fun file(context: Context) = File(context.noBackupFilesDir, "native-push.json")
@@ -87,8 +86,8 @@ object NativePush {
       val state = read(app)
       val header = session()
       val fingerprint = if (header.isEmpty()) "" else digest(header)
-      if (lastSession != fingerprint) {
-        lastSession = fingerprint; nextAttempt = 0
+      if (state.optString("observedSession", state.optString("registeredSession")) != fingerprint) {
+        state.put("observedSession", fingerprint); nextAttempt = 0
         state.remove("registeredSession"); state.put("needsRevoke", state.optBoolean("mayBeRegistered")); save(app, state)
         NotificationManagerCompat.from(app).cancel(NOTIFICATION_ID)
       }
