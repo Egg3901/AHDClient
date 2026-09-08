@@ -33,6 +33,7 @@ struct OpsActivity: View {
     var actions: [JSONValue]
     @State private var search = ""
     @State private var filter = "All"
+    @State private var expanded = false
     private var entries: [OpsActivityEntry] {
         actions.enumerated().map { index, value in
             OpsActivityEntry(id: value["id"].string.nonempty ?? "step-\(index)", value: value)
@@ -44,7 +45,18 @@ struct OpsActivity: View {
     }
     var body: some View {
         if !actions.isEmpty {
-            DisclosureGroup {
+            VStack(alignment: .leading, spacing: 0) {
+                Button { expanded.toggle() } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                    Label("Activity · \(actions.count) \(actions.count == 1 ? "step" : "steps")", systemImage: "list.bullet.rectangle")
+                    Spacer()
+                    let failed = entries.filter { $0.state == "failed" }.count
+                    if failed > 0 { Text("\(failed) failed").foregroundStyle(.orange) }
+                }.font(.caption.weight(.medium))
+                }.buttonStyle(.plain).accessibilityIdentifier("ops-activity")
+                    .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                if expanded {
                 VStack(alignment: .leading, spacing: 14) {
                     TextField("Search commands and output", text: $search)
                         .font(.callout).textFieldStyle(.roundedBorder).autocorrectionDisabled()
@@ -57,14 +69,8 @@ struct OpsActivity: View {
                         OpsActivityStep(entry: entry)
                     }
                 }.padding(.top, 12)
-            } label: {
-                HStack(spacing: 8) {
-                    Label("Activity · \(actions.count) \(actions.count == 1 ? "step" : "steps")", systemImage: "list.bullet.rectangle")
-                    Spacer()
-                    let failed = entries.filter { $0.state == "failed" }.count
-                    if failed > 0 { Text("\(failed) failed").foregroundStyle(.orange) }
-                }.font(.caption.weight(.medium))
-            }.foregroundStyle(.secondary).accessibilityIdentifier("ops-activity")
+                }
+            }.foregroundStyle(.secondary)
         }
     }
 }
