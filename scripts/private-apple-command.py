@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Keep identity-bearing Apple signing output off public CI logs."""
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
