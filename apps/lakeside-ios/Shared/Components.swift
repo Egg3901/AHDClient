@@ -8,10 +8,14 @@ struct FailureBanner: View {
 
 struct NativeMarkdown: View {
     let text: String
+    var streaming = false
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                if block.code {
+                if block.code && ["mermaid", "mmd", "ahd-map"].contains(block.language) {
+                    if block.closed || !streaming { NativeVisualization(language: block.language, source: block.text) }
+                    else { ProgressView("Preparing visualization…").font(.caption) }
+                } else if block.code {
                     ScrollView(.horizontal) { Text(block.text).font(.system(.footnote, design: .monospaced)).padding(12) }
                         .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
                 } else if block.text.hasPrefix("# ") {
@@ -29,18 +33,19 @@ struct NativeMarkdown: View {
     private func inline(_ value: String) -> AttributedString {
         (try? AttributedString(markdown: value, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(value)
     }
-    private struct Block { var text: String; var code: Bool }
+    private struct Block { var text: String; var code: Bool; var language: String; var closed: Bool }
     private var blocks: [Block] {
-        var result: [Block] = []; var lines: [String] = []; var code = false
+        var result: [Block] = []; var lines: [String] = []; var code = false; var language = ""
         for line in text.components(separatedBy: "\n") {
             if line.hasPrefix("```") {
-                if !lines.isEmpty { result.append(Block(text: lines.joined(separator: "\n"), code: code)); lines = [] }
+                if !lines.isEmpty { result.append(Block(text: lines.joined(separator: "\n"), code: code, language: language, closed: true)); lines = [] }
+                if !code { language = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces).lowercased() }
                 code.toggle()
             } else if line.isEmpty && !code {
-                if !lines.isEmpty { result.append(Block(text: lines.joined(separator: "\n"), code: false)); lines = [] }
+                if !lines.isEmpty { result.append(Block(text: lines.joined(separator: "\n"), code: false, language: "", closed: true)); lines = [] }
             } else { lines.append(line) }
         }
-        if !lines.isEmpty { result.append(Block(text: lines.joined(separator: "\n"), code: code)) }
+        if !lines.isEmpty { result.append(Block(text: lines.joined(separator: "\n"), code: code, language: language, closed: !code)) }
         return result
     }
     private func table(_ text: String) -> some View {
@@ -94,19 +99,30 @@ extension String { var nonempty: String? { isEmpty ? nil : self } }
 struct AccountView: View {
     @EnvironmentObject private var session: AppSession
     @State private var signingOut = false
+    @AppStorage("appearance") private var appearance = "dark"
     var body: some View {
         List {
+            Section { BrandHeader(surface: session.surface).padding(.vertical, 8) }.listRowBackground(Brand.surface)
+            if session.surface == .ask {
+                Section { UsagePanel(usage: session.profile["usage"]).listRowInsets(EdgeInsets()).listRowBackground(Color.clear) }
+            }
+            if let error = session.error { FailureBanner(message: error) }
             Section("Account") {
                 Text(session.profile.first("email", "role").nonempty ?? session.profile["identity"].first("username", "email", "id"))
                 if !session.profile["entitlement"]["label"].string.isEmpty { LabeledContent("Access", value: session.profile["entitlement"]["label"].string) }
-                if !session.profile["usage"].object.isEmpty { NavigationLink("Daily allowance") { JSONDetail(title: "Daily allowance", value: session.profile["usage"]) } }
+
                 Button("Sign out", role: .destructive) { signingOut = true; Task { await session.signOut(); signingOut = false } }.disabled(signingOut)
+            }
+            Section("Appearance") {
+                Picker("Theme", selection: $appearance) {
+                    Text("Lakeside dark").tag("dark"); Text("Light").tag("light"); Text("System").tag("system")
+                }
             }
             Section {
                 LabeledContent("App", value: session.surface.title)
                 LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
                 Text("Connected to \(session.surface.host)").foregroundStyle(.secondary)
             }
-        }.navigationTitle("Account")
+        }.lakesideScreen().navigationTitle("Account").refreshable { await session.refreshProfile() }.task { await session.refreshProfile() }
     }
 }

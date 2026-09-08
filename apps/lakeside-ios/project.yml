@@ -4,12 +4,15 @@ options:
     iOS: '17.0'
   createIntermediateGroups: true
 packages:
+  SwiftDraw:
+    url: https://github.com/swhitty/SwiftDraw.git
+    exactVersion: 0.29.0
   LakesideCore:
     path: Core
 settings:
   base:
     SWIFT_VERSION: '5.0'
-    MARKETING_VERSION: '1.0.0'
+    MARKETING_VERSION: '1.1.0'
     CURRENT_PROJECT_VERSION: '1'
     TARGETED_DEVICE_FAMILY: '1,2'
     CODE_SIGN_STYLE: Automatic
@@ -26,22 +29,26 @@ targets:
     sources: [Shared, Ask]
     dependencies:
       - package: LakesideCore
+      - package: SwiftDraw
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.lakesidegames.ask
         INFOPLIST_KEY_CFBundleDisplayName: Lakeside Ask
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": scripts/simulator.entitlements
   LakesideOps:
     type: application
     platform: iOS
     sources: [Shared, Ops]
     dependencies:
       - package: LakesideCore
+      - package: SwiftDraw
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.lakesidegames.ops
         INFOPLIST_KEY_CFBundleDisplayName: Lakeside Ops
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": scripts/simulator.entitlements
   AskUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -62,6 +69,15 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.lakesidegames.ops.uitests
         TEST_TARGET_NAME: LakesideOps
+  OpsSessionTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [SessionTests]
+    dependencies:
+      - target: LakesideOps
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.lakesidegames.ops.sessiontests
 schemes:
   LakesideAsk:
     build:
@@ -74,4 +90,4 @@ schemes:
       targets:
         LakesideOps: all
     test:
-      targets: [OpsUITests]
+      targets: [OpsUITests, OpsSessionTests]

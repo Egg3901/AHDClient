@@ -10,15 +10,24 @@ struct SessionGate<Content: View>: View {
             if session.checking { ProgressView("Connecting…") }
             else if session.signedIn { content().environmentObject(session) }
             else {
-                VStack(spacing: 24) {
-                    Image(systemName: session.surface.symbol).font(.system(size: 64)).foregroundStyle(.tint)
-                    Text(session.surface.title).font(.largeTitle.bold())
-                    Text(session.surface == .ask ? "Your questions. Your games. Answers with sources." : "Your services, agents, and projects in one place.")
-                        .multilineTextAlignment(.center).foregroundStyle(.secondary)
-                    if let error = session.error { Text(error).font(.callout).foregroundStyle(.red) }
-                    Button("Sign in to Lakeside") { login = true }.buttonStyle(.borderedProminent).controlSize(.large)
-                    Text("Use your existing Lakeside account.").font(.footnote).foregroundStyle(.secondary)
-                }.padding(32)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 28) {
+                        BrandHero(surface: session.surface)
+                        if let error = session.error { FailureBanner(message: error) }
+                        Button { login = true } label: {
+                            HStack { Text("Sign in to Lakeside").fontWeight(.semibold); Spacer(); Image(systemName: "arrow.right") }
+                                .padding(18).foregroundStyle(Brand.onAccent).background(Brand.sky, in: RoundedRectangle(cornerRadius: 16))
+                        }.accessibilityIdentifier("sign-in")
+                        VStack(alignment: .leading, spacing: 14) {
+                            Label(session.surface == .ask ? "Answers grounded in live code" : "Live service health", systemImage: session.surface == .ask ? "curlybraces" : "waveform.path.ecg")
+                            Label(session.surface == .ask ? "Citations you can follow" : "Agent conversations and controls", systemImage: session.surface == .ask ? "doc.text" : "terminal")
+                            Label(session.surface == .ask ? "Your game's current state" : "Your projects, wherever you are", systemImage: session.surface == .ask ? "bolt" : "folder")
+                        }.font(.callout).foregroundStyle(.secondary)
+                        Text("Use your existing Lakeside account.").font(.footnote).foregroundStyle(.secondary)
+                    }.padding(28).padding(.top, 28).frame(maxWidth: 560)
+                        .frame(maxWidth: .infinity)
+                }.lakesideScreen()
+
             }
         }
         .task { await session.restore() }
