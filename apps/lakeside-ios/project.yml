@@ -62,6 +62,15 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.lakesidegames.ops.uitests
         TEST_TARGET_NAME: LakesideOps
+  OpsSessionTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [SessionTests]
+    dependencies:
+      - target: LakesideOps
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.lakesidegames.ops.sessiontests
 schemes:
   LakesideAsk:
     build:
@@ -74,4 +83,4 @@ schemes:
       targets:
         LakesideOps: all
     test:
-      targets: [OpsUITests]
+      targets: [OpsUITests, OpsSessionTests]

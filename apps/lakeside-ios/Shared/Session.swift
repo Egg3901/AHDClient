@@ -60,9 +60,9 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
     private var credential: Credential?
     private let transport: URLSession
 
-    init(_ surface: Surface) {
+    init(_ surface: Surface, configuration: URLSessionConfiguration? = nil) {
         self.surface = surface
-        let config = URLSessionConfiguration.ephemeral
+        let config = configuration ?? URLSessionConfiguration.ephemeral
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--uitest-fixtures") { config.protocolClasses = [FixtureProtocol.self] }
 #endif
