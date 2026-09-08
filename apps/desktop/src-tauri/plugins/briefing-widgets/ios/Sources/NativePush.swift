@@ -104,7 +104,7 @@ final class NativePush: NSObject, UNUserNotificationCenterDelegate, URLSessionTa
   func status() -> [String: Any] {
     let session = (BriefingStore.session() ?? "")
     return ["enabled": state.enabled, "permissionGranted": permission, "available": installed,
-      "registered": state.enabled && permission && !session.isEmpty() && state.registeredSession == fingerprint(session),
+      "registered": state.enabled && permission && !session.isEmpty && state.registeredSession == fingerprint(session),
       "message": message]
   }
   func configure(_ enabled: Bool, completion: @escaping ([String: Any]) -> Void) {
