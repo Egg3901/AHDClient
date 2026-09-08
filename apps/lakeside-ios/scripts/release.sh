@@ -40,7 +40,7 @@ value = {'method': 'app-store-connect', 'destination': 'upload', 'signingStyle':
     'uploadSymbols': True, 'stripSwiftSymbols': True}
 Path('build/' + sys.argv[1] + '-export.plist').write_bytes(plistlib.dumps(value))
 PY
-  xcodebuild -exportArchive -archivePath "build/$scheme.xcarchive" \
+  python3 ../../scripts/private-apple-command.py xcodebuild -exportArchive -archivePath "build/$scheme.xcarchive" \
     -exportOptionsPlist "build/$scheme-export.plist" -exportPath "build/$scheme-export" "${auth[@]}"
   python3 - "$scheme" <<'PY'
 import json, sys
