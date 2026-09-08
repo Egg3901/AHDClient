@@ -153,7 +153,11 @@ final class NativePush: NSObject, UNUserNotificationCenterDelegate, URLSessionTa
       message = !state.enabled ? "Push alerts are off." : !permission ?
         "Allow notifications in iOS Settings, then return here." : "Sign in to multiplayer to receive alerts."
     }
-    if enabled && !session.isEmpty && installed && !registering {
+    if !enabled || session.isEmpty || state.needsRevoke {
+      UIApplication.shared.unregisterForRemoteNotifications()
+      registering = false
+    }
+    if enabled && !session.isEmpty && !state.needsRevoke && installed && !registering {
       registering = true
       UIApplication.shared.registerForRemoteNotifications()
       // Apple may not call back while the device is offline. A later foreground retries.

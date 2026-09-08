@@ -71,6 +71,9 @@ object NativePush {
       NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
     }
     save(context, state)
+    if (!enabled && FirebaseApp.getApps(context).isNotEmpty()) {
+      FirebaseMessaging.getInstance().isAutoInitEnabled = false
+    }
     nextAttempt = 0
   }
   fun tokenChanged(context: Context, token: String) {
