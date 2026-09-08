@@ -2,6 +2,10 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.1.2] - 2026-09-08
+
+- Replace the overflowing update changelog strip with a compact branded card that keeps release notes collapsed, stays clear of launcher controls and can be dismissed until the next launch.
+
 ## [2.1.1] - 2026-09-08
 
 - Keep iOS briefing widgets signed in by sharing the session and current briefing through an entitled Keychain group.

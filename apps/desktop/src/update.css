@@ -1,21 +1,131 @@
 .client-update-notice {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 50;
+  box-sizing: border-box;
+  width: min(480px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
   display: flex;
-  gap: 14px;
-  align-items: center;
-  padding: 12px 24px;
-  border-bottom: 1px solid #8f692b;
-  background: #302818;
+  flex-direction: column;
+  gap: 12px;
+  padding: 15px;
+  overflow-wrap: anywhere;
+  border: 1px solid #a87832;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #302818f5, #1d1925f5);
+  box-shadow: 0 16px 48px #000a;
   color: #f4ead8;
+  font-size: 13px;
+  backdrop-filter: blur(16px);
+}
+
+.client-update-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+.client-update-heading > div {
+  min-width: 0;
+}
+
+.client-update-heading strong {
+  display: block;
+  color: #fff8e9;
   font-size: 14px;
 }
 
-.client-update-notice span { flex: 1; }
+.client-update-heading p {
+  margin: 2px 0 0;
+  color: #cfc2ad;
+  line-height: 1.35;
+}
+
+.client-update-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border: 1px solid #d6a34e;
+  border-radius: 50%;
+  background: #bf202d;
+  color: white;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.client-update-details {
+  border-top: 1px solid #ffffff1a;
+  padding-top: 9px;
+}
+
+.client-update-details summary {
+  width: max-content;
+  cursor: pointer;
+  color: #e3bb78;
+  font-weight: 700;
+}
+
+.client-update-details ul {
+  max-height: 150px;
+  margin: 9px 0 0;
+  padding: 0 4px 0 20px;
+  overflow: auto;
+  color: #d8cebd;
+  line-height: 1.45;
+}
+
+.client-update-details li + li {
+  margin-top: 6px;
+}
+
+.client-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .client-update-notice button {
   padding: 8px 12px;
-  border: 1px solid #c99a4c;
-  border-radius: 5px;
-  background: #c39242;
-  color: #16120b;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: 700;
+}
+
+.client-update-primary {
+  border: 1px solid #e6b65f;
+  background: #c39242;
+  color: #16120b;
+}
+
+.client-update-later {
+  border: 1px solid #ffffff2b;
+  background: #ffffff0d;
+  color: #eee5d6;
+}
+
+.client-update-mark-pulse {
+  animation: client-update-pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes client-update-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (max-width: 1100px) {
+  .client-update-notice {
+    top: auto;
+    bottom: 50px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .client-update-mark-pulse {
+    animation: none;
+  }
 }
