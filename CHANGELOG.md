@@ -6,7 +6,7 @@ All notable AHDClient changes are recorded here.
 
 - Keep iOS briefing widgets signed in by sharing the session and current briefing through an entitled Keychain group.
 - Give iOS widgets a branded A House Divided layout with clearer Profile, Election and Corporation cards.
-- Let the bundled Node runtime use JIT memory and native modules on macOS so local singleplayer can start under the hardened runtime.
+- Let the anonymously signed bundled Node runtime use JIT memory and native modules on macOS so local singleplayer can start.
 - Publish updater archives for both Apple silicon and Intel Macs.
 
 ## [2.1.0] - 2026-09-08
