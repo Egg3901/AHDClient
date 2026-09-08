@@ -445,6 +445,11 @@ struct OpsWorkerDetail: View {
                 if !current["started_at"].string.isEmpty { LabeledContent("Started", value: opsDate(current["started_at"].string)) }
                 if !current["finished_at"].string.isEmpty { LabeledContent("Finished", value: opsDate(current["finished_at"].string)) }
                 if !current["job_updated_at"].string.isEmpty { LabeledContent("Last update", value: opsDate(current["job_updated_at"].string)) }
+                if !current["route_reason"].string.isEmpty { DisclosureGroup("Why this route") { Text(current["route_reason"].string).font(.caption).foregroundStyle(.secondary) } }
+                if let budget = current["max_minutes"].number { LabeledContent("Time budget", value: "\(Int(budget)) minutes") }
+                if !current["deadline_at"].string.isEmpty { LabeledContent("Deadline", value: opsDate(current["deadline_at"].string)) }
+                if current["cleanup_status"].string == "closed" { Label("Worker session closed", systemImage: "checkmark.circle").font(.caption).foregroundStyle(OpsTheme.mint) }
+                if current["cleanup_status"].string == "failed" { Text("Session cleanup needs retry. Your work and report are retained.").font(.caption).foregroundStyle(.orange) }
                 LabeledContent("Provider", value: current.first("runtime_provider", "provider").capitalized)
                 if !current["runtime_model"].string.isEmpty { LabeledContent("Model", value: current["runtime_model"].string) }
             }
@@ -455,11 +460,11 @@ struct OpsWorkerDetail: View {
                         Text(item["status"].string.replacingOccurrences(of: "_", with: " ").capitalized).font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                if !["completed", "failed", "cancelled", "delivery_unknown", "cancelling"].contains(current["job_status"].string) {
+                if current["supports_messages"] != .bool(false) && !["completed", "failed", "cancelled", "delivery_unknown", "cancelling"].contains(current["job_status"].string) {
                     TextField("Give this worker direction", text: $message, axis: .vertical).lineLimit(2...6).disabled(sendingMessage || submittedMessage != nil)
                     Text("Your message is queued for the worker's next turn. Ops continues to oversee the assignment.").font(.caption).foregroundStyle(.secondary)
                     Button(submittedMessage == nil ? "Send to worker" : "Retry message") { Task { await sendMessage() } }.disabled(sendingMessage || message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                } else { Text(current["job_status"].string == "delivery_unknown" ? "Delivery could not be confirmed. Cancel this assignment before starting another; the message will not be sent twice." : current["job_status"].string == "cancelling" ? "Cancellation is in progress." : "This assignment has finished. Start another assignment from the team to continue the work.").font(.caption).foregroundStyle(.secondary) }
+                } else { Text(current["supports_messages"] == .bool(false) ? "This is a tool-free analysis task. Start another assignment for follow-up work." : current["job_status"].string == "delivery_unknown" ? "Delivery could not be confirmed. Cancel this assignment before starting another; the message will not be sent twice." : current["job_status"].string == "cancelling" ? "Cancellation is in progress." : "This assignment has finished. Start another assignment from the team to continue the work.").font(.caption).foregroundStyle(.secondary) }
                 if let messageError { Text(messageError).font(.caption).foregroundStyle(.orange) }
             }
             ForEach(current["permissions"].array, id: \.["id"].string) { permission in
@@ -579,6 +584,7 @@ struct OpsCapacity: View {
                 }
             }
             if let error = model.error { Text(error).foregroundStyle(.orange) }
+            Section { NavigationLink { OpsBenchmarks() } label: { Label("Provider benchmarks", systemImage: "speedometer") } }
         }.opsScreen().navigationTitle("Usage").task { await model.refreshUsage(session) }.refreshable { await model.refreshUsage(session) }
     }
 }

@@ -112,6 +112,11 @@ final class LaunchTests: XCTestCase {
         XCTAssertTrue(app.textFields["ops-assignment-title"].waitForExistence(timeout: 5))
         capture(app, "Ops new assignment")
         app.buttons["Cancel"].tap()
+        app.tabBars.buttons["Usage"].tap()
+        app.swipeUp()
+        app.buttons["Provider benchmarks"].tap()
+        XCTAssertTrue(app.staticTexts["Measure before routing"].waitForExistence(timeout: 5))
+        capture(app, "Ops provider benchmarks")
         XCTAssertEqual(app.webViews.count, 0)
     }
     private func capture(_ app: XCUIApplication, _ name: String) {

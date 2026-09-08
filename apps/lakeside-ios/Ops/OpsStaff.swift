@@ -8,6 +8,9 @@ struct OpsNewAssignment: View {
     var staff: JSONValue = .null
     @State private var title = ""
     @State private var brief = ""
+    @State private var taskType = "implementation"
+    @State private var effort = "auto"
+    @State private var minutes = 45
     @State private var provider = "auto"
     @State private var selectedModel = ""
     @State private var providers: [JSONValue] = []
@@ -20,6 +23,7 @@ struct OpsNewAssignment: View {
     @State private var submission: [String: JSONValue]?
     @State private var busy = false
     @State private var error: String?
+    private var toolFree: Bool { provider == "freerouter" && taskType == "analysis" }
     var body: some View {
         NavigationStack {
             Form {
@@ -28,8 +32,16 @@ struct OpsNewAssignment: View {
                     TextField("Title", text: $title).accessibilityIdentifier("ops-assignment-title")
                     TextField("What should they do, and why?", text: $brief, axis: .vertical).lineLimit(4...10).accessibilityIdentifier("ops-assignment-brief")
                 }
-                Section("Runtime") { OpsProviderFields(provider: $provider, model: $selectedModel, providers: providers) }
-                Section("Workspace") {
+                Section("Routing & budget") {
+                    Picker("Task type", selection: $taskType) {
+                        Text("Analysis (no tools)").tag("analysis"); Text("Research").tag("research"); Text("Bug fix").tag("bugfix"); Text("Implementation").tag("implementation"); Text("Review").tag("review")
+                    }.onChange(of: taskType) { _, type in if type != "analysis" && provider == "freerouter" { provider = "auto" }; minutes = ["analysis": 10, "research": 25, "bugfix": 30, "implementation": 45, "review": 20][type] ?? 30 }
+                    OpsProviderFields(provider: $provider, model: $selectedModel, providers: providers, includeFree: taskType == "analysis")
+                    Picker("Effort", selection: $effort) { Text("Match task").tag("auto"); Text("Low").tag("low"); Text("Medium").tag("medium"); Text("High").tag("high") }
+                    Stepper("Time budget: \(minutes) minutes", value: $minutes, in: 1...120)
+                    Text("Automatic routing uses available capacity and fresh benchmark results. Worker sessions close after completion; staff memory and reports remain.").font(.caption).foregroundStyle(.secondary)
+                }
+                if !toolFree { Section("Workspace") {
                     Toggle("Create a separate worktree", isOn: $newWorktree)
                     if newWorktree {
                         Picker("Project", selection: $project) {
@@ -44,6 +56,7 @@ struct OpsNewAssignment: View {
                     }
                     Text("Reports return to your current Ops conversation. The main assistant reviews the result.").font(.caption).foregroundStyle(.secondary)
                 }
+                }
                 if let error { Section { Text(error).foregroundStyle(.orange) } }
                 if submission != nil { Section { Text("This assignment is saved locally for retry. Retrying uses the same request so it cannot start a duplicate worker.").font(.caption).foregroundStyle(.secondary) } }
             }.disabled(busy || submission != nil).opsScreen().navigationTitle(staff == .null ? "New worker" : "Assign work").navigationBarTitleDisplayMode(.inline)
@@ -51,7 +64,7 @@ struct OpsNewAssignment: View {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) }
                     ToolbarItem(placement: .confirmationAction) {
                         Button(busy ? "Starting…" : submission == nil ? "Start" : "Retry") { Task { await start() } }
-                            .disabled(busy || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || brief.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (submission == nil && (newWorktree ? project.isEmpty : workspace.isEmpty)))
+                            .disabled(busy || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || brief.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (submission == nil && !toolFree && (newWorktree ? project.isEmpty : workspace.isEmpty)))
                     }
                 }
                 .task {
@@ -70,13 +83,13 @@ struct OpsNewAssignment: View {
         busy = true; error = nil; defer { busy = false }
         do {
             if submission == nil {
-                if newWorktree {
+                if newWorktree && !toolFree {
                     let created = try await session.post("/api/ops/workspaces", ["path": .string(project), "title": .string(String(title.prefix(60)))])
                     workspace = created["workspaceId"].string
                     guard !workspace.isEmpty else { throw URLError(.cannotParseResponse) }
                     newWorktree = false
                 }
-                var payload: [String: JSONValue] = ["requestId": .string(requestID), "name": .string(title), "brief": .string(brief), "provider": .string(provider), "model": selectedModel.isEmpty ? .null : .string(selectedModel), "workspaceId": .string(workspace), "conversationId": .number(Double(model.conversation) ?? 0), "origin": .string("owner")]
+                var payload: [String: JSONValue] = ["requestId": .string(requestID), "name": .string(title), "brief": .string(brief), "provider": .string(provider), "model": selectedModel.isEmpty ? .null : .string(selectedModel), "workspaceId": toolFree ? .null : .string(workspace), "conversationId": .number(Double(model.conversation) ?? 0), "origin": .string("owner"), "taskType": .string(taskType), "effort": .string(effort), "maxMinutes": .number(Double(minutes))]
                 if staff != .null { payload["staffId"] = staff["id"] }
                 submission = payload
             }
@@ -93,10 +106,11 @@ struct OpsProviderFields: View {
     @Binding var provider: String
     @Binding var model: String
     let providers: [JSONValue]
+    var includeFree = false
     var body: some View {
         Picker("Provider", selection: Binding(get: { provider }, set: { provider = $0; model = "" })) {
             Text("Automatic").tag("auto")
-            ForEach(providers.filter { $0["capabilities"].array.contains(.string("tools")) }, id: \.["id"].string) { Text($0["label"].string).tag($0["id"].string) }
+            ForEach(providers.filter { $0["capabilities"].array.contains(.string("tools")) || (includeFree && $0["id"].string == "freerouter") }, id: \.["id"].string) { Text($0["label"].string).tag($0["id"].string) }
         }
         if provider != "auto" {
             Picker("Model", selection: $model) {
