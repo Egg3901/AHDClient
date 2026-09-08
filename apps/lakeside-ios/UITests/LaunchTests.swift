@@ -98,7 +98,7 @@ final class LaunchTests: XCTestCase {
         XCTAssertTrue(activity.waitForExistence(timeout: 10)); activity.tap()
         let search = app.textFields["ops-activity-search"]
         XCTAssertTrue(search.waitForExistence(timeout: 5))
-        search.tap(); search.typeText("missing-command")
+        search.tap(); search.typeText("missing-command\n")
         XCTAssertTrue(app.staticTexts["No matching activity"].waitForExistence(timeout: 5))
         capture(app, "Ops searchable activity")
         app.tabBars.buttons["Team"].tap()

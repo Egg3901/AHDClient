@@ -32,6 +32,7 @@ private struct OpsActivityEntry: Identifiable {
 struct OpsActivity: View {
     var actions: [JSONValue]
     @State private var search = ""
+    @FocusState private var searchFocused: Bool
     @State private var filter = "All"
     @State private var expanded = false
     private var entries: [OpsActivityEntry] {
@@ -61,6 +62,7 @@ struct OpsActivity: View {
                     TextField("Search commands and output", text: $search)
                         .font(.callout).textFieldStyle(.roundedBorder).autocorrectionDisabled()
                         .textInputAutocapitalization(.never).accessibilityIdentifier("ops-activity-search")
+                        .focused($searchFocused).submitLabel(.done).onSubmit { searchFocused = false }
                     Picker("Activity filter", selection: $filter) {
                         ForEach(["All", "Running", "Failed"], id: \.self) { Text($0) }
                     }.pickerStyle(.segmented)
