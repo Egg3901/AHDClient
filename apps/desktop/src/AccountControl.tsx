@@ -11,7 +11,7 @@ interface Props {
 export function AccountControl({ checked, linked, displayName, supporter, onLink, onProfile, onManage }: Props): JSX.Element {
   if (checked && linked) return (
     <details className="client-account-menu">
-      <summary className="client-account-control">{displayName || "Profile"}<span aria-hidden="true">⌄</span></summary>
+      <summary className="client-account-control"><span className="client-account-name">{displayName || "Profile"}</span><span aria-hidden="true">⌄</span></summary>
       <div role="menu">
         <p><strong>{displayName || "Game account"}</strong><small>{supporter ? "Supporter" : "Player"}</small></p>
         <button role="menuitem" type="button" onClick={onProfile}>View profile</button>

@@ -48,10 +48,11 @@
 .client-game-toolbar > strong { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .client-game-toolbar > button { background: #272735; border: 1px solid #50505b; color: inherit; border-radius: 5px; padding: 9px 14px; cursor: pointer; }
 html[data-animations="off"] .launcher-nebula { animation: none; }
-.client-account-notice { display: flex; gap: 12px; align-items: center; padding: 12px 24px; background: #242433; color: #e8e8ef; font-size: 14px; }
+.client-account-notice { display: flex; gap: 12px; align-items: center; padding: 72px 24px 12px; background: #242433; color: #e8e8ef; font-size: 14px; }
 .client-account-notice span { flex: 1; }
 .client-account-notice button { padding: 8px 12px; cursor: pointer; }
 .client-account-menu { position: relative; }
+.client-account-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
 .client-account-menu > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; list-style: none; }
 .client-account-menu > summary::-webkit-details-marker { display: none; }
 .client-account-menu > div { position: absolute; z-index: 40; top: calc(100% + 8px); right: 0; width: 220px; padding: 8px; border: 1px solid #50505b; border-radius: 10px; background: #1d1d2a; box-shadow: 0 18px 50px #0009; }
@@ -60,6 +61,9 @@ html[data-animations="off"] .launcher-nebula { animation: none; }
 .client-account-menu button { width: 100%; padding: 10px; border: 0; border-radius: 6px; background: transparent; color: #f5f5fa; text-align: left; cursor: pointer; }
 .client-account-menu button:hover { background: #ffffff0d; }
 @media (max-width: 600px) {
+  .launcher-settings .client-settings-trigger,
+  .launcher-settings .client-account-control { min-width: 0; min-height: 44px; padding: 8px 10px; font-size: 12px; }
+  .client-account-name { max-width: 92px; }
   .client-settings-backdrop { padding: 10px; place-items: end center; }
   .client-settings-dialog { max-height: calc(100vh - 20px); border-radius: 16px; }
   .client-settings-dialog > header,
