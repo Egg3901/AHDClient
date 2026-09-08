@@ -71,10 +71,12 @@ def main():
             'attributes': {'name': 'Personal iOS', 'isInternalGroup': True, 'hasAccessToAllBuilds': True, 'publicLinkEnabled': False},
             'relationships': {'app': {'data': ref('apps', app_id)}}}})['data']
         testers = listed('betaTesters', **{'filter[email]': email})
-        tester = testers[0] if testers else api('betaTesters', {'data': {'type': 'betaTesters', 'attributes': {'email': email}}})['data']
         members = api('betaGroups/' + group['id'] + '/relationships/betaTesters?limit=200')['data']
-        if not any(t['id'] == tester['id'] for t in members):
-            api('betaGroups/' + group['id'] + '/relationships/betaTesters', {'data': [ref('betaTesters', tester['id'])]})
+        tester = next((t for t in testers if any(member['id'] == t['id'] for member in members)), None)
+        if tester is None:
+            # Apple must establish internal membership when resolving the tester by email.
+            tester = api('betaTesters', {'data': {'type': 'betaTesters', 'attributes': {'email': email},
+                'relationships': {'betaGroups': {'data': [ref('betaGroups', group['id'])]}}}})['data']
         api('betaTesterInvitations', {'data': {'type': 'betaTesterInvitations', 'relationships': {
             'app': {'data': ref('apps', app_id)}, 'betaTester': {'data': ref('betaTesters', tester['id'])}}}})
         print(bundle, 'TestFlight invitation requested successfully')
