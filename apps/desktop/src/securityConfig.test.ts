@@ -114,6 +114,8 @@ describe("desktop security configuration", () => {
         "allow-linked-account",
         "allow-link-account",
         "allow-submit-diagnostics",
+        "allow-get-push-status",
+        "allow-configure-push",
         "allow-get-briefing",
         "allow-open-briefing-page",
       ].sort(),

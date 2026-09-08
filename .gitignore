@@ -18,3 +18,6 @@ apps/desktop/src-tauri/gen/*
 apps/desktop/src-tauri/icons/ios/
 apps/desktop/src-tauri/icons/Square*Logo.png
 apps/desktop/src-tauri/icons/StoreLogo.png
+
+# Mobile push build configuration is installed from CI secrets.
+**/google-services.json

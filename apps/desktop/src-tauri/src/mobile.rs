@@ -240,11 +240,27 @@ pub(crate) async fn open_help_destination(app: AppHandle, route_id: String) -> R
   }
 }
 
+#[tauri::command]
+pub(crate) async fn get_push_status(app: AppHandle) -> Result<serde_json::Value, String> {
+  tauri::async_runtime::spawn_blocking(move || {
+    app.state::<tauri_plugin_briefing_widgets::NativeCompanion<tauri::Wry>>().status()
+  }).await.map_err(|_| "Could not read push settings".to_string())?
+}
+
+#[tauri::command]
+pub(crate) async fn configure_push(app: AppHandle, enabled: bool) -> Result<serde_json::Value, String> {
+  tauri::async_runtime::spawn_blocking(move || {
+    app.state::<tauri_plugin_briefing_widgets::NativeCompanion<tauri::Wry>>().configure(enabled)
+  }).await.map_err(|_| "Could not update push settings".to_string())?
+}
+
 pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
   builder
     .manage(LauncherHome(Mutex::new(None)))
     .manage(LinkWatch(AtomicU64::new(0)))
     .invoke_handler(tauri::generate_handler![
+      get_push_status,
+      configure_push,
       crate::briefing::get_briefing,
       crate::briefing::open_briefing_page,
       crate::submit_diagnostics,

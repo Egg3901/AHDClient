@@ -1,0 +1,1 @@
+-keep class net.lakesidegames.briefing.BriefingPlugin { *; }

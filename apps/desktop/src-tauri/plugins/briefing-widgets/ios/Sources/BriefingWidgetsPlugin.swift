@@ -11,9 +11,10 @@ final class BriefingWidgetsPlugin: Plugin, WKHTTPCookieStoreObserver {
 
   @objc public override func load(webview: WKWebView) {
     gameView = webview
+    NativePush.shared.attach(webview)
     webview.configuration.websiteDataStore.httpCookieStore.add(self)
     for name in [UIApplication.didBecomeActiveNotification, UIApplication.willResignActiveNotification] {
-      observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.sync() })
+      observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.sync(); NativePush.shared.refreshPermission() })
     }
     sync()
   }
@@ -38,9 +39,21 @@ final class BriefingWidgetsPlugin: Plugin, WKHTTPCookieStoreObserver {
       let header = selected.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
       let changed = BriefingStore.session() != header
       BriefingStore.setSession(header)
+      NativePush.shared.sync()
       if changed { WidgetCenter.shared.reloadAllTimelines() }
       BriefingStore.refresh { _ in WidgetCenter.shared.reloadAllTimelines() }
     }
+  }
+
+  @objc public func pushStatus(_ invoke: Invoke) {
+    NativePush.shared.refreshPermission()
+    invoke.resolve(NativePush.shared.status())
+  }
+
+  @objc public func configurePush(_ invoke: Invoke) throws {
+    struct Options: Decodable { let enabled: Bool }
+    let options = try invoke.parseArgs(Options.self)
+    NativePush.shared.configure(options.enabled) { invoke.resolve($0) }
   }
 
   deinit {

@@ -7,6 +7,8 @@ plugins {
     id("rust")
 }
 
+if (file("google-services.json").exists()) { apply(plugin = "com.google.gms.google-services") }
+
 val tauriProperties = Properties().apply {
     val propFile = file("tauri.properties")
     if (propFile.exists()) {

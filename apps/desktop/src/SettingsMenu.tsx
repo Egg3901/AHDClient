@@ -1,3 +1,4 @@
+import { PushControl } from "./PushControl.js";
 import type { ClientSettings } from "./settings.js";
 import { UpdateControl } from "./UpdateControl.js";
 import "./settings.css";
@@ -25,6 +26,7 @@ export function SettingsMenu({ mobile = false, open, settings, onChange, onClose
         <div className="client-settings-options">
           <label><span><strong>Launcher animation</strong><small>Animate the globe and atmospheric background.</small></span><input type="checkbox" checked={settings.animations} onChange={(event) => onChange({ ...settings, animations: event.target.checked })} /></label>
         </div>
+        <PushControl />
         <div className="client-support-control"><div><strong>Developer diagnostics</strong><small>View console output and runtime information.</small></div><button type="button" onClick={onOpenDiagnostics}>Open</button></div>
         <div className="client-support-control"><div><strong>Found a problem?</strong><small>Open a GitHub report with the client version prefilled.</small></div><button type="button" onClick={onReportIssue}>Report issue</button></div>
         <footer><span>Updates arrive through the app store</span><button type="button" onClick={onClose}>Done</button></footer>

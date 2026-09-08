@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-configure-push"
+description = "Enables the configure_push command without any pre-configured scope."
+commands.allow = ["configure_push"]
+
+[[permission]]
+identifier = "deny-configure-push"
+description = "Denies the configure_push command without any pre-configured scope."
+commands.deny = ["configure_push"]

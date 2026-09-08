@@ -19,6 +19,14 @@ app['entitlements']['properties'] ||= {}
 entitlements.each do |key, values|
   app['entitlements']['properties'][key] = (Array(app['entitlements']['properties'][key]) + values).uniq
 end
+app['entitlements']['properties']['aps-environment'] = '$(AHD_PUSH_ENVIRONMENT)'
+app['settings'] ||= {}
+app['settings']['configs'] ||= {}
+app['settings']['configs']['debug'] ||= {}
+app['settings']['configs']['release'] ||= {}
+app['settings']['configs']['debug']['AHD_PUSH_ENVIRONMENT'] = 'development'
+app['settings']['configs']['release']['AHD_PUSH_ENVIRONMENT'] = 'production'
+app.fetch('info').fetch('properties')['AHDPushEnvironment'] = '$(AHD_PUSH_ENVIRONMENT)'
 app['dependencies'] ||= []
 app['dependencies'] << { 'target' => 'AHDWidgets', 'embed' => true } unless app['dependencies'].any? { |d| d['target'] == 'AHDWidgets' }
 

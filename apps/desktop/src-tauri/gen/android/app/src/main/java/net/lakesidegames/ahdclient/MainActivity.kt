@@ -35,9 +35,12 @@ class MainActivity : TauriActivity() {
 
   private fun openWidgetPage() {
     val uri = intent?.data ?: return
-    if (uri.scheme != "ahdclient" || uri.host != "briefing") return
-    val section = uri.path?.removePrefix("/") ?: return
-    val path = BriefingWidgets.page(this, section) ?: return
+    if (uri.scheme != "ahdclient") return
+    val path = when (uri.host) {
+      "inbox" -> "/notifications"
+      "briefing" -> BriefingWidgets.page(this, uri.path?.removePrefix("/") ?: "") ?: return
+      else -> return
+    }
     widgetNavigation?.let { widgetHandler.removeCallbacks(it) }
     // Wait for Tauri's initial local page so it cannot overwrite a cold-start
     // widget navigation. The retry is bounded and only loads our fixed origin.
