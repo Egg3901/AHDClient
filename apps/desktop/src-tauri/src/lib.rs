@@ -113,6 +113,9 @@ struct LinkedAccount {
   linked: bool,
   display_name: String,
   supporter: bool,
+  /// Player picture from the game account API. Absent until the game ships it.
+  #[serde(default)]
+  avatar_url: Option<String>,
   #[serde(default)]
   singleplayer: SingleplayerEntitlement,
 }
@@ -190,8 +193,29 @@ pub fn run() {
 mod tests {
   use super::{
     help_destination, is_account_session_cookie, is_online_navigation_allowed, is_online_origin, HelpDestination,
+    LinkedAccount,
   };
   use tauri::Url;
+
+  #[test]
+  fn linked_account_parses_with_and_without_avatar_url() {
+    let without: LinkedAccount = serde_json::from_value(serde_json::json!({
+      "linked": true, "displayName": "Ada", "supporter": false,
+      "singleplayer": { "entitled": true, "expiresAt": null },
+    }))
+    .expect("account without avatarUrl parses");
+    assert_eq!(without.avatar_url, None);
+    let with: LinkedAccount = serde_json::from_value(serde_json::json!({
+      "linked": true, "displayName": "Ada", "supporter": true,
+      "avatarUrl": "https://cdn.discordapp.com/avatars/1/a.png",
+      "singleplayer": { "entitled": true, "expiresAt": null },
+    }))
+    .expect("account with avatarUrl parses");
+    assert_eq!(
+      with.avatar_url.as_deref(),
+      Some("https://cdn.discordapp.com/avatars/1/a.png")
+    );
+  }
 
   #[test]
   fn help_routes_resolve_only_to_allowlisted_targets() {

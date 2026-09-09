@@ -30,6 +30,7 @@ import {
 } from "./entitlement.js";
 import { UpdateNotice } from "./UpdateNotice.js";
 import { AccountControl } from "./AccountControl.js";
+import { GameToolbar } from "./GameToolbar.js";
 import { GameVersionBar } from "./GameVersionBar.js";
 import { DiagnosticPrompt } from "./DiagnosticPrompt.js";
 import { DiagnosticPanel } from "./DiagnosticPanel.js";
@@ -541,6 +542,7 @@ export function App(): JSX.Element {
       checked={accountChecked}
       linked={Boolean(account)}
       displayName={account?.displayName}
+      avatarUrl={account?.avatarUrl}
       supporter={account?.supporter}
       onLink={linkAccount}
       onProfile={() => void online.help("help.profile").catch(fail)}
@@ -609,6 +611,47 @@ export function App(): JSX.Element {
     embedded &&
     (screen === "playing" || screen === "online" || screen === "linking")
   ) {
+    if (screen === "playing") {
+      const world = allWorlds.find((w) => w.slot === info.slot) ?? null;
+      return (
+        <>
+          <main>
+            <GameToolbar
+              worldName={world?.name ?? "A House Divided"}
+              worldsim={runningWorldsim}
+              identity={
+                account
+                  ? {
+                      displayName: account.displayName,
+                      avatarUrl: account.avatarUrl,
+                      supporter: account.supporter,
+                    }
+                  : null
+              }
+              onLauncher={() => void returnToLauncher().catch(fail)}
+              onSaveAndStop={() => void handleStop().catch(fail)}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenDiagnostics={() => setDiagnosticsOpen(true)}
+              onPopOutBriefing={() => void briefing.popOut().catch(fail)}
+              onViewStats={
+                runningWorldsim
+                  ? () => {
+                      void game.closeEmbedded().then(() => {
+                        setEmbedded(false);
+                        setScreen("worldsim");
+                      });
+                    }
+                  : undefined
+              }
+              onTurnAdvanced={() => void recordProgress().catch(() => {})}
+            />
+          </main>
+          {settingsMenu}
+          {diagnosticPanel}
+          {diagnosticPrompt}
+        </>
+      );
+    }
     return (
       <>
         <main>
@@ -622,21 +665,7 @@ export function App(): JSX.Element {
                 : "A House Divided"}
             </strong>
             <button title="Multiplayer briefing in picture-in-picture" onClick={() => void briefing.popOut().catch(fail)}>PiP</button>
-            {screen === "playing" && runningWorldsim && (
-              <button
-                onClick={() => {
-                  void game.closeEmbedded().then(() => {
-                    setEmbedded(false);
-                    setScreen("worldsim");
-                  });
-                }}
-              >
-                World statistics
-              </button>
-            )}
-            {screen === "playing" && (
-              <button onClick={() => void handleStop()}>Save and stop</button>
-            )}
+            <button onClick={() => setSettingsOpen(true)}>Settings</button>
           </nav>
         </main>
         {settingsMenu}

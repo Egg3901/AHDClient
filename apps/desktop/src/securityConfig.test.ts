@@ -29,7 +29,9 @@ describe("desktop security configuration", () => {
     expect(tauriConfig.app.security.csp).toEqual({
       "default-src": "'self'",
       "connect-src": "ipc: http://ipc.localhost",
-      "img-src": "'self' asset: http://asset.localhost data:",
+      // Player pictures come from the game account API on exactly the hosts
+      // the native briefing path trusts. No other remote images are allowed.
+      "img-src": "'self' asset: http://asset.localhost data: https://ahousedividedgame.com https://*.ahousedividedgame.com https://cdn.discordapp.com https://*.public.blob.vercel-storage.com",
       "style-src": "'self' 'unsafe-inline'",
     });
   });

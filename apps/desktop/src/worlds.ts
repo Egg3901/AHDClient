@@ -28,6 +28,8 @@ export interface LinkedAccount {
   linked: boolean;
   displayName: string;
   supporter: boolean;
+  /** Player picture from the game account API. Absent until the game ships it. */
+  avatarUrl?: string | null;
   singleplayer: { entitled: boolean; expiresAt: string | null };
 }
 
@@ -241,6 +243,11 @@ export const game = {
     }),
   setupProgress: () =>
     game.request<SetupProgress>("GET", "/api/singleplayer/setup/progress"),
+  advanceTurn: () =>
+    game.request<{ success: boolean; turn: number; message: string }>(
+      "POST",
+      "/api/singleplayer/turn/advance",
+    ),
   newGame: (preset: string, displayName?: string) =>
     game.request<{ ok: boolean }>("POST", "/api/singleplayer/new-game", {
       preset,

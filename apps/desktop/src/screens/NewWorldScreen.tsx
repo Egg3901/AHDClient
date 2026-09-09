@@ -30,13 +30,13 @@ const AUTONOMY_HELP =
   "What the world's politicians are allowed to do. Each step adds activities, not skill.";
 
 const AUTONOMY_OPTIONS: readonly { value: SetupAutonomy; label: string; description: string }[] = [
-  { value: "off", label: "Off", description: "Countries follow authored rules only." },
-  { value: "v0", label: "V0", description: "Light autonomous political activity." },
-  { value: "v1", label: "V1", description: "Measured autonomous political activity." },
-  { value: "v2", label: "V2", description: "Active autonomous political activity." },
-  { value: "v3", label: "V3", description: "Strong autonomous political activity." },
-  { value: "v4", label: "V4", description: "Full autonomous political activity." },
-  { value: "v5", label: "V5 (beta)", description: "Governments hold long-term goals and follow through on them." },
+  { value: "off", label: "Off", description: "Countries follow authored rules only. Nothing acts on its own." },
+  { value: "v0", label: "V0", description: "A quiet world. Politicians take only light autonomous action." },
+  { value: "v1", label: "V1", description: "Measured self-direction. Politicians respond to events but rarely start anything." },
+  { value: "v2", label: "V2", description: "An active world. Politicians pursue their own agendas between your turns." },
+  { value: "v3", label: "V3", description: "A forceful world. Politicians push hard for their goals and react strongly to rivals." },
+  { value: "v4", label: "V4", description: "Full autonomous political activity. This is what the live multiplayer world runs." },
+  { value: "v5", label: "V5 (Beta)", description: "Governments hold long-term goals and follow through on them." },
 ];
 
 /**
@@ -104,6 +104,8 @@ export function NewWorldScreen({
   const [autonomyLevel, setAutonomyLevel] = useState<SetupAutonomy>(savedSetup.autonomyLevel);
   const selectedDifficulty: DifficultyOption =
     DIFFICULTIES.find((option) => option.value === difficulty) ?? NORMAL_DIFFICULTY;
+  const selectedAutonomy =
+    AUTONOMY_OPTIONS.find((option) => option.value === autonomyLevel) ?? AUTONOMY_OPTIONS[5]!;
   const [featureFlags, setFeatureFlags] = useState<Record<FeatureFlagKey, boolean>>(savedSetup.featureFlags);
   const [localShareStatistics, setLocalShareStatistics] = useState(true);
   const duplicate = taken.some((existing) => existing.trim().toLowerCase() === name.trim().toLowerCase());
@@ -157,8 +159,8 @@ export function NewWorldScreen({
 
           <fieldset className="screen-choice-group">
             <legend>Play mode</legend>
-            <label><input type="radio" name="play-mode" value="normal" checked={mode === "normal"} onChange={() => setMode("normal")} /> <strong>Normal player</strong><small>Make choices through a character in the world.</small></label>
-            <label><input type="radio" name="play-mode" value="head-of-state" checked={mode === "head-of-state"} onChange={() => setMode("head-of-state")} /> <strong>Permanent head of state</strong><small>Remain in the head-of-state role throughout the campaign.</small></label>
+            <label><input type="radio" name="play-mode" value="normal" checked={mode === "normal"} onChange={() => setMode("normal")} /> <strong>Normal</strong><small>Climb from citizen to power through a character in the world.</small></label>
+            <label><input type="radio" name="play-mode" value="head-of-state" checked={mode === "head-of-state"} onChange={() => setMode("head-of-state")} /> <strong>Permanent head of state <span className="client-beta">Beta</span></strong><small>You enter as head of state and remain head of state. You do not play the normal climb.</small></label>
             <label><input type="radio" name="play-mode" value="worldsim" checked={worldsim} onChange={() => setMode("worldsim")} /> <strong>Worldsim <span className="client-beta">Beta</span></strong><small>Simulate the world without creating a character.</small></label>
           </fieldset>
 
@@ -166,14 +168,16 @@ export function NewWorldScreen({
               the select's accessible name, so "Difficulty" would no longer
               address the control for a screen reader or a test. */}
           <div className="screen-field-group">
-            <label className="screen-field"><span>Difficulty</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value as SetupDifficulty)}>{DIFFICULTIES.map((option) => <option key={option.value} value={option.value}>{option.label} · {option.description}</option>)}</select></label>
+            <label className="screen-field"><span>Difficulty</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value as SetupDifficulty)}>{DIFFICULTIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
             <small>{DIFFICULTY_HELP}</small>
+            <small>{selectedDifficulty.description}</small>
             <small>{selectedDifficulty.skill}</small>
             <small>{selectedDifficulty.resources}</small>
           </div>
           <div className="screen-field-group">
-            <label className="screen-field"><span>Autonomy</span><select value={autonomyLevel} onChange={(event) => setAutonomyLevel(event.target.value as SetupAutonomy)}>{AUTONOMY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label} · {option.description}</option>)}</select></label>
+            <label className="screen-field"><span>Autonomy</span><select value={autonomyLevel} onChange={(event) => setAutonomyLevel(event.target.value as SetupAutonomy)}>{AUTONOMY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
             <small>{AUTONOMY_HELP}</small>
+            <small>{selectedAutonomy.description}</small>
           </div>
 
           <section className="screen-features" aria-labelledby="feature-settings-title">
