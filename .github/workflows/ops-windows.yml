@@ -35,6 +35,12 @@ jobs:
         run: dotnet publish Ops.Runner/Ops.Runner.csproj -c Release -r win-x64 --self-contained true -o pilot/runner
       - name: Launch native UI and capture rendering
         run: ./scripts/Smoke.ps1 -Executable pilot/Ops.Client.exe -OutputDirectory smoke
+      - name: Collect native resource diagnostics
+        if: failure()
+        run: |
+          New-Item -ItemType Directory -Force smoke | Out-Null
+          Get-ChildItem Ops.Client/obj -Recurse -Filter App.g.cs | Select-Object -First 1 | ForEach-Object { Copy-Item $_.FullName smoke/generated-app.cs }
+          Get-ChildItem pilot -Recurse -File | Where-Object { $_.Name -match 'resources.pri|App.xbf|OpsThemeResources' } | Select-Object FullName,Length | Format-List | Out-File smoke/resource-files.txt
       - name: Assemble unsigned pilot
         run: |
           Copy-Item README.md pilot/README.md

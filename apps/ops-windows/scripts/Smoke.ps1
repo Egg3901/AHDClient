@@ -15,7 +15,8 @@ public static class OpsSmokeWindow {
 foreach ($theme in @('light', 'dark')) {
 $clientProcess = $null
 try {
-    $clientProcess = Start-Process -FilePath (Resolve-Path $Executable) -ArgumentList @('--smoke', $(if ($theme -eq 'dark') { '--smoke-dark' } else { '--smoke-light' })) -PassThru
+    $clientExecutable = (Resolve-Path $Executable).Path
+    $clientProcess = Start-Process -FilePath $clientExecutable -WorkingDirectory (Split-Path $clientExecutable) -ArgumentList @('--smoke', $(if ($theme -eq 'dark') { '--smoke-dark' } else { '--smoke-light' })) -PassThru
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
     do {
         Start-Sleep -Milliseconds 500

@@ -38,6 +38,7 @@ public sealed partial class MainWindow : Window
         smokeMode=smoke;
         store = new Store(smoke ? Path.Combine(Path.GetTempPath(),"Ops-smoke",Environment.ProcessId+".db") : Path.Combine(Identity.Root,"work.db"));
         Title=smoke?"Ops smoke fixture":"Ops";AppWindow.Resize(new Windows.Graphics.SizeInt32(1440,960));
+        var icon=Path.Combine(AppContext.BaseDirectory,"Assets","Ops.ico");if(File.Exists(icon))AppWindow.SetIcon(icon);
         var shell=new Grid();shell.ColumnDefinitions.Add(new(){Width=new GridLength(176)});shell.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});
         var canvas=NativeStyle.Surface("OpsCanvasBrush",0,0,false);if(smoke)canvas.RequestedTheme=smokeDark?ElementTheme.Dark:ElementTheme.Light;canvas.Child=shell;Content=canvas;
         var sidebar=NativeStyle.Surface("OpsSidebarBrush",0,16);sidebar.BorderThickness=new Thickness(0,0,1,0);
