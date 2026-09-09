@@ -6,16 +6,21 @@ struct OpsActivityMark: View {
     let state: String
     var size: CGFloat = 24
     var activity = ""
+    var identity = "ops-lead"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var visible = false
     @State private var inViewport = true
     private var running: Bool { ["running", "streaming", "executing"].contains(state) }
     private var animated: Bool { running && size >= 28 && visible && inViewport && scenePhase == .active && !reduceMotion }
+    private var identityHash: UInt32 {
+        identity.utf8.reduce(UInt32(2166136261)) { ($0 ^ UInt32($1)) &* 16777619 }
+    }
+    private var variant: Int { identity == "ops-lead" ? 0 : Int(identityHash % 5) }
     private var color: Color {
-        if ["failed", "blocked", "awaiting_permission"].contains(state) { return .orange }
-        if ["completed", "saved", "verified"].contains(state) { return OpsTheme.mint }
-        return ["stale", "reconnecting", "recorded"].contains(state) ? .secondary : OpsTheme.sky
+        let palette: [UInt32] = [0xFF7900, 0x00C978, 0x487CFF, 0xA968EC, 0xFF688A, 0xE7AA30]
+        let hex = palette[identity == "ops-lead" ? 0 : Int(((identityHash >> 16) ^ (identityHash & 0xffff)) % 6)]
+        return Color(red: Double((hex >> 16) & 255) / 255, green: Double((hex >> 8) & 255) / 255, blue: Double(hex & 255) / 255)
     }
     private var pose: String {
         guard running else { return "rest" }
@@ -45,59 +50,77 @@ struct OpsActivityMark: View {
     private func character(time: Double) -> some View {
         Canvas { context, bounds in
             context.scaleBy(x: bounds.width / 48, y: bounds.height / 48)
-            let t = time.truncatingRemainder(dividingBy: 60)
             let moving = time != 0 && running
-            let bob = moving ? sin(t * 3) * 0.7 : 0
-            let glance = moving ? sin(t * (pose == "reading" ? 2.4 : 1.2)) * 2 : 0
-            let blink = moving && sin(t * 1.7) > 0.97
-            let eyeHeight = blink ? 1.0 : running ? 4.0 : 2.5
-            func stroke(_ points: [CGPoint], width: CGFloat = 1.6, tint: Color? = nil) {
-                var path = Path(); if let first = points.first { path.move(to: first) }
-                for point in points.dropFirst() { path.addLine(to: point) }
-                context.stroke(path, with: .color(tint ?? color), style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
-            }
-            func box(_ rect: CGRect, radius: CGFloat, fill: Color, outline: Bool = false) {
-                let path = Path(roundedRect: rect, cornerRadius: radius)
-                context.fill(path, with: .color(fill))
-                if outline { context.stroke(path, with: .color(color), lineWidth: 1.4) }
-            }
-            // Twin peaks make the silhouette Lakeside's, without a loading ring.
-            stroke([CGPoint(x: 16, y: 10 + bob), CGPoint(x: 19, y: 3 + bob), CGPoint(x: 24, y: 8 + bob), CGPoint(x: 29, y: 3 + bob), CGPoint(x: 32, y: 10 + bob)])
-            box(CGRect(x: 9, y: 10 + bob, width: 30, height: 22), radius: 8, fill: OpsTheme.raised, outline: true)
-            box(CGRect(x: 15 + glance, y: 18 + bob, width: 4, height: eyeHeight), radius: 1.8, fill: color)
-            box(CGRect(x: 28 + glance, y: 18 + bob, width: 4, height: eyeHeight), radius: 1.8, fill: color)
-            stroke([CGPoint(x: 21, y: 27 + bob), CGPoint(x: 26, y: 27 + bob)], width: 1.2)
-            box(CGRect(x: 16, y: 33, width: 16, height: 9), radius: 4, fill: color.opacity(0.13), outline: true)
-            if pose == "typing" {
-                box(CGRect(x: 7, y: 40, width: 34, height: 7), radius: 2, fill: OpsTheme.raised, outline: true)
-                for x in [12.0, 18, 24, 30, 36] { stroke([CGPoint(x: x, y: 43), CGPoint(x: x + 1, y: 43)], width: 1) }
-                let tap = moving ? sin(t * 12) * 2.3 : 0
-                box(CGRect(x: 11, y: 35 + tap, width: 8, height: 5), radius: 2, fill: color)
-                box(CGRect(x: 29, y: 35 - tap, width: 8, height: 5), radius: 2, fill: color)
-            } else if pose == "reading" || pose == "checking" {
-                box(CGRect(x: 24, y: 30, width: 17, height: 17), radius: 2, fill: OpsTheme.surface, outline: true)
-                for y in [34.0, 38, 42] { stroke([CGPoint(x: 28, y: y), CGPoint(x: 37, y: y)], width: 1, tint: color.opacity(0.55)) }
-                box(CGRect(x: 11, y: 34 + bob, width: 7, height: 5), radius: 2, fill: color)
-                if pose == "checking" {
-                    let scan = moving ? sin(t * 2.5) * 2 : 0
-                    let lens = Path(ellipseIn: CGRect(x: 25 + scan, y: 31, width: 8, height: 8))
-                    context.stroke(lens, with: .color(OpsTheme.mint), lineWidth: 1.5)
-                    stroke([CGPoint(x: 32 + scan, y: 38), CGPoint(x: 36 + scan, y: 42)], tint: OpsTheme.mint)
-                } else { box(CGRect(x: 38, y: 36, width: 6, height: 5), radius: 2, fill: color) }
-            } else if pose == "thinking" {
-                box(CGRect(x: 30, y: 28 + bob, width: 7, height: 5), radius: 2.5, fill: color)
-                stroke([CGPoint(x: 12, y: 34), CGPoint(x: 10, y: 40)])
-            } else {
-                stroke([CGPoint(x: 12, y: 34), CGPoint(x: 10, y: 40)])
-                stroke([CGPoint(x: 36, y: 34), CGPoint(x: 38, y: 40)])
-                if ["completed", "saved", "verified"].contains(state) {
-                    stroke([CGPoint(x: 32, y: 38), CGPoint(x: 36, y: 42), CGPoint(x: 43, y: 33)], width: 2)
-                } else if ["awaiting_permission", "failed", "blocked"].contains(state) {
-                    stroke([CGPoint(x: 43, y: 24), CGPoint(x: 43, y: 30)], width: 2)
-                    box(CGRect(x: 42, y: 34, width: 2, height: 2), radius: 1, fill: color)
-                }
+            let t = time.truncatingRemainder(dividingBy: 60)
+            let wave = moving ? sin(t * (pose == "typing" ? 5 : 2.4)) : 0
+            let attention = ["awaiting_permission", "failed", "blocked"].contains(state)
+            let settled = ["completed", "saved", "verified"].contains(state)
+            let squash = moving ? wave * 0.035 : settled ? 0.025 : 0
+            context.translateBy(x: 24, y: 24 - (moving ? max(0, wave) * 1.4 : 0))
+            context.rotate(by: .degrees(moving ? wave * (pose == "thinking" ? 5 : 2) : attention ? -7 : 0))
+            context.scaleBy(x: 1 + squash, y: 1 - squash)
+            context.translateBy(x: -24, y: -24)
+            context.fill(OpsAgentBlob.path(variant: variant), with: .color(color))
+            let scan = moving ? sin(t * (pose == "reading" || pose == "checking" ? 2.5 : 1.1)) * 1.5 : attention ? -1.5 : 0
+            let blink = moving && sin(t * 1.7) > 0.985
+            for x in [22.0, 31.0] {
+                var eye = Path()
+                eye.move(to: CGPoint(x: x + scan, y: 19))
+                eye.addLine(to: CGPoint(x: x + scan + (blink ? 3 : 1.6), y: blink ? 19 : settled ? 21.2 : 23))
+                context.stroke(eye, with: .color(.white), style: StrokeStyle(lineWidth: 2.8, lineCap: .round))
             }
         }
+    }
+}
+
+/// Persistent silhouettes, independent of provider and work state.
+private enum OpsAgentBlob {
+    static func path(variant: Int) -> Path {
+        var path = Path()
+        switch variant {
+        case 1:
+            path.move(to: CGPoint(x: 30, y: 4))
+            path.addCurve(to: CGPoint(x: 44, y: 29), control1: CGPoint(x: 34, y: 9), control2: CGPoint(x: 44, y: 19))
+            path.addCurve(to: CGPoint(x: 24, y: 44), control1: CGPoint(x: 44, y: 39), control2: CGPoint(x: 35, y: 44))
+            path.addCurve(to: CGPoint(x: 5, y: 26), control1: CGPoint(x: 12, y: 44), control2: CGPoint(x: 3, y: 37))
+            path.addCurve(to: CGPoint(x: 30, y: 4), control1: CGPoint(x: 8, y: 14), control2: CGPoint(x: 24, y: 6))
+        case 2:
+            path.move(to: CGPoint(x: 22, y: 5))
+            path.addCurve(to: CGPoint(x: 44, y: 25), control1: CGPoint(x: 35, y: 2), control2: CGPoint(x: 44, y: 13))
+            path.addCurve(to: CGPoint(x: 25, y: 43), control1: CGPoint(x: 45, y: 39), control2: CGPoint(x: 34, y: 45))
+            path.addCurve(to: CGPoint(x: 4, y: 28), control1: CGPoint(x: 12, y: 42), control2: CGPoint(x: 2, y: 41))
+            path.addCurve(to: CGPoint(x: 22, y: 5), control1: CGPoint(x: 5, y: 15), control2: CGPoint(x: 9, y: 8))
+        case 3:
+            path.move(to: CGPoint(x: 18, y: 6))
+            path.addQuadCurve(to: CGPoint(x: 30, y: 6), control: CGPoint(x: 24, y: 1))
+            path.addLine(to: CGPoint(x: 42, y: 18))
+            path.addQuadCurve(to: CGPoint(x: 42, y: 30), control: CGPoint(x: 47, y: 24))
+            path.addLine(to: CGPoint(x: 30, y: 42))
+            path.addQuadCurve(to: CGPoint(x: 18, y: 42), control: CGPoint(x: 24, y: 47))
+            path.addLine(to: CGPoint(x: 6, y: 30))
+            path.addQuadCurve(to: CGPoint(x: 6, y: 18), control: CGPoint(x: 1, y: 24))
+        case 4:
+            path.move(to: CGPoint(x: 24, y: 8))
+            path.addCurve(to: CGPoint(x: 40, y: 24), control1: CGPoint(x: 43, y: -2), control2: CGPoint(x: 50, y: 16))
+            path.addCurve(to: CGPoint(x: 24, y: 40), control1: CGPoint(x: 50, y: 43), control2: CGPoint(x: 32, y: 50))
+            path.addCurve(to: CGPoint(x: 8, y: 24), control1: CGPoint(x: 5, y: 50), control2: CGPoint(x: -2, y: 32))
+            path.addCurve(to: CGPoint(x: 24, y: 8), control1: CGPoint(x: -2, y: 5), control2: CGPoint(x: 16, y: -2))
+        default:
+            path.move(to: CGPoint(x: 21, y: 3.75))
+            path.addQuadCurve(to: CGPoint(x: 27, y: 3.75), control: CGPoint(x: 24, y: 1.5))
+            path.addLine(to: CGPoint(x: 40.5, y: 11.25))
+            path.addQuadCurve(to: CGPoint(x: 44.25, y: 17.25), control: CGPoint(x: 44.25, y: 13.5))
+            path.addLine(to: CGPoint(x: 44.25, y: 32.25))
+            path.addQuadCurve(to: CGPoint(x: 41.25, y: 38.25), control: CGPoint(x: 44.25, y: 36))
+            path.addLine(to: CGPoint(x: 27, y: 45.75))
+            path.addQuadCurve(to: CGPoint(x: 21, y: 45.75), control: CGPoint(x: 24, y: 47.25))
+            path.addLine(to: CGPoint(x: 6.75, y: 38.25))
+            path.addQuadCurve(to: CGPoint(x: 3.75, y: 32.25), control: CGPoint(x: 3.75, y: 36))
+            path.addLine(to: CGPoint(x: 3.75, y: 17.25))
+            path.addQuadCurve(to: CGPoint(x: 6.75, y: 11.25), control: CGPoint(x: 3.75, y: 13.5))
+        }
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -115,9 +138,10 @@ struct OpsActivityBadge: View {
     let label: String
     var compact = false
     var activity = ""
+    var identity = "ops-lead"
     var body: some View {
         HStack(spacing: compact ? 6 : 9) {
-            OpsActivityMark(state: state, size: compact ? 22 : 44, activity: activity.nonempty ?? label)
+            OpsActivityMark(state: state, size: compact ? 22 : 44, activity: activity.nonempty ?? label, identity: identity)
             Text(label).font(compact ? .caption2.weight(.medium) : .callout.weight(.medium)).lineLimit(2)
         }.foregroundStyle(["running", "streaming", "executing"].contains(state) ? OpsTheme.sky : Color.secondary)
     }

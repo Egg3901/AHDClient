@@ -454,7 +454,7 @@ struct OpsTeam: View {
                 ForEach(model.staff.filter { search.isEmpty || ($0["name"].string + " " + $0["role"].string).localizedCaseInsensitiveContains(search) }, id: \.["id"].string) { member in
                     NavigationLink { OpsStaffDetail(model: model, staff: member) } label: {
                         VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 10) { OpsActivityMark(state: staffState(member), size: 44, activity: model.workers.first(where: { $0["staff_id"] == member["id"] && $0["job_status"].string == "running" })?["name"].string ?? ""); Text(member["name"].string).font(.headline) }
+                            HStack(spacing: 10) { OpsActivityMark(state: staffState(member), size: 44, activity: model.workers.first(where: { $0["staff_id"] == member["id"] && $0["job_status"].string == "running" })?["name"].string ?? "", identity: member["id"].string); Text(member["name"].string).font(.headline) }
                             Text(member["role"].string).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                             let count = model.workers.filter { $0["staff_id"].string == member["id"].string && !["completed", "failed", "cancelled"].contains($0["job_status"].string) }.count
                             let running = model.workers.contains { $0["staff_id"] == member["id"] && $0["job_status"].string == "running" }
@@ -470,7 +470,7 @@ struct OpsTeam: View {
             ForEach(filtered, id: \.["id"].string) { worker in
                 NavigationLink { OpsWorkerDetail(worker: worker, model: model) } label: {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack { Text(worker["name"].string).font(.headline); Spacer(); OpsStatus(value: worker["job_status"].string, needsDecision: !worker["permissions"].array.isEmpty, connected: model.connected) }
+                        HStack { Text(worker["name"].string).font(.headline); Spacer(); OpsStatus(value: worker["job_status"].string, identity: worker["staff_id"].string.nonempty ?? worker["id"].string, needsDecision: !worker["permissions"].array.isEmpty, connected: model.connected) }
                         Text(worker["brief"].string).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
                         HStack { Text(worker.first("runtime_provider", "provider").capitalized); if !worker["permissions"].array.isEmpty { Label("Decision needed", systemImage: "hand.raised") } }.font(.caption).foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
@@ -486,12 +486,13 @@ struct OpsTeam: View {
 
 struct OpsStatus: View {
     let value: String
+    var identity = "ops-lead"
     var needsDecision = false
     var connected = true
     private var state: String { !connected ? "stale" : needsDecision ? "awaiting_permission" : value }
     private var knownLabel: String { needsDecision ? "Needs your decision" : value == "delivery_unknown" ? "Delivery uncertain" : value.replacingOccurrences(of: "_", with: " ").capitalized }
     private var color: Color { needsDecision || ["failed", "waiting"].contains(value) ? .orange : value == "completed" ? OpsTheme.mint : .secondary }
-    var body: some View { OpsActivityBadge(state: state, label: connected ? knownLabel : "Last known: \(knownLabel)", compact: true).padding(.horizontal, 8).padding(.vertical, 4).background((state == "running" ? OpsTheme.sky : color).opacity(0.09), in: Capsule()) }
+    var body: some View { OpsActivityBadge(state: state, label: connected ? knownLabel : "Last known: \(knownLabel)", compact: true, identity: identity).padding(.horizontal, 8).padding(.vertical, 4).background((state == "running" ? OpsTheme.sky : color).opacity(0.09), in: Capsule()) }
 }
 
 struct OpsWorkerDetail: View {
@@ -518,7 +519,7 @@ struct OpsWorkerDetail: View {
     var body: some View {
         List {
             Section("Assignment") {
-                OpsStatus(value: current["job_status"].string, needsDecision: !current["permissions"].array.isEmpty, connected: model.connected)
+                OpsStatus(value: current["job_status"].string, identity: current["staff_id"].string.nonempty ?? current["id"].string, needsDecision: !current["permissions"].array.isEmpty, connected: model.connected)
                 Text(current["brief"].string)
                 LabeledContent("Status", value: current["job_status"].string.capitalized)
                 LabeledContent("Assigned by", value: current["origin"].string == "owner" ? "You" : "Ops assistant")
