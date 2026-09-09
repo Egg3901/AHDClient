@@ -575,7 +575,6 @@ struct OpsWorkerDetail: View {
             _ = try await session.post("/api/ops/workers/\(worker["id"].string)/messages", ["requestId": .string(messageID), "text": .string(text)])
             submittedMessage = nil; message = ""; messageID = UUID().uuidString; messageError = nil
             messages = try await session.get("/api/ops/workers/\(worker["id"].string)/messages")["messages"].array
-            showActivity = true; activityRefresh += 1
         } catch { messageError = error.localizedDescription }
     }
 }
