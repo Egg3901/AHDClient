@@ -26,6 +26,7 @@ try {
     Start-Sleep -Seconds 3
     $clientProcess.Refresh()
     if ($clientProcess.HasExited) { throw 'Native client exited during the rendering check.' }
+    if ($clientProcess.MainWindowTitle -ne 'Ops smoke fixture') { throw 'Native launch did not enter the requested smoke fixture.' }
     $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
     $bitmap = [System.Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)

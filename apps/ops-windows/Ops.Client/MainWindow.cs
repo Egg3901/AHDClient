@@ -27,7 +27,7 @@ public sealed class MainWindow : Window
     public MainWindow(bool smoke = false)
     {
         store = new Store(smoke ? Path.Combine(Path.GetTempPath(),"Ops-smoke",Environment.ProcessId+".db") : Path.Combine(Identity.Root,"work.db"));
-        Title="Ops";AppWindow.Resize(new Windows.Graphics.SizeInt32(1440,960));
+        Title=smoke?"Ops smoke fixture":"Ops";AppWindow.Resize(new Windows.Graphics.SizeInt32(1440,960));
         var scroll=new ScrollViewer { Content=root, HorizontalScrollBarVisibility=ScrollBarVisibility.Auto };
         Content=scroll;root.Children.Add(Text("Ops",28));
         var nav=new StackPanel { Orientation=Orientation.Horizontal,Spacing=8 };
@@ -203,7 +203,12 @@ public sealed class MainWindow : Window
     }
     async Task Queue(string type,JsonObject payload,JsonObject? card=null)
     {
-        store.Queue(Commands,Wire.Command(type,payload,card));await Refresh();
+        var command=Wire.Command(type,payload,card);store.Queue(Commands,command);await Refresh();
+        if(card is not null&&!store.Pending().Any(item=>item.Id==Wire.Id(command["commandId"])))
+        {
+            var current=store.Read("board:"+boardId).Value?["cards"]?.AsArray().OfType<JsonObject>().FirstOrDefault(item=>Wire.Id(item["id"])==Wire.Id(card["id"]));
+            if(current is not null)await ShowCard(current);
+        }
     }
     async Task<bool> Dialog(string title,StackPanel panel,string primary="Save")
     {
@@ -268,7 +273,7 @@ public sealed class MainWindow : Window
         var comment=Input("Comment","",true);detail.Children.Add(comment);detail.Children.Add(Button("Add comment",()=>Queue("comment.add",new(){["text"]=comment.Text},card)));
         detail.Children.Add(Button("Attach link",async()=>{var name=Input("Name");var url=Input("HTTPS artifact URL");var p=new StackPanel{Spacing=8};p.Children.Add(name);p.Children.Add(url);if(await Dialog("Attach artifact",p))await Queue("artifact.attach",new(){["name"]=name.Text,["url"]=url.Text},card);}));
         detail.Children.Add(Button("Dispatch run",()=>Dispatch(card)));
-        detail.Children.Add(Button("Review proposal",async()=>{var decision=new ComboBox{Header="Decision",ItemsSource=new[]{"approve","reject","redirect"},SelectedIndex=0};var note=Input("Decision note","",true);var p=new StackPanel{Spacing=8};p.Children.Add(decision);p.Children.Add(note);if(await Dialog("Record scoped decision",p,"Confirm")){await Online(Wire.Command("proposal.decide",new(){["decision"]=decision.SelectedItem.ToString(),["note"]=note.Text},card));await Refresh();}}));
+        detail.Children.Add(Button("Review proposal",async()=>{var decision=new ComboBox{Header="Decision",ItemsSource=new[]{"approve","reject","redirect"},SelectedIndex=0};var note=Input("Decision note","",true);var p=new StackPanel{Spacing=8};p.Children.Add(decision);p.Children.Add(note);if(await Dialog("Record scoped decision",p,"Confirm")){await Online(Wire.Command("proposal.decide",new(){["decision"]=decision.SelectedItem.ToString(),["note"]=note.Text},card));await Refresh();var updated=await hub!.Get("/api/ops/cards/"+Wire.Segment(Wire.Id(card["id"])));await ShowCard(updated["card"]!.AsObject());}}));
         try
         {
             var record=await hub!.Get("/api/ops/cards/"+Wire.Segment(Wire.Id(card["id"])));store.Cache("card:"+Wire.Id(card["id"]),record);RenderActivity(record,card);
