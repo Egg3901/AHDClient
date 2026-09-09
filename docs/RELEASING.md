@@ -259,27 +259,29 @@ Unsigned CI builds validate compilation, not APNs provisioning or actual
 provider delivery. Android delivery requires Google Play services. Physical
 APNs/FCM delivery remains a release check with the configured providers.
 
-### Private iOS delivery with Codemagic
+### Private iOS delivery with EAS
 
-`codemagic.yaml` defines two manual workflows. `ahdclient-testflight` builds
-and uploads AHDClient. `lakeside-testflight` builds and uploads Lakeside Ask
-and Lakeside Ops in one run. This covers all three iOS app records with one
-Codemagic application and one encrypted credential group.
+The EAS project under `apps/lakeside-ios` provides private native build hosts
+for all three iOS apps. Its `production` profile builds Lakeside Ask and
+Lakeside Ops. Its `ahdclient-production` profile builds AHDClient with its
+WidgetKit extension. Both profiles upload directly to App Store Connect.
 
-Add the public `https://github.com/Egg3901/AHDClient.git` repository as a
-Codemagic application. In its Environment variables settings, create the
-`appstore_credentials` group and mark every value as Secret:
+Apple credentials are stored as Secret variables in the EAS `production`
+environment. The setup workflow in `.github/workflows/eas-credentials.yml`
+copies the existing GitHub secrets to the fixed EAS project without printing
+their values. The build scripts suppress Apple signing output, delete signed
+packages and temporary keys before completion, and declare no downloadable
+artifacts. Public source builds therefore do not publish the account identity
+embedded in Apple distribution signatures.
 
+From `apps/lakeside-ios`, start the native app uploads with:
+
+```bash
+eas build --platform ios --profile production
 ```
-APP_STORE_CONNECT_ISSUER_ID=<App Store Connect issuer ID>
-APP_STORE_CONNECT_KEY_IDENTIFIER=<App Store Connect key ID>
-APP_STORE_CONNECT_PRIVATE_KEY=<complete p8 file contents>
-APPLE_DEVELOPMENT_TEAM=<Apple developer team ID>
-```
 
-Do not add these values to `codemagic.yaml`. Run either workflow manually or
-through the Codemagic Builds API. Each workflow sends the signed package
-straight to App Store Connect, withholds Apple command output, deletes the IPA
-and temporary key before completion, and declares no downloadable artifacts.
-The repository can remain public because no signing value or signed package is
-stored in GitHub.
+Start the AHDClient upload with:
+
+```bash
+eas build --platform ios --profile ahdclient-production
+```
