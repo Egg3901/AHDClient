@@ -304,7 +304,10 @@ final class LaunchTests: XCTestCase {
         XCTAssertFalse(app.buttons["ops-company-assign"].isEnabled, "Cached work must not imply permission to dispatch offline")
         fillCompanyField("ops-work-comment", with: "Review this plan when connected", in: app)
         let save = app.buttons["ops-work-comment-save"]; scrollTo(save, in: app); save.tap()
-        XCTAssertFalse(app.buttons["ops-company-assign"].isEnabled)
+        let dispatch = app.buttons["ops-company-assign"]
+        scrollTo(dispatch, in: app, upward: false)
+        XCTAssertTrue(dispatch.exists)
+        XCTAssertFalse(dispatch.isEnabled)
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.descendants(matching: .any)["ops-work-outbox"].firstMatch.waitForExistence(timeout: 10))
         capture(app, "Ops offline planning")

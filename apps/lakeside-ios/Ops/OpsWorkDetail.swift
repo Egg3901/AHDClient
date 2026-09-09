@@ -9,6 +9,8 @@ struct OpsWorkDetail: View {
     @Environment(\.scenePhase) private var phase
     @State private var visible = true
     @State private var detail: JSONValue = .null
+    private enum Field: Hashable { case comment, review, artifactName, artifactURL }
+    @FocusState private var focusedField: Field?
     @State private var comment = ""
     @State private var note = ""
     @State private var artifact = ""
@@ -64,18 +66,18 @@ struct OpsWorkDetail: View {
                     if !card["review"]["artifact"].string.isEmpty { Text("Reviewed artifact: \(card["review"]["artifact"].string)").font(.caption).textSelection(.enabled) }
                 }
                 if !card["approved_artifact"].string.isEmpty { Text("Approved artifact: \(card["approved_artifact"].string)").font(.caption).textSelection(.enabled) }
-                TextField("Review note", text: $note, axis: .vertical).accessibilityIdentifier("ops-work-review-note")
+                TextField("Review note", text: $note, axis: .vertical).focused($focusedField, equals: .review).accessibilityIdentifier("ops-work-review-note")
                 HStack {
-                    ForEach(["approve", "reject", "redirect"], id: \.self) { value in Button(value.capitalized) { reviewedCard = card; decision = value; confirmReview = true }.accessibilityIdentifier("ops-work-review-\(value)") }
+                    ForEach(["approve", "reject", "redirect"], id: \.self) { value in Button(value.capitalized) { focusedField = nil; reviewedCard = card; decision = value; confirmReview = true }.accessibilityIdentifier("ops-work-review-\(value)") }
                 }.buttonStyle(.bordered).disabled(!store.online || note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || busy)
             }
             Section("Files and links") {
                 ForEach(Array(detail["artifacts"].array.enumerated()), id: \.offset) { _, item in
                     if let url = Endpoint.link(item.first("url", "location"), base: session.surface.base) { Link(item.first("name", "url"), destination: url) }
                 }
-                TextField("Link name", text: $artifactName)
-                TextField("HTTPS or /uploads/ link", text: $artifact).textInputAutocapitalization(.never).autocorrectionDisabled()
-                Button("Attach link") { Task {
+                TextField("Link name", text: $artifactName).focused($focusedField, equals: .artifactName)
+                TextField("HTTPS or /uploads/ link", text: $artifact).focused($focusedField, equals: .artifactURL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                Button("Attach link") { focusedField = nil; Task {
                     if await store.submit(type: "artifact.attach", card: card, payload: ["name": .string(artifactName), "url": .string(artifact)], session: session) { artifact = ""; artifactName = ""; await load() }
                 } }.disabled(artifactName.isEmpty || !(artifact.hasPrefix("https://") || artifact.hasPrefix("/uploads/")))
             }
@@ -83,24 +85,27 @@ struct OpsWorkDetail: View {
                 ForEach(Array(detail["comments"].array.enumerated()), id: \.offset) { _, item in
                     VStack(alignment: .leading, spacing: 5) { Text(item.first("text", "body")); actor(item) }
                 }
-                TextField("Add a comment", text: $comment, axis: .vertical).accessibilityIdentifier("ops-work-comment")
-                Button("Save comment") { Task {
+                TextField("Add a comment", text: $comment, axis: .vertical).focused($focusedField, equals: .comment).accessibilityIdentifier("ops-work-comment")
+                Button("Save comment") { focusedField = nil; Task {
                     if await store.submit(type: "comment.add", card: card, payload: ["text": .string(comment)], session: session) { comment = ""; await load() }
                 } }.disabled(comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityIdentifier("ops-work-comment-save")
             }
             Section("Activity") {
                 ForEach(Array(detail["events"].array.suffix(50).reversed().enumerated()), id: \.offset) { _, event in
-                    VStack(alignment: .leading, spacing: 5) { Text(event.first("detail", "type").replacingOccurrences(of: "_", with: " ")); actor(event) }
+                    VStack(alignment: .leading, spacing: 5) { Text(activityTitle(event)); actor(event) }
                 }
             }
         }.listStyle(.insetGrouped).buttonStyle(.borderless).scrollDismissesKeyboard(.interactively).navigationTitle("Work").navigationBarTitleDisplayMode(.inline)
             .accessibilityIdentifier("ops-company-detail-scroll").tint(Brand.sky)
-            .toolbar { Button("Edit") { edit = true } }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { Button("Edit") { focusedField = nil; edit = true } }
+                ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { focusedField = nil }.accessibilityIdentifier("ops-work-keyboard-done") }
+            }
             .sheet(isPresented: $dispatch) { OpsWorkDispatch(card: card, store: store) }
             .sheet(isPresented: $edit) { OpsWorkEdit(card: card, store: store) }
             .sheet(isPresented: $showMove) { OpsWorkMove(card: movingCard, store: store) }
             .confirmationDialog("Confirm \(decision) for revision \(reviewedCard["version"].string)", isPresented: $confirmReview, titleVisibility: .visible) {
-                Button("Confirm review") { let chosen = decision; Task {
+                Button("Confirm review") { focusedField = nil; let chosen = decision; Task {
                     busy = true; defer { busy = false }; _ = await store.submit(type: "proposal.decide", card: reviewedCard, payload: ["decision": .string(chosen), "note": .string(note)], authority: true, session: session); await load()
                 } }.accessibilityIdentifier("ops-work-review-confirm")
                 Button("Cancel", role: .cancel) { decision = "" }
@@ -110,6 +115,11 @@ struct OpsWorkDetail: View {
                 guard visible, phase == .active else { return }
                 while !Task.isCancelled { await load(); do { try await Task.sleep(for: .seconds(2)) } catch { return } }
             }.refreshable { await load() }
+    }
+    private func activityTitle(_ event: JSONValue) -> String {
+        if !event["detail"].string.isEmpty { return event["detail"].string }
+        let labels = ["card.create": "Work created", "card.patch": "Work updated", "card.move": "Stage changed", "comment.add": "Comment added", "artifact.attach": "Artifact attached", "proposal.decide": "Review recorded", "run.dispatched": "Run dispatched", "run.cancel_requested": "Cancellation requested", "result.proposed": "Result ready for review"]
+        return labels[event["type"].string] ?? event["type"].string.replacingOccurrences(of: ".", with: " ").replacingOccurrences(of: "_", with: " ").capitalized
     }
     private func actor(_ event: JSONValue) -> some View {
         Text([event["actor"].first("name", "role", "kind", "id"), opsDate(event.first("createdAt", "created_at"))].filter { !$0.isEmpty }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)

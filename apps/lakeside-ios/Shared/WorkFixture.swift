@@ -66,7 +66,7 @@ final class WorkFixture: @unchecked Sendable {
         }
         var index: Int
         if type == "card.create" {
-            let card: [String: Any] = ["id": "job-\(cards.count + 1)", "boardId": boardID, "columnId": "todo", "positionVersion": 1, "version": 1, "title": payload["title"] ?? "", "objective": payload["objective"] ?? "", "acceptance": payload["acceptance"] ?? [], "task_type": payload["taskType"] ?? "analysis", "status": "detected", "board_rank": 200]
+            let card: [String: Any] = ["id": "job-\(cards.count + 1)", "boardId": boardID, "columnId": "todo", "positionVersion": 1, "version": 1, "workVersion": 1, "title": payload["title"] ?? "", "objective": payload["objective"] ?? "", "acceptance": payload["acceptance"] ?? ["The result has been reviewed"], "task_type": payload["taskType"] ?? "analysis", "status": "detected", "board_rank": 200]
             cards.append(card); index = cards.count - 1
         } else {
             guard let found = cards.firstIndex(where: { $0["id"] as? String == body["cardId"] as? String }) else { return (["error": "Card not found"], 404) }; index = found
