@@ -44,7 +44,7 @@ def main():
     invite = os.environ.get('ACTION', 'status') == 'invite'
     users = listed('users', **{'filter[username]': email})
     print('Configured tester is an App Store Connect user:', bool(users))
-    for bundle in ['net.lakesidegames.ask', 'net.lakesidegames.ops']:
+    for bundle in ['net.lakesidegames.ahdclient', 'net.lakesidegames.ask', 'net.lakesidegames.ops']:
         apps = listed('apps', **{'filter[bundleId]': bundle})
         if len(apps) != 1:
             raise RuntimeError(bundle + ': app record missing or ambiguous')
