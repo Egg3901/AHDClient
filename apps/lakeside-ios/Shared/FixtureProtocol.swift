@@ -27,7 +27,21 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         case "/api/ops/projects": value = ["projects": [["name": "Studio hub", "path": "/fixture/studio"]]]
         case "/api/ops/workers/worker-1/messages": value = ["messages": []]
         case "/api/ops/workers/worker-1": value = ["worker": ["brief": "Repair and verify the export flow.", "result": "Export fixed. All checks passed."]]
-        case "/api/ops/providers": value = ["providers": [["id": "codex", "label": "Codex", "status": "available", "capabilities": ["tools"], "models": [["id": "fixture-model", "isDefault": true]]], ["id": "muse", "label": "Muse", "status": "available", "capabilities": ["tools"], "models": [["id": "fixture-model", "isDefault": true]]], ["id": "grok", "label": "Grok", "status": "available", "capabilities": ["tools"], "models": [["id": "fixture-model", "isDefault": true]]]]]
+        case "/api/ops/providers":
+            let stamp = Date().timeIntervalSince1970 * 1000
+            let definitions: [(String, String)] = [("codex", "Codex"), ("muse", "Muse"), ("grok", "Grok"), ("freerouter", "Free Router")]
+            value = ["providers": definitions.map { id, label -> [String: Any] in
+                var capacity: [String: Any] = ["status": "available", "source": "UI fixture", "observedAt": stamp, "stale": false, "message": "Quota reported", "windows": [], "balances": []]
+                if id == "codex" || id == "grok" {
+                    capacity["windows"] = [["id": "quota", "label": id == "codex" ? "5-hour allowance" : "Weekly allowance", "remainingPercent": id == "codex" ? 65 : 18, "resetsAt": stamp + 3600000, "observedAt": stamp]]
+                } else if id == "muse" {
+                    capacity["status"] = "unavailable"; capacity["message"] = "Account quota not reported"
+                } else {
+                    capacity["message"] = "Routes ready"; capacity["readiness"] = ["ready": 7, "total": 9, "coolingDown": 2]
+                }
+                return ["id": id, "label": label, "enabled": true, "status": "available", "billing": id == "freerouter" ? "free" : "subscription", "capabilities": ["tools"], "models": [["id": "fixture-model", "isDefault": true]], "capacity": capacity]
+            }]
+
         case "/api/ops/benchmarks": value = ["scores": [["provider": "codex", "model": "fixture-model", "suite": "coding", "effort": "medium", "passed": 4, "checks": 4, "samples": 1, "latency_ms": 2500]], "runs": []]
         case "/api/ops/usage": value = ["providers": [["provider": "codex", "attempts": 3, "input_tokens": 12000, "output_tokens": 3000, "unmeasured_token_attempts": 1]]]
         case "/api/ops/memory": value = ["body": "Keep each implementation worker in a separate worktree. Verify results before accepting them.", "version": "fixture-version"]

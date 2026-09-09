@@ -19,12 +19,14 @@ import LakesideCore
     @Published var liveActions: [JSONValue] = []
     @Published var streamingID = ""
     private var cursor = "0"
+    private var usageLoading = false
     private var replyTask: Task<Void, Never>?
     private var flushTask: Task<Void, Never>?
     private var pendingText = ""
+    private var pendingSubmission: (payload: JSONValue, id: String)?
 
     func connect(_ session: AppSession) async {
-        defer { connected = false; replyTask?.cancel(); flushTask?.cancel(); flushTask = nil }
+        defer { connected = false; replyTask?.cancel(); streamingID = ""; flushTask?.cancel(); flushTask = nil }
         var delay = 1.0
         while !Task.isCancelled {
             do {
@@ -89,19 +91,33 @@ import LakesideCore
     func send(_ text: String, _ session: AppSession, attachments: JSONValue = .array([])) async -> Bool {
         guard !sending, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.array.isEmpty else { return false }
         sending = true; defer { sending = false }
+        let selected = conversation
+        let payload: JSONValue = .object(["conversation": .string(selected), "text": .string(text), "attachments": attachments])
+        if pendingSubmission?.payload != payload { pendingSubmission = (payload, UUID().uuidString) }
+        let requestID = pendingSubmission!.id
         do {
-            _ = try await session.post("/api/chat/send", ["conversation": .string(conversation), "text": .string(text), "attachments": attachments])
-            try await loadTurns(session); error = nil; return true
+            _ = try await session.post("/api/chat/send", ["conversation": .string(selected), "text": .string(text), "attachments": attachments, "requestId": .string(requestID)])
+            pendingSubmission = nil
         } catch { self.error = error.localizedDescription; return false }
+        // Acceptance and refreshing the transcript are separate outcomes.
+        // A refresh failure must not make the composer submit a second turn.
+        do { if selected == conversation { try await loadTurns(session) }; error = nil }
+        catch { self.error = "Message accepted. Reconnecting to the conversation." }
+        return true
     }
+
     private func attach(_ id: String, _ session: AppSession) {
         guard streamingID != id else { return }
         replyTask?.cancel(); flushTask?.cancel(); flushTask = nil
         streamingID = id; liveActions = []; pendingText = ""; liveText = ""; activity = "Working"
         replyTask = Task {
-            do {
+            var delay = 1.0
+            while !Task.isCancelled, self.streamingID == id {
+              self.pendingText = ""
+              self.liveActions = []
+              do {
                 try await session.events("/api/chat/stream/\(id)") { event in
-                    guard self.streamingID == id else { return }
+                    guard !Task.isCancelled, self.streamingID == id else { return }
                     let payload = try JSONValue.parse(event.data)
                     switch event.name {
                     case "delta":
@@ -124,8 +140,12 @@ import LakesideCore
                     default: break
                     }
                 }
-            } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
-            if self.streamingID == id { self.streamingID = "" }
+              } catch { if !Task.isCancelled { self.activity = "Reconnecting to live activity" } }
+              guard !Task.isCancelled, self.streamingID == id else { return }
+              self.flushTask?.cancel(); self.flushTask = nil
+              do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+              delay = min(15, delay * 2)
+            }
         }
     }
     @discardableResult func newConversation(_ session: AppSession) async -> Bool {
@@ -145,6 +165,8 @@ import LakesideCore
         catch { self.error = error.localizedDescription }
     }
     func refreshUsage(_ session: AppSession) async {
+        guard !usageLoading else { return }
+        usageLoading = true; defer { usageLoading = false }
         do {
             async let inventory = session.get("/api/ops/providers")
             async let measured = session.get("/api/ops/usage")
@@ -550,47 +572,6 @@ struct OpsWorkerDetail: View {
             messages = try await session.get("/api/ops/workers/\(worker["id"].string)/messages")["messages"].array
             showActivity = true; activityRefresh += 1
         } catch { messageError = error.localizedDescription }
-    }
-}
-
-struct OpsCapacity: View {
-    @EnvironmentObject private var session: AppSession
-    @ObservedObject var model: OpsWorkspaceModel
-    var body: some View {
-        List {
-            Section { Text("Capacity & activity").font(.title2.weight(.semibold)); Text("Today's measured assistant and worker usage. Subscription capacity is shown only when the provider reports it.").font(.callout).foregroundStyle(.secondary) }
-            ForEach(model.providers, id: \.["id"].string) { provider in
-                Section(provider["label"].string) {
-                    LabeledContent("Runtime", value: provider["status"].string.capitalized)
-                    let measured = model.usage.first { $0["provider"] == provider["id"] } ?? .null
-                    LabeledContent("Attempts today", value: measured["attempts"].string.isEmpty ? "0" : measured["attempts"].string)
-                    if let input = measured["input_tokens"].number, let output = measured["output_tokens"].number {
-                        HStack(spacing: 16) {
-                            UsageRing(fraction: output / max(1, input + output), color: OpsTheme.sky, size: 48)
-                            VStack(alignment: .leading) {
-                                Text("\(Int(input + output).formatted()) measured tokens").font(.headline)
-                                Text("\(Int(input).formatted()) input · \(Int(output).formatted()) output").font(.caption).foregroundStyle(.secondary)
-                            }
-                        }.padding(.vertical, 8)
-                    }
-                    if provider["allowances"].array.isEmpty {
-                        Text(provider["billing"].string == "free" ? "Free model routing" : "Subscription remaining: not reported").font(.caption).foregroundStyle(.secondary)
-                    }
-                    ForEach(provider["allowances"].array, id: \.["id"].string) { allowance in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack { Text(allowance["label"].string); Spacer(); Text("\(Int(allowance["remainingPercent"].number ?? 0))% left").monospacedDigit() }.font(.caption)
-                            ProgressView(value: allowance["remainingPercent"].number ?? 0, total: 100).tint(OpsTheme.mint)
-                            if let observed = allowance["observedAt"].number {
-                                Text("Reported \(Date(timeIntervalSince1970: observed / 1000).formatted(date: .omitted, time: .shortened))").font(.caption2).foregroundStyle(.secondary)
-                            }
-                        }.padding(.vertical, 4)
-                    }
-                    if let count = measured["unmeasured_token_attempts"].number, count > 0 { Text("\(Int(count)) attempts have no token measurement.").font(.caption).foregroundStyle(.secondary) }
-                }
-            }
-            if let error = model.error { Text(error).foregroundStyle(.orange) }
-            Section { NavigationLink { OpsBenchmarks() } label: { Label("Provider benchmarks", systemImage: "speedometer") } }
-        }.opsScreen().navigationTitle("Usage").task { await model.refreshUsage(session) }.refreshable { await model.refreshUsage(session) }
     }
 }
 

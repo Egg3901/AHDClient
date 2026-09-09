@@ -12,7 +12,7 @@ final class LaunchTests: XCTestCase {
             XCTAssertTrue(app.staticTexts["Export fixed. All checks passed."].waitForExistence(timeout: 10))
             capture(app, "Ops worker report")
             app.tabBars.buttons["Usage"].tap()
-            XCTAssertTrue(app.staticTexts["15,000 measured tokens"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "5-hour allowance")).firstMatch.waitForExistence(timeout: 10))
             capture(app, "Ops measured usage")
         } else {
             let conversation = app.staticTexts["How does inflation work?"]
@@ -113,11 +113,29 @@ final class LaunchTests: XCTestCase {
         capture(app, "Ops new assignment")
         app.buttons["Cancel"].tap()
         app.tabBars.buttons["Usage"].tap()
-        app.swipeUp()
+        for _ in 0..<8 {
+            if app.buttons["Provider benchmarks"].isHittable { break }
+            app.swipeUp()
+        }
         app.buttons["Provider benchmarks"].tap()
         XCTAssertTrue(app.staticTexts["Measure before routing"].waitForExistence(timeout: 5))
         capture(app, "Ops provider benchmarks")
         XCTAssertEqual(app.webViews.count, 0)
+    }
+    func testOpsCapacityAtLargeTextSize() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitest-fixtures", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 3) else { throw XCTSkip("Ops capacity only") }
+        app.tabBars.buttons["Usage"].tap()
+        XCTAssertTrue(app.staticTexts["Codex"].firstMatch.waitForExistence(timeout: 10))
+        capture(app, "Ops capacity large text")
+        for _ in 0..<12 {
+            if app.staticTexts["Free Router"].firstMatch.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(app.staticTexts["Free Router"].firstMatch.isHittable)
+        capture(app, "Ops route capacity large text")
     }
     private func capture(_ app: XCUIApplication, _ name: String) {
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = name; screenshot.lifetime = .keepAlways; add(screenshot)
