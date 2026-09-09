@@ -443,7 +443,7 @@ struct OpsTeam: View {
             Section {
                 Button { model.selectedTab = 0 } label: { HStack(spacing: 12) {
                     OpsActivityMark(state: model.replyIsLive ? "running" : "idle", size: 44, activity: model.activity)
-                    VStack(alignment: .leading, spacing: 4) { Text("Ops assistant").font(.headline); OpsActivityBadge(state: model.replyIsLive ? "running" : "idle", label: !model.connected || (!model.streamingID.isEmpty && !model.replyIsLive) ? "Reconnecting" : model.replyIsLive ? "Working · \(opsRoutingLabel(model.routing))" : "Ready · \(opsRoutingLabel(model.routing))", compact: true) }
+                    VStack(alignment: .leading, spacing: 4) { Text("Ops assistant").font(.headline); Text(!model.connected || (!model.streamingID.isEmpty && !model.replyIsLive) ? "Reconnecting" : model.replyIsLive ? "Working · \(opsRoutingLabel(model.routing))" : "Ready · \(opsRoutingLabel(model.routing))").font(.caption).foregroundStyle(.secondary) }
                     Spacer()
                 }.padding(.vertical, 8) }.buttonStyle(OpsAgentPressStyle()).accessibilityLabel("Open main assistant")
                 Text("Your team").font(.title2.weight(.semibold))
@@ -454,7 +454,7 @@ struct OpsTeam: View {
                 ForEach(model.staff.filter { search.isEmpty || ($0["name"].string + " " + $0["role"].string).localizedCaseInsensitiveContains(search) }, id: \.["id"].string) { member in
                     NavigationLink { OpsStaffDetail(model: model, staff: member) } label: {
                         VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 10) { OpsActivityMark(state: staffState(member), size: 44); Text(member["name"].string).font(.headline) }
+                            HStack(spacing: 10) { OpsActivityMark(state: staffState(member), size: 44, activity: model.workers.first(where: { $0["staff_id"] == member["id"] && $0["job_status"].string == "running" })?["name"].string ?? ""); Text(member["name"].string).font(.headline) }
                             Text(member["role"].string).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                             let count = model.workers.filter { $0["staff_id"].string == member["id"].string && !["completed", "failed", "cancelled"].contains($0["job_status"].string) }.count
                             let running = model.workers.contains { $0["staff_id"] == member["id"] && $0["job_status"].string == "running" }

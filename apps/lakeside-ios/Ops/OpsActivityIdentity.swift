@@ -13,7 +13,7 @@ struct OpsActivityMark: View {
     private var running: Bool { ["running", "streaming", "executing"].contains(state) }
     private var animated: Bool { running && size >= 28 && visible && inViewport && scenePhase == .active && !reduceMotion }
     private var color: Color {
-        if ["failed", "blocked", "awaiting_permission", "waiting"].contains(state) { return .orange }
+        if ["failed", "blocked", "awaiting_permission"].contains(state) { return .orange }
         if ["completed", "saved", "verified"].contains(state) { return OpsTheme.mint }
         return ["stale", "reconnecting", "recorded"].contains(state) ? .secondary : OpsTheme.sky
     }
@@ -92,7 +92,7 @@ struct OpsActivityMark: View {
                 stroke([CGPoint(x: 36, y: 34), CGPoint(x: 38, y: 40)])
                 if ["completed", "saved", "verified"].contains(state) {
                     stroke([CGPoint(x: 32, y: 38), CGPoint(x: 36, y: 42), CGPoint(x: 43, y: 33)], width: 2)
-                } else if ["awaiting_permission", "waiting", "failed", "blocked"].contains(state) {
+                } else if ["awaiting_permission", "failed", "blocked"].contains(state) {
                     stroke([CGPoint(x: 43, y: 24), CGPoint(x: 43, y: 30)], width: 2)
                     box(CGRect(x: 42, y: 34, width: 2, height: 2), radius: 1, fill: color)
                 }
@@ -114,9 +114,10 @@ struct OpsActivityBadge: View {
     let state: String
     let label: String
     var compact = false
+    var activity = ""
     var body: some View {
         HStack(spacing: compact ? 6 : 9) {
-            OpsActivityMark(state: state, size: compact ? 22 : 44, activity: label)
+            OpsActivityMark(state: state, size: compact ? 22 : 44, activity: activity.nonempty ?? label)
             Text(label).font(compact ? .caption2.weight(.medium) : .callout.weight(.medium)).lineLimit(2)
         }.foregroundStyle(["running", "streaming", "executing"].contains(state) ? OpsTheme.sky : Color.secondary)
     }
@@ -130,7 +131,7 @@ struct OpsLiveActivitySheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    OpsActivityBadge(state: running ? "running" : "idle", label: model.streamingID.isEmpty ? "Reply finished" : running ? "Ops is working" : "Reconnecting")
+                    OpsActivityBadge(state: running ? "running" : "idle", label: model.streamingID.isEmpty ? "Reply finished" : running ? "Ops is working" : "Reconnecting", activity: model.activity)
                     if !model.activity.isEmpty { Text(model.activity).font(.callout).foregroundStyle(.secondary) }
                     if model.liveActions.isEmpty { Text("No tool activity reported for this reply yet.").font(.callout).foregroundStyle(.secondary) }
                     OpsActivity(actions: model.liveActions, startsExpanded: true, active: running)
