@@ -1,0 +1,7 @@
+build:
+  name: Private Apple delivery invitation
+  steps:
+    - eas/checkout
+    - run:
+        name: Assign builds to the personal TestFlight tester
+        command: ACTION=invite python3 ../../scripts/lakeside-testflight.py
