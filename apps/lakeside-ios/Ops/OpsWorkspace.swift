@@ -544,7 +544,8 @@ struct OpsWorkerDetail: View {
                 }
             }
             if let error = model.error { Text(error).foregroundStyle(.orange) }
-        }.opsScreen().navigationTitle(current["name"].string)
+        }.opsScreen().navigationTitle(current["name"].string.nonempty ?? "Worker")
+            .navigationBarTitleDisplayMode(.inline)
             .task(id: "\(phase == .active)-\(current["job_status"].string)") {
                 guard phase == .active else { return }
                 while !Task.isCancelled {

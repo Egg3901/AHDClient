@@ -30,7 +30,18 @@ struct OpsSubagents: View {
     @State private var refresh = 0
 
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
+        VStack(alignment: .leading, spacing: 10) {
+            Button { expanded.toggle() } label: {
+                HStack {
+                    Text(rows.isEmpty ? "Provider subagents" : "Provider subagents · \(rows.count)")
+                    Spacer()
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                }.font(.caption.weight(.medium))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("ops-subagents")
+            .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+            if expanded {
             VStack(alignment: .leading, spacing: 10) {
                 if let error {
                     Text(error).font(.caption).foregroundStyle(.orange)
@@ -83,11 +94,8 @@ struct OpsSubagents: View {
                 .buttonStyle(.borderless)
             }
             .padding(.top, 8)
-        } label: {
-            Text(rows.isEmpty ? "Provider subagents" : "Provider subagents · \(rows.count)")
-                .font(.caption.weight(.medium))
+            }
         }
-        .accessibilityIdentifier("ops-subagents")
         .onAppear { visible = true }
         .onDisappear { visible = false }
         .onChange(of: workerID) { _, _ in
