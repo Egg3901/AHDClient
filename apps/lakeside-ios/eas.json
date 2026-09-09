@@ -35,6 +35,12 @@
       "ios": {
         "config": "delivery-status.yml"
       }
+    },
+    "delivery-invite": {
+      "extends": "production",
+      "ios": {
+        "config": "delivery-invite.yml"
+      }
     }
   }
 }
