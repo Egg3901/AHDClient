@@ -1,0 +1,30 @@
+name: AHDClient EAS TestFlight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ahdclient-eas-testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: apps/lakeside-ios
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build and upload AHDClient through EAS
+        env:
+          EXPO_TOKEN: ${{ secrets.LAKESIDE_EXPO_TOKEN }}
+        run: npx eas-cli@latest build --platform ios --profile ahdclient-production --non-interactive
