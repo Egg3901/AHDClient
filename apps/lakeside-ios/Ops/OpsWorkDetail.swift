@@ -15,6 +15,8 @@ struct OpsWorkDetail: View {
     @State private var artifactName = ""
     @State private var dispatch = false
     @State private var edit = false
+    @State private var showMove = false
+    @State private var movingCard: JSONValue = .null
     @State private var error: String?
     @State private var busy = false
     @State private var decision = ""
@@ -38,11 +40,7 @@ struct OpsWorkDetail: View {
                     NavigationLink("Checks and release history") { OpsCompanyDetail(jobID: cardID, model: model) }.accessibilityIdentifier("ops-work-legacy-detail")
                 }
                 Button("Start a run") { dispatch = true }.disabled(!store.online).accessibilityIdentifier("ops-company-assign")
-                Menu("Move") {
-                    ForEach(store.board["columns"].array, id: \.["id"].string) { column in
-                        Button(column["title"].string) { Task { _ = await store.submit(type: "card.move", card: card, payload: ["columnId": column["id"]], session: session) } }.disabled(column["id"] == card["columnId"])
-                    }
-                }.accessibilityIdentifier("ops-work-move")
+                Button("Move") { movingCard = card; showMove = true }.accessibilityIdentifier("ops-work-move")
             }
             Section("Done looks like") {
                 ForEach(Array(card["acceptance"].array.enumerated()), id: \.offset) { index, item in Text(item.string).accessibilityIdentifier("ops-company-criterion-\(index)") }
@@ -69,7 +67,7 @@ struct OpsWorkDetail: View {
                 TextField("Review note", text: $note, axis: .vertical).accessibilityIdentifier("ops-work-review-note")
                 HStack {
                     ForEach(["approve", "reject", "redirect"], id: \.self) { value in Button(value.capitalized) { reviewedCard = card; decision = value; confirmReview = true }.accessibilityIdentifier("ops-work-review-\(value)") }
-                }.disabled(!store.online || note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || busy)
+                }.buttonStyle(.bordered).disabled(!store.online || note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || busy)
             }
             Section("Files and links") {
                 ForEach(Array(detail["artifacts"].array.enumerated()), id: \.offset) { _, item in
@@ -95,11 +93,12 @@ struct OpsWorkDetail: View {
                     VStack(alignment: .leading, spacing: 5) { Text(event.first("detail", "type").replacingOccurrences(of: "_", with: " ")); actor(event) }
                 }
             }
-        }.listStyle(.insetGrouped).navigationTitle("Work").navigationBarTitleDisplayMode(.inline)
+        }.listStyle(.insetGrouped).buttonStyle(.borderless).scrollDismissesKeyboard(.interactively).navigationTitle("Work").navigationBarTitleDisplayMode(.inline)
             .accessibilityIdentifier("ops-company-detail-scroll").tint(Brand.sky)
             .toolbar { Button("Edit") { edit = true } }
             .sheet(isPresented: $dispatch) { OpsWorkDispatch(card: card, store: store) }
             .sheet(isPresented: $edit) { OpsWorkEdit(card: card, store: store) }
+            .sheet(isPresented: $showMove) { OpsWorkMove(card: movingCard, store: store) }
             .confirmationDialog("Confirm \(decision) for revision \(reviewedCard["version"].string)", isPresented: $confirmReview, titleVisibility: .visible) {
                 Button("Confirm review") { let chosen = decision; Task {
                     busy = true; defer { busy = false }; _ = await store.submit(type: "proposal.decide", card: reviewedCard, payload: ["decision": .string(chosen), "note": .string(note)], authority: true, session: session); await load()
@@ -118,6 +117,29 @@ struct OpsWorkDetail: View {
     private func load() async {
         do { detail = try await session.get("/api/ops/cards/\(try opsSafePathID(cardID))"); store.rememberDetail("card:" + cardID, value: detail); error = nil; await store.refresh(session) }
         catch { if !Task.isCancelled { self.error = error.localizedDescription } }
+    }
+}
+
+private struct OpsWorkMove: View {
+    let card: JSONValue
+    @ObservedObject var store: OpsWorkStore
+    @EnvironmentObject private var session: AppSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var busy = false
+    var body: some View {
+        NavigationStack {
+            List {
+                Text(card["title"].string).font(.headline)
+                Text("Moving a card does not approve a proposal or start a run.").font(.caption).foregroundStyle(.secondary)
+                ForEach(store.board["columns"].array, id: \.["id"].string) { column in
+                    Button(column["title"].string) { Task {
+                        busy = true; defer { busy = false }
+                        if await store.submit(type: "card.move", card: card, payload: ["columnId": column["id"]], session: session) { dismiss() }
+                    } }.buttonStyle(.borderless).disabled(busy || column["id"] == card["columnId"]).accessibilityIdentifier("ops-work-move-to-\(column["id"].string)")
+                }
+                if let error = store.error { Text(error).font(.caption).foregroundStyle(.orange) }
+            }.navigationTitle("Move work").toolbar { Button("Cancel") { dismiss() } }
+        }.tint(Brand.sky)
     }
 }
 
@@ -153,6 +175,8 @@ private struct OpsWorkDispatch: View {
     @EnvironmentObject private var session: AppSession
     @Environment(\.dismiss) private var dismiss
     @State private var inventory: JSONValue = .null
+    @State private var staffMembers: [JSONValue] = []
+    @State private var selectedStaff = ""
     @State private var hostID = "cloud"
     @State private var provider = ""
     @State private var workspace = ""
@@ -168,6 +192,7 @@ private struct OpsWorkDispatch: View {
     var body: some View {
         NavigationStack {
             Form {
+                Picker("Work with", selection: $selectedStaff) { Text("Temporary worker").tag(""); ForEach(staffMembers, id: \.["id"].string) { Text($0["name"].string).tag($0["id"].string) } }.accessibilityIdentifier("ops-work-dispatch-staff")
                 Picker("Run on", selection: $hostID) { ForEach(hosts, id: \.["id"].string) { item in Text(item["name"].string + (item["id"].string != "cloud" && !item["online"].bool ? " (offline)" : "")).tag(item["id"].string) } }
                 Picker("Workspace", selection: $workspace) { Text(provider == "freerouter" && hostID == "cloud" ? "No workspace (text only)" : "Choose workspace").tag(""); ForEach(host["workspaces"].array, id: \.["id"].string) { Text($0["name"].string).tag($0["id"].string) } }
                 Picker("Provider", selection: $provider) { Text("Choose provider").tag(""); ForEach(providers, id: \.["id"].string) { Text($0["id"].string).tag($0["id"].string) } }
@@ -185,10 +210,10 @@ private struct OpsWorkDispatch: View {
                     var payload: [String: JSONValue] = ["hostId": .string(hostID), "workspaceId": .string(workspace), "provider": .string(provider), "maxMinutes": .number(Double(minutes)), "access": .string(access), "effort": .string(effort)]
                     if !model.isEmpty { payload["model"] = .string(model) }
                     if card["conversation_id"] != .null { payload["conversationId"] = .string(card["conversation_id"].string) }
-                    if card["staff_id"] != .null { payload["staffId"] = card["staff_id"] }
+                    if !selectedStaff.isEmpty { payload["staffId"] = .string(selectedStaff) }
                     if await store.submit(type: "run.dispatch", card: card, payload: payload, authority: true, session: session) { dismiss() }
                 } }.disabled(busy || !store.online || provider.isEmpty || (workspace.isEmpty && !(hostID == "cloud" && provider == "freerouter")) || (hostID != "cloud" && !host["online"].bool)) }
-            }.task { do { inventory = try await session.get("/api/ops/runners") } catch { self.error = error.localizedDescription } }
+            }.task { do { inventory = try await session.get("/api/ops/runners"); let roster = try await session.get("/api/ops/staff"); staffMembers = roster["staff"].array } catch { self.error = error.localizedDescription } }
                 .onChange(of: hostID) { _, _ in provider = ""; workspace = ""; model = "" }
                 .onChange(of: provider) { _, _ in model = "" }
         }.tint(Brand.sky)
@@ -210,7 +235,7 @@ private struct OpsWorkRun: View {
                 Text(detail["run"]["status"].string.replacingOccurrences(of: "_", with: " ").capitalized)
                 Text(detail["run"].first("result", "error")).textSelection(.enabled)
                 if !["completed", "failed", "cancelled"].contains(detail["run"]["status"].string) {
-                    Button("Request cancellation", role: .destructive) { Task { _ = await store.submit(type: "run.cancel", card: card, payload: ["runId": .string(runID)], authority: true, session: session) } }.disabled(!store.online)
+                    Button("Request cancellation", role: .destructive) { Task { _ = await store.submit(type: "run.cancel", card: card, payload: ["runId": .string(runID)], authority: true, session: session) } }.buttonStyle(.borderless).disabled(!store.online)
                 }
                 Text("Cancellation remains a request until the host acknowledges it. A disconnected host may still be working.").font(.caption).foregroundStyle(.secondary)
             }

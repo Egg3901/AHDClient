@@ -221,14 +221,18 @@ final class LaunchTests: XCTestCase {
         fillCompanyField("ops-work-review-note", with: "Checked an empty export and confirmed the download completed", in: app)
         let approve = app.buttons["ops-work-review-approve"]
         scrollTo(approve, in: app); approve.tap()
-        let confirm = app.buttons["ops-work-review-confirm"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirm.tap()
+        let confirm = app.buttons.matching(identifier: "ops-work-review-confirm").firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.sheets.matching(NSPredicate(format: "label BEGINSWITH %@", "Confirm approve")).firstMatch.exists)
+        confirm.tap()
         let reviewState = app.staticTexts["ops-work-review-state"]
         XCTAssertTrue(reviewState.waitForExistence(timeout: 10))
         XCTAssertEqual(reviewState.label, "Review: Approved")
         XCTAssertTrue(app.staticTexts["Checked an empty export and confirmed the download completed"].exists)
         let stage = app.staticTexts["ops-company-current-status"]; scrollTo(stage, in: app, upward: false)
         XCTAssertEqual(stage.label, "To do", "Review must not silently move the card")
+        let noRuns = app.staticTexts["No confirmed runs"]; scrollTo(noRuns, in: app)
+        XCTAssertTrue(noRuns.exists, "Approval must not start a run")
         capture(app, "Ops owner recorded review")
     }
     func testOpsLegacyWorkRetainsOwnerEvidenceWorkflow() throws {
@@ -252,8 +256,11 @@ final class LaunchTests: XCTestCase {
         capture(app, "Ops legacy owner evidence")
     }
     private func fillCompanyField(_ identifier: String, with text: String, in app: XCUIApplication) {
-        let field = app.textFields[identifier].exists ? app.textFields[identifier] : app.textViews[identifier]
-        XCTAssertTrue(field.waitForExistence(timeout: 5)); scrollTo(field, in: app); field.tap(); field.typeText(text)
+        // SwiftUI vertical fields appear lazily and can expose either accessibility type.
+        let field = app.descendants(matching: .any).matching(identifier: identifier)
+            .matching(NSPredicate(format: "elementType == %d OR elementType == %d", XCUIElement.ElementType.textField.rawValue, XCUIElement.ElementType.textView.rawValue)).firstMatch
+        scrollTo(field, in: app)
+        XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText(text)
     }
     func testOpsKanbanMovesAWorkCard() throws {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
@@ -262,8 +269,9 @@ final class LaunchTests: XCTestCase {
         let job = app.buttons["ops-kanban-card-job-1"]
         XCTAssertTrue(job.waitForExistence(timeout: 10)); job.tap()
         let move = app.buttons["ops-work-move"]
-        XCTAssertTrue(move.waitForExistence(timeout: 10)); move.tap()
-        app.buttons.matching(NSPredicate(format: "label == %@", "In progress")).firstMatch.tap()
+        XCTAssertTrue(move.waitForExistence(timeout: 10)); scrollTo(move, in: app); move.tap()
+        let destination = app.buttons.matching(identifier: "ops-work-move-to-doing").firstMatch
+        XCTAssertTrue(destination.waitForExistence(timeout: 5)); destination.tap()
         let status = app.staticTexts["ops-company-current-status"]
         let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "In progress"), object: status)
         XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 10), .completed)
