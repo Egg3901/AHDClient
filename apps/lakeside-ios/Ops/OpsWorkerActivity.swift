@@ -280,7 +280,7 @@ private struct WorkerActivityRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 8) {
-                OpsActivityMark(state: item.state == "running" && !live ? "recorded" : item.state ?? "recorded", size: 20)
+                OpsActivityMark(state: item.state == "running" && !live ? "recorded" : item.state ?? "recorded", size: 22, activity: item.title)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title).font(.caption.weight(.medium)).foregroundStyle(OpsTheme.ink)
                     if !item.role.isEmpty {

@@ -109,7 +109,7 @@ private struct OpsActivityStep: View {
             }
         } label: {
             HStack(alignment: .top, spacing: 8) {
-                OpsActivityMark(state: entry.state == "running" && !active ? "recorded" : entry.state, size: 19)
+                OpsActivityMark(state: entry.state == "running" && !active ? "recorded" : entry.state, size: 22, activity: entry.title)
                 Text(entry.title).lineLimit(2).foregroundStyle(OpsTheme.ink)
                 Spacer(minLength: 4)
                 Text(entry.state.capitalized).foregroundStyle(color)
