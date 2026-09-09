@@ -126,7 +126,7 @@ final class LaunchTests: XCTestCase {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
         guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops routing") }
         let routing = app.buttons["ops-routing-open"]
-        XCTAssertTrue(routing.waitForExistence(timeout: 10)); routing.tap()
+        XCTAssertTrue(routing.waitForExistence(timeout: 10)); waitForEnabled(routing); routing.tap()
         let provider = app.descendants(matching: .any).matching(identifier: "ops-routing-provider").firstMatch
         XCTAssertTrue(provider.waitForExistence(timeout: 10)); waitForEnabled(provider); provider.tap()
         app.buttons["Grok"].tap()

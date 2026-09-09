@@ -297,6 +297,7 @@ private struct WorkerActivityRow: View {
                         activityBody(item.body)
                     } label: {
                         Text(expanded ? "Hide output" : "Show output").font(.caption2)
+                            .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading).contentShape(Rectangle())
                     }
                 }
             } else if !item.body.isEmpty {
