@@ -15,13 +15,13 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
     private static let routing = RoutingState()
     private final class CompanyState: @unchecked Sendable {
         let lock = NSLock()
-        var jobs: [[String: Any]] = [["id": "job-1", "title": "Fix export failures", "objective": "Make exports reliable for every project.", "status": "awaiting_verification", "version": 1, "task_type": "bugfix", "artifact": "fixture-commit-abc", "acceptance": ["Empty exports complete successfully"], "contract": ["investigate": true, "draft": true, "change": false, "merge": false, "deploy": false, "communicate": false], "conversation_id": 1]]
+        var jobs: [[String: Any]] = [["id": "job-1", "title": "Fix export failures", "objective": "Make exports reliable for every project.", "status": "detected", "column": "todo", "board_rank": 100, "entity_id": "project-1", "staff_id": "staff-1", "version": 1, "task_type": "bugfix", "artifact": "fixture-commit-abc", "acceptance": ["Empty exports complete successfully"], "contract": ["investigate": true, "draft": true, "change": false, "merge": false, "deploy": false, "communicate": false], "conversation_id": 1]]
         var checks: [[String: Any]] = []
         var requests: Set<String> = []
         func route(_ path: String, method: String, body: [String: Any]) -> (Any, Int) {
             lock.lock(); defer { lock.unlock() }
             let project: [String: Any] = ["id": "project-1", "kind": "product", "title": "Studio hub", "summary": "Studio tools", "source": "UI fixture"]
-            if path == "/api/ops/company" { return (["missions": jobs, "entities": [project], "links": [], "counts": ["active": jobs.count, "needsOwner": 1, "monitoring": 0, "verified": 0], "automation": ["enabled": false, "description": "External sources are not connected."]], 200) }
+            if path == "/api/ops/company" { return (["missions": jobs, "boardColumns": [["id": "todo", "title": "To do"], ["id": "doing", "title": "In progress"], ["id": "review", "title": "Needs review"], ["id": "ready", "title": "Ready to ship"], ["id": "watching", "title": "Watching"], ["id": "done", "title": "Done"]], "entities": [project], "links": [], "counts": ["active": jobs.count, "needsOwner": 1, "monitoring": 0, "verified": 0], "automation": ["enabled": false, "description": "External sources are not connected."]], 200) }
             if path == "/api/ops/company/sync" { return (["imported": 1], 200) }
             if path == "/api/ops/company/signals" {
                 guard let key = body["requestId"] as? String, let title = body["title"] as? String else { return (["error": "Missing work request"], 400) }
@@ -37,6 +37,10 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
             }
             guard pieces.count == 6, body["version"] as? Int == jobs[index]["version"] as? Int else { return (["error": "This work changed. Reload before saving."], 409) }
             switch pieces[5] {
+            case "move":
+                guard let target = body["column"] as? String, ["todo", "doing", "review"].contains(target) else { return (["error": "Complete the required checks before moving here."], 409) }
+                jobs[index]["column"] = target
+                jobs[index]["status"] = target == "doing" ? "investigating" : target == "review" ? "awaiting_verification" : "detected"
             case "evidence":
                 var check = body; check["id"] = "check-\(checks.count + 1)"; checks.append(check)
             case "verify": checks.append(["id": "github-check-1", "kind": "test", "summary": "GitHub checks passed for the recorded version.", "artifact": body["artifact"] ?? "", "passed": true, "source": "github"])

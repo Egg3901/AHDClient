@@ -14,6 +14,7 @@ struct OpsCompany: View {
     @State private var snapshot: JSONValue = .null
     @State private var search = ""
     @State private var filter = "all"
+    @State private var layout = "board"
     @State private var create = false
     @State private var loading = false
     @State private var error: String?
@@ -34,9 +35,17 @@ struct OpsCompany: View {
                 if !snapshot["automation"]["description"].string.isEmpty { Text(snapshot["automation"]["description"].string).font(.caption).foregroundStyle(.secondary) }
             }
             Section("Work") {
+                Picker("Layout", selection: $layout) { Text("Board").tag("board"); Text("List").tag("list") }.pickerStyle(.segmented).accessibilityIdentifier("ops-company-layout")
                 Picker("Show", selection: $filter) { Text("All").tag("all"); Text("Active").tag("active"); Text("Needs you").tag("attention"); Text("Verified").tag("done") }.pickerStyle(.menu)
                 if loading && snapshot == .null { ProgressView("Loading work") }
                 if jobs.isEmpty && !loading { Text(search.isEmpty ? "No work here yet. Add something to investigate or improve." : "No matching work.").font(.callout).foregroundStyle(.secondary) }
+                if layout == "board" {
+                    OpsKanban(jobs: jobs, entities: snapshot["entities"].array, staff: snapshot["staff"].array.isEmpty ? model.staff : snapshot["staff"].array, columnData: snapshot["boardColumns"].array, model: model, onMoved: { updated in
+                        acceptMove(updated)
+                        await load()
+                    }, onReload: { await load() })
+                    .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+                } else {
                 ForEach(jobs, id: \.["id"].string) { job in
                     NavigationLink {
                         OpsCompanyDetail(jobID: job["id"].string, model: model)
@@ -47,6 +56,7 @@ struct OpsCompany: View {
                             Text(job["objective"].string).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                         }.padding(.vertical, 3)
                     }.accessibilityIdentifier("ops-company-job-\(job["id"].string)")
+                }
                 }
             }
             Section("Company map") {
@@ -81,6 +91,12 @@ struct OpsCompany: View {
                 }
             }.refreshable { await load() }
     }
+    private func acceptMove(_ updated: JSONValue) {
+        guard !updated["id"].string.isEmpty else { return }
+        var fields = snapshot.object
+        fields["missions"] = .array(snapshot["missions"].array.map { $0["id"] == updated["id"] ? updated : $0 })
+        snapshot = .object(fields)
+    }
     private func count(_ title: String, key: String) -> some View {
         VStack(alignment: .leading, spacing: 3) { Text(snapshot["counts"][key].string.nonempty ?? "0").font(.title3.weight(.semibold)).monospacedDigit(); Text(title).font(.caption2).foregroundStyle(.secondary) }
     }
@@ -90,7 +106,15 @@ struct OpsCompany: View {
         do {
             let result = try await session.get("/api/ops/company")
             try Task.checkCancellation()
-            snapshot = result; error = nil
+            // A poll started before a move may arrive after the acknowledgement.
+            // Keep newer acknowledged versions while refreshing the rest of the board.
+            let known = Dictionary(snapshot["missions"].array.map { ($0["id"].string, $0) }, uniquingKeysWith: { _, latest in latest })
+            var fields = result.object
+            fields["missions"] = .array(result["missions"].array.map { incoming in
+                if let current = known[incoming["id"].string], (current["version"].number ?? 0) > (incoming["version"].number ?? 0) { return current }
+                return incoming
+            })
+            snapshot = .object(fields); error = nil
         } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     }
 }

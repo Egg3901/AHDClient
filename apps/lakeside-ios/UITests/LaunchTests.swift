@@ -190,6 +190,7 @@ final class LaunchTests: XCTestCase {
         guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops company") }
         app.tabBars.buttons["Hub"].tap(); app.buttons["ops-company-open"].tap()
         XCTAssertTrue(app.buttons["ops-company-create"].waitForExistence(timeout: 10))
+        app.segmentedControls["ops-company-layout"].buttons["List"].tap()
         capture(app, "Ops company overview")
         app.buttons["ops-company-create"].tap()
         fillCompanyField("ops-company-title", with: "Check the release notes", in: app)
@@ -206,6 +207,8 @@ final class LaunchTests: XCTestCase {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
         guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops company checks") }
         app.tabBars.buttons["Hub"].tap(); app.buttons["ops-company-open"].tap()
+        XCTAssertTrue(app.segmentedControls["ops-company-layout"].waitForExistence(timeout: 10))
+        app.segmentedControls["ops-company-layout"].buttons["List"].tap()
         let job = app.buttons["ops-company-job-job-1"]
         XCTAssertTrue(job.waitForExistence(timeout: 10)); job.tap()
         XCTAssertTrue(app.staticTexts["Several projects could not export their files."].waitForExistence(timeout: 10))
@@ -224,6 +227,26 @@ final class LaunchTests: XCTestCase {
     private func fillCompanyField(_ identifier: String, with text: String, in app: XCUIApplication) {
         let field = app.textFields[identifier].exists ? app.textFields[identifier] : app.textViews[identifier]
         XCTAssertTrue(field.waitForExistence(timeout: 5)); scrollTo(field, in: app); field.tap(); field.typeText(text)
+    }
+    func testOpsKanbanMovesAWorkCard() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
+        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops board") }
+        app.tabBars.buttons["Hub"].tap(); app.buttons["ops-company-open"].tap()
+        let board = app.descendants(matching: .any)["ops-kanban-board"].firstMatch
+        XCTAssertTrue(board.waitForExistence(timeout: 10))
+        let menu = app.buttons["ops-kanban-move-job-1"]
+        scrollTo(menu, in: app)
+        capture(app, "Ops shared work board")
+        menu.tap()
+        let destination = app.buttons["Move to In progress"]
+        XCTAssertTrue(destination.waitForExistence(timeout: 5)); destination.tap()
+        let moved = app.descendants(matching: .any)["ops-kanban-card-job-1-doing"].firstMatch
+        XCTAssertTrue(moved.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["ops-kanban-card-job-1-todo"].firstMatch.exists)
+        capture(app, "Ops acknowledged board move")
+        app.buttons["ops-company-job-job-1"].tap()
+        XCTAssertTrue(app.staticTexts["Investigating"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Several projects could not export their files."].exists)
     }
     func testOpsCapacityAtLargeTextSize() throws {
         let app = XCUIApplication()

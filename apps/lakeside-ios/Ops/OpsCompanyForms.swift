@@ -187,7 +187,8 @@ struct OpsCompanyAssign: View {
     @State private var refresh = 0
     @State private var pending: [String: JSONValue]?
     @State private var error: String?
-    private var toolFree: Bool { provider == "freerouter" && job["task_type"].string == "analysis" }
+    private var allowsFree: Bool { stage == "investigate" || (stage == "implement" && job["task_type"].string == "analysis") }
+    private var toolFree: Bool { provider == "freerouter" && allowsFree }
     private var efforts: [String] {
         if provider == "auto" { return ["low", "medium", "high"] }
         if toolFree { return [] }
@@ -208,7 +209,7 @@ struct OpsCompanyAssign: View {
                     Picker("Supervising chat", selection: $conversation) { Text("Choose a conversation").tag(""); ForEach(conversations, id: \.["id"].string) { Text($0["title"].string).tag($0["id"].string) } }
                 }.disabled(loading || busy || pending != nil || conflict)
                 Section("Model and time") {
-                    OpsProviderFields(provider: $provider, model: $selectedModel, providers: providers, includeFree: job["task_type"].string == "analysis")
+                    OpsProviderFields(provider: $provider, model: $selectedModel, providers: providers, includeFree: allowsFree)
                     Picker("Effort", selection: $effort) { Text("Match task").tag("auto"); ForEach(efforts, id: \.self) { Text($0.capitalized).tag($0) } }.disabled(efforts.isEmpty)
                     Stepper("Time limit: \(minutes) minutes", value: $minutes, in: 1...120)
                 }.disabled(loading || busy || pending != nil || conflict)
@@ -226,6 +227,7 @@ struct OpsCompanyAssign: View {
                     ToolbarItem(placement: .cancellationAction) { Button(conflict ? "Close and reload" : "Cancel") { dismiss() }.disabled(busy) }
                     ToolbarItem(placement: .confirmationAction) { Button(busy ? "Starting…" : pending == nil ? "Start" : "Retry") { Task { await submit() } }.disabled(loading || busy || conflict || conversation.isEmpty || (!toolFree && workspace.isEmpty) || (stage == "implement" && !job["contract"]["change"].bool)).accessibilityIdentifier("ops-company-assign-start") }
                 }.interactiveDismissDisabled(busy)
+                .onChange(of: stage) { _, _ in if !allowsFree && provider == "freerouter" { provider = "auto"; selectedModel = "" }; effort = "auto" }
                 .onChange(of: provider) { _, _ in effort = "auto" }
                 .onChange(of: selectedModel) { _, _ in effort = "auto" }
                 .task(id: refresh) {
