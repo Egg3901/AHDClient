@@ -46,16 +46,19 @@ struct OpsRouting: View {
                             Text($0.first("label", "id")).tag($0["id"].string)
                         }
                     }.accessibilityIdentifier("ops-routing-provider")
+                    .accessibilityValue(provider == "auto" ? "Auto" : selectedProvider.first("label", "id"))
                     if provider != "auto" {
                         Picker("Model", selection: Binding(get: { model }, set: { model = $0; effort = "auto" })) {
                             Text("Provider default").tag("")
                             ForEach(models, id: \.["id"].string) { Text($0.first("label", "name", "id")).tag($0["id"].string) }
                             if !model.isEmpty && !models.contains(where: { $0["id"].string == model }) { Text("\(model) (unavailable)").tag(model) }
                         }.accessibilityIdentifier("ops-routing-model")
+                        .accessibilityValue(model.isEmpty ? "Provider default" : (models.first { $0["id"].string == model }?.first("label", "name", "id") ?? model))
                     }
                     Picker("Effort", selection: $effort) {
                         ForEach(["auto"] + efforts, id: \.self) { Text($0 == "auto" ? "Match task" : $0.capitalized).tag($0) }
                     }.disabled(efforts.isEmpty).accessibilityIdentifier("ops-routing-effort")
+                    .accessibilityValue(effort == "auto" ? "Match task" : effort.capitalized)
                     Toggle("Allow provider fallback", isOn: $fallback).accessibilityIdentifier("ops-routing-fallback")
                     if provider != "auto" {
                         Text(fallback ? "Ops may use another available provider if this route fails." : "Keep this provider. If unavailable, report the problem instead of switching.").font(.caption).foregroundStyle(.secondary)

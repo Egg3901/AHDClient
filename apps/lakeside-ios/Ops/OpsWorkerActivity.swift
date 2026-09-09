@@ -105,7 +105,6 @@ struct OpsWorkerActivity: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("ops-worker-activity")
         .onAppear {
             visible = true
             if content.isEmpty { content = initialContent }
