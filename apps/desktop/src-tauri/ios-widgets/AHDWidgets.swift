@@ -59,6 +59,24 @@ struct BriefingWidgetView: View {
     return "Your election"
   }
 
+  private var identityURL: URL? {
+    let value = section == "corporation" ? entry.saved?.data.corpNav?.logoUrl : entry.saved?.data.avatarUrl
+    return value.flatMap(URL.init(string:))
+  }
+
+  private var monogram: String {
+    let words = title.split(separator: " ").prefix(2)
+    let letters = words.compactMap(\.first)
+    return letters.isEmpty ? "A" : String(letters).uppercased()
+  }
+
+  private var subtitle: String {
+    if section == "corporation", let ticker = entry.saved?.data.corpNav?.tickerSymbol, !ticker.isEmpty {
+      return "$\(ticker.uppercased())"
+    }
+    return sectionName
+  }
+
   private var rows: [(String, String)] {
     guard let data = entry.saved?.data else { return [] }
     if section == "profile" {
@@ -87,40 +105,66 @@ struct BriefingWidgetView: View {
     return "Your character does not lead a corporation."
   }
 
+  private func identityImage(size: CGFloat) -> some View {
+    AsyncImage(url: identityURL) { phase in
+      if case .success(let image) = phase {
+        image.resizable().scaledToFill()
+      } else {
+        ZStack {
+          LinearGradient(colors: [accent.opacity(0.8), red], startPoint: .topLeading, endPoint: .bottomTrailing)
+          Text(monogram).font(.system(size: size * 0.32, weight: .bold, design: .serif)).foregroundColor(cream)
+        }
+      }
+    }
+    .frame(width: size, height: size)
+    .clipShape(RoundedRectangle(cornerRadius: size * 0.25, style: .continuous))
+    .overlay(RoundedRectangle(cornerRadius: size * 0.25, style: .continuous).stroke(Color.white.opacity(0.12)))
+  }
+
+  private func metricTile(_ row: (String, String)) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Text(row.0.uppercased()).font(.system(size: 7, weight: .semibold)).tracking(0.35)
+        .foregroundColor(cream.opacity(0.48)).lineLimit(1)
+      Text(row.1).font(.system(size: 13, weight: .semibold)).foregroundColor(cream)
+        .monospacedDigit().lineLimit(1).minimumScaleFactor(0.62)
+    }
+    .frame(maxWidth: .infinity, minHeight: 35, alignment: .leading)
+    .padding(.horizontal, 9).padding(.vertical, 7)
+    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.055)))
+  }
+
   private var content: some View {
     ZStack {
       LinearGradient(colors: [navy, Color(red: 0.09, green: 0.08, blue: 0.12)], startPoint: .topLeading, endPoint: .bottomTrailing)
-      Circle().fill(accent.opacity(0.18)).frame(width: 150, height: 150).offset(x: 95, y: -85)
-      VStack(alignment: .leading, spacing: 8) {
-        HStack(spacing: 7) {
-          ZStack {
-            RoundedRectangle(cornerRadius: 6).fill(red)
-            Text("AHD").font(.system(size: 9, weight: .black, design: .serif)).foregroundColor(cream)
-          }.frame(width: 30, height: 24)
-          Text("A HOUSE DIVIDED").font(.system(size: 9, weight: .bold, design: .serif)).tracking(0.7).foregroundColor(cream)
+      VStack(alignment: .leading, spacing: 9) {
+        HStack(spacing: 10) {
+          identityImage(size: family == .systemSmall ? 38 : 44)
+          VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.system(size: 16, weight: .bold, design: .serif)).foregroundColor(cream)
+              .lineLimit(1).minimumScaleFactor(0.7)
+            Text(subtitle.uppercased()).font(.system(size: 8, weight: .bold)).tracking(0.65).foregroundColor(accent)
+          }
           Spacer(minLength: 4)
-          Text(sectionName.uppercased()).font(.system(size: 7, weight: .bold)).tracking(0.5)
-            .foregroundColor(accent).padding(.horizontal, 6).padding(.vertical, 4)
-            .background(Capsule().fill(accent.opacity(0.14)))
+          Text("AHD").font(.system(size: 10, weight: .black, design: .serif)).foregroundColor(cream.opacity(0.72))
         }
-        Rectangle().fill(accent.opacity(0.7)).frame(height: 1)
-        Text(title).font(.system(size: 17, weight: .bold, design: .serif)).foregroundColor(cream)
-          .lineLimit(1).minimumScaleFactor(0.7)
         if rows.isEmpty {
           HStack(alignment: .top, spacing: 7) {
             Image(systemName: "person.crop.circle.badge.exclamationmark").foregroundColor(accent)
             Text(emptyMessage).font(.system(size: 11, weight: .medium)).foregroundColor(cream.opacity(0.72)).fixedSize(horizontal: false, vertical: true)
           }
         } else {
-          ForEach(Array(rows.prefix(family == .systemSmall ? 2 : 4).enumerated()), id: \.offset) { _, row in
-            HStack(spacing: 6) {
-              Text(row.0).foregroundColor(cream.opacity(0.62))
-              Spacer(minLength: 4)
-              Text(row.1).foregroundColor(gold).fontWeight(.semibold).monospacedDigit()
+          if family == .systemSmall {
+            VStack(spacing: 6) {
+              ForEach(Array(rows.prefix(2).enumerated()), id: \.offset) { _, row in
+                metricTile(row)
+              }
             }
-            .font(.system(size: 11)).lineLimit(1).minimumScaleFactor(0.62)
-            .padding(.horizontal, 7).padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.045)))
+          } else {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 7), GridItem(.flexible())], spacing: 7) {
+              ForEach(Array(rows.prefix(4).enumerated()), id: \.offset) { _, row in
+                metricTile(row)
+              }
+            }
           }
         }
         Spacer(minLength: 0)

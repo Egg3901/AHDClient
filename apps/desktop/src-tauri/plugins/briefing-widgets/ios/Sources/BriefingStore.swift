@@ -8,6 +8,7 @@ import CryptoKit
 struct BriefingStatus: Codable {
   var status: String?
   var name: String?
+  var avatarUrl: String?
   var actions: Double?
   var actionCap: Double?
   var funds: Double?
@@ -30,6 +31,8 @@ struct BriefingStatus: Codable {
   struct CorporationStats: Codable {
     var sequentialId: Int
     var name: String
+    var logoUrl: String?
+    var tickerSymbol: String?
     var sharePrice: Double?
     var priceChange1h: Double?
     var liquidCapital: Double?

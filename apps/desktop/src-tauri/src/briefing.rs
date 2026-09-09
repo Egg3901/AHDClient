@@ -14,6 +14,7 @@ const MAX_BODY: u64 = 128 * 1024;
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Profile {
   pub name: String,
+  pub avatar_url: Option<String>,
   pub actions: Option<f64>,
   pub action_cap: Option<f64>,
   pub funds: Option<f64>,
@@ -42,6 +43,8 @@ pub(crate) struct Election {
 pub(crate) struct Corporation {
   pub sequential_id: u64,
   pub name: String,
+  pub logo_url: Option<String>,
+  pub ticker_symbol: Option<String>,
   pub share_price: Option<f64>,
   pub price_change1h: Option<f64>,
   pub liquid_capital: Option<f64>,
@@ -75,6 +78,7 @@ pub(crate) fn parse_status(value: serde_json::Value) -> Result<Briefing, String>
   }
   let mut profile: Profile = serde_json::from_value(value.clone()).map_err(|_| "Invalid briefing response.")?;
   profile.name = profile.name.chars().take(120).collect();
+  profile.avatar_url = bounded_https_url(profile.avatar_url);
   let election = value.get("electionStats").filter(|v| !v.is_null()).map(|v| {
     let election: Election = serde_json::from_value(v.clone()).map_err(|_| "Invalid election response.")?;
     if election.election_id.len() != 24 || !election.election_id.chars().all(|c| c.is_ascii_hexdigit()) {
@@ -85,9 +89,18 @@ pub(crate) fn parse_status(value: serde_json::Value) -> Result<Briefing, String>
   let corporation = value.get("corpNav").filter(|v| !v.is_null()).map(|v| {
     let mut corp: Corporation = serde_json::from_value(v.clone()).map_err(|_| "Invalid corporation response.")?;
     corp.name = corp.name.chars().take(120).collect();
+    corp.logo_url = bounded_https_url(corp.logo_url);
+    corp.ticker_symbol = corp.ticker_symbol.map(|value| value.chars().take(8).collect());
     Ok::<_, &str>(corp)
   }).transpose()?;
   Ok(Briefing { status: "ready".into(), updated_at: now_ms(), profile: Some(profile), election, corporation })
+}
+
+fn bounded_https_url(value: Option<String>) -> Option<String> {
+  let value = value?.trim().to_string();
+  if value.len() > 2048 { return None; }
+  let url = Url::parse(&value).ok()?;
+  (url.scheme() == "https").then_some(value)
 }
 
 struct Cached {
@@ -244,5 +257,23 @@ mod tests {
     assert!(parse_status(json!({"error":"failed"})).is_err());
     assert!(parse_status(json!({"name":"Example","electionStats":{"electionId":"//example.com"}})).is_err());
     assert!(parse_status(json!({"name":"Example","corpNav":{"sequentialId":"../settings","name":"Example"}})).is_err());
+  }
+
+  #[test]
+  fn identity_images_allow_only_bounded_https_urls() {
+    let result = parse_status(json!({
+      "name":"Example",
+      "avatarUrl":"http://example.com/avatar.png",
+      "corpNav":{
+        "sequentialId":7,
+        "name":"Example Corp",
+        "logoUrl":"https://cdn.example.com/logo.png",
+        "tickerSymbol":"EXAMPLE-LONG"
+      }
+    })).unwrap();
+    assert_eq!(result.profile.unwrap().avatar_url, None);
+    let corporation = result.corporation.unwrap();
+    assert_eq!(corporation.logo_url.as_deref(), Some("https://cdn.example.com/logo.png"));
+    assert_eq!(corporation.ticker_symbol.as_deref(), Some("EXAMPLE-"));
   }
 }

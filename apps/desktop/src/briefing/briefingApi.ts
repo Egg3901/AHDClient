@@ -10,6 +10,7 @@ export interface Snapshot {
   updatedAt: number;
   profile: null | {
     name: string;
+    avatarUrl?: string | null;
     actions: number | null;
     actionCap: number | null;
     funds: number | null;
@@ -29,6 +30,8 @@ export interface Snapshot {
   };
   corporation: null | {
     name: string;
+    logoUrl?: string | null;
+    tickerSymbol?: string | null;
     sequentialId: number;
     sharePrice: number | null;
     priceChange1h: number | null;

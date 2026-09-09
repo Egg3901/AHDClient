@@ -163,20 +163,26 @@ object BriefingWidgets {
     if (raw.optString("status") == "no-character") return JSONObject().put("status", "no-character")
     require(raw.has("name") && raw.get("name") is String)
     val safe = JSONObject().put("status", "ready")
-    for (key in listOf("name", "actions", "actionCap", "funds", "personalHomeLiquid", "homeCurrency", "politicalInfluence", "favorability", "isImperial")) {
-      if (raw.has(key)) safe.put(key, raw.get(key))
+    for (key in listOf("name", "avatarUrl", "actions", "actionCap", "funds", "personalHomeLiquid", "homeCurrency", "politicalInfluence", "favorability", "isImperial")) {
+      if (raw.has(key) && (key != "avatarUrl" || safeImageUrl(raw.optString(key)) != null)) safe.put(key, raw.get(key))
     }
     for ((key, fields) in mapOf(
       "electionStats" to listOf("electionId", "myVotePct", "marginPct", "seatsProjected", "totalSeats", "isMultiSeat"),
-      "corpNav" to listOf("sequentialId", "name", "sharePrice", "priceChange1h", "liquidCapital", "liquidCurrencyCode", "marketingStrength")
+      "corpNav" to listOf("sequentialId", "name", "logoUrl", "tickerSymbol", "sharePrice", "priceChange1h", "liquidCapital", "liquidCurrencyCode", "marketingStrength")
     )) {
       val source = raw.optJSONObject(key) ?: continue
       val child = JSONObject()
-      fields.forEach { if (source.has(it)) child.put(it, source.get(it)) }
+      fields.forEach {
+        if (source.has(it) && (it != "logoUrl" || safeImageUrl(source.optString(it)) != null)) child.put(it, source.get(it))
+      }
       safe.put(key, child)
     }
     return safe
   }
+
+  private fun safeImageUrl(value: String): String? = try {
+    value.takeIf { it.length <= 2048 && Uri.parse(it).scheme == "https" }
+  } catch (_: Exception) { null }
 
   fun page(context: Context, section: String): String? {
     val data = read(context)
