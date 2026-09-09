@@ -247,9 +247,9 @@ struct OpsCompanyDetail: View {
     private var progress: some View {
         VStack(alignment: .leading, spacing: 12) {
             heading("Progress")
-            ForEach(Array(detail["events"].array.prefix(5)), id: \.["id"].string) { event in eventRow(event) }
+            ForEach(Array(detail["events"].array.suffix(5).reversed()), id: \.["id"].string) { event in eventRow(event) }
             if detail["events"].array.count > 5 {
-                DisclosureGroup("Earlier updates") { ForEach(Array(detail["events"].array.dropFirst(5)), id: \.["id"].string) { event in eventRow(event) } }.font(.caption)
+                DisclosureGroup("Earlier updates") { ForEach(Array(detail["events"].array.dropLast(5).reversed()), id: \.["id"].string) { event in eventRow(event) } }.font(.caption)
             }
         }
     }
@@ -276,7 +276,7 @@ struct OpsCompanyDetail: View {
         .accessibilityLabel("More work actions").accessibilityIdentifier("ops-company-more")
     }
     @ViewBuilder private var nextStep: some View {
-        if let running = detail["assignments"].array.first(where: { !["completed", "failed", "cancelled"].contains($0["status"].string) && !$0["worker_id"].string.isEmpty }) {
+        if let running = detail["assignments"].array.first(where: { !["completed", "failed", "cancelled", "canceled", "cancellation", "dispatch_failed"].contains($0["status"].string) && !$0["worker_id"].string.isEmpty }) {
             NavigationLink { ScrollView { OpsWorkerActivity(workerID: running["worker_id"].string).padding() }.navigationTitle("Worker activity") } label: { primaryLabel("Open worker") }
         } else if job["status"].string == "awaiting_approval" { Button { action = .approve } label: { primaryLabel("Approve this version") } }
         else if job["status"].string == "approved" { Button { action = ["research", "analysis", "review"].contains(job["task_type"].string) ? .finish : .monitor } label: { primaryLabel(["research", "analysis", "review"].contains(job["task_type"].string) ? "Mark work complete" : "Record deployment") } }
