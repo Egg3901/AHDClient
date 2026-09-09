@@ -13,6 +13,49 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         }
     }
     private static let routing = RoutingState()
+    private final class CompanyState: @unchecked Sendable {
+        let lock = NSLock()
+        var jobs: [[String: Any]] = [["id": "job-1", "title": "Fix export failures", "objective": "Make exports reliable for every project.", "status": "awaiting_verification", "version": 1, "task_type": "bugfix", "artifact": "fixture-commit-abc", "acceptance": ["Empty exports complete successfully"], "contract": ["investigate": true, "draft": true, "change": false, "merge": false, "deploy": false, "communicate": false], "conversation_id": 1]]
+        var checks: [[String: Any]] = []
+        var requests: Set<String> = []
+        func route(_ path: String, method: String, body: [String: Any]) -> (Any, Int) {
+            lock.lock(); defer { lock.unlock() }
+            let project: [String: Any] = ["id": "project-1", "kind": "product", "title": "Studio hub", "summary": "Studio tools", "source": "UI fixture"]
+            if path == "/api/ops/company" { return (["missions": jobs, "entities": [project], "links": [], "counts": ["active": jobs.count, "needsOwner": 1, "monitoring": 0, "verified": 0], "automation": ["enabled": false, "description": "External sources are not connected."]], 200) }
+            if path == "/api/ops/company/sync" { return (["imported": 1], 200) }
+            if path == "/api/ops/company/signals" {
+                guard let key = body["requestId"] as? String, let title = body["title"] as? String else { return (["error": "Missing work request"], 400) }
+                if requests.contains(key) { return (["mission": jobs.last ?? [:], "duplicate": true], 200) }
+                var job = jobs[0]; job["id"] = "job-\(jobs.count + 1)"; job["title"] = title; job["objective"] = body["objective"]; job["acceptance"] = body["acceptance"]; job["status"] = "detected"; job["version"] = 1
+                jobs.append(job); requests.insert(key)
+                return (["mission": job, "duplicate": false], 200)
+            }
+            let pieces = path.split(separator: "/").map(String.init)
+            guard pieces.count >= 5, let index = jobs.firstIndex(where: { $0["id"] as? String == pieces[4] }) else { return (["error": "Work not found"], 404) }
+            if method == "GET" {
+                return (["mission": jobs[index], "events": [["id": "event-1", "type": "detected", "detail": "Export failures reported by support.", "created_at": "2026-09-09T12:00:00Z"]], "evidence": checks, "assignments": [], "signal": ["summary": "Several projects could not export their files.", "source": "support", "observed_at": "2026-09-09T12:00:00Z"]], 200)
+            }
+            guard pieces.count == 6, body["version"] as? Int == jobs[index]["version"] as? Int else { return (["error": "This work changed. Reload before saving."], 409) }
+            switch pieces[5] {
+            case "evidence":
+                var check = body; check["id"] = "check-\(checks.count + 1)"; checks.append(check)
+            case "verify": checks.append(["id": "github-check-1", "kind": "test", "summary": "GitHub checks passed for the recorded version.", "artifact": body["artifact"] ?? "", "passed": true, "source": "github"])
+            case "contract": jobs[index]["contract"] = body["contract"]
+            case "artifact": jobs[index]["artifact"] = body["artifact"]
+            case "assign": jobs[index]["status"] = "investigating"
+            case "approve": jobs[index]["status"] = "approved"
+            case "monitor": jobs[index]["status"] = "monitoring"
+            case "finish": jobs[index]["status"] = "verified"; jobs[index]["completion_mode"] = "reviewed"
+            case "reopen": jobs[index]["status"] = "investigating"
+            case "cancel": jobs[index]["status"] = "cancelled"
+            default: return (["error": "Unknown action"], 404)
+            }
+            jobs[index]["version"] = (jobs[index]["version"] as? Int ?? 0) + 1
+            return (["mission": jobs[index]], 200)
+        }
+    }
+    private static let company = CompanyState()
+
     private func bodyObject() -> [String: Any]? {
         var data = request.httpBody ?? Data()
         if data.isEmpty, let stream = request.httpBodyStream {
@@ -30,6 +73,11 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         guard let url = request.url else { return }
+        if url.path.hasPrefix("/api/ops/company") {
+            let (value, status) = Self.company.route(url.path, method: request.httpMethod ?? "GET", body: bodyObject() ?? [:])
+            deliver((try? JSONSerialization.data(withJSONObject: value)) ?? Data(), url: url, status: status, type: "application/json")
+            return
+        }
         let isAsk = url.host?.hasPrefix("ask.") == true
         var value: Any = ["error": "No test fixture for this endpoint"]
         var status = 200

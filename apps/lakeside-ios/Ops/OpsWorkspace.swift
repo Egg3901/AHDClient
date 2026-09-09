@@ -222,7 +222,7 @@ struct OpsWorkspace: View {
             NavigationStack { OpsTeam(model: model) }.tabItem { Label("Team", systemImage: "person.2") }.tag(1)
             NavigationStack { OpsCapacity(model: model) }.tabItem { Label("Usage", systemImage: "chart.pie.fill") }.tag(2)
             NavigationStack { OpsFiles() }.tabItem { Label("Files", systemImage: "folder") }.tag(3)
-            NavigationStack { OpsHubTools() }.tabItem { Label("Hub", systemImage: "square.grid.2x2") }.tag(4)
+            NavigationStack { OpsHubTools(model: model) }.tabItem { Label("Hub", systemImage: "square.grid.2x2") }.tag(4)
         }
         .environmentObject(model)
         .tint(OpsTheme.sky)
@@ -584,8 +584,10 @@ struct OpsWorkerDetail: View {
 }
 
 struct OpsHubTools: View {
+    @ObservedObject var model: OpsWorkspaceModel
     var body: some View {
         List {
+            Section { NavigationLink { OpsCompany(model: model) } label: { Label("Company", systemImage: "building.2") }.accessibilityIdentifier("ops-company-open") }
             Section("Remember and plan") {
                 NavigationLink { OpsMemoryView() } label: { Label("Assistant memory", systemImage: "text.book.closed") }
                 NavigationLink { OpsSchedules() } label: { Label("Schedules", systemImage: "calendar.badge.clock") }

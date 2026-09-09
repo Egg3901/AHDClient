@@ -185,6 +185,46 @@ final class LaunchTests: XCTestCase {
         }
         XCTAssertTrue(element.isHittable)
     }
+    func testOpsCompanyCreatesWorkWithCompletionChecks() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
+        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops company") }
+        app.tabBars.buttons["Hub"].tap(); app.buttons["ops-company-open"].tap()
+        XCTAssertTrue(app.buttons["ops-company-create"].waitForExistence(timeout: 10))
+        capture(app, "Ops company overview")
+        app.buttons["ops-company-create"].tap()
+        fillCompanyField("ops-company-title", with: "Check the release notes", in: app)
+        fillCompanyField("ops-company-objective", with: "Prepare accurate release notes", in: app)
+        fillCompanyField("ops-company-why", with: "The release needs a clear explanation", in: app)
+        fillCompanyField("ops-company-criteria", with: "Every change is linked to a check", in: app)
+        app.buttons["ops-company-create-save"].tap()
+        XCTAssertTrue(app.staticTexts["Check the release notes"].waitForExistence(timeout: 10))
+        app.staticTexts["Check the release notes"].tap()
+        XCTAssertTrue(app.staticTexts["Every change is linked to a check"].waitForExistence(timeout: 10))
+        capture(app, "Ops work with completion checks")
+    }
+    func testOpsCompanyRecordsAnOwnerCheck() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
+        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops company checks") }
+        app.tabBars.buttons["Hub"].tap(); app.buttons["ops-company-open"].tap()
+        let job = app.buttons["ops-company-job-job-1"]
+        XCTAssertTrue(job.waitForExistence(timeout: 10)); job.tap()
+        XCTAssertTrue(app.staticTexts["Several projects could not export their files."].waitForExistence(timeout: 10))
+        let record = app.buttons["ops-company-record-check"]
+        scrollTo(record, in: app); record.tap()
+        fillCompanyField("ops-company-check-summary", with: "Checked an empty export and confirmed the download completed", in: app)
+        XCTAssertTrue(app.staticTexts["Recorded by you. This is your assessment, not an automated test result."].exists)
+        app.buttons["ops-company-action-save"].tap()
+        XCTAssertTrue(record.waitForExistence(timeout: 10))
+        let test = app.buttons["Test"]
+        scrollTo(test, in: app); test.tap()
+        XCTAssertTrue(app.staticTexts["Source: Recorded by you"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Checked an empty export and confirmed the download completed"].exists)
+        capture(app, "Ops owner recorded check")
+    }
+    private func fillCompanyField(_ identifier: String, with text: String, in app: XCUIApplication) {
+        let field = app.textFields[identifier].exists ? app.textFields[identifier] : app.textViews[identifier]
+        XCTAssertTrue(field.waitForExistence(timeout: 5)); scrollTo(field, in: app); field.tap(); field.typeText(text)
+    }
     func testOpsCapacityAtLargeTextSize() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--uitest-fixtures", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
