@@ -37,7 +37,7 @@ struct BriefingWidgetView: View {
   }
 
   private var sectionName: String {
-    section == "profile" ? "Profile" : section == "election" ? "Election" : "Corporation"
+    section == "profile" ? "Profile" : section == "election" ? "Election" : section == "stocks" ? "Stocks" : "Corporation"
   }
 
   private func number(_ value: Double?, suffix: String = "") -> String {
@@ -55,12 +55,16 @@ struct BriefingWidgetView: View {
 
   private var title: String {
     if section == "profile" { return entry.saved?.data.name ?? "Profile" }
+    if section == "stocks", let watched = entry.saved?.data.marketWatch?.first {
+      return watched.tickerSymbol.map { "$\($0)" } ?? watched.name
+    }
     if section == "corporation" { return entry.saved?.data.corpNav?.name ?? "Corporation" }
     return "Your election"
   }
 
   private var identityURL: URL? {
-    let value = section == "corporation" ? entry.saved?.data.corpNav?.logoUrl : entry.saved?.data.avatarUrl
+    let value = section == "stocks" ? entry.saved?.data.marketWatch?.first?.logoUrl
+      : section == "corporation" ? entry.saved?.data.corpNav?.logoUrl : entry.saved?.data.avatarUrl
     return value.flatMap(URL.init(string:))
   }
 
@@ -71,6 +75,7 @@ struct BriefingWidgetView: View {
   }
 
   private var subtitle: String {
+    if section == "stocks", let watched = entry.saved?.data.marketWatch?.first { return watched.name }
     if section == "corporation", let ticker = entry.saved?.data.corpNav?.tickerSymbol, !ticker.isEmpty {
       return "$\(ticker.uppercased())"
     }
@@ -82,7 +87,8 @@ struct BriefingWidgetView: View {
     if section == "profile" {
       let currency = data.homeCurrency.map { " \($0)" } ?? ""
       if data.isImperial == true { return [("Personal cash", number(data.personalHomeLiquid, suffix: currency))] }
-      return [("Actions", number(data.actions)), ("Campaign funds", number(data.funds, suffix: currency)),
+      let actions = data.actionCap.map { "\(number(data.actions)) / \(number($0))" } ?? number(data.actions)
+      return [("Actions", actions), ("Campaign funds", number(data.funds, suffix: currency)),
         ("Cash", number(data.personalHomeLiquid, suffix: currency)), ("Favorability", number(data.favorability, suffix: "%"))]
     }
     if section == "election", let election = data.electionStats {
@@ -90,10 +96,14 @@ struct BriefingWidgetView: View {
       if election.isMultiSeat == true { result.append(("Projected seats", number(election.seatsProjected))) }
       return result
     }
+    if section == "stocks", let watched = data.marketWatch?.first {
+      let currency = watched.liquidCurrencyCode.map { " \($0)" } ?? ""
+      return [("Quote", number(watched.sharePrice, suffix: currency)), ("Owned", number(watched.ownedShares))]
+    }
     if section == "corporation", let corp = data.corpNav {
       let currency = corp.liquidCurrencyCode.map { " \($0)" } ?? ""
       return [("Share price", number(corp.sharePrice, suffix: currency)), ("Change", number(corp.priceChange1h, suffix: "%")),
-        ("Capital", number(corp.liquidCapital, suffix: currency))]
+        ("Capital", number(corp.liquidCapital, suffix: currency)), ("Marketing", number(corp.marketingStrength))]
     }
     return []
   }
@@ -210,8 +220,15 @@ struct AHDCorporationWidget: Widget {
       .supportedFamilies([.systemSmall, .systemMedium])
   }
 }
+struct AHDStocksWidget: Widget {
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: "AHDStocks", provider: BriefingProvider()) { BriefingWidgetView(entry: $0, section: "stocks") }
+      .configurationDisplayName("AHD Stocks").description("A market-style quote for your corporation.")
+      .supportedFamilies([.systemSmall, .systemMedium])
+  }
+}
 
 @main
 struct AHDWidgets: WidgetBundle {
-  var body: some Widget { AHDProfileWidget(); AHDElectionWidget(); AHDCorporationWidget() }
+  var body: some Widget { AHDProfileWidget(); AHDElectionWidget(); AHDCorporationWidget(); AHDStocksWidget() }
 }

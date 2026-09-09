@@ -49,14 +49,14 @@ describe("briefing", () => {
     expect(briefing.open).toHaveBeenCalledWith("election");
   });
 
-  it("offers keyboard tab navigation with focus and empty corporation state", async () => {
+  it("offers keyboard tab navigation with focus and an empty turn briefing", async () => {
     render(<Briefing />);
     await screen.findByText("Example character");
     const profileTab = screen.getByRole("tab", { name: "Profile" });
     profileTab.focus();
     await userEvent.keyboard("{End}");
-    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Corporation" }));
-    expect(screen.getByText("Your active character does not lead a corporation.")).toBeDefined();
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Turns" }));
+    expect(screen.getByText("No material player changes were recorded in the latest turn.")).toBeDefined();
   });
 
   it("retains timestamped stats on network failure and clears them on logout", async () => {

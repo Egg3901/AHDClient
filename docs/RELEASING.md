@@ -214,7 +214,7 @@ that group and the shared Keychain access group
 signing can create profiles after the capabilities exist in the team.
 
 Unsigned simulator builds validate the extension compile and embedding.
-Device validation must check adding all three widgets, stacking equal-size
+Device validation must check adding all four widgets, stacking equal-size
 widgets, sign-in and sign-out, cold-start links, refresh after a turn, and
 stale/offline states. A signed device build is required to validate the shared
 App Group and Keychain entitlements; an unsigned compile cannot prove those.

@@ -9,6 +9,24 @@ function Stats({ items }: { items: [string, string][] }): JSX.Element {
   )}</dl>;
 }
 
+function Identity({ image, title, context }: { image?: string | null | undefined; title: string; context: string }): JSX.Element {
+  const initials = title.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "A";
+  return <div className="briefing-identity">
+    {image ? <img src={image} alt="" referrerPolicy="no-referrer" /> : <span aria-hidden="true">{initials}</span>}
+    <div><h2>{title}</h2><p>{context}</p></div>
+  </div>;
+}
+
+function Sparkline({ values, label }: { values: number[]; label: string }): JSX.Element | null {
+  const clean = values.filter(Number.isFinite).slice(-12);
+  if (clean.length < 2) return null;
+  const low = Math.min(...clean), high = Math.max(...clean), spread = Math.max(high - low, 0.0001);
+  const points = clean.map((value, index) => `${(index / (clean.length - 1)) * 100},${36 - ((value - low) / spread) * 32}`).join(" ");
+  return <figure className="briefing-chart"><svg viewBox="0 0 100 40" role="img" aria-label={label} preserveAspectRatio="none">
+    <polyline points={points} fill="none" vectorEffect="non-scaling-stroke" />
+  </svg></figure>;
+}
+
 export function Briefing({ floating = false, mobile = false, onBack }: {
   floating?: boolean; mobile?: boolean; onBack?: () => void;
 }): JSX.Element {
@@ -91,7 +109,7 @@ export function Briefing({ floating = false, mobile = false, onBack }: {
     <div className="briefing-tabs" role="tablist" aria-label="Briefing cards" onKeyDown={(event) => {
       const next = event.key === "ArrowRight" ? nextSection(section, 1)
         : event.key === "ArrowLeft" ? nextSection(section, -1)
-          : event.key === "Home" ? "profile" : event.key === "End" ? "corporation" : null;
+          : event.key === "Home" ? "profile" : event.key === "End" ? "turns" : null;
       if (next) { event.preventDefault(); select(next, true); }
     }}>
       {SECTIONS.map((s) => <button key={s} ref={(el) => { tabs.current[s] = el; }}
@@ -118,7 +136,7 @@ export function Briefing({ floating = false, mobile = false, onBack }: {
           : snapshot.status === "no-character" ? <div><h2>No active character</h2><p>Open your profile to choose or create a character.</p></div>
             : expired ? <p>Your saved briefing has expired. Refresh to see current stats.</p>
               : section === "profile" && profile ? <>
-                <h2>{profile.name}</h2>
+                <Identity image={profile.avatarUrl} title={profile.name} context="Player profile" />
                 <Stats items={[
                   ...(profile.isImperial ? [] : [
                     ["Actions", `${number(profile.actions, 0)}${profile.actionCap == null ? "" : ` / ${number(profile.actionCap, 0)}`}`],
@@ -131,20 +149,31 @@ export function Briefing({ floating = false, mobile = false, onBack }: {
                   ] as [string, string][]),
                 ]} />
               </> : section === "election" ? <>
-                <h2>Your election</h2>
-                {election ? <Stats items={[
+                {election ? <><Identity title={election.electionYear ? `${election.electionYear} election` : "Your election"}
+                  context={[election.state, election.countryId, election.status].filter(Boolean).join(" · ") || "Live race"} /><Stats items={[
                   ["Vote share", percent(election.myVotePct)],
                   ["Margin", percent(election.marginPct, true, " pp")],
                   ...(election.isMultiSeat ? [["Projected seats", `${number(election.seatsProjected, 0)} / ${number(election.totalSeats, 0)}`]] as [string, string][] : []),
-                ]} /> : <p>No election tally is available for your character yet.</p>}
+                ]} /><Sparkline values={(election.history ?? []).map((point) => point.pct)} label="Vote share over recent turns" /></> : <><h2>Your election</h2><p>No election tally is available for your character yet.</p></>}
               </> : section === "corporation" ? <>
-                <h2>{corp?.name ?? "Your corporation"}</h2>
-                {corp ? <Stats items={[
+                {corp ? <><Identity image={corp.logoUrl} title={corp.name} context={corp.tickerSymbol ? `$${corp.tickerSymbol}` : "Corporation"} /><Stats items={[
                   ["Share price", money(corp.sharePrice, corp.liquidCurrencyCode)],
                   ["Price change", percent(corp.priceChange1h, true)],
                   ["Liquid capital", money(corp.liquidCapital, corp.liquidCurrencyCode)],
                   ["Marketing", number(corp.marketingStrength)],
-                ]} /> : <p>Your active character does not lead a corporation.</p>}
+                ]} /></> : <><h2>Your corporation</h2><p>Your active character does not lead a corporation.</p></>}
+              </> : section === "stocks" ? <>
+                <h2>Market watch</h2>
+                {snapshot.marketWatch?.length ? <ul className="briefing-watchlist">{snapshot.marketWatch.map((item) =>
+                  <li key={item.sequentialId}><Identity image={item.logoUrl} title={item.tickerSymbol ? `$${item.tickerSymbol}` : item.name} context={item.name} />
+                    <strong>{money(item.sharePrice, item.liquidCurrencyCode)}</strong><span>{number(item.ownedShares, 0)} shares</span></li>
+                )}</ul> : <p>Buy shares to populate your private market watch.</p>}
+              </> : section === "turns" ? <>
+                <h2>Latest turn</h2>
+                {snapshot.turnBriefing?.length ? <ul className="briefing-events">{snapshot.turnBriefing.map((item) =>
+                  <li key={`${item.category}-${item.label}`}><span>{item.category}</span><strong>{item.label}</strong>
+                    <em className={item.delta >= 0 ? "briefing-gain" : "briefing-loss"}>{item.delta >= 0 ? "+" : ""}{number(item.delta)} {item.unit}</em></li>
+                )}</ul> : <p>No material player changes were recorded in the latest turn.</p>}
               </> : null}
     </section>
     <div className="briefing-pagination" aria-label="Change card">
