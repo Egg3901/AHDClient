@@ -1,6 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$Executable, [string]$OutputDirectory = 'smoke')
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory -Force $OutputDirectory | Out-Null
+$env:OPS_SMOKE_LOG_DIR = (Resolve-Path $OutputDirectory).Path
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
@@ -36,6 +37,13 @@ try {
         $bitmap.Save((Join-Path (Resolve-Path $OutputDirectory) "native-work-$theme.png"), [System.Drawing.Imaging.ImageFormat]::Png)
     } finally { $graphics.Dispose(); $bitmap.Dispose() }
     @{ launched = $true; windowTitle = $clientProcess.MainWindowTitle; width = $bounds.Width; height = $bounds.Height } | ConvertTo-Json | Set-Content (Join-Path $OutputDirectory "launch-$theme.json")
+} catch {
+    Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = [DateTime]::Now.AddMinutes(-2) } -ErrorAction SilentlyContinue |
+        Where-Object { $_.Message -match 'Ops.Client' } |
+        Select-Object TimeCreated, Id, Message |
+        Format-List | Out-String | Set-Content (Join-Path $OutputDirectory "application-errors-$theme.txt")
+    if (Test-Path (Join-Path $OutputDirectory 'startup-errors.txt')) { Get-Content (Join-Path $OutputDirectory 'startup-errors.txt') }
+    throw
 } finally {
     if ($clientProcess -and !$clientProcess.HasExited) { Stop-Process -Id $clientProcess.Id -Force }
 }

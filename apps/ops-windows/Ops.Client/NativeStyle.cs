@@ -1,22 +1,28 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Markup;
 
 namespace Ops.Client;
 
 internal static class NativeStyle
 {
-    const string Namespace = "xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"";
-
+    // Compiled styles retain ThemeResource scope and update with system theme changes.
+    // XamlReader fragments have no application resource scope.
     public static Border Surface(string resource = "OpsCardBrush", int radius = 12, int padding = 16, bool stroke = true)
-        => (Border)XamlReader.Load($"<Border {Namespace} Background=\"{{ThemeResource {resource}}}\" BorderBrush=\"{{ThemeResource OpsBorderBrush}}\" BorderThickness=\"{(stroke ? 1 : 0)}\" CornerRadius=\"{radius}\" Padding=\"{padding}\" />");
+        => new()
+        {
+            Style = (Style)Application.Current.Resources[resource + "SurfaceStyle"],
+            BorderThickness = new Thickness(stroke ? 1 : 0),
+            CornerRadius = new CornerRadius(radius),
+            Padding = new Thickness(padding)
+        };
 
     public static TextBlock Label(string text, int size = 13, string resource = "OpsMutedBrush")
-    {
-        var block = (TextBlock)XamlReader.Load($"<TextBlock {Namespace} Foreground=\"{{ThemeResource {resource}}}\" TextWrapping=\"Wrap\" FontSize=\"{size}\" />");
-        block.Text = text;
-        return block;
-    }
+        => new()
+        {
+            Style = (Style)Application.Current.Resources[resource + "TextStyle"],
+            Text = text,
+            FontSize = size
+        };
 
     public static Border Chip(string text, string tone = "Accent")
     {

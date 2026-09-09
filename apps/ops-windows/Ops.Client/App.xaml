@@ -57,6 +57,126 @@
           <SolidColorBrush x:Key="OpsPurpleSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
+      <Style x:Key="OpsCanvasBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsCanvasBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsCanvasBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsCanvasBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsSidebarBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsSidebarBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsSidebarBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsSidebarBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsCardBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsCardBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsCardBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsCardBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsLaneBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsLaneBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsLaneBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsLaneBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsBorderBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsBorderBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsBorderBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsBorderBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsTextBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsTextBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsTextBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsTextBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsMutedBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsMutedBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsMutedBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsMutedBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsAccentBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsAccentBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsAccentBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsAccentBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsAccentSurfaceBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsAccentSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsAccentSurfaceBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsAccentSurfaceBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsReviewBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsReviewBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsReviewBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsReviewBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsReviewSurfaceBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsReviewSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsReviewSurfaceBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsReviewSurfaceBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsBlueBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsBlueBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsBlueBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsBlueBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsBlueSurfaceBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsBlueSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsBlueSurfaceBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsBlueSurfaceBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsPurpleBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsPurpleBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsPurpleBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsPurpleBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
+      <Style x:Key="OpsPurpleSurfaceBrushSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource OpsPurpleSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource OpsBorderBrush}" />
+      </Style>
+      <Style x:Key="OpsPurpleSurfaceBrushTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource OpsPurpleSurfaceBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style>
       <Style TargetType="Button">
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Padding" Value="14,9" />

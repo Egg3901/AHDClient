@@ -18,6 +18,8 @@ public sealed partial class MainWindow : Window
     bool smokeMode;
     string renderedFingerprint="";
     string boardListFingerprint="";
+    JsonObject? draggingCard;
+    string draggingBoardId="";
     readonly StackPanel content = new() { Spacing=18 };
     readonly Store store;
     readonly Microsoft.UI.Dispatching.DispatcherQueueTimer timer;
@@ -226,12 +228,46 @@ public sealed partial class MainWindow : Window
             var lane=new StackPanel{Width=240,Spacing=14};var cards=snapshot["cards"]!.AsArray().OfType<JsonObject>().Where(c=>Wire.Id(c["columnId"])==Wire.Id(column["id"])).ToList();
             var header=new Grid{Margin=new Thickness(4,0,4,0)};header.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});header.ColumnDefinitions.Add(new(){Width=GridLength.Auto});
             var title=Text(column["title"]!.ToString(),14);title.FontWeight=Microsoft.UI.Text.FontWeights.SemiBold;header.Children.Add(title);var count=NativeStyle.Chip(cards.Count.ToString(),column["category"]?.ToString()=="review"?"Review":"Blue");Grid.SetColumn(count,1);header.Children.Add(count);lane.Children.Add(header);
-            var list=new ListView{MaxHeight=360,MinHeight=260,SelectionMode=ListViewSelectionMode.Single,Padding=new Thickness(0),IsItemClickEnabled=false};AutomationProperties.SetName(list,column["title"]!.ToString());
+            var list=new ListView{MaxHeight=360,MinHeight=260,SelectionMode=ListViewSelectionMode.Single,Padding=new Thickness(0),IsItemClickEnabled=false,CanDragItems=true,AllowDrop=true};AutomationProperties.SetName(list,column["title"]!.ToString());
             foreach(var card in cards)
             {
                 var pending=store.Pending().Any(p=>Wire.Id(p.Body["cardId"])==Wire.Id(card["id"]));
                 list.Items.Add(new ListViewItem{Content=CardTile(card,pending),Tag=card,Padding=new Thickness(0),Margin=new Thickness(0,0,0,10),HorizontalContentAlignment=HorizontalAlignment.Stretch});
             }
+            list.DragItemsStarting+=(_,args)=>
+            {
+                draggingCard=(args.Items.OfType<ListViewItem>().FirstOrDefault()?.Tag as JsonObject)?.DeepClone().AsObject();draggingBoardId=boardId;
+                if(draggingCard is null){args.Cancel=true;return;}
+                args.Data.SetText(Wire.Id(draggingCard["id"]));args.Data.RequestedOperation=Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
+            };
+            list.DragOver+=(_,args)=>
+            {
+                if(draggingCard is null||draggingBoardId!=boardId||!args.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))return;
+                args.AcceptedOperation=Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;args.DragUIOverride.Caption="Move to "+column["title"];args.DragUIOverride.IsCaptionVisible=true;args.Handled=true;
+            };
+            list.Drop+=async(_,args)=>
+            {
+                var dragged=draggingCard;if(dragged is null||draggingBoardId!=boardId||!args.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))return;
+                args.Handled=true;var point=args.GetPosition(list);var deferral=args.GetDeferral();
+                try
+                {
+                    string? before=null;
+                    foreach(var item in list.Items.OfType<ListViewItem>())
+                    {
+                        if(item.Tag is not JsonObject candidate||Wire.Id(candidate["id"])==Wire.Id(dragged["id"])||!item.IsLoaded)continue;
+                        var top=item.TransformToVisual(list).TransformPoint(new Windows.Foundation.Point(0,0)).Y;
+                        if(point.Y<top+item.ActualHeight/2){before=Wire.Id(candidate["id"]);break;}
+                    }
+                    await Guard(async()=>
+                    {
+                        if(await args.DataView.GetTextAsync()!=Wire.Id(dragged["id"]))return;
+                        if(smokeMode){status.Text="Preview: move to "+column["title"]+". Connected work uses the same version-checked move command.";return;}
+                        await Queue("card.move",new(){["columnId"]=column["id"]!.DeepClone(),["beforeId"]=before},dragged);
+                    });
+                }
+                finally{draggingCard=null;deferral.Complete();}
+            };
+            list.DragItemsCompleted+=(_,_)=>draggingCard=null;
             list.SelectionChanged+=async(_,_)=>{if(list.SelectedItem is ListViewItem{Tag:JsonObject card})await Guard(()=>ShowCard(card));};lane.Children.Add(list);
             if(cards.Count==0)lane.Children.Add(NativeStyle.Label("Room for the next step",12));
             var surface=NativeStyle.Surface("OpsLaneBrush",14,12,false);surface.VerticalAlignment=VerticalAlignment.Top;surface.Child=lane;lanes.Children.Add(surface);
