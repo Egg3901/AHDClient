@@ -16,7 +16,7 @@ struct OpsBoardColumn: Identifiable, Sendable {
     }
     static let defaults: [OpsBoardColumn] = [
         .init(id: "todo", title: "To do"), .init(id: "doing", title: "In progress"),
-        .init(id: "review", title: "Needs review"), .init(id: "ready", title: "Ready to ship"),
+        .init(id: "review", title: "Needs review"), .init(id: "ready", title: "Approved"),
         .init(id: "watching", title: "Watching"), .init(id: "done", title: "Done")
     ]
 }
@@ -29,7 +29,8 @@ func opsBoardColumn(_ job: JSONValue) -> String {
     case "awaiting_verification", "awaiting_approval", "blocked": return "review"
     case "approved": return "ready"
     case "monitoring": return "watching"
-    case "verified", "cancelled": return "done"
+    case "verified": return "done"
+    case "cancelled": return ""
     default: return "todo"
     }
 }
@@ -49,6 +50,7 @@ struct OpsKanban: View {
     let onMoved: (JSONValue) async -> Void
     let onReload: () async -> Void
     @EnvironmentObject private var session: AppSession
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var moving = false
     @State private var error: String?
     @State private var destination: String?
@@ -93,7 +95,10 @@ struct OpsKanban: View {
                         }.scrollTargetLayout().padding(.horizontal, 16)
                     }.scrollTargetBehavior(.viewAligned).scrollIndicators(.hidden)
                         .onChange(of: destination) { _, target in
-                            if let target { withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(target, anchor: .leading) } }
+                            if let target {
+                                if reduceMotion { proxy.scrollTo(target, anchor: .leading) }
+                                else { withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(target, anchor: .leading) } }
+                            }
                         }
                 }
             }.frame(height: 490)
