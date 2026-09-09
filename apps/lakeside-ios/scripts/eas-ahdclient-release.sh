@@ -19,6 +19,9 @@ for variable in APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_CONTENT APPLE_DEVEL
   fi
 done
 
+# Tauri parses CI as a boolean. EAS supplies CI=1 by default.
+export CI=true
+
 cd "$repo_root"
 if ! command -v rustup >/dev/null 2>&1; then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
