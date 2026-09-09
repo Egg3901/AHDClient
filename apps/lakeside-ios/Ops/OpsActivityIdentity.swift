@@ -70,8 +70,8 @@ struct OpsActivityBadge: View {
     var compact = false
     var body: some View {
         HStack(spacing: compact ? 6 : 9) {
-            OpsActivityMark(state: state, size: compact ? 17 : 26)
-            Text(label).font(compact ? .caption2.weight(.medium) : .caption.weight(.medium)).lineLimit(2)
+            OpsActivityMark(state: state, size: compact ? 17 : 36)
+            Text(label).font(compact ? .caption2.weight(.medium) : .callout.weight(.medium)).lineLimit(2)
         }.foregroundStyle(["running", "streaming", "executing"].contains(state) ? OpsTheme.sky : Color.secondary)
     }
 }
@@ -79,12 +79,12 @@ struct OpsActivityBadge: View {
 struct OpsLiveActivitySheet: View {
     @ObservedObject var model: OpsWorkspaceModel
     @Environment(\.dismiss) private var dismiss
-    private var running: Bool { !model.streamingID.isEmpty && model.connected }
+    private var running: Bool { model.replyIsLive }
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    OpsActivityBadge(state: running ? "running" : "idle", label: model.streamingID.isEmpty ? "Reply finished" : model.connected ? "Ops is working" : "Reconnecting")
+                    OpsActivityBadge(state: running ? "running" : "idle", label: model.streamingID.isEmpty ? "Reply finished" : running ? "Ops is working" : "Reconnecting")
                     if !model.activity.isEmpty { Text(model.activity).font(.callout).foregroundStyle(.secondary) }
                     if model.liveActions.isEmpty { Text("No tool activity reported for this reply yet.").font(.callout).foregroundStyle(.secondary) }
                     OpsActivity(actions: model.liveActions, startsExpanded: true, active: running)

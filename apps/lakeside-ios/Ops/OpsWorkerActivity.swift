@@ -8,6 +8,7 @@ struct OpsWorkerActivity: View {
     var subagentID: String? = nil
 
     @EnvironmentObject private var session: AppSession
+    @EnvironmentObject private var workspace: OpsWorkspaceModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var open = false
     @State private var visible = false
@@ -74,7 +75,7 @@ struct OpsWorkerActivity: View {
                     Text(emptyMessage).font(.caption).foregroundStyle(.secondary)
                 }
                 ForEach(visibleItems) { item in
-                    WorkerActivityRow(item: item, expanded: expansionBinding(item.id), live: !saved && !stale)
+                    WorkerActivityRow(item: item, expanded: expansionBinding(item.id), live: !saved && !stale && workspace.connected)
                         .accessibilityIdentifier("ops-worker-activity-entry-\(item.id)")
                 }
                 if entries.isEmpty && !content.isEmpty {
@@ -216,6 +217,7 @@ struct OpsWorkerActivity: View {
                 if Task.isCancelled { return }
                 if let url = error as? URLError, url.code == .cancelled { return }
                 self.error = error.localizedDescription
+                stale = true
                 if saved { return }
                 if isTransient(error) {
                     failures += 1

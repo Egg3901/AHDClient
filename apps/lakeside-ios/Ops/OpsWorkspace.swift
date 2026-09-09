@@ -12,6 +12,8 @@ import LakesideCore
     @Published var selectedTab = 0
     @Published var fileQuestion = ""
     @Published var connected = false
+    @Published var replyConnected = false
+    var replyIsLive: Bool { connected && replyConnected && !streamingID.isEmpty && !activity.lowercased().hasPrefix("reconnecting") }
     @Published var error: String?
     @Published var sending = false
     @Published var liveText = ""
@@ -28,7 +30,7 @@ import LakesideCore
     private var pendingSubmission: (payload: JSONValue, id: String)?
 
     func connect(_ session: AppSession) async {
-        defer { connected = false; replyTask?.cancel(); streamingID = ""; flushTask?.cancel(); flushTask = nil }
+        defer { connected = false; replyConnected = false; replyTask?.cancel(); streamingID = ""; flushTask?.cancel(); flushTask = nil }
         var delay = 1.0
         while !Task.isCancelled {
             do {
@@ -77,7 +79,7 @@ import LakesideCore
     }
     func select(_ id: String, _ session: AppSession) async {
         replyTask?.cancel(); flushTask?.cancel(); flushTask = nil; streamingID = ""; liveText = ""; pendingText = ""
-        conversation = id; turns = []; routing = .null
+        conversation = id; turns = []; routing = .null; replyConnected = false
         do { try await loadTurns(session) } catch { self.error = error.localizedDescription }
     }
     func older(_ session: AppSession) async {
@@ -120,7 +122,7 @@ import LakesideCore
     private func attach(_ id: String, _ session: AppSession) {
         guard streamingID != id else { return }
         replyTask?.cancel(); flushTask?.cancel(); flushTask = nil
-        streamingID = id; liveActions = []; pendingText = ""; liveText = ""; activity = "Working"
+        streamingID = id; replyConnected = false; liveActions = []; pendingText = ""; liveText = ""; activity = "Working"
         replyTask = Task {
             var delay = 1.0
             while !Task.isCancelled, self.streamingID == id {
@@ -130,6 +132,8 @@ import LakesideCore
                 try await session.events("/api/chat/stream/\(id)") { event in
                     guard !Task.isCancelled, self.streamingID == id else { return }
                     let payload = try JSONValue.parse(event.data)
+                    self.replyConnected = true
+                    if self.activity.lowercased().hasPrefix("reconnecting") { self.activity = "Working" }
                     switch event.name {
                     case "delta":
                         self.pendingText += payload["text"].string
@@ -150,13 +154,14 @@ import LakesideCore
                     case "status": self.activity = payload.first("label", "text", "name")
                     case "final":
                         self.flushTask?.cancel(); self.flushTask = nil
-                        self.streamingID = ""; self.liveText = ""; self.activity = ""
+                        self.streamingID = ""; self.replyConnected = false; self.liveText = ""; self.activity = ""
                         try await self.loadTurns(session)
                     default: break
                     }
                 }
-              } catch { if !Task.isCancelled { self.activity = "Reconnecting to live activity" } }
+              } catch { if !Task.isCancelled { self.replyConnected = false; self.activity = "Reconnecting to live activity" } }
               guard !Task.isCancelled, self.streamingID == id else { return }
+              self.replyConnected = false; self.activity = "Reconnecting to live activity"
               self.flushTask?.cancel(); self.flushTask = nil
               do { try await Task.sleep(for: .seconds(delay)) } catch { return }
               delay = min(15, delay * 2)
@@ -348,16 +353,20 @@ private struct OpsMessage: View {
                     Spacer()
                     Text([turn["route"].first("label", "provider", "engine"), turn["route"]["model"].string, turn["route"]["effort"].string].filter { !$0.isEmpty }.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary)
                 }
-                if live && model.liveText.isEmpty { LoadingShimmer(text: "Thinking…") }
+                if live && model.liveText.isEmpty {
+                    if model.replyIsLive { LoadingShimmer(text: "Thinking…") }
+                    else { Text("Reconnecting to live activity").font(.caption).foregroundStyle(.secondary) }
+                }
                 else { NativeMarkdown(text: live ? model.liveText : (turn["body"].string.nonempty ?? turn["status"].string.capitalized), streaming: live) }
-                OpsActivity(actions: live ? model.liveActions : turn["actions"].array, active: live && model.connected && !showLiveActivity)
+                OpsActivity(actions: live ? model.liveActions : turn["actions"].array, active: live && model.replyIsLive && !showLiveActivity)
                 if live {
                     Button { showLiveActivity = true } label: {
                         HStack {
-                            OpsActivityBadge(state: model.connected && !showLiveActivity ? "running" : "reconnecting", label: model.connected ? model.activity.nonempty ?? "Working" : "Reconnecting")
+                            OpsActivityBadge(state: model.replyIsLive && !showLiveActivity ? "running" : "reconnecting", label: model.replyIsLive ? model.activity.nonempty ?? "Working" : "Reconnecting")
                             Spacer(minLength: 8)
                             Image(systemName: "arrow.up.right").font(.caption2)
-                        }.padding(12).background(OpsTheme.sky.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                        }.padding(12).background(OpsTheme.sky.opacity(model.replyIsLive ? 0.13 : 0.04), in: RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(OpsTheme.sky.opacity(model.replyIsLive ? 0.35 : 0.12)))
                     }.buttonStyle(.plain).accessibilityLabel("Open live activity").accessibilityIdentifier("ops-live-activity-open")
                 }
                 if !turn["error"].string.isEmpty { Text(turn["error"].string).font(.caption).foregroundStyle(.orange) }
@@ -423,12 +432,18 @@ struct OpsTeam: View {
         let matches = filter == "All" || (filter == "Active" && !terminal) || (filter == "Finished" && terminal) || (filter == "Needs you" && !$0["permissions"].array.isEmpty)
         return matches && (search.isEmpty || ($0["name"].string + " " + $0["brief"].string).localizedCaseInsensitiveContains(search))
     } }
+    private func staffState(_ member: JSONValue) -> String {
+        guard model.connected else { return "stale" }
+        let runs = model.workers.filter { $0["staff_id"] == member["id"] }
+        if runs.contains(where: { !$0["permissions"].array.isEmpty }) { return "awaiting_permission" }
+        return runs.contains(where: { $0["job_status"].string == "running" }) ? "running" : "idle"
+    }
     var body: some View {
         List {
             Section {
                 Button { model.selectedTab = 0 } label: { HStack(spacing: 12) {
-                    BrandMark(surface: .hub, size: 30)
-                    VStack(alignment: .leading, spacing: 4) { Text("Ops assistant").font(.headline); OpsActivityBadge(state: !model.streamingID.isEmpty && model.connected ? "running" : "idle", label: !model.streamingID.isEmpty ? "Working · \(opsRoutingLabel(model.routing))" : "Ready · \(opsRoutingLabel(model.routing))", compact: true) }
+                    OpsActivityMark(state: model.replyIsLive ? "running" : "idle", size: 36)
+                    VStack(alignment: .leading, spacing: 4) { Text("Ops assistant").font(.headline); OpsActivityBadge(state: model.replyIsLive ? "running" : "idle", label: !model.connected || (!model.streamingID.isEmpty && !model.replyIsLive) ? "Reconnecting" : model.replyIsLive ? "Working · \(opsRoutingLabel(model.routing))" : "Ready · \(opsRoutingLabel(model.routing))", compact: true) }
                     Spacer()
                 }.padding(.vertical, 8) }.buttonStyle(.plain).accessibilityLabel("Open main assistant")
                 Text("Your team").font(.title2.weight(.semibold))
@@ -439,11 +454,12 @@ struct OpsTeam: View {
                 ForEach(model.staff.filter { search.isEmpty || ($0["name"].string + " " + $0["role"].string).localizedCaseInsensitiveContains(search) }, id: \.["id"].string) { member in
                     NavigationLink { OpsStaffDetail(model: model, staff: member) } label: {
                         VStack(alignment: .leading, spacing: 6) {
-                            Label(member["name"].string, systemImage: "person.crop.circle").font(.headline)
+                            HStack(spacing: 10) { OpsActivityMark(state: staffState(member), size: 38); Text(member["name"].string).font(.headline) }
                             Text(member["role"].string).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                             let count = model.workers.filter { $0["staff_id"].string == member["id"].string && !["completed", "failed", "cancelled"].contains($0["job_status"].string) }.count
                             let running = model.workers.contains { $0["staff_id"] == member["id"] && $0["job_status"].string == "running" }
-                            OpsActivityBadge(state: running ? "running" : "idle", label: count == 0 ? "Available for assignments" : "\(count) active \(count == 1 ? "assignment" : "assignments")", compact: true)
+                            let needsDecision = model.workers.contains { $0["staff_id"] == member["id"] && !$0["permissions"].array.isEmpty }
+                            Text(!model.connected ? "Reconnecting · last known \(count) assignments" : needsDecision ? "Needs your decision" : count == 0 ? "Available for assignments" : "\(count) active \(count == 1 ? "assignment" : "assignments")").font(.caption).foregroundStyle(needsDecision ? Color.orange : running && model.connected ? OpsTheme.sky : OpsTheme.ink.opacity(0.72))
                         }.padding(.vertical, 6)
                     }.listRowBackground(OpsTheme.surface)
                 }
@@ -454,7 +470,7 @@ struct OpsTeam: View {
             ForEach(filtered, id: \.["id"].string) { worker in
                 NavigationLink { OpsWorkerDetail(worker: worker, model: model) } label: {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack { Text(worker["name"].string).font(.headline); Spacer(); OpsStatus(value: worker["job_status"].string) }
+                        HStack { Text(worker["name"].string).font(.headline); Spacer(); OpsStatus(value: worker["job_status"].string, needsDecision: !worker["permissions"].array.isEmpty, connected: model.connected) }
                         Text(worker["brief"].string).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
                         HStack { Text(worker.first("runtime_provider", "provider").capitalized); if !worker["permissions"].array.isEmpty { Label("Decision needed", systemImage: "hand.raised") } }.font(.caption).foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
@@ -470,8 +486,12 @@ struct OpsTeam: View {
 
 struct OpsStatus: View {
     let value: String
-    private var color: Color { ["failed", "waiting"].contains(value) ? .orange : value == "completed" ? OpsTheme.mint : .secondary }
-    var body: some View { OpsActivityBadge(state: value, label: value == "delivery_unknown" ? "Delivery uncertain" : value.replacingOccurrences(of: "_", with: " ").capitalized, compact: true).padding(.horizontal, 8).padding(.vertical, 4).background((value == "running" ? OpsTheme.sky : color).opacity(0.09), in: Capsule()) }
+    var needsDecision = false
+    var connected = true
+    private var state: String { !connected ? "stale" : needsDecision ? "awaiting_permission" : value }
+    private var knownLabel: String { needsDecision ? "Needs your decision" : value == "delivery_unknown" ? "Delivery uncertain" : value.replacingOccurrences(of: "_", with: " ").capitalized }
+    private var color: Color { needsDecision || ["failed", "waiting"].contains(value) ? .orange : value == "completed" ? OpsTheme.mint : .secondary }
+    var body: some View { OpsActivityBadge(state: state, label: connected ? knownLabel : "Last known: \(knownLabel)", compact: true).padding(.horizontal, 8).padding(.vertical, 4).background((state == "running" ? OpsTheme.sky : color).opacity(0.09), in: Capsule()) }
 }
 
 struct OpsWorkerDetail: View {
@@ -498,7 +518,7 @@ struct OpsWorkerDetail: View {
     var body: some View {
         List {
             Section("Assignment") {
-                OpsActivityBadge(state: current["job_status"].string, label: current["job_status"].string == "running" ? "Working on this assignment" : current["job_status"].string.capitalized)
+                OpsStatus(value: current["job_status"].string, needsDecision: !current["permissions"].array.isEmpty, connected: model.connected)
                 Text(current["brief"].string)
                 LabeledContent("Status", value: current["job_status"].string.capitalized)
                 LabeledContent("Assigned by", value: current["origin"].string == "owner" ? "You" : "Ops assistant")

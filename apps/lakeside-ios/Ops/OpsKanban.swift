@@ -152,7 +152,7 @@ private struct OpsKanbanCard: View {
                         Text(job["title"].string).font(.callout.weight(.semibold)).foregroundStyle(Brand.ink).fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
                         if job["status"].string == "blocked" { Text("Needs you").font(.caption2.weight(.medium)).foregroundStyle(.orange) }
-                        else if workerActive { OpsActivityBadge(state: job["worker_status"].string, label: job["worker_status"].string.replacingOccurrences(of: "_", with: " ").capitalized, compact: true) }
+                        else if workerActive { OpsStatus(value: job["worker_status"].string, needsDecision: !(model.workers.first { $0["id"].string == job["worker_id"].string }?["permissions"].array ?? []).isEmpty, connected: model.connected) }
                     }
                     Text([owner.isEmpty ? "Unassigned" : owner, product].filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.caption).foregroundStyle(.secondary).lineLimit(2)

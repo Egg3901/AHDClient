@@ -2,6 +2,20 @@ import XCTest
 @testable import LakesideOps
 
 @MainActor final class SubmissionTests: XCTestCase {
+    func testReplyPresenceRequiresBothConnections() {
+        let model = OpsWorkspaceModel()
+        model.streamingID = "2"; model.activity = "Running checks"; model.connected = true
+        XCTAssertFalse(model.replyIsLive, "The workspace feed alone does not prove the reply stream is live")
+        model.replyConnected = true
+        XCTAssertTrue(model.replyIsLive)
+        model.replyConnected = false
+        XCTAssertFalse(model.replyIsLive, "An interrupted reply must stop activity motion")
+        model.replyConnected = true; model.activity = "Reconnecting to live activity"
+        XCTAssertFalse(model.replyIsLive)
+        model.activity = "Running checks"; model.connected = false
+        XCTAssertFalse(model.replyIsLive, "Cached work must not animate while reconnecting")
+    }
+
     func testCancelledViewDoesNotCancelSharedUsageRefresh() async {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [SubmissionProtocol.self]
