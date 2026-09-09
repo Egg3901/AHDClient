@@ -2,6 +2,19 @@ import XCTest
 @testable import LakesideOps
 
 @MainActor final class SubmissionTests: XCTestCase {
+    func testCancelledViewDoesNotCancelSharedUsageRefresh() async {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [SubmissionProtocol.self]
+        let session = AppSession(.hub, configuration: config)
+        let model = OpsWorkspaceModel()
+        let departingView = Task { await model.refreshUsage(session) }
+        departingView.cancel()
+        await departingView.value
+        await model.refreshUsage(session)
+        XCTAssertEqual(model.providers.first?["id"].string, "codex")
+        XCTAssertNil(model.error)
+    }
+
     func testRetryReusesReceiptAndAcceptedMessageSurvivesRefreshFailure() async {
         SubmissionProtocol.reset()
         let config = URLSessionConfiguration.ephemeral
@@ -52,6 +65,10 @@ private final class SubmissionProtocol: URLProtocol, @unchecked Sendable {
             let count = Self.requestIDs.count
             Self.lock.unlock()
             if count > 1 { status = 200; body = "{\"ok\":true}" }
+        }
+        if url.path == "/api/ops/providers" || url.path == "/api/ops/usage" {
+            status = 200
+            body = "{\"providers\":[{\"id\":\"codex\"}]}"
         }
         let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)

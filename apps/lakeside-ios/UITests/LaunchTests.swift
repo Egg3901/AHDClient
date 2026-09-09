@@ -128,13 +128,13 @@ final class LaunchTests: XCTestCase {
         app.launch()
         guard app.tabBars.buttons["Team"].waitForExistence(timeout: 3) else { throw XCTSkip("Ops capacity only") }
         app.tabBars.buttons["Usage"].tap()
-        XCTAssertTrue(app.staticTexts["Codex"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["ops-provider-codex"].firstMatch.waitForExistence(timeout: 10))
         capture(app, "Ops capacity large text")
         for _ in 0..<12 {
-            if app.staticTexts["Free Router"].firstMatch.isHittable { break }
+            if app.descendants(matching: .any)["ops-provider-freerouter"].firstMatch.isHittable { break }
             app.swipeUp()
         }
-        XCTAssertTrue(app.staticTexts["Free Router"].firstMatch.isHittable)
+        XCTAssertTrue(app.descendants(matching: .any)["ops-provider-freerouter"].firstMatch.isHittable)
         capture(app, "Ops route capacity large text")
     }
     private func capture(_ app: XCUIApplication, _ name: String) {

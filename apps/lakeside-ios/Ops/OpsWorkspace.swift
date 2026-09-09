@@ -19,7 +19,7 @@ import LakesideCore
     @Published var liveActions: [JSONValue] = []
     @Published var streamingID = ""
     private var cursor = "0"
-    private var usageLoading = false
+    private var usageRefreshTask: Task<Void, Never>?
     private var replyTask: Task<Void, Never>?
     private var flushTask: Task<Void, Never>?
     private var pendingText = ""
@@ -165,15 +165,24 @@ import LakesideCore
         catch { self.error = error.localizedDescription }
     }
     func refreshUsage(_ session: AppSession) async {
-        guard !usageLoading else { return }
-        usageLoading = true; defer { usageLoading = false }
-        do {
-            async let inventory = session.get("/api/ops/providers")
-            async let measured = session.get("/api/ops/usage")
-            let (a, b) = try await (inventory, measured)
-            providers = a["providers"].array; usage = b["providers"].array
-        } catch { self.error = error.localizedDescription }
+        if let task = usageRefreshTask { await task.value; return }
+        // The model owns this request so a tab transition cannot cancel a
+        // refresh that the newly visible screen is also waiting for.
+        let task = Task { @MainActor in
+            defer { usageRefreshTask = nil }
+            do {
+                async let inventory = session.get("/api/ops/providers")
+                async let measured = session.get("/api/ops/usage")
+                let (a, b) = try await (inventory, measured)
+                providers = a["providers"].array; usage = b["providers"].array
+            } catch {
+                if !Task.isCancelled { self.error = error.localizedDescription }
+            }
+        }
+        usageRefreshTask = task
+        await task.value
     }
+
     func refreshTeam(_ session: AppSession) async {
         do {
             async let a = session.get("/api/ops/workers")

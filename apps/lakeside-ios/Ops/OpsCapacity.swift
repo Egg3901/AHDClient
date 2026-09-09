@@ -7,7 +7,6 @@ struct OpsCapacity: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: OpsWorkspaceModel
-    @State private var visible = false
     @State private var openDetails: Set<String> = []
 
     var body: some View {
@@ -41,10 +40,8 @@ struct OpsCapacity: View {
         .opsScreen()
         .navigationTitle("Usage")
         .transaction { transaction in if reduceMotion { transaction.animation = nil } }
-        .onAppear { visible = true }
-        .onDisappear { visible = false }
-        .task(id: "\(visible)-\(model.selectedTab)-\(scenePhase == .active)") {
-            guard visible, model.selectedTab == 2, scenePhase == .active else { return }
+        .task(id: "\(model.selectedTab)-\(scenePhase == .active)") {
+            guard model.selectedTab == 2, scenePhase == .active else { return }
             while !Task.isCancelled {
                 await model.refreshUsage(session)
                 if Task.isCancelled { return }
@@ -118,6 +115,7 @@ private struct OpsCapacityProviderCard: View {
                 }
             }
             .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("ops-provider-\(provider["id"].string)")
         }
     }
 }
