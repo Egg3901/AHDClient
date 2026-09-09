@@ -1,0 +1,52 @@
+name: Ops Windows pilot
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/ops-windows/**'
+      - '.github/workflows/ops-windows.yml'
+  push:
+    branches: ['fix/ops-cohesion']
+    paths:
+      - 'apps/ops-windows/**'
+      - '.github/workflows/ops-windows.yml'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/ops-windows
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Test durable client sync
+        run: dotnet test Ops.Core.Tests/Ops.Core.Tests.csproj -c Release --logger "trx;LogFileName=client.trx"
+      - name: Test runner recovery and execution
+        run: dotnet test Ops.Runner.Tests/Ops.Runner.Tests.csproj -c Release --logger "trx;LogFileName=runner.trx"
+      - name: Publish native client
+        run: dotnet publish Ops.Client/Ops.Client.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained true -o pilot
+      - name: Publish independent runner
+        run: dotnet publish Ops.Runner/Ops.Runner.csproj -c Release -r win-x64 --self-contained true -o pilot/runner
+      - name: Assemble unsigned pilot
+        run: |
+          Copy-Item README.md pilot/README.md
+          Copy-Item Ops.Runner/config.example.json pilot/runner/config.example.json
+          Copy-Item Ops.Runner/README.md pilot/runner/README.md
+          Compress-Archive -Path pilot/* -DestinationPath Ops-Windows-x64-pilot.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ops-Windows-x64-unsigned-pilot
+          path: apps/ops-windows/Ops-Windows-x64-pilot.zip
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Ops-Windows-test-results
+          path: apps/ops-windows/**/TestResults/*.trx
+          retention-days: 7
