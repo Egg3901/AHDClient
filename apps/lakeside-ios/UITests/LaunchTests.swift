@@ -127,24 +127,24 @@ final class LaunchTests: XCTestCase {
         guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops routing") }
         let routing = app.buttons["ops-routing-open"]
         XCTAssertTrue(routing.waitForExistence(timeout: 10)); routing.tap()
-        let provider = app.buttons["ops-routing-provider"]
+        let provider = app.descendants(matching: .any).matching(identifier: "ops-routing-provider").firstMatch
         XCTAssertTrue(provider.waitForExistence(timeout: 10)); waitForEnabled(provider); provider.tap()
         app.buttons["Grok"].tap()
         let fallback = app.switches["ops-routing-fallback"]
         XCTAssertEqual(fallback.value as? String, "0", "Manual routing must require an explicit fallback opt-in")
-        app.buttons["ops-routing-model"].tap(); app.buttons["Fixture model"].tap()
-        app.buttons["ops-routing-effort"].tap(); app.buttons["High"].tap()
+        app.descendants(matching: .any).matching(identifier: "ops-routing-model").firstMatch.tap(); app.buttons["Fixture model"].tap()
+        app.descendants(matching: .any).matching(identifier: "ops-routing-effort").firstMatch.tap(); app.buttons["High"].tap()
         app.buttons["ops-routing-save"].tap()
         XCTAssertTrue(routing.waitForExistence(timeout: 5))
         XCTAssertTrue(routing.label.contains("Grok"))
         routing.tap()
         XCTAssertTrue(provider.waitForExistence(timeout: 10)); waitForEnabled(provider)
         XCTAssertEqual(provider.value as? String, "Grok")
-        XCTAssertEqual(app.buttons["ops-routing-model"].value as? String, "Fixture model")
-        XCTAssertEqual(app.buttons["ops-routing-effort"].value as? String, "High")
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "ops-routing-model").firstMatch.value as? String, "Fixture model")
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "ops-routing-effort").firstMatch.value as? String, "High")
         capture(app, "Ops persisted manual routing")
         provider.tap(); app.buttons["Free Router"].tap()
-        XCTAssertFalse(app.buttons["ops-routing-effort"].isEnabled)
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "ops-routing-effort").firstMatch.isEnabled)
         XCTAssertEqual(app.switches["ops-routing-fallback"].value as? String, "0")
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "FreeRouter supports text chat")).firstMatch.exists)
         capture(app, "Ops FreeRouter chat routing")
@@ -157,6 +157,7 @@ final class LaunchTests: XCTestCase {
         XCTAssertTrue(worker.waitForExistence(timeout: 10)); worker.tap()
         let activity = app.buttons["ops-worker-activity-toggle"]
         scrollTo(activity, in: app); activity.tap()
+        XCTAssertEqual(activity.value as? String, "Expanded")
         XCTAssertTrue(app.staticTexts["Checking the export implementation."].waitForExistence(timeout: 10))
         let output = app.buttons["Show output"]
         scrollTo(output, in: app); output.tap()

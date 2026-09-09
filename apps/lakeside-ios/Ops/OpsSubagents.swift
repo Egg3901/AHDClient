@@ -36,7 +36,7 @@ struct OpsSubagents: View {
                     Text(rows.isEmpty ? "Provider subagents" : "Provider subagents · \(rows.count)")
                     Spacer()
                     Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                }.font(.caption.weight(.medium))
+                }.font(.caption.weight(.medium)).frame(minHeight: 32).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("ops-subagents")

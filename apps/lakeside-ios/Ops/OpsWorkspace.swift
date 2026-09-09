@@ -246,7 +246,10 @@ struct OpsConversation: View {
                 Circle().fill(model.connected ? OpsTheme.mint : Color.orange).frame(width: 5, height: 5)
                 Text(model.connected ? "Connected" : "Reconnecting")
                 Spacer()
-                Button { showRouting = true } label: { Label(opsRoutingLabel(model.routing), systemImage: "slider.horizontal.3") }
+                Button { showRouting = true } label: {
+                    Label(opsRoutingLabel(model.routing), systemImage: "slider.horizontal.3")
+                        .padding(.horizontal, 8).frame(minHeight: 44).contentShape(Rectangle())
+                }.buttonStyle(.plain)
                     .disabled(model.sending || model.submissionUncertain || model.conversation.isEmpty)
                     .accessibilityIdentifier("ops-routing-open")
             }.font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.vertical, 10)

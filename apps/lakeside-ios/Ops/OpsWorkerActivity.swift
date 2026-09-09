@@ -40,6 +40,7 @@ struct OpsWorkerActivity: View {
                 }
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
+                .frame(minHeight: 32).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("ops-worker-activity-toggle")
