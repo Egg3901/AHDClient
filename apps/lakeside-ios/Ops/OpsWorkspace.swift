@@ -18,6 +18,8 @@ import LakesideCore
     @Published var activity = ""
     @Published var liveActions: [JSONValue] = []
     @Published var streamingID = ""
+    @Published var routing: JSONValue = .null
+    @Published var submissionUncertain = false
     private var cursor = "0"
     private var usageRefreshTask: Task<Void, Never>?
     private var replyTask: Task<Void, Never>?
@@ -75,7 +77,7 @@ import LakesideCore
     }
     func select(_ id: String, _ session: AppSession) async {
         replyTask?.cancel(); flushTask?.cancel(); flushTask = nil; streamingID = ""; liveText = ""; pendingText = ""
-        conversation = id; turns = []
+        conversation = id; turns = []; routing = .null
         do { try await loadTurns(session) } catch { self.error = error.localizedDescription }
     }
     func older(_ session: AppSession) async {
@@ -97,13 +99,22 @@ import LakesideCore
         let requestID = pendingSubmission!.id
         do {
             _ = try await session.post("/api/chat/send", ["conversation": .string(selected), "text": .string(text), "attachments": attachments, "requestId": .string(requestID)])
-            pendingSubmission = nil
-        } catch { self.error = error.localizedDescription; return false }
+            pendingSubmission = nil; submissionUncertain = false
+        } catch { submissionUncertain = true; self.error = error.localizedDescription; return false }
         // Acceptance and refreshing the transcript are separate outcomes.
         // A refresh failure must not make the composer submit a second turn.
         do { if selected == conversation { try await loadTurns(session) }; error = nil }
         catch { self.error = "Message accepted. Reconnecting to the conversation." }
         return true
+    }
+
+    func loadRouting(_ session: AppSession) async {
+        let selected = conversation
+        guard !selected.isEmpty else { return }
+        do {
+            let result = try await session.get("/api/ops/conversations/\(selected)/routing")
+            if selected == conversation { routing = result }
+        } catch { if selected == conversation { routing = .null } }
     }
 
     private func attach(_ id: String, _ session: AppSession) {
@@ -132,6 +143,10 @@ import LakesideCore
                         self.activity = payload.first("label", "text", "name")
                         if let index = self.liveActions.firstIndex(where: { !$0["id"].string.isEmpty && $0["id"] == payload["id"] }) { self.liveActions[index] = payload }
                         else { self.liveActions.append(payload); if self.liveActions.count > 200 { self.liveActions.removeFirst() } }
+                    case "route":
+                        if let index = self.turns.firstIndex(where: { $0["id"].string == id }) {
+                            var fields = self.turns[index].object; fields["route"] = payload["route"]; self.turns[index] = .object(fields)
+                        }
                     case "status": self.activity = payload.first("label", "text", "name")
                     case "final":
                         self.flushTask?.cancel(); self.flushTask = nil
@@ -222,6 +237,7 @@ struct OpsConversation: View {
     @ObservedObject var model: OpsWorkspaceModel
     @State private var draft = ""
     @State private var history = false
+    @State private var showRouting = false
     @FocusState private var composing: Bool
     private var title: String { model.conversations.first { $0["id"].string == model.conversation }?["title"].string ?? "Assistant" }
     var body: some View {
@@ -230,7 +246,9 @@ struct OpsConversation: View {
                 Circle().fill(model.connected ? OpsTheme.mint : Color.orange).frame(width: 5, height: 5)
                 Text(model.connected ? "Connected" : "Reconnecting")
                 Spacer()
-                Text("Codex / Muse").foregroundStyle(.secondary)
+                Button { showRouting = true } label: { Label(opsRoutingLabel(model.routing), systemImage: "slider.horizontal.3") }
+                    .disabled(model.sending || model.submissionUncertain || model.conversation.isEmpty)
+                    .accessibilityIdentifier("ops-routing-open")
             }.font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.vertical, 10)
             ScrollViewReader { proxy in
                 ScrollView {
@@ -302,6 +320,8 @@ struct OpsConversation: View {
             }
             .onChange(of: model.fileQuestion) { _, question in if !question.isEmpty { draft = question; model.fileQuestion = ""; composing = true } }
             .sheet(isPresented: $history) { OpsHistory(model: model) }
+            .sheet(isPresented: $showRouting) { OpsRouting(conversationID: model.conversation, selection: $model.routing) }
+            .task(id: model.conversation) { await model.loadRouting(session) }
     }
 }
 
@@ -322,7 +342,7 @@ private struct OpsMessage: View {
                     BrandMark(surface: .hub, size: 22)
                     Text(turn["role"].string == "assistant" ? "Ops" : "Team").font(.subheadline.weight(.semibold))
                     Spacer()
-                    Text(turn["route"]["label"].string).font(.caption2).foregroundStyle(.secondary)
+                    Text([turn["route"].first("label", "provider", "engine"), turn["route"]["model"].string, turn["route"]["effort"].string].filter { !$0.isEmpty }.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary)
                 }
                 if live && model.liveText.isEmpty { LoadingShimmer(text: "Thinking…") }
                 else { NativeMarkdown(text: live ? model.liveText : (turn["body"].string.nonempty ?? turn["status"].string.capitalized), streaming: live) }
@@ -445,18 +465,12 @@ struct OpsWorkerDetail: View {
     let worker: JSONValue
     @ObservedObject var model: OpsWorkspaceModel
     @State private var detail: JSONValue = .null
-    @State private var activityLog = ""
-    @State private var activityLoading = false
-    @State private var activityError: String?
-    @State private var activityRefresh = 0
-    @State private var activityUpdated: Date?
     @State private var message = ""
     @State private var messageID = UUID().uuidString
     @State private var submittedMessage: String?
     @State private var messages: [JSONValue] = []
     @State private var sendingMessage = false
     @State private var messageError: String?
-    @State private var showActivity = false
     @Environment(\.scenePhase) private var phase
     private var current: JSONValue {
         let summary = model.workers.first { $0["id"] == worker["id"] } ?? worker
@@ -516,22 +530,8 @@ struct OpsWorkerDetail: View {
                     }
                 }
             }
-            Section {
-                DisclosureGroup("Conversation & tools", isExpanded: $showActivity) {
-                    if activityLoading && activityLog.isEmpty { ProgressView("Loading activity") }
-                    else if activityLog.isEmpty && activityError == nil { Text("No activity reported yet.").foregroundStyle(.secondary) }
-                    if !activityLog.isEmpty {
-                        ScrollView { NativeMarkdown(text: activityLog).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 380)
-                    }
-                    if let activityError { Text(activityError).font(.caption).foregroundStyle(.orange) }
-                    HStack {
-                        if let activityUpdated { Text("Updated \(activityUpdated.formatted(date: .omitted, time: .shortened))").font(.caption2).foregroundStyle(.secondary) }
-                        Spacer()
-                        Button("Refresh") { activityRefresh += 1 }.disabled(activityLoading)
-                        Button { UIPasteboard.general.string = activityLog } label: { Image(systemName: "doc.on.doc") }.disabled(activityLog.isEmpty).accessibilityLabel("Copy worker activity")
-                    }.buttonStyle(.borderless)
-                }
-            }
+            Section { OpsWorkerActivity(workerID: worker["id"].string) }
+            Section { OpsSubagents(workerID: worker["id"].string) }
             if !current["workspace_id"].string.isEmpty {
                 Section { NavigationLink("Workspace files") { OpsDirectory(workspace: .object(["workspaceId": current["workspace_id"]]), path: "") } }
             }
@@ -545,20 +545,16 @@ struct OpsWorkerDetail: View {
             }
             if let error = model.error { Text(error).foregroundStyle(.orange) }
         }.opsScreen().navigationTitle(current["name"].string)
-            .task(id: "\(showActivity)-\(phase == .active)-\(activityRefresh)-\(current["job_status"].string)") {
-                guard showActivity && phase == .active else { return }
+            .task(id: "\(phase == .active)-\(current["job_status"].string)") {
+                guard phase == .active else { return }
                 while !Task.isCancelled {
                     do {
-                        activityLoading = true
-                        async let a = session.get("/api/ops/workers/\(worker["id"].string)/activity")
-                        async let b = session.get("/api/ops/workers/\(worker["id"].string)/messages")
-                        let (result, inbox) = try await (a, b)
+                        let inbox = try await session.get("/api/ops/workers/\(worker["id"].string)/messages")
                         try Task.checkCancellation()
                         messages = inbox["messages"].array
-                        activityLog = result["content"].string; activityError = nil; activityUpdated = Date(); activityLoading = false
                         if ["completed", "failed", "cancelled"].contains(current["job_status"].string) { return }
                         try await Task.sleep(for: .seconds(3))
-                    } catch { if !Task.isCancelled { activityError = error.localizedDescription }; activityLoading = false; return }
+                    } catch { if !Task.isCancelled { messageError = error.localizedDescription }; return }
                 }
             }
             .task(id: model.workers.first { $0["id"] == worker["id"] }?["job_updated_at"].string) {

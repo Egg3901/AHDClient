@@ -8,14 +8,10 @@ struct OpsCapacity: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: OpsWorkspaceModel
     @State private var openDetails: Set<String> = []
+    @State private var showInfo = false
 
     var body: some View {
         List {
-            Section {
-                Text("Capacity & activity").font(.title2.weight(.semibold))
-                Text("Quota bars show usage consumed. Provider availability is separate.")
-                    .font(.callout).foregroundStyle(.secondary)
-            }.listRowBackground(Color.clear)
             if model.providers.isEmpty {
                 Text("No providers reported.").font(.callout).foregroundStyle(.secondary)
             }
@@ -32,13 +28,22 @@ struct OpsCapacity: View {
                     )
                 )
                 .listRowBackground(OpsTheme.surface)
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
             }
             if let error = model.error { Text(error).foregroundStyle(.orange) }
             Section { NavigationLink { OpsBenchmarks() } label: { Label("Provider benchmarks", systemImage: "speedometer") } }
         }
         .opsScreen()
         .navigationTitle("Usage")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showInfo = true } label: { Image(systemName: "info.circle") }
+                    .accessibilityLabel("How usage is measured")
+                    .accessibilityIdentifier("ops-capacity-info")
+            }
+        }
+        .sheet(isPresented: $showInfo) { OpsCapacityInfoSheet(isPresented: $showInfo) }
         .transaction { transaction in if reduceMotion { transaction.animation = nil } }
         .task(id: "\(model.selectedTab)-\(scenePhase == .active)") {
             guard model.selectedTab == 2, scenePhase == .active else { return }
@@ -69,14 +74,9 @@ private struct OpsCapacityProviderCard: View {
     var body: some View {
         let payload = presentProvider(provider, usage: usage, now: now)
         Section {
-            VStack(alignment: .leading, spacing: 8) {
-                if !payload.accountCaption.isEmpty || payload.stale {
-                    HStack(spacing: 8) {
-                        if !payload.accountCaption.isEmpty {
-                            CapacityStatusPill(text: payload.accountCaption, tone: payload.accountTone)
-                        }
-                        if payload.stale { CapacityStatusPill(text: "Stale", tone: .stale) }
-                    }
+            VStack(alignment: .leading, spacing: 6) {
+                if !payload.accountCaption.isEmpty {
+                    CapacityStatusPill(text: payload.accountCaption, tone: payload.accountTone)
                 }
                 if let message = payload.summaryMessage {
                     Text(message).font(.caption).foregroundStyle(payload.accountTone == .error ? Color.orange : .secondary)
@@ -91,7 +91,7 @@ private struct OpsCapacityProviderCard: View {
                     OpsCapacityReadiness(readiness: readiness)
                 }
                 Text(payload.usage.summaryLine)
-                    .font(.caption.monospacedDigit())
+                    .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
                 DisclosureGroup("Details", isExpanded: $detailsOpen) {
                     OpsCapacityDetails(payload: payload, now: now)
@@ -99,7 +99,6 @@ private struct OpsCapacityProviderCard: View {
                 .tint(OpsTheme.sky)
                 .font(.caption)
             }
-            .padding(.vertical, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
             .transaction { transaction in if reduceMotion { transaction.animation = nil } }
         } header: {
@@ -107,10 +106,14 @@ private struct OpsCapacityProviderCard: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(payload.label)
                     Spacer(minLength: 8)
+                    if payload.stale { Text("Stale").font(.caption).foregroundStyle(.secondary) }
                     Text(payload.runtimeCaption).font(.caption).foregroundStyle(.secondary)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(payload.label)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(payload.label)
+                        if payload.stale { Text("Stale").font(.caption).foregroundStyle(.secondary) }
+                    }
                     Text(payload.runtimeCaption).font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -142,7 +145,7 @@ private struct OpsCapacityWindowBar: View {
     let now: Date
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(window.label).font(.subheadline)
@@ -289,6 +292,25 @@ private enum CapacityTone {
         case .warn, .error: return .orange
         case .stale, .muted: return .secondary
         }
+    }
+}
+
+private struct OpsCapacityInfoSheet: View {
+    @Binding var isPresented: Bool
+    var body: some View {
+        NavigationStack {
+            List {
+                Text("Quota bars count upward as usage is consumed. Higher usage is closer to the limit.")
+                Text("Unknown usage is never shown as 0% used or as a full remaining balance.")
+                Text("A reset does not invent a fresh reading. Wait for the next report.")
+                Text("Stale means the last reading is older than five minutes.")
+                Text("Runtime availability is separate from account quota. Free Router shows route readiness, not a subscription limit.")
+            }
+            .navigationTitle("Usage")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { isPresented = false } } }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 

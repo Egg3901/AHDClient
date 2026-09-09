@@ -122,6 +122,68 @@ final class LaunchTests: XCTestCase {
         capture(app, "Ops provider benchmarks")
         XCTAssertEqual(app.webViews.count, 0)
     }
+    func testOpsManualRoutingPersistsAndFreeRouterHasNoEffort() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
+        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops routing") }
+        let routing = app.buttons["ops-routing-open"]
+        XCTAssertTrue(routing.waitForExistence(timeout: 10)); routing.tap()
+        let provider = app.buttons["ops-routing-provider"]
+        XCTAssertTrue(provider.waitForExistence(timeout: 10)); waitForEnabled(provider); provider.tap()
+        app.buttons["Grok"].tap()
+        let fallback = app.switches["ops-routing-fallback"]
+        XCTAssertEqual(fallback.value as? String, "0", "Manual routing must require an explicit fallback opt-in")
+        app.buttons["ops-routing-model"].tap(); app.buttons["Fixture model"].tap()
+        app.buttons["ops-routing-effort"].tap(); app.buttons["High"].tap()
+        app.buttons["ops-routing-save"].tap()
+        XCTAssertTrue(routing.waitForExistence(timeout: 5))
+        XCTAssertTrue(routing.label.contains("Grok"))
+        routing.tap()
+        XCTAssertTrue(provider.waitForExistence(timeout: 10)); waitForEnabled(provider)
+        XCTAssertEqual(provider.value as? String, "Grok")
+        XCTAssertEqual(app.buttons["ops-routing-model"].value as? String, "Fixture model")
+        XCTAssertEqual(app.buttons["ops-routing-effort"].value as? String, "High")
+        capture(app, "Ops persisted manual routing")
+        provider.tap(); app.buttons["Free Router"].tap()
+        XCTAssertFalse(app.buttons["ops-routing-effort"].isEnabled)
+        XCTAssertEqual(app.switches["ops-routing-fallback"].value as? String, "0")
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "FreeRouter supports text chat")).firstMatch.exists)
+        capture(app, "Ops FreeRouter chat routing")
+    }
+    func testOpsWorkerTimelineAndProviderSubagent() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
+        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops worker inspector") }
+        app.tabBars.buttons["Team"].tap()
+        let worker = app.staticTexts["Export repair"]
+        XCTAssertTrue(worker.waitForExistence(timeout: 10)); worker.tap()
+        let activity = app.buttons["ops-worker-activity-toggle"]
+        scrollTo(activity, in: app); activity.tap()
+        XCTAssertTrue(app.staticTexts["Checking the export implementation."].waitForExistence(timeout: 10))
+        let output = app.buttons["Show output"]
+        scrollTo(output, in: app); output.tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "All 12 checks passed")).firstMatch.waitForExistence(timeout: 5))
+        capture(app, "Ops structured worker tool output")
+        scrollTo(activity, in: app, upward: false); activity.tap()
+        let children = app.buttons["ops-subagents"]
+        scrollTo(children, in: app); children.tap()
+        let child = app.buttons["ops-subagent-child-1"]
+        XCTAssertTrue(child.waitForExistence(timeout: 10)); scrollTo(child, in: app); child.tap()
+        let childActivity = app.buttons["ops-worker-activity-toggle"]
+        XCTAssertTrue(childActivity.waitForExistence(timeout: 5)); childActivity.tap()
+        XCTAssertTrue(app.staticTexts["Reviewed empty exports and unicode filenames."].waitForExistence(timeout: 10))
+        capture(app, "Ops saved provider subagent activity")
+        XCTAssertEqual(app.webViews.count, 0)
+    }
+    private func waitForEnabled(_ element: XCUIElement) {
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+    }
+    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication, upward: Bool = true) {
+        for _ in 0..<8 {
+            if element.isHittable { return }
+            if upward { app.swipeUp() } else { app.swipeDown() }
+        }
+        XCTAssertTrue(element.isHittable)
+    }
     func testOpsCapacityAtLargeTextSize() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--uitest-fixtures", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]

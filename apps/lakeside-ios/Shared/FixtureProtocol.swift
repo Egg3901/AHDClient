@@ -3,6 +3,29 @@ import Foundation
 
 /// Isolated UI-test transport. It never contacts a server and is absent in Release.
 final class FixtureProtocol: URLProtocol, @unchecked Sendable {
+    private final class RoutingState: @unchecked Sendable {
+        let lock = NSLock()
+        var selection: [String: Any] = ["provider": "auto", "model": NSNull(), "effort": "auto", "allowFallback": true]
+        func access(_ update: [String: Any]? = nil) -> [String: Any] {
+            lock.lock(); defer { lock.unlock() }
+            if let update { selection = update }
+            return selection
+        }
+    }
+    private static let routing = RoutingState()
+    private func bodyObject() -> [String: Any]? {
+        var data = request.httpBody ?? Data()
+        if data.isEmpty, let stream = request.httpBodyStream {
+            stream.open(); defer { stream.close() }
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                if count <= 0 { break }
+                data.append(contentsOf: buffer.prefix(count))
+            }
+        }
+        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
@@ -27,6 +50,12 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         case "/api/ops/projects": value = ["projects": [["name": "Studio hub", "path": "/fixture/studio"]]]
         case "/api/ops/workers/worker-1/messages": value = ["messages": []]
         case "/api/ops/workers/worker-1": value = ["worker": ["brief": "Repair and verify the export flow.", "result": "Export fixed. All checks passed."]]
+        case "/api/ops/conversations/1/routing":
+            if request.httpMethod == "POST" {
+                if let body = bodyObject(), body["provider"] is String, body["effort"] is String, body["allowFallback"] is Bool {
+                    value = Self.routing.access(body)
+                } else { status = 400; value = ["error": "Routing request body missing"] }
+            } else { value = Self.routing.access() }
         case "/api/ops/providers":
             let stamp = Date().timeIntervalSince1970 * 1000
             let definitions: [(String, String)] = [("codex", "Codex"), ("muse", "Muse"), ("grok", "Grok"), ("freerouter", "Free Router")]
@@ -39,7 +68,7 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
                 } else {
                     capacity["message"] = "Routes ready"; capacity["readiness"] = ["ready": 7, "total": 9, "coolingDown": 2]
                 }
-                return ["id": id, "label": label, "enabled": true, "status": "available", "billing": id == "freerouter" ? "free" : "subscription", "capabilities": ["tools"], "models": [["id": "fixture-model", "isDefault": true]], "capacity": capacity]
+                return ["id": id, "label": label, "enabled": true, "status": "available", "billing": id == "freerouter" ? "free" : "subscription", "capabilities": id == "freerouter" ? ["text"] : ["tools"], "models": [["id": "fixture-model", "label": "Fixture model", "isDefault": true, "thinkingOptions": id == "freerouter" ? [] : [["id": "low"], ["id": "medium"], ["id": "high"]]]], "capacity": capacity]
             }]
 
         case "/api/ops/benchmarks": value = ["scores": [["provider": "codex", "model": "fixture-model", "suite": "coding", "effort": "medium", "passed": 4, "checks": 4, "samples": 1, "latency_ms": 2500]], "runs": []]
@@ -55,7 +84,16 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         case "/api/ops/files/changes": value = ["entries": [["name": "app.swift", "path": "app.swift", "status": " M", "deleted": false, "untracked": false]]]
         case "/api/ops/files/read": value = ["content": "// Studio hub\nlet version = \"1.3.0\"", "size": 40]
         case "/api/ops/files/diff": value = ["content": "-let version = 1.2\n+let version = 1.3"]
-        case "/api/ops/workers/worker-1/activity": value = ["content": "Ran export checks. All 12 checks passed.", "updateCount": 3]
+        case "/api/ops/workers/worker-1/activity":
+            value = ["content": "Ran export checks. All 12 checks passed.", "entries": [
+                ["id": "message-1", "kind": "message", "role": "assistant", "title": "Assistant", "body": "Checking the export implementation."],
+                ["id": "tool-1", "kind": "tool", "title": "Run export checks", "body": "npm test\nAll 12 checks passed", "state": "completed"]
+            ], "updateCount": 2, "revision": "fixture-worker-v1", "saved": true, "stale": false, "truncated": false, "observedAt": Date().timeIntervalSince1970 * 1000]
+        case "/api/ops/workers/worker-1/subagents":
+            value = ["subagents": [["id": "child-1", "parentAgentId": "fixture-runtime", "provider": "codex", "title": "Export reviewer", "description": "Review edge cases before accepting the repair.", "status": "completed"]], "saved": true, "stale": false]
+        case "/api/ops/workers/worker-1/subagents/child-1/activity":
+            value = ["entries": [["id": "child-message-1", "kind": "message", "role": "assistant", "title": "Assistant", "body": "Reviewed empty exports and unicode filenames."]], "content": "Reviewed empty exports and unicode filenames.", "revision": "fixture-child-v1", "updateCount": 1, "saved": true, "stale": false, "truncated": false]
+
         case "/api/schedules": value = ["schedules": [["id": 1, "title": "Morning review", "brief": "Review overnight activity", "cadence": "daily", "enabled": 1]]]
         case "/api/tasks": value = ["tasks": [["id": 1, "title": "Review deployment", "status": "completed", "brief": "Check the release"]]]
         case "/api/tasks/1": value = ["task": ["id": 1, "status": "completed", "result": "Release verified."]]
