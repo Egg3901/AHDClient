@@ -19,6 +19,7 @@ public sealed class HubClient : IDisposable
     {
         http = new HttpClient(handler ?? new HttpClientHandler { AllowAutoRedirect = false })
         { BaseAddress = RunnerConfig.ValidateOrigin(origin), Timeout = TimeSpan.FromSeconds(8) };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("LakesideOps-Windows/1.5");
         if (token is not null) http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
     public async Task<JsonElement> Post(string path, object body, CancellationToken cancellationToken)

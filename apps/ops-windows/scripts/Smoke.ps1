@@ -11,9 +11,10 @@ public static class OpsSmokeWindow {
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int command);
 }
 '@
+foreach ($theme in @('light', 'dark')) {
 $clientProcess = $null
 try {
-    $clientProcess = Start-Process -FilePath (Resolve-Path $Executable) -ArgumentList '--smoke' -PassThru
+    $clientProcess = Start-Process -FilePath (Resolve-Path $Executable) -ArgumentList @('--smoke', $(if ($theme -eq 'dark') { '--smoke-dark' } else { '--smoke-light' })) -PassThru
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
     do {
         Start-Sleep -Milliseconds 500
@@ -32,9 +33,10 @@ try {
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     try {
         $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
-        $bitmap.Save((Join-Path (Resolve-Path $OutputDirectory) 'native-work.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+        $bitmap.Save((Join-Path (Resolve-Path $OutputDirectory) "native-work-$theme.png"), [System.Drawing.Imaging.ImageFormat]::Png)
     } finally { $graphics.Dispose(); $bitmap.Dispose() }
-    @{ launched = $true; windowTitle = $clientProcess.MainWindowTitle; width = $bounds.Width; height = $bounds.Height } | ConvertTo-Json | Set-Content (Join-Path $OutputDirectory 'launch.json')
+    @{ launched = $true; windowTitle = $clientProcess.MainWindowTitle; width = $bounds.Width; height = $bounds.Height } | ConvertTo-Json | Set-Content (Join-Path $OutputDirectory "launch-$theme.json")
 } finally {
     if ($clientProcess -and !$clientProcess.HasExited) { Stop-Process -Id $clientProcess.Id -Force }
+}
 }

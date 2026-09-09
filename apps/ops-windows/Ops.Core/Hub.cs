@@ -16,6 +16,7 @@ public sealed class Hub : IDisposable
             throw new ArgumentException("Enter an HTTPS Hub origin without a path or credentials.");
         http = handler is null ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) : new HttpClient(handler);
         http.BaseAddress = uri; http.Timeout = TimeSpan.FromSeconds(20);
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("LakesideOps-Windows/1.5");
         if (token is not null) http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
     public Task<JsonObject> Get(string path, CancellationToken ct = default) => Send(HttpMethod.Get, path, null, ct);

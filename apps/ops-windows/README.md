@@ -6,9 +6,9 @@ Native C# WinUI 3 Work client and a separate per-user local runner. Targets Wind
 
 Extract the entire ZIP to a writable application folder. Run `Ops.Client.exe`, enter your Hub HTTPS origin, and pair in your default browser. Compare the displayed code before approving. The client credential is protected with Windows DPAPI for the current user. No token belongs in configuration files or command-line arguments.
 
-Work contains board creation, renaming, column editing and empty-board archival, cards, field edits, moves, comments, artifact links, proposal decisions, host/workspace/provider selection, bounded dispatch, cancellation and activity. Board archival is the pilot's removal operation. The server prevents removal of occupied columns. Controls follow the system theme. Keyboard users can select cards and use the explicit Move action.
+Work contains board creation, renaming, column editing and empty-board archival, cards, field edits, moves, comments, artifact links, proposal decisions, host/workspace/provider selection, bounded dispatch, cancellation and activity. Board archival is the pilot's removal operation. The server prevents removal of occupied columns. The native sidebar, lane surfaces, bordered cards, review chips and staff glyphs follow the system light/dark theme and high contrast. The smoke fixture uses the same board components as the connected view. Unchanged snapshots preserve rendered cards and keyboard focus. Keyboard users can select cards and use the explicit Move action.
 
-Assistant provides native conversation selection/creation, message send, file upload, response polling, route/model labels and stop controls. Staff provides native profiles, run history, creation and editing. All four destinations use native controls. Work artifacts accept existing HTTPS/upload links; Assistant uploads files through the existing Hub upload API.
+Assistant provides native conversation selection/creation, message send, file upload, response polling, route/model labels and stop controls. Staff provides native profiles, run history, creation and editing. Tools includes provider capacity and measured usage, cloud workspace files with source/diff previews, version-checked assistant memory editing, and independent runner controls. Dispatch can use a temporary worker or an existing staff member. All four destinations use native controls. Work artifacts accept existing HTTPS/upload links; Assistant uploads files through the existing Hub upload API.
 
 Tools starts and pairs the independent runner executable. Read `Ops.Runner/README.md` in source for configuration and capability verification; the ZIP includes a configuration example. Pairing a client does not pair a runner. Closing the client leaves accepted runner work running. A runner must be started separately after Windows sign-in; automatic installation as a service or startup task is not enabled.
 
@@ -31,7 +31,7 @@ dotnet publish Ops.Client/Ops.Client.csproj -c Release -r win-x64 -p:Platform=x6
 dotnet publish Ops.Runner/Ops.Runner.csproj -c Release -r win-x64 --self-contained true -o pilot/runner
 ```
 
-The `Ops Windows pilot` GitHub workflow performs Windows builds, runs both suites, launches the native client with a local fixture, captures a screenshot, and creates an unsigned ZIP artifact retained for seven days. Artifacts from this public repository may be publicly accessible. This is an unsigned pilot, not a signed production release. Linux can run the core and portable runner unit tests, but cannot execute the Windows XAML compiler or establish Windows behavior.
+The `Ops Windows pilot` GitHub workflow performs Windows builds, runs both suites, launches the native client with a local fixture, captures light and dark screenshots, and creates an unsigned ZIP artifact retained for seven days. Artifacts from this public repository may be publicly accessible. This is an unsigned pilot, not a signed production release. Linux can run the core and portable runner unit tests, but cannot execute the Windows XAML compiler or establish Windows behavior.
 
 ## Device acceptance still required
 

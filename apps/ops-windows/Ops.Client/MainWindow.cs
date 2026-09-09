@@ -7,32 +7,51 @@ using System.Diagnostics;
 using System.Text.Json.Nodes;
 
 namespace Ops.Client;
-public sealed class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
-    readonly StackPanel root = new() { Spacing=12, Margin=new Thickness(20) };
-    readonly TextBlock status = new() { TextWrapping=TextWrapping.Wrap, IsTextSelectionEnabled=true };
-    readonly StackPanel content = new() { Spacing=12 };
+    readonly StackPanel root = new() { Spacing=22, Margin=new Thickness(28,28,28,24) };
+    readonly TextBlock status = NativeStyle.Label("",12);
+    readonly TextBlock pageTitle = NativeStyle.Label("Work",30,"OpsTextBrush");
+    readonly TextBlock pageSubtitle = NativeStyle.Label("A clear view of what matters, and what needs you.",14);
+    readonly Dictionary<string,Button> navigation = new();
+    Border? detailSurface;
+    bool smokeMode;
+    string renderedFingerprint="";
+    string boardListFingerprint="";
+    readonly StackPanel content = new() { Spacing=18 };
     readonly Store store;
     readonly Microsoft.UI.Dispatching.DispatcherQueueTimer timer;
     Hub? hub; string origin=""; string boardId=""; string conversationId=""; JsonObject? board; JsonObject? selected;
-    readonly ComboBox boards = new() { Header="Board", MinWidth=220, DisplayMemberPath="Label" };
+    readonly ComboBox boards = new() { MinWidth=170, DisplayMemberPath="Label", PlaceholderText="Choose board" };
     readonly StackPanel lanes = new() { Orientation=Orientation.Horizontal,Spacing=16 };
-    readonly StackPanel detail = new() { Spacing=10, Width=360 };
+    readonly StackPanel detail = new() { Spacing=14, MaxWidth=680, HorizontalAlignment=HorizontalAlignment.Left };
     bool busy; string destination="Work"; Func<Task>? assistantRefresh;
     sealed record Choice(string Id,string Label,JsonObject Data);
     static TextBox Input(string header,string text="",bool multiline=false) => new() { Header=header,Text=text,AcceptsReturn=multiline,TextWrapping=TextWrapping.Wrap,MinWidth=240,MaxHeight=180 };
     Button Button(string label,Func<Task> action) { var b=new Button { Content=label };b.Click+=async(_,_)=>{b.IsEnabled=false;try{await Guard(action);}finally{b.IsEnabled=true;}};return b; }
     async Task Guard(Func<Task> action) { try { await action(); } catch(Exception ex) { status.Text=ex.Message; } }
-    static TextBlock Text(string value,int size=14)=>new(){Text=value,FontSize=size,TextWrapping=TextWrapping.Wrap,IsTextSelectionEnabled=true};
-    public MainWindow(bool smoke = false)
+    static TextBlock Text(string value,int size=14) {var text=NativeStyle.Label(value,size,"OpsTextBrush");text.IsTextSelectionEnabled=true;if(size>=18)text.FontWeight=Microsoft.UI.Text.FontWeights.SemiBold;return text;}
+    public MainWindow(bool smoke = false, bool smokeDark = false)
     {
+        smokeMode=smoke;
         store = new Store(smoke ? Path.Combine(Path.GetTempPath(),"Ops-smoke",Environment.ProcessId+".db") : Path.Combine(Identity.Root,"work.db"));
         Title=smoke?"Ops smoke fixture":"Ops";AppWindow.Resize(new Windows.Graphics.SizeInt32(1440,960));
-        var scroll=new ScrollViewer { Content=root, HorizontalScrollBarVisibility=ScrollBarVisibility.Auto };
-        Content=scroll;root.Children.Add(Text("Ops",28));
-        var nav=new StackPanel { Orientation=Orientation.Horizontal,Spacing=8 };
-        foreach(var name in new[]{"Assistant","Work","Staff","Tools"}) nav.Children.Add(Button(name,()=>Navigate(name)));
-        root.Children.Add(nav);root.Children.Add(status);root.Children.Add(content);
+        var shell=new Grid();shell.ColumnDefinitions.Add(new(){Width=new GridLength(176)});shell.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});
+        var canvas=NativeStyle.Surface("OpsCanvasBrush",0,0,false);if(smoke)canvas.RequestedTheme=smokeDark?ElementTheme.Dark:ElementTheme.Light;canvas.Child=shell;Content=canvas;
+        var sidebar=NativeStyle.Surface("OpsSidebarBrush",0,16);sidebar.BorderThickness=new Thickness(0,0,1,0);
+        var sideLayout=new Grid();sideLayout.RowDefinitions.Add(new(){Height=GridLength.Auto});sideLayout.RowDefinitions.Add(new(){Height=new GridLength(1,GridUnitType.Star)});sideLayout.RowDefinitions.Add(new(){Height=GridLength.Auto});
+        var brand=new StackPanel{Spacing=5,Margin=new Thickness(6,16,0,34)};
+        var mark=NativeStyle.Surface("OpsAccentSurfaceBrush",11,0,false);mark.Width=40;mark.Height=40;mark.HorizontalAlignment=HorizontalAlignment.Left;var wave=NativeStyle.Label("≈",28,"OpsAccentBrush");wave.HorizontalAlignment=HorizontalAlignment.Center;wave.VerticalAlignment=VerticalAlignment.Center;mark.Child=wave;brand.Children.Add(mark);
+        var wordmark=NativeStyle.Label("LAKESIDE",10);wordmark.CharacterSpacing=160;wordmark.Margin=new Thickness(0,8,0,0);brand.Children.Add(wordmark);brand.Children.Add(Text("Ops",27));sideLayout.Children.Add(brand);
+        var nav=new StackPanel{Spacing=7};Grid.SetRow(nav,1);nav.Children.Add(NativeStyle.Label("WORKSPACE",10));
+        foreach(var (name,glyph) in new[]{("Assistant","\uE8F2"),("Work","\uE8A5"),("Staff","\uE716"),("Tools","\uE713")})
+        {
+            var button=Button(name,()=>Navigate(name));button.Style=(Style)Application.Current.Resources[name=="Work"?"OpsNavigationSelectedStyle":"OpsNavigationStyle"];
+            var label=new StackPanel{Orientation=Orientation.Horizontal,Spacing=11};label.Children.Add(new FontIcon{Glyph=glyph,FontSize=16});label.Children.Add(new TextBlock{Text=name,FontSize=14,FontWeight=Microsoft.UI.Text.FontWeights.SemiBold});button.Content=label;navigation[name]=button;nav.Children.Add(button);
+        }
+        sideLayout.Children.Add(nav);var footer=new StackPanel{Spacing=8,Margin=new Thickness(6,20,0,8)};footer.Children.Add(NativeStyle.Chip("WINDOWS","Blue"));footer.Children.Add(NativeStyle.Label("Your work.\nOne place.",12));Grid.SetRow(footer,2);sideLayout.Children.Add(footer);sidebar.Child=sideLayout;shell.Children.Add(sidebar);
+        var scroll=new ScrollViewer{Content=root,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};Grid.SetColumn(scroll,1);shell.Children.Add(scroll);
+        var heading=new StackPanel{Spacing=6};pageTitle.FontWeight=Microsoft.UI.Text.FontWeights.SemiBold;heading.Children.Add(pageTitle);heading.Children.Add(pageSubtitle);root.Children.Add(heading);root.Children.Add(status);root.Children.Add(content);
         timer=DispatcherQueue.CreateTimer();timer.Interval=TimeSpan.FromSeconds(3);timer.Tick+=async(_,_)=>{if(!busy&&hub is not null){if(destination=="Work")await Guard(Refresh);else if(destination=="Assistant"&&assistantRefresh is not null)await Guard(assistantRefresh);}};
         Closed+=(_,_)=>{timer.Stop();hub?.Dispose();store.Dispose();};
         if(smoke){SmokeView();return;}
@@ -40,16 +59,38 @@ public sealed class MainWindow : Window
     }
     void SmokeView()
     {
-        status.Text="Native UI smoke fixture. No Hub connection.";boardId="sample";
-        var columns=new JsonArray();foreach(var name in new[]{"Inbox","Ready","Doing","Review","Done"})columns.Add(new JsonObject{["id"]=name.ToLowerInvariant(),["title"]=name,["category"]="queued"});
-        var cards=new JsonArray();var titles=new[]{"Plan the next release","Check accessibility","Run Windows validation","Review the research","Publish the changelog"};
-        for(var i=0;i<titles.Length;i++)cards.Add(new JsonObject{["id"]="sample-"+i,["title"]=titles[i],["objective"]="Keep the work, review and activity together.",["columnId"]=new[]{"inbox","ready","doing","review","done"}[i],["version"]=1,["positionVersion"]=1});
-        content.Children.Add(Text("Studio work",22));content.Children.Add(lanes);Render(new(){["board"]=new JsonObject{["id"]=boardId,["name"]="Studio",["version"]=1,["columns"]=columns},["cards"]=cards});
-        content.Children.Add(Text("Review the research",22));content.Children.Add(Text("Agent proposal · Needs your review"));content.Children.Add(Text("Keep the work, review and activity together. Run output and decisions stay attached to the card."));
+        status.Text="Preview workspace · All changes saved";boardId="sample";BuildWorkView();
+        var columns=new JsonArray();var names=new[]{"Inbox","Ready","Doing","Review","Done"};var categories=new[]{"queued","queued","active","review","done"};
+        for(var i=0;i<names.Length;i++)columns.Add(new JsonObject{["id"]=names[i].ToLowerInvariant(),["title"]=names[i],["category"]=categories[i]});
+        var cards=new JsonArray();var titles=new[]{"Shape the next release","A calmer first-run experience","Windows validation","Review the research","A clearer changelog","Make keyboard navigation feel natural","Check the onboarding copy"};
+        var objectives=new[]{"Gather the priorities and decisions for the next cycle.","Make the first five minutes clear and welcoming.","Verify the native client, local runner and recovery paths.","A sourced recommendation is ready for your decision.","Tell people what changed and why it matters.","Walk the core flows without reaching for the mouse.","Keep every step short, useful and human."};
+        var stages=new[]{"inbox","ready","doing","review","done","ready","inbox"};
+        for(var i=0;i<titles.Length;i++)cards.Add(new JsonObject{["id"]="sample-"+i,["title"]=titles[i],["objective"]=objectives[i],["columnId"]=stages[i],["version"]=1,["positionVersion"]=1,["staff_name"]=new[]{"Research","Design","Engineering"}[i%3],["task_type"]=i%2==0?"analysis":"design",["review"]=new JsonObject{["state"]=i is 0 or 3?"proposed":i is 1 or 4?"approved":"unreviewed"}});
+        var sampleBoard=new JsonObject{["id"]=boardId,["name"]="Studio",["version"]=1,["columns"]=columns};boards.ItemsSource=new List<Choice>{new(boardId,"Studio",sampleBoard)};boards.SelectedIndex=0;
+        Render(new(){["board"]=sampleBoard,["cards"]=cards});
+    }
+    static void Detach(FrameworkElement element)
+    {
+        if(element.Parent is Panel panel)panel.Children.Remove(element);
+        else if(element.Parent is Border border)border.Child=null;
+        else if(element.Parent is ScrollViewer scroll)scroll.Content=null;
+    }
+    void BuildWorkView()
+    {
+        Detach(boards);Detach(lanes);Detach(detail);content.Children.Clear();
+        var bar=new StackPanel{Orientation=Orientation.Horizontal,Spacing=8};bar.Children.Add(boards);
+        var create=Button("+ New card",CreateCard);create.Style=(Style)Application.Current.Resources["OpsPrimaryButtonStyle"];bar.Children.Add(create);bar.Children.Add(Button("Refresh",Refresh));bar.Children.Add(Button("Pending",Outbox));
+        var settings=new DropDownButton{Content="Board settings",CornerRadius=new CornerRadius(8),Padding=new Thickness(12,9,12,9)};var menu=new MenuFlyout();
+        foreach(var (label,action) in new (string,Func<Task>)[]{("Create board",CreateBoard),("Edit columns and name",ConfigureBoard)}){var item=new MenuFlyoutItem{Text=label};item.Click+=async(_,_)=>await Guard(action);menu.Items.Add(item);}settings.Flyout=menu;bar.Children.Add(settings);
+        content.Children.Add(new ScrollViewer{Content=bar,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled});
+        var boardViewport=new ScrollViewer{Content=lanes,HorizontalScrollBarVisibility=ScrollBarVisibility.Visible,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled,HorizontalScrollMode=ScrollMode.Enabled,MinHeight=350};content.Children.Add(boardViewport);
+        content.Children.Add(NativeStyle.Label("Select a card to see the work, conversation and decisions.",12));
+        detailSurface=NativeStyle.Surface();detailSurface.Child=detail;detailSurface.Visibility=selected is null?Visibility.Collapsed:Visibility.Visible;content.Children.Add(detailSurface);
+        boards.SelectionChanged-=BoardChanged;if(!smokeMode)boards.SelectionChanged+=BoardChanged;
     }
     void PairView()
     {
-        content.Children.Clear();var address=Input("Hub HTTPS origin","https://");content.Children.Add(address);
+        pageTitle.Text="Welcome to Ops";pageSubtitle.Text="Connect your workspace. Keep the work moving.";content.Children.Clear();var address=Input("Hub HTTPS origin","https://");content.Children.Add(address);
         content.Children.Add(Button("Pair this client",async()=>
         {
             origin=address.Text.Trim();using var pairing=new Hub(origin);
@@ -70,23 +111,15 @@ public sealed class MainWindow : Window
     }
     async Task Navigate(string page)
     {
-        destination=page;assistantRefresh=null;if(hub is null){PairView();return;}content.Children.Clear();
+        destination=page;assistantRefresh=null;pageTitle.Text=page;pageSubtitle.Text=page switch{"Work"=>"A clear view of what matters, and what needs you.","Assistant"=>"Think it through. Turn the next step into work.","Staff"=>"A team with context, memory and a clear purpose.",_=>"Your workspace, devices and execution tools."};
+        foreach(var item in navigation)item.Value.Style=(Style)Application.Current.Resources[item.Key==page?"OpsNavigationSelectedStyle":"OpsNavigationStyle"];
+        if(smokeMode){SmokeView();return;}if(hub is null){PairView();return;}content.Children.Clear();
         if(page=="Work")
         {
-            var bar=new StackPanel{Orientation=Orientation.Horizontal,Spacing=8};bar.Children.Add(boards);
-            bar.Children.Add(Button("Refresh",Refresh));bar.Children.Add(Button("New board",CreateBoard));bar.Children.Add(Button("Edit board / columns",ConfigureBoard));bar.Children.Add(Button("New card",CreateCard));bar.Children.Add(Button("Pending / conflicts",Outbox));content.Children.Add(bar);
-            var split=new StackPanel{Orientation=Orientation.Horizontal,Spacing=24};split.Children.Add(lanes);split.Children.Add(detail);content.Children.Add(split);
-            boards.SelectionChanged-=BoardChanged;boards.SelectionChanged+=BoardChanged;
+            BuildWorkView();
             await Refresh();
         }
-        else if(page=="Tools")
-        {
-            content.Children.Add(Text("Local runner",22));content.Children.Add(Text("Pair the runner separately, configure approved workspaces and tested providers, then start it. Closing this window leaves the runner running."));
-            content.Children.Add(Button("Pair runner",()=>StartRunner("pair",origin)));content.Children.Add(Button("Start runner",()=>StartRunner("run")));
-            content.Children.Add(Button("Open runner configuration folder",()=>{var path=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Ops","runner");Directory.CreateDirectory(path);Process.Start(new ProcessStartInfo(path){UseShellExecute=true});return Task.CompletedTask;}));
-            content.Children.Add(Button("Pending / conflicts",Outbox));
-            content.Children.Add(Button("Disconnect client",()=>{timer.Stop();hub.Dispose();hub=null;File.Delete(Path.Combine(Identity.Root,"identity.bin"));PairView();return Task.CompletedTask;}));
-        }
+        else if(page=="Tools")await ToolsHome();
         else if(page=="Assistant")await Assistant();
         else if(page=="Staff")await Staff();
     }
@@ -178,21 +211,45 @@ public sealed class MainWindow : Window
     }
     void SetBoards(JsonObject list)
     {
+        var fingerprint=list.ToJsonString();if(boardListFingerprint==fingerprint)return;boardListFingerprint=fingerprint;
         var choices=list["boards"]!.AsArray().OfType<JsonObject>().Select(b=>new Choice(Wire.Id(b["id"]),b["name"]!.ToString(),b)).ToList();
         if(!choices.Any(x=>x.Id==boardId))boardId=choices.FirstOrDefault()?.Id??"";
         boards.ItemsSource=choices;boards.SelectedItem=choices.FirstOrDefault(x=>x.Id==boardId);
     }
     void Render(JsonObject snapshot)
     {
-        board=snapshot["board"]!.AsObject();lanes.Children.Clear();
+        board=snapshot["board"]!.AsObject();
+        var fingerprint=board.ToJsonString()+snapshot["cards"]!.ToJsonString()+string.Join("|",store.Pending().Select(item=>item.Id+item.State));
+        if(renderedFingerprint==fingerprint)return;renderedFingerprint=fingerprint;lanes.Children.Clear();
         foreach(var column in board["columns"]!.AsArray().OfType<JsonObject>())
         {
-            var lane=new StackPanel{Width=230,Spacing=8};var cards=snapshot["cards"]!.AsArray().OfType<JsonObject>().Where(c=>Wire.Id(c["columnId"])==Wire.Id(column["id"])).ToList();
-            lane.Children.Add(Text($"{column["title"]} ({cards.Count})",18));
-            var list=new ListView{MaxHeight=660,SelectionMode=ListViewSelectionMode.Single};AutomationProperties.SetName(list,column["title"]!.ToString());
-            foreach(var card in cards){var pending=store.Pending().Any(p=>Wire.Id(p.Body["cardId"])==Wire.Id(card["id"]));list.Items.Add(new ListViewItem{Content=Text(card["title"]+ (pending?"\nPending change":"")),Tag=card});}
-            list.SelectionChanged+=async(_,_)=>{if(list.SelectedItem is ListViewItem{Tag:JsonObject card})await Guard(()=>ShowCard(card));};lane.Children.Add(list);lanes.Children.Add(lane);
+            var lane=new StackPanel{Width=240,Spacing=14};var cards=snapshot["cards"]!.AsArray().OfType<JsonObject>().Where(c=>Wire.Id(c["columnId"])==Wire.Id(column["id"])).ToList();
+            var header=new Grid{Margin=new Thickness(4,0,4,0)};header.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});header.ColumnDefinitions.Add(new(){Width=GridLength.Auto});
+            var title=Text(column["title"]!.ToString(),14);title.FontWeight=Microsoft.UI.Text.FontWeights.SemiBold;header.Children.Add(title);var count=NativeStyle.Chip(cards.Count.ToString(),column["category"]?.ToString()=="review"?"Review":"Blue");Grid.SetColumn(count,1);header.Children.Add(count);lane.Children.Add(header);
+            var list=new ListView{MaxHeight=360,MinHeight=260,SelectionMode=ListViewSelectionMode.Single,Padding=new Thickness(0),IsItemClickEnabled=false};AutomationProperties.SetName(list,column["title"]!.ToString());
+            foreach(var card in cards)
+            {
+                var pending=store.Pending().Any(p=>Wire.Id(p.Body["cardId"])==Wire.Id(card["id"]));
+                list.Items.Add(new ListViewItem{Content=CardTile(card,pending),Tag=card,Padding=new Thickness(0),Margin=new Thickness(0,0,0,10),HorizontalContentAlignment=HorizontalAlignment.Stretch});
+            }
+            list.SelectionChanged+=async(_,_)=>{if(list.SelectedItem is ListViewItem{Tag:JsonObject card})await Guard(()=>ShowCard(card));};lane.Children.Add(list);
+            if(cards.Count==0)lane.Children.Add(NativeStyle.Label("Room for the next step",12));
+            var surface=NativeStyle.Surface("OpsLaneBrush",14,12,false);surface.VerticalAlignment=VerticalAlignment.Top;surface.Child=lane;lanes.Children.Add(surface);
         }
+    }
+    Border CardTile(JsonObject card,bool pending)
+    {
+        var surface=NativeStyle.Surface("OpsCardBrush",10,14);var body=new StackPanel{Spacing=12};surface.Child=body;
+        var kind=NativeStyle.Label((card["task_type"]?.ToString()??"Work").ToUpperInvariant(),10);kind.CharacterSpacing=90;body.Children.Add(kind);
+        var title=Text(card["title"]!.ToString(),15);title.FontWeight=Microsoft.UI.Text.FontWeights.SemiBold;title.MaxLines=3;body.Children.Add(title);
+        var objective=NativeStyle.Label(card["objective"]?.ToString()??"",12);objective.MaxLines=2;objective.TextTrimming=TextTrimming.CharacterEllipsis;body.Children.Add(objective);
+        var review=card["review"]?["state"]?.ToString();
+        if(pending)body.Children.Add(NativeStyle.Chip("Pending sync","Blue"));
+        else if(review=="proposed")body.Children.Add(NativeStyle.Chip("Needs your review","Review"));
+        else if(review=="approved")body.Children.Add(NativeStyle.Chip("Reviewed & approved"));
+        else if(review is "rejected" or "redirected")body.Children.Add(NativeStyle.Chip("Changes requested","Review"));
+        var staff=card["staff_name"]?.ToString()??(card["staff_id"] is null?"Unassigned":"Team member");var footer=new StackPanel{Orientation=Orientation.Horizontal,Spacing=8};footer.Children.Add(NativeStyle.StaffGlyph(card["staff_id"]?.ToString()??staff));var name=NativeStyle.Label(staff,12);name.VerticalAlignment=VerticalAlignment.Center;footer.Children.Add(name);body.Children.Add(footer);
+        return surface;
     }
     string Commands=>"/api/ops/boards/"+Wire.Segment(boardId)+"/commands";
     async Task Online(JsonObject command)
@@ -251,11 +308,11 @@ public sealed class MainWindow : Window
     }
     async Task ShowCard(JsonObject card)
     {
-        selected=card;detail.Children.Clear();detail.Children.Add(Text(card["title"]!.ToString(),22));
+        selected=card;if(detailSurface is not null)detailSurface.Visibility=Visibility.Visible;detail.Children.Clear();detail.Children.Add(Text(card["title"]!.ToString(),22));
         if(card["review"] is JsonObject review)
         {
             var state=review["state"]?.ToString()??"unreviewed";
-            detail.Children.Add(Text(state switch{"proposed"=>"Agent proposal · Needs your review","approved"=>"Approved for the reviewed result","rejected"=>"Proposal rejected","redirected"=>"Changes requested",_=>"Not yet reviewed"},16));
+            detail.Children.Add(NativeStyle.Chip(state switch{"proposed"=>"Agent proposal · Needs your review","approved"=>"Approved for the reviewed result","rejected"=>"Proposal rejected","redirected"=>"Changes requested",_=>"Not yet reviewed"},state is "proposed" or "rejected" or "redirected"?"Review":"Accent"));
             if(review["note"] is not null)detail.Children.Add(Text(review["note"]!.ToString()));
             if(review["artifact"] is not null)detail.Children.Add(Text("Reviewed artifact: "+review["artifact"]));
         }
@@ -274,6 +331,7 @@ public sealed class MainWindow : Window
         detail.Children.Add(Button("Attach link",async()=>{var name=Input("Name");var url=Input("HTTPS artifact URL");var p=new StackPanel{Spacing=8};p.Children.Add(name);p.Children.Add(url);if(await Dialog("Attach artifact",p))await Queue("artifact.attach",new(){["name"]=name.Text,["url"]=url.Text},card);}));
         detail.Children.Add(Button("Dispatch run",()=>Dispatch(card)));
         detail.Children.Add(Button("Review proposal",async()=>{var decision=new ComboBox{Header="Decision",ItemsSource=new[]{"approve","reject","redirect"},SelectedIndex=0};var note=Input("Decision note","",true);var p=new StackPanel{Spacing=8};p.Children.Add(decision);p.Children.Add(note);if(await Dialog("Record scoped decision",p,"Confirm")){await Online(Wire.Command("proposal.decide",new(){["decision"]=decision.SelectedItem.ToString(),["note"]=note.Text},card));await Refresh();var updated=await hub!.Get("/api/ops/cards/"+Wire.Segment(Wire.Id(card["id"])));await ShowCard(updated["card"]!.AsObject());}}));
+        if(smokeMode)return;
         try
         {
             var record=await hub!.Get("/api/ops/cards/"+Wire.Segment(Wire.Id(card["id"])));store.Cache("card:"+Wire.Id(card["id"]),record);RenderActivity(record,card);
@@ -302,15 +360,16 @@ public sealed class MainWindow : Window
     async Task Dispatch(JsonObject card)
     {
         var data=await hub!.Get("/api/ops/runners");var hosts=data["runners"]!.AsArray().OfType<JsonObject>().Where(h=>h["online"]?.GetValue<bool>()==true).ToList();if(data["cloud"] is JsonObject cloud)hosts.Insert(0,cloud);
+        var team=await hub.Get("/api/ops/staff");var staffChoices=new List<Choice>{new("","Temporary worker",new())};staffChoices.AddRange(team["staff"]?.AsArray().OfType<JsonObject>().Select(item=>new Choice(Wire.Id(item["id"]),item["name"]?.ToString()??"Team member",item))??[]);var staff=new ComboBox{Header="Assign to",DisplayMemberPath="Label",ItemsSource=staffChoices,SelectedIndex=0};
         var host=new ComboBox{Header="Run on",DisplayMemberPath="Label",ItemsSource=hosts.Select(h=>new Choice(Wire.Id(h["id"]),h["name"]!.ToString(),h)).ToList()};
         var provider=new ComboBox{Header="Provider",DisplayMemberPath="Label"};var workspace=new ComboBox{Header="Workspace",DisplayMemberPath="Label"};var model=Input("Model (optional)");var effort=new ComboBox{Header="Effort",ItemsSource=new[]{"auto","low","medium","high"},SelectedIndex=0};var minutes=new NumberBox{Header="Maximum minutes",Minimum=1,Maximum=120,Value=15,SpinButtonPlacementMode=NumberBoxSpinButtonPlacementMode.Inline};var access=new ComboBox{Header="Workspace access",ItemsSource=new[]{"read","change"},SelectedIndex=0};
         host.SelectionChanged+=(_,_)=>{if(host.SelectedItem is Choice h){provider.ItemsSource=h.Data["providers"]!.AsArray().OfType<JsonObject>().Where(p=>p["available"]?.GetValue<bool>()==true).Select(p=>new Choice(Wire.Id(p["id"]),Wire.Id(p["id"]),p)).ToList();workspace.ItemsSource=h.Data["workspaces"]!.AsArray().OfType<JsonObject>().Select(w=>new Choice(Wire.Id(w["id"]),w["name"]!.ToString(),w)).ToList();}};
         provider.SelectionChanged+=(_,_)=>{var textOnly=provider.SelectedItem is Choice choice&&choice.Id=="freerouter";workspace.IsEnabled=!textOnly;access.IsEnabled=!textOnly;if(textOnly){workspace.SelectedItem=null;access.SelectedIndex=0;}};
-        var p=new StackPanel{Spacing=8};foreach(var control in new FrameworkElement[]{host,workspace,provider,model,effort,minutes,access})p.Children.Add(control);
+        var p=new StackPanel{Spacing=8};foreach(var control in new FrameworkElement[]{staff,host,workspace,provider,model,effort,minutes,access})p.Children.Add(control);
         if(await Dialog("Dispatch bounded work",p,"Dispatch")&&host.SelectedItem is Choice h&&provider.SelectedItem is Choice pr)
         {
             if(pr.Id!="freerouter"&&workspace.SelectedItem is not Choice)throw new InvalidOperationException("Select a workspace for this provider.");
-            await Online(Wire.Command("run.dispatch",new(){["hostId"]=h.Id,["workspaceId"]=(workspace.SelectedItem as Choice)?.Id??"",["provider"]=pr.Id,["model"]=string.IsNullOrWhiteSpace(model.Text)?null:model.Text,["effort"]=effort.SelectedItem.ToString(),["maxMinutes"]=(int)minutes.Value,["access"]=access.SelectedItem.ToString()},card));status.Text="Dispatch accepted by Hub.";await ShowCard(card);
+            await Online(Wire.Command("run.dispatch",new(){["staffId"]=(staff.SelectedItem as Choice)?.Id is string staffId&&staffId.Length>0?staffId:null,["hostId"]=h.Id,["workspaceId"]=(workspace.SelectedItem as Choice)?.Id??"",["provider"]=pr.Id,["model"]=string.IsNullOrWhiteSpace(model.Text)?null:model.Text,["effort"]=effort.SelectedItem.ToString(),["maxMinutes"]=(int)minutes.Value,["access"]=access.SelectedItem.ToString()},card));status.Text="Dispatch accepted by Hub.";await ShowCard(card);
         }
     }
     async Task Outbox()
