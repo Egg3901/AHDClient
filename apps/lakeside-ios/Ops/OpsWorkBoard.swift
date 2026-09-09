@@ -6,6 +6,8 @@ struct OpsWorkBoard: View {
     @StateObject private var store = OpsWorkStore()
     @EnvironmentObject private var session: AppSession
     @Environment(\.scenePhase) private var phase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var visibleColumn: String?
     @State private var visible = true
     @State private var search = ""
     @State private var compact = true
@@ -20,12 +22,13 @@ struct OpsWorkBoard: View {
             if !store.cache.pending.isEmpty { pending }
             if columns.isEmpty { ContentUnavailableView("No board yet", systemImage: "rectangle.split.3x1", description: Text("Connect to load your boards or create one.")) }
             else {
+                stagePicker
                 GeometryReader { geometry in
                     ScrollView(.horizontal) {
                         LazyHStack(alignment: .top, spacing: 12) {
-                            ForEach(columns, id: \.["id"].string) { column in lane(column, width: min(340, max(260, geometry.size.width - 44)), height: geometry.size.height) }
+                            ForEach(columns, id: \.["id"].string) { column in lane(column, width: min(340, max(260, geometry.size.width - 44)), height: geometry.size.height).id(column["id"].string) }
                         }.scrollTargetLayout().padding(.horizontal, 16)
-                    }.scrollTargetBehavior(.viewAligned).accessibilityIdentifier("ops-kanban-scroll")
+                    }.scrollTargetBehavior(.viewAligned).scrollPosition(id: $visibleColumn).accessibilityIdentifier("ops-kanban-scroll")
                 }
             }
         }.padding(.bottom, 8).background(Brand.background).foregroundStyle(Brand.ink).tint(Brand.sky)
@@ -47,10 +50,44 @@ struct OpsWorkBoard: View {
             .sheet(isPresented: $newBoard) { OpsWorkConfigure(store: store, creating: true) }
             .sheet(isPresented: $configure) { OpsWorkConfigure(store: store, creating: false) }
             .onAppear { visible = true; store.open(session) }.onDisappear { visible = false }
+            .onChange(of: store.selected) { _, _ in visibleColumn = columns.first?["id"].string }
             .task(id: "\(visible)-\(phase == .active)-\(store.selected)") {
                 guard visible, phase == .active else { return }
                 while !Task.isCancelled { await store.refresh(session); do { try await Task.sleep(for: .seconds(1)) } catch { return } }
             }
+    }
+    private var stagePicker: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(columns, id: \.["id"].string) { column in
+                        let id = column["id"].string
+                        let count = store.cards.filter { $0["columnId"] == column["id"] && matchesSearch($0) }.count
+                        let selected = (visibleColumn ?? columns.first?["id"].string) == id
+                        Button {
+                            if reduceMotion { visibleColumn = id }
+                            else { withAnimation(.easeInOut(duration: 0.2)) { visibleColumn = id } }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(column["title"].string)
+                                Text("\(count)").monospacedDigit().foregroundStyle(.secondary)
+                            }.font(.caption.weight(.medium)).padding(.horizontal, 12).padding(.vertical, 9)
+                                .background(Brand.sky.opacity(selected ? 0.17 : 0.05), in: Capsule())
+                                .overlay(Capsule().strokeBorder(Brand.sky.opacity(selected ? 0.5 : 0.15)))
+                        }.buttonStyle(.plain).id(id)
+                            .accessibilityLabel("\(column["title"].string), \(count) cards")
+                            .accessibilityAddTraits(selected ? .isSelected : [])
+                            .accessibilityIdentifier("ops-kanban-stage-\(id)")
+                    }
+                }.padding(.horizontal, 16)
+            }.scrollIndicators(.hidden)
+                .onChange(of: visibleColumn) { _, id in
+                    if let id { proxy.scrollTo(id, anchor: .center) }
+                }
+        }.accessibilityIdentifier("ops-kanban-stage-picker")
+    }
+    private func matchesSearch(_ card: JSONValue) -> Bool {
+        search.isEmpty || card["title"].string.localizedCaseInsensitiveContains(search) || card["objective"].string.localizedCaseInsensitiveContains(search)
     }
     private var status: some View {
         HStack {
@@ -75,7 +112,7 @@ struct OpsWorkBoard: View {
         }.padding(.horizontal, 16).accessibilityIdentifier("ops-work-outbox")
     }
     private func lane(_ column: JSONValue, width: CGFloat, height: CGFloat) -> some View {
-        let cards = store.cards.filter { $0["columnId"] == column["id"] && (search.isEmpty || $0["title"].string.localizedCaseInsensitiveContains(search) || $0["objective"].string.localizedCaseInsensitiveContains(search)) }.sorted {
+        let cards = store.cards.filter { $0["columnId"] == column["id"] && matchesSearch($0) }.sorted {
             let left = $0["board_rank"].number ?? 0, right = $1["board_rank"].number ?? 0
             return left == right ? $0["id"].string < $1["id"].string : left < right
         }
