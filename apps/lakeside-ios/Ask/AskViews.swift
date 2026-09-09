@@ -87,9 +87,11 @@ private struct ChatTurn: Identifiable {
     var model: String = ""
     var trail: [String] = []
     var metadata: JSONValue = .null
+    var attachments: [JSONValue] = []
 }
 
 struct AskConversation: View {
+    @StateObject private var attachments = ChatAttachments()
     let initialID: String
     var initialQuestion: String = ""
     @EnvironmentObject private var session: AppSession
@@ -133,6 +135,7 @@ struct AskConversation: View {
                     }
                     ForEach(turns) { turn in
                         VStack(alignment: .leading, spacing: 16) {
+                            ForEach(Array(turn.attachments.enumerated()), id: \.offset) { _, file in Label(file["name"].string, systemImage: "paperclip").font(.caption) }
                             Text(turn.question).font(.headline).padding(14).frame(maxWidth: .infinity, alignment: .leading)
                                 .background(Brand.sky.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
                             HStack(spacing: 8) { BrandMark(surface: .ask, size: 22); Text("ASK").font(.caption2.bold()).tracking(1.5); Spacer(); if !turn.model.isEmpty { Text(turn.model).font(.caption2).foregroundStyle(.secondary) } }
@@ -172,7 +175,7 @@ struct AskConversation: View {
                         }.id(turn.id)
                     }
                     if let feedbackNotice { Label(feedbackNotice, systemImage: "checkmark.circle").font(.caption).foregroundStyle(Brand.mint) }
-                    if streaming { HStack { ProgressView(); Text(status.nonempty ?? "Thinking…").font(.callout).foregroundStyle(.secondary) } }
+                    if streaming { LoadingShimmer(text: status.nonempty ?? "Thinking…").font(.callout) }
                     if let error {
                         FailureBanner(message: error)
                         if !streaming && !conversationID.isEmpty { Button("Reload saved conversation") { Task { await loadTurns() } } }
@@ -236,7 +239,9 @@ struct AskConversation: View {
                 if let cost = nextCost["cost"].number { Text("\(cost.formatted()) credit\(cost == 1 ? "" : "s")").font(.caption2.monospacedDigit()) }
                 Text(games.first(where: { $0["id"].string == game })?["name"].string ?? "A House Divided").font(.caption2).lineLimit(1)
             }.foregroundStyle(.secondary)
+            AttachmentTray(attachments: attachments).disabled(streaming)
             HStack(alignment: .bottom, spacing: 12) {
+                AttachmentPicker(attachments: attachments).disabled(streaming)
                 TextField("Ask a question…", text: $draft, axis: .vertical).lineLimit(1...6).focused($focused)
                     .accessibilityIdentifier("ask-composer")
                     .padding(12).background(Brand.surface, in: RoundedRectangle(cornerRadius: 16)).overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Brand.sky.opacity(0.15))).disabled(streaming)
@@ -244,7 +249,7 @@ struct AskConversation: View {
                     Button { Task { await stop() } } label: { Image(systemName: "stop.circle.fill").font(.title) }.disabled(stopping).accessibilityLabel("Stop answer")
                 } else {
                     Button(action: send) { Image(systemName: "arrow.up.circle.fill").font(.title) }
-                        .disabled(loading || draft.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count < 5 || draft.utf16.count > 500).accessibilityLabel("Send question")
+                        .disabled(loading || attachments.uploading || (draft.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count < 5 && attachments.items.isEmpty) || draft.utf16.count > 500).accessibilityLabel("Send question")
                 }
             }
             if mode != .auto { Text(mode.hint).font(.caption2).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading) }
@@ -260,17 +265,19 @@ struct AskConversation: View {
         guard !conversationID.isEmpty else { return }
         do {
             let data = try await session.get("/api/conversation", query: ["id": conversationID])
-            turns = data["turns"].array.map { ChatTurn(id: $0["id"].string, question: $0["question"].string, answer: $0["answer"].string, citations: $0["citations"].array, answerID: $0["id"], model: $0["model"].string, metadata: $0) }
+            turns = data["turns"].array.map { ChatTurn(id: $0["id"].string, question: $0["question"].string, answer: $0["answer"].string, citations: $0["citations"].array, answerID: $0["id"], model: $0["model"].string, metadata: $0, attachments: $0["attachments"].array) }
             error = nil
         } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     }
     private func send() {
-        let question = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !streaming, (5...500).contains(question.utf16.count) else { return }
+        let entered = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let question = entered.isEmpty && !attachments.items.isEmpty ? "Please examine the attached files." : entered
+        guard !streaming, !attachments.uploading, (5...500).contains(question.utf16.count) else { return }
+        let files = attachments.payload
         if conversationID.isEmpty { conversationID = String(UUID().uuidString.prefix(18)) }
         draft = ""; error = nil; followups = []; focused = false; streaming = true; requestID = ""; status = "Thinking…"
-        let turnID = UUID().uuidString; turns.append(ChatTurn(id: turnID, question: question, answer: ""))
-        let body: [String: JSONValue] = ["question": .string(question), "convId": .string(conversationID), "game": .string(game), "useMcp": .bool(live), "length": .string(length), "style": .string(style), "effort": .string(effort), "visualizations": .bool(visualizations), "mode": .string(mode.rawValue), "tz": .string(TimeZone.current.identifier)]
+        let turnID = UUID().uuidString; turns.append(ChatTurn(id: turnID, question: question, answer: "", attachments: files.array))
+        let body: [String: JSONValue] = ["question": .string(question), "convId": .string(conversationID), "game": .string(game), "useMcp": .bool(live), "length": .string(length), "style": .string(style), "effort": .string(effort), "visualizations": .bool(visualizations), "mode": .string(mode.rawValue), "tz": .string(TimeZone.current.identifier), "attachments": files]
         streamTask = Task {
             defer { streaming = false; streamTask = nil; requestID = "" }
             do {
@@ -284,6 +291,7 @@ struct AskConversation: View {
                         if !status.isEmpty && turns[index].trail.count < 80 { turns[index].trail.append(status) }
                     case "delta": turns[index].answer += data.string
                     case "done":
+                        attachments.items.removeAll()
                         session.updateUsage(data["usage"])
                         turns[index].metadata = data
                         if !data["convId"].string.isEmpty { conversationID = data["convId"].string }

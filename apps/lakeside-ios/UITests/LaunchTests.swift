@@ -122,6 +122,18 @@ final class LaunchTests: XCTestCase {
     private func capture(_ app: XCUIApplication, _ name: String) {
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = name; screenshot.lifetime = .keepAlways; add(screenshot)
     }
+    func testAttachmentMenu() {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
+        if !app.tabBars.buttons["Team"].waitForExistence(timeout: 3) {
+            let conversation = app.staticTexts["How does inflation work?"]
+            XCTAssertTrue(conversation.waitForExistence(timeout: 10)); conversation.tap()
+        }
+        let add = app.buttons["add-attachment"]
+        XCTAssertTrue(add.waitForExistence(timeout: 10)); add.tap()
+        XCTAssertTrue(app.buttons["Photo library"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Choose file"].exists)
+        capture(app, "Native attachment picker")
+    }
     func testNativeSignInAndCancellation() {
         let app = XCUIApplication(); app.launch()
         let signIn = app.buttons["Sign in to Lakeside"]

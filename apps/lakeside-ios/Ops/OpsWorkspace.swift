@@ -86,11 +86,11 @@ import LakesideCore
             turns.insert(contentsOf: response["turns"].array.filter { !ids.contains($0["id"].string) }, at: 0)
         } catch { self.error = error.localizedDescription }
     }
-    func send(_ text: String, _ session: AppSession) async -> Bool {
-        guard !sending, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+    func send(_ text: String, _ session: AppSession, attachments: JSONValue = .array([])) async -> Bool {
+        guard !sending, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.array.isEmpty else { return false }
         sending = true; defer { sending = false }
         do {
-            _ = try await session.post("/api/chat/send", ["conversation": .string(conversation), "text": .string(text)])
+            _ = try await session.post("/api/chat/send", ["conversation": .string(conversation), "text": .string(text), "attachments": attachments])
             try await loadTurns(session); error = nil; return true
         } catch { self.error = error.localizedDescription; return false }
     }
@@ -186,6 +186,7 @@ struct OpsWorkspace: View {
 }
 
 struct OpsConversation: View {
+    @StateObject private var attachments = ChatAttachments()
     @EnvironmentObject private var session: AppSession
     @ObservedObject var model: OpsWorkspaceModel
     @State private var draft = ""
@@ -244,7 +245,9 @@ struct OpsConversation: View {
                 }.padding(.horizontal, 16).padding(.bottom, 8)
             }
             if let error = model.error { Text(error).font(.caption).foregroundStyle(.orange).padding(.horizontal).lineLimit(3) }
+            AttachmentTray(attachments: attachments).disabled(model.sending).padding(.horizontal, 20)
             HStack(alignment: .bottom, spacing: 12) {
+                AttachmentPicker(attachments: attachments).disabled(model.sending)
                 TextField("Message Ops", text: $draft, axis: .vertical).lineLimit(1...6).focused($composing)
                     .accessibilityIdentifier("ops-composer").padding(.vertical, 8)
                 if !model.streamingID.isEmpty {
@@ -253,10 +256,10 @@ struct OpsConversation: View {
                         catch { model.error = error.localizedDescription }
                     } } label: { Image(systemName: "stop.fill").padding(9) }.accessibilityLabel("Stop reply")
                 }
-                Button { let text = draft; Task { if await model.send(text, session), draft == text { draft = "" } } } label: {
+                Button { let text = draft; let files = attachments.payload; Task { if await model.send(text, session, attachments: files) { if draft == text { draft = "" }; attachments.items.removeAll() } } } label: {
                     Image(systemName: "arrow.up").font(.body.weight(.semibold)).frame(width: 34, height: 34)
                         .background(OpsTheme.sky, in: Circle()).foregroundStyle(OpsTheme.onAccent)
-                }.disabled(model.sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel("Send message")
+                }.disabled(model.sending || attachments.uploading || (draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.items.isEmpty)).accessibilityLabel("Send message")
             }.padding(12).background(OpsTheme.surface, in: RoundedRectangle(cornerRadius: 20))
                 .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(.primary.opacity(0.09)))
                 .padding(.horizontal, 16).padding(.bottom, 10)
@@ -279,6 +282,7 @@ private struct OpsMessage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if owner {
+                ForEach(Array(turn["attachments"].array.enumerated()), id: \.offset) { _, file in Label(file["name"].string, systemImage: "paperclip").font(.caption) }
                 Text(turn["body"].string).font(.body).textSelection(.enabled).padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(OpsTheme.raised.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
@@ -289,9 +293,10 @@ private struct OpsMessage: View {
                     Spacer()
                     Text(turn["route"]["label"].string).font(.caption2).foregroundStyle(.secondary)
                 }
-                NativeMarkdown(text: live ? (model.liveText.isEmpty ? "Thinking…" : model.liveText) : (turn["body"].string.nonempty ?? turn["status"].string.capitalized), streaming: live)
+                if live && model.liveText.isEmpty { LoadingShimmer(text: "Thinking…") }
+                else { NativeMarkdown(text: live ? model.liveText : (turn["body"].string.nonempty ?? turn["status"].string.capitalized), streaming: live) }
                 OpsActivity(actions: live ? model.liveActions : turn["actions"].array)
-                if live && !model.activity.isEmpty { Label(model.activity, systemImage: "circle.dotted").font(.caption).foregroundStyle(.secondary).lineLimit(2) }
+                if live && !model.activity.isEmpty { LoadingShimmer(text: model.activity).font(.caption).lineLimit(2) }
                 if !turn["error"].string.isEmpty { Text(turn["error"].string).font(.caption).foregroundStyle(.orange) }
                 if !live && !turn["body"].string.isEmpty {
                     HStack(spacing: 22) {

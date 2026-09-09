@@ -143,6 +143,13 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         try await json(request(path, query: query))
     }
     func post(_ path: String, _ body: [String: JSONValue]) async throws -> JSONValue { try await json(request(path, body: body)) }
+    func upload(_ data: Data, name: String, mime: String) async throws -> JSONValue {
+        var r = try request(surface == .ask ? "/api/upload" : "/api/chat/upload")
+        r.httpMethod = "POST"; r.httpBody = data
+        r.setValue(mime, forHTTPHeaderField: "Content-Type")
+        r.setValue(name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed), forHTTPHeaderField: "X-Filename")
+        return try await json(r)
+    }
     private func json(_ request: URLRequest) async throws -> JSONValue {
         let (data, response) = try await transport.data(for: request)
         try validate(response, data: data)
