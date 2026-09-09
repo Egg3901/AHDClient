@@ -5,3 +5,7 @@ build/
 Ask/Assets.xcassets/
 Ops/Assets.xcassets/
 *.xcresult
+
+# EAS workflow source is not generated build output.
+!.eas/build/
+!.eas/build/*.yml
