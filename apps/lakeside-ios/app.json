@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Lakeside Ops",
+    "slug": "lakeside-ops",
+    "owner": "lakeside-games",
+    "version": "1.4.0",
+    "sdkVersion": "56.0.0",
+    "platforms": [
+      "ios"
+    ],
+    "ios": {
+      "bundleIdentifier": "net.lakesidegames.ops"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "cca67185-7e31-4317-be14-02b573e97221"
+      }
+    }
+  }
+}
