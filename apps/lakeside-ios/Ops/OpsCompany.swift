@@ -157,6 +157,16 @@ struct OpsCompanyDetail: View {
             VStack(alignment: .leading, spacing: 28) {
                 if loading && detail == .null { ProgressView("Loading work") }
                 header
+                HStack {
+                    Button("Discuss with Ops") { Task {
+                        if !job["conversation_id"].string.isEmpty { await model.select(job["conversation_id"].string, session) }
+                        model.fileQuestion = "About work \(job["id"].string): \(job["title"].string). "
+                        model.selectedTab = 0
+                    } }.buttonStyle(.bordered).accessibilityIdentifier("ops-work-discuss")
+                    if let worker = model.workers.first(where: { $0["id"] == job["worker_id"] }) {
+                        NavigationLink("Agent activity") { OpsWorkerDetail(worker: worker, model: model) }.buttonStyle(.bordered)
+                    }
+                }
                 why
                 completionChecks
                 people
@@ -168,7 +178,6 @@ struct OpsCompanyDetail: View {
         }.background(Brand.background).foregroundStyle(Brand.ink).tint(Brand.sky)
             .accessibilityElement(children: .contain).accessibilityIdentifier("ops-company-detail-scroll")
             .navigationTitle("Work").navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .tabBar)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { moreActions } }
             .safeAreaInset(edge: .bottom) { nextStep.padding(.horizontal, 24).padding(.vertical, 12).frame(maxWidth: .infinity).background(Brand.background) }
             .onAppear { visible = true }.onDisappear { visible = false }

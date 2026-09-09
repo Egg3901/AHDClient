@@ -72,12 +72,13 @@ final class LaunchTests: XCTestCase {
     }
     func testOpsWorkbench() throws {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        guard app.tabBars.buttons["Files"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops workbench") }
+        guard app.tabBars.buttons["Hub"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops workbench") }
         app.buttons["Conversations"].tap()
         XCTAssertTrue(app.staticTexts["Build the studio hub"].waitForExistence(timeout: 5))
         capture(app, "Ops conversation history")
         app.buttons["Done"].tap()
-        app.tabBars.buttons["Files"].tap()
+        app.tabBars.buttons["Hub"].tap()
+        app.buttons["ops-files-open"].tap()
         app.staticTexts["Studio hub"].tap()
         app.staticTexts["app.swift"].tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "let version")).firstMatch.waitForExistence(timeout: 5))

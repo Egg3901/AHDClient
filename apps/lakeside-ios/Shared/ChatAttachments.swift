@@ -75,13 +75,21 @@ struct AttachmentPicker: View {
     @ObservedObject var attachments: ChatAttachments
     @State private var photo: PhotosPickerItem?
     @State private var files = false
+    @State private var choices = false
+    @State private var photos = false
     var body: some View {
-        Menu {
-            PhotosPicker(selection: $photo, matching: .images) { Label("Photo library", systemImage: "photo") }
-            Button { files = true } label: { Label("Choose file", systemImage: "doc") }
-        } label: { Image(systemName: "plus.circle").font(.title2) }
+        Button { choices = true } label: {
+            Label("Attach", systemImage: "paperclip").font(.subheadline.weight(.semibold))
+                .frame(minHeight: 44)
+        }
             .accessibilityLabel("Add attachment").accessibilityIdentifier("add-attachment")
             .disabled(attachments.uploading || attachments.items.count >= 6)
+            .confirmationDialog("Add to your message", isPresented: $choices, titleVisibility: .visible) {
+                Button("Photo library") { photos = true }
+                Button("Choose file") { files = true }
+                Button("Cancel", role: .cancel) {}
+            }
+            .photosPicker(isPresented: $photos, selection: $photo, matching: .images)
             .fileImporter(isPresented: $files, allowedContentTypes: [.image, .pdf, .text, .json, .data], allowsMultipleSelection: true) { result in
                 Task {
                     do { for url in try result.get().prefix(6 - attachments.items.count) { await attachments.addFile(url, session: session) } }
