@@ -93,7 +93,7 @@ public sealed partial class MainWindow : Window
     }
     void PairView()
     {
-        pageTitle.Text="Welcome to Ops";pageSubtitle.Text="Connect your workspace. Keep the work moving.";content.Children.Clear();var address=Input("Hub HTTPS origin","https://");content.Children.Add(address);
+        pageTitle.Text="Welcome to Ops";pageSubtitle.Text="Connect your workspace. Keep the work moving.";content.Children.Clear();var address=Input("Hub address","https://hub.lakesidegames.net");content.Children.Add(address);
         content.Children.Add(Button("Pair this client",async()=>
         {
             origin=address.Text.Trim();using var pairing=new Hub(origin);
