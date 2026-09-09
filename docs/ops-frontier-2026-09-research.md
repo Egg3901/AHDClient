@@ -168,7 +168,7 @@ Visual sources: [Paseo pinned promotional assets](https://github.com/getpaseo/pa
 
 ## Implementation and validation checkpoint
 
-The first implementation adds provider capacity on iOS and web, shared bounded quota collection, and retry-safe message receipts. Codex uses actual local telemetry timestamps and window durations. Grok uses the installed Paseo usage protocol. Free Router exposes configured route readiness separately from quota. No verified Muse subscription quota endpoint was found; measured activity remains available without a fabricated remaining percentage.
+The first implementation adds provider capacity on iOS and web, shared bounded quota collection, and retry-safe message receipts. Codex uses actual local telemetry timestamps and window durations. Grok uses the installed Paseo usage protocol. Free Router exposes configured route readiness separately from quota. Subsequent runtime investigation verified Muse subscription quota in its Responses SSE stream. The backend wrapper captures session and weekly usage during normal agent work; see the follow-up below.
 
 The Paseo Codex fallback was deliberately excluded because its adapter supplies a fixed window label and defaults missing usage to zero. The local telemetry source preserves the actual duration and observation time. Fresh verified windows also inform dispatch; expired, future and failed readings cannot block routing as if they were current quota.
 
@@ -177,3 +177,35 @@ At the September 9 checkpoint, 132 backend tests passed, including restart-safe 
 Browser checks cover reply-stream reconnection without duplicate text, stable request IDs across retry, acknowledgement despite refresh failure, four provider cards, missing quota without a meter, retained disclosures and phone-width overflow. Native simulator validation remains separate. This branch does not bump versions, sign an archive, deploy the backend or cut a release.
 
 Display preference confirmed by the owner: GPT/Codex and Grok quota bars count upward as usage is consumed. Their labels say percent used; higher consumption approaches the warning threshold. The routing contract still evaluates remaining capacity internally. A reset does not manufacture either zero usage or a full remaining balance before a fresh reading arrives.
+
+
+## Muse quota follow-up
+
+The installed Muse client 1.0.3-R2198.1 recognizes `response.subscription_usage`,
+but its high-level `exec --json` stream omits that event. A bounded authenticated
+Responses request returned a valid subscription frame. A second bounded run
+through the actual CLI and a loopback stream observer completed successfully
+and captured both windows. Account readings and raw probe output remain private.
+
+The observed payload has `subscription.window` and `subscription.weekly`, each
+with `used_percent` and `resets_at` in Unix seconds. The current window also has
+`window_duration_mins`. The backend normalizes these into the existing capacity
+contract. The observer stores only allowlisted numeric fields and does not
+retain account identifiers, credentials, prompts or response content. It makes
+no additional inference requests during normal usage. The separate Paseo Muse
+bridge needs its executable configured to use the wrapper at deployment.
+
+This supplies observed quota without fitting an assumed tokens-per-percent
+formula. It is refreshed by agent work, not a continuously polled account feed.
+Readings older than five minutes are stale; expired windows never synthesize a
+refill. Other-device usage appears in the next account frame. Token forecasting
+remains separate work. The official SDK also distinguishes counted-once token
+usage from context occupancy and excludes child-session usage from root totals:
+[session/tokenUsage](https://meta-models.github.io/muse-code-sdk/generated/msp/notifications/session-tokenusage/).
+
+Backend validation now passes 138 tests, including fragmented SSE, malformed
+frames, private cache writes, stale/reset handling and byte-preserving stream
+forwarding. Browser checks cover both Muse windows as count-up bars. Native
+simulator testing found and fixed a cancelled-refresh race during tab changes;
+its rerun is tracked on draft PR45. No production deployment or release is part
+of this checkpoint.
