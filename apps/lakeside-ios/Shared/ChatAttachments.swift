@@ -44,6 +44,12 @@ final class ChatAttachments: ObservableObject {
                               image: mime.hasPrefix("image/") ? UIImage(data: data) : nil, value: result))
         } catch { self.error = error.localizedDescription }
     }
+    func remove(_ item: Item, session: AppSession) async {
+        guard !uploading else { return }
+        uploading = true; defer { uploading = false }
+        do { try await session.discardUpload(item.value["url"]); items.removeAll { $0.id == item.id }; error = nil }
+        catch { self.error = error.localizedDescription }
+    }
     func addFile(_ url: URL, session: AppSession) async {
         do {
             let data = try await Task.detached {
@@ -97,6 +103,7 @@ struct AttachmentPicker: View {
 }
 
 struct AttachmentTray: View {
+    @EnvironmentObject private var session: AppSession
     @ObservedObject var attachments: ChatAttachments
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -108,7 +115,7 @@ struct AttachmentTray: View {
                                 if let image = item.image { Image(uiImage: image).resizable().scaledToFill().frame(width: 32, height: 32).clipped().clipShape(RoundedRectangle(cornerRadius: 5)) }
                                 else { Image(systemName: "doc") }
                                 Text(item.name).font(.caption).lineLimit(1).frame(maxWidth: 130)
-                                Button { attachments.items.removeAll { $0.id == item.id } } label: { Image(systemName: "xmark.circle.fill") }.accessibilityLabel("Remove \(item.name)")
+                                Button { Task { await attachments.remove(item, session: session) } } label: { Image(systemName: "xmark.circle.fill") }.accessibilityLabel("Remove \(item.name)").disabled(attachments.uploading)
                             }.padding(8).background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
                         }
                     }
