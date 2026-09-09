@@ -555,7 +555,7 @@ pub(crate) async fn link_account(app: AppHandle, separate_window: Option<bool>) 
 const EMBEDDED_TOP: f64 = 64.0;
 
 fn close_embedded(app: &AppHandle) {
-  for label in ["game-embedded", "online-embedded"] {
+  for label in EMBEDDED_LABELS {
     if let Some(view) = app.get_webview(label) { let _ = view.close(); }
   }
 }
@@ -563,6 +563,75 @@ fn close_embedded(app: &AppHandle) {
 #[tauri::command]
 pub(crate) fn close_embedded_game(app: AppHandle) {
   close_embedded(&app);
+}
+
+/// Every embedded child the launcher owns. Each sits above the launcher DOM,
+/// so launcher dialogs must hide (never close) these while open; hiding keeps
+/// the current path and session, closing would lose them.
+const EMBEDDED_LABELS: [&str; 2] = ["game-embedded", "online-embedded"];
+
+/// Hide the embedded child webviews so launcher DOM dialogs (settings,
+/// diagnostics) work above them, or show them again when the dialogs close.
+/// The views are never closed or navigated here, so the child keeps its
+/// current path (including /profile) and session throughout.
+#[tauri::command]
+pub(crate) fn set_embedded_visible(app: AppHandle, visible: bool) -> Result<(), String> {
+  for label in EMBEDDED_LABELS {
+    if let Some(view) = app.get_webview(label) {
+      if visible {
+        view.show().map_err(|e| e.to_string())?;
+      } else {
+        view.hide().map_err(|e| e.to_string())?;
+      }
+    }
+  }
+  if visible {
+    if let Some(main) = app.get_webview_window("main") {
+      let _ = main.set_focus();
+    }
+  }
+  Ok(())
+}
+
+/// Pure part of a game-view refresh: only a URL on the running game's own
+/// loopback origin+port may be reloaded, and it reloads on its current path.
+/// Anything else (multiplayer, an external page, a stale port from a previous
+/// world) is refused, so a refresh can never navigate the player away from
+/// the local game or across worlds. Returns the refreshed path for display.
+fn refresh_target(current: &Url, port: u16) -> Result<String, String> {
+  if !is_local_game_url(current, port) {
+    return Err("the game view is not on the running local game".into());
+  }
+  match current.query() {
+    Some(query) => Ok(format!("{}?{query}", current.path())),
+    None => Ok(current.path().to_string()),
+  }
+}
+
+/// Reload the local game view on its current path so funds, map, country and
+/// briefing pages pick up the turn that just advanced. Embedded and separate
+/// windows are both supported; multiplayer views are never touched.
+#[tauri::command]
+pub(crate) fn refresh_game_view(app: AppHandle, game: State<'_, Game>) -> Result<String, String> {
+  let port = game
+    .0
+    .lock()
+    .map_err(|_| "game state poisoned")?
+    .port
+    .ok_or("the game is not running")?;
+  if let Some(view) = app.get_webview("game-embedded") {
+    let current = view.url().map_err(|e| e.to_string())?;
+    let path = refresh_target(&current, port)?;
+    view.navigate(current).map_err(|e| e.to_string())?;
+    return Ok(path);
+  }
+  if let Some(window) = app.get_webview_window("game") {
+    let current = window.url().map_err(|e| e.to_string())?;
+    let path = refresh_target(&current, port)?;
+    window.navigate(current).map_err(|e| e.to_string())?;
+    return Ok(path);
+  }
+  Err("no local game view is open".into())
 }
 
 fn open_embedded(app: &AppHandle, url: Url, local_port: Option<u16>) -> Result<(), String> {
@@ -805,6 +874,8 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
       crate::linked_account,
       link_account,
       close_embedded_game,
+      set_embedded_visible,
+      refresh_game_view,
       open_online_window,
       open_help_destination,
       open_game_window,
@@ -846,7 +917,7 @@ pub(crate) fn on_exit(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-  use super::{is_local_game_url, valid_slot};
+  use super::{is_local_game_url, refresh_target, valid_slot, EMBEDDED_LABELS};
   use tauri::Url;
 
   #[test]
@@ -864,6 +935,35 @@ mod tests {
     assert!(!is_local_game_url(&https, 3111));
     assert!(!is_local_game_url(&remote, 3111));
     assert!(!is_local_game_url(&wiki, 3111));
+  }
+
+  #[test]
+  fn embedded_hide_show_covers_both_child_views() {
+    assert!(EMBEDDED_LABELS.contains(&"game-embedded"));
+    assert!(EMBEDDED_LABELS.contains(&"online-embedded"));
+  }
+
+  #[test]
+  fn game_refresh_reloads_the_running_game_on_its_current_path() {
+    let port = 3111;
+    let country: Url = "http://127.0.0.1:3111/country/us".parse().unwrap();
+    let with_query: Url = "http://127.0.0.1:3111/briefing?tab=funds".parse().unwrap();
+    let root: Url = "http://localhost:3111/".parse().unwrap();
+    assert_eq!(refresh_target(&country, port).as_deref(), Ok("/country/us"));
+    assert_eq!(refresh_target(&with_query, port).as_deref(), Ok("/briefing?tab=funds"));
+    assert_eq!(refresh_target(&root, port).as_deref(), Ok("/"));
+  }
+
+  #[test]
+  fn game_refresh_refuses_anything_off_the_running_game() {
+    let port = 3111;
+    let multiplayer: Url = "https://ahousedividedgame.com/play".parse().unwrap();
+    let stale_port: Url = "http://127.0.0.1:9999/country/us".parse().unwrap();
+    let remote_host: Url = "http://example.com:3111/".parse().unwrap();
+    let https_loopback: Url = "https://127.0.0.1:3111/".parse().unwrap();
+    for url in [&multiplayer, &stale_port, &remote_host, &https_loopback] {
+      assert!(refresh_target(url, port).is_err(), "refusing {url}");
+    }
   }
 
   #[test]

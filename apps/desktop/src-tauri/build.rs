@@ -17,6 +17,8 @@ fn main() {
       "linked_account",
       "link_account",
       "close_embedded_game",
+      "set_embedded_visible",
+      "refresh_game_view",
       "open_online_window",
       "open_help_destination",
       "open_game_window",

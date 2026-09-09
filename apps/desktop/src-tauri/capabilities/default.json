@@ -32,6 +32,8 @@
     "process:allow-restart",
     "updater:default",
     "allow-close-embedded-game",
+    "allow-set-embedded-visible",
+    "allow-refresh-game-view",
     "allow-linked-account",
     "allow-link-account",
     "allow-set-statistics-consent",

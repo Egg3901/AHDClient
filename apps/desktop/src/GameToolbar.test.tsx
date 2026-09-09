@@ -1,17 +1,23 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const mocks = vi.hoisted(() => ({
   singleplayerStatus: vi.fn(),
   advanceTurn: vi.fn(),
+  advanceWorldsim: vi.fn(),
+  worldAvailability: vi.fn(),
+  setWorldAvailability: vi.fn(),
 }));
 
 vi.mock("./worlds.js", () => ({
   game: {
     singleplayerStatus: mocks.singleplayerStatus,
     advanceTurn: mocks.advanceTurn,
+    advanceWorldsim: mocks.advanceWorldsim,
+    worldAvailability: mocks.worldAvailability,
+    setWorldAvailability: mocks.setWorldAvailability,
   },
 }));
 
@@ -23,12 +29,16 @@ const base = {
   onSaveAndStop: vi.fn(),
   onOpenSettings: vi.fn(),
   onOpenDiagnostics: vi.fn(),
-  onPopOutBriefing: vi.fn(),
 };
 
-function prepare(status: unknown) {
+function prepare(status: unknown, availability: "open" | "sealed" = "open") {
   mocks.singleplayerStatus.mockResolvedValue(status);
   mocks.advanceTurn.mockResolvedValue({ success: true, turn: 2, message: "Turn 2" });
+  mocks.advanceWorldsim.mockResolvedValue({ success: true, turn: 41 });
+  mocks.worldAvailability.mockResolvedValue({ availability, mode: availability === "open" ? "off" : "full" });
+  mocks.setWorldAvailability.mockImplementation(async (next: "open" | "sealed") =>
+    ({ availability: next, mode: next === "open" ? "off" : "full" }),
+  );
 }
 
 afterEach(() => {
@@ -72,15 +82,132 @@ describe("GameToolbar", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("turn exploded");
   });
 
-  it("omits End turn for worldsim and offers world statistics instead", async () => {
+  it("enables End turn for worldsim without a character and advances one turn", async () => {
     prepare({ hasWorld: true, turn: 40, hasCharacter: false, characterName: null, mode: "worldsim" });
     const onViewStats = vi.fn();
-    render(<GameToolbar {...base} worldsim identity={null} onViewStats={onViewStats} />);
+    const onTurnAdvanced = vi.fn();
+    render(<GameToolbar {...base} worldsim identity={null} onViewStats={onViewStats} onTurnAdvanced={onTurnAdvanced} />);
 
-    await waitFor(() => expect(mocks.singleplayerStatus).toHaveBeenCalled());
-    expect(screen.queryByRole("button", { name: "End turn" })).toBeNull();
+    const button = await screen.findByRole("button", { name: "End turn" });
+    // No character gate for the playerless simulation.
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+    await userEvent.click(button);
+    await waitFor(() => expect(mocks.advanceWorldsim).toHaveBeenCalledTimes(1));
+    expect(mocks.advanceTurn).not.toHaveBeenCalled();
+    await waitFor(() => expect(onTurnAdvanced).toHaveBeenCalledWith(41));
     await userEvent.click(screen.getByRole("button", { name: "World statistics" }));
     expect(onViewStats).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes turn state on a timer when a character appears", async () => {
+    // findBy* deadlocks under fake timers (its polling never advances), so
+    // drive the clock by hand and use synchronous queries throughout.
+    vi.useFakeTimers();
+    try {
+      prepare({ hasWorld: true, turn: 1, hasCharacter: false, characterName: null, mode: "normal" });
+      render(<GameToolbar {...base} worldsim={false} identity={null} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      const button = screen.getByRole("button", { name: "End turn" });
+      expect((button as HTMLButtonElement).disabled).toBe(true);
+      // Character creation happens in the child webview with no focus event.
+      mocks.singleplayerStatus.mockResolvedValue(
+        { hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" },
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect((button as HTMLButtonElement).disabled).toBe(false);
+      expect(mocks.singleplayerStatus.mock.calls.length).toBeGreaterThan(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps polling after a character exists, so death or retirement locks End turn again", async () => {
+    vi.useFakeTimers();
+    try {
+      prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
+      render(<GameToolbar {...base} worldsim={false} identity={null} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      const button = screen.getByRole("button", { name: "End turn" });
+      expect((button as HTMLButtonElement).disabled).toBe(false);
+      const reads = mocks.singleplayerStatus.mock.calls.length;
+      // The character dies or retires inside the child webview.
+      mocks.singleplayerStatus.mockResolvedValue(
+        { hasWorld: true, turn: 2, hasCharacter: false, characterName: null, mode: "normal" },
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(mocks.singleplayerStatus.mock.calls.length).toBeGreaterThan(reads);
+      expect((button as HTMLButtonElement).disabled).toBe(true);
+      expect(button.getAttribute("title")).toMatch(/Create a character/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("disables End turn while paused for both normal and worldsim play", async () => {
+    prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" }, "sealed");
+    const { unmount } = render(<GameToolbar {...base} worldsim={false} identity={null} />);
+    const button = await screen.findByRole("button", { name: "End turn" });
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(true));
+    expect(button.getAttribute("title")).toMatch(/Resume the world/);
+    unmount();
+
+    prepare({ hasWorld: true, turn: 40, hasCharacter: false, characterName: null, mode: "worldsim" }, "sealed");
+    render(<GameToolbar {...base} worldsim identity={null} />);
+    const simButton = await screen.findByRole("button", { name: "End turn" });
+    await waitFor(() => expect((simButton as HTMLButtonElement).disabled).toBe(true));
+  });
+
+  it("disables End turn until the first status read lands", async () => {
+    mocks.singleplayerStatus.mockReturnValue(new Promise(() => {}));
+    mocks.worldAvailability.mockResolvedValue({ availability: "open", mode: "off" });
+    mocks.setWorldAvailability.mockImplementation(async (next: "open" | "sealed") =>
+      ({ availability: next, mode: "off" }),
+    );
+    render(<GameToolbar {...base} worldsim identity={null} />);
+    const button = screen.getByRole("button", { name: "End turn" });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(button.getAttribute("title")).toMatch(/Checking/);
+  });
+
+  it("marks permanent head of state with a Beta chip", async () => {
+    prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "head-of-state" });
+    render(<GameToolbar {...base} worldsim={false} identity={null} />);
+    expect(await screen.findByText(/Head of state/)).toBeTruthy();
+    expect(screen.getByText("Beta")).toBeTruthy();
+  });
+
+  it("pauses and resumes the world from the overflow menu", async () => {
+    prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
+    render(<GameToolbar {...base} worldsim={false} identity={null} />);
+
+    const overflow = [...document.querySelectorAll<HTMLButtonElement>(".client-toolbar-overflow [role='menuitem']")];
+    const pause = overflow.find((button) => button.textContent === "Pause world");
+    expect(pause).toBeTruthy();
+    await userEvent.click(pause!);
+    await waitFor(() => expect(mocks.setWorldAvailability).toHaveBeenCalledWith("sealed"));
+    expect(await screen.findByText("Paused")).toBeTruthy();
+
+    const resumed = [...document.querySelectorAll<HTMLButtonElement>(".client-toolbar-overflow [role='menuitem']")];
+    await userEvent.click(resumed.find((button) => button.textContent === "Resume world")!);
+    await waitFor(() => expect(mocks.setWorldAvailability).toHaveBeenCalledWith("open"));
+    await waitFor(() => expect(screen.queryByText("Paused")).toBeNull());
+  });
+
+  it("marks the toolbar paused when the world starts sealed", async () => {
+    prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" }, "sealed");
+    render(<GameToolbar {...base} worldsim={false} identity={null} />);
+
+    expect(await screen.findByText("Paused")).toBeTruthy();
   });
 
   it("shows the linked identity with supporter mark and a trusted avatar", async () => {
@@ -118,27 +245,43 @@ describe("GameToolbar", () => {
     expect(document.querySelector(".client-toolbar-identity")?.textContent).toContain("AL");
   });
 
-  it("keeps pause-free overflow actions behind More", async () => {
+  it("keeps End turn beside Launcher and the world name clear", async () => {
+    prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
+    render(<GameToolbar {...base} worldsim={false} identity={null} />);
+
+    const nav = screen.getByRole("navigation", { name: "Client controls" });
+    const order = [...nav.querySelectorAll(":scope > button, :scope > strong")]
+      .map((node) => node.textContent);
+    expect(order[0]).toBe("Launcher");
+    expect(order[1]).toMatch(/End turn|Running turn/);
+    expect(order[2]).toBe("Cold War dawn, 1953");
+    expect(nav.querySelector("strong")?.getAttribute("title")).toBe(
+      "Cold War dawn, 1953",
+    );
+  });
+
+  it("keeps overflow actions behind More, pause first, without PiP", async () => {
     prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
     const handlers = {
       onSaveAndStop: vi.fn(),
       onOpenDiagnostics: vi.fn(),
       onOpenSettings: vi.fn(),
-      onPopOutBriefing: vi.fn(),
     };
     render(<GameToolbar {...base} {...handlers} worldsim={false} identity={null} />);
 
     // Closed <details> content stays out of the accessibility tree, so reach
     // the overflow items through the DOM instead of role queries.
     const overflow = [...document.querySelectorAll<HTMLButtonElement>(".client-toolbar-overflow [role='menuitem']")];
+    // No picture-in-picture here: that is the multiplayer briefing, and this
+    // bar only ever fronts the local game.
     expect(overflow.map((button) => button.textContent)).toEqual([
+      "Pause world",
       "Save and stop",
       "Diagnostics",
       "Settings",
-      "Briefing in picture-in-picture",
     ]);
-    const keys = ["onSaveAndStop", "onOpenDiagnostics", "onOpenSettings", "onPopOutBriefing"] as const;
-    overflow.forEach((button, index) => {
+    const keys = ["onSaveAndStop", "onOpenDiagnostics", "onOpenSettings"] as const;
+    overflow.slice(1).forEach((button, index) => {
       fireEvent.click(button);
       expect(handlers[keys[index]!]).toHaveBeenCalledTimes(1);
     });
