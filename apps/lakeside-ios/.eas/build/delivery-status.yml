@@ -1,0 +1,7 @@
+build:
+  name: Private Apple delivery status
+  steps:
+    - eas/checkout
+    - run:
+        name: Check personal TestFlight delivery
+        command: ACTION=status python3 ../../scripts/lakeside-testflight.py

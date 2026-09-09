@@ -29,6 +29,12 @@
         "image": "latest",
         "resourceClass": "m-medium"
       }
+    },
+    "delivery-status": {
+      "extends": "production",
+      "ios": {
+        "config": "delivery-status.yml"
+      }
     }
   }
 }
