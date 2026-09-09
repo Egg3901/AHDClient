@@ -179,18 +179,27 @@ final class LaunchTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
     }
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication, upward: Bool = true) {
+        // UIKit can report an invalid activation point for offscreen SwiftUI rows.
+        // Scroll from geometry first, then let tap resolve the visible element.
         for _ in 0..<8 {
-            if element.isHittable { return }
+            if element.exists {
+                let frame = element.frame
+                let top = app.frame.minY + 130
+                let bottom = app.keyboards.firstMatch.exists ? app.keyboards.firstMatch.frame.minY - 12 : app.frame.maxY - 125
+                if frame.width > 0 && frame.height > 0 && frame.minY >= top && frame.maxY <= bottom { return }
+                if frame.height > 0 && frame.midY < top { app.swipeDown(); continue }
+            }
             if upward { app.swipeUp() } else { app.swipeDown() }
         }
-        XCTAssertTrue(element.isHittable)
+        XCTAssertTrue(element.exists)
     }
     func testOpsCompanyCreatesWorkWithCompletionChecks() throws {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
         guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops company") }
         app.tabBars.buttons["Hub"].tap(); app.buttons["ops-company-open"].tap()
         XCTAssertTrue(app.buttons["ops-company-create"].waitForExistence(timeout: 10))
-        app.segmentedControls["ops-company-layout"].buttons["List"].tap()
+        app.buttons["ops-company-view-options"].tap()
+        app.buttons.matching(NSPredicate(format: "label == %@", "List")).firstMatch.tap()
         capture(app, "Ops company overview")
         app.buttons["ops-company-create"].tap()
         fillCompanyField("ops-company-title", with: "Check the release notes", in: app)
@@ -200,26 +209,29 @@ final class LaunchTests: XCTestCase {
         app.buttons["ops-company-create-save"].tap()
         XCTAssertTrue(app.staticTexts["Check the release notes"].waitForExistence(timeout: 10))
         app.staticTexts["Check the release notes"].tap()
-        XCTAssertTrue(app.staticTexts["Every change is linked to a check"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["ops-company-criterion-0"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["ops-company-criterion-0"].label, "Every change is linked to a check")
         capture(app, "Ops work with completion checks")
     }
     func testOpsCompanyRecordsAnOwnerCheck() throws {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
         guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops company checks") }
         app.tabBars.buttons["Hub"].tap(); app.buttons["ops-company-open"].tap()
-        XCTAssertTrue(app.segmentedControls["ops-company-layout"].waitForExistence(timeout: 10))
-        app.segmentedControls["ops-company-layout"].buttons["List"].tap()
+        XCTAssertTrue(app.buttons["ops-company-view-options"].waitForExistence(timeout: 10))
+        app.buttons["ops-company-view-options"].tap()
+        app.buttons.matching(NSPredicate(format: "label == %@", "List")).firstMatch.tap()
         let job = app.buttons["ops-company-job-job-1"]
         XCTAssertTrue(job.waitForExistence(timeout: 10)); job.tap()
         XCTAssertTrue(app.staticTexts["Several projects could not export their files."].waitForExistence(timeout: 10))
-        let record = app.buttons["ops-company-record-check"]
-        scrollTo(record, in: app); record.tap()
+        app.buttons["ops-company-more"].tap()
+        let record = app.buttons.matching(identifier: "ops-company-record-check").firstMatch
+        XCTAssertTrue(record.waitForExistence(timeout: 5)); record.tap()
         fillCompanyField("ops-company-check-summary", with: "Checked an empty export and confirmed the download completed", in: app)
         XCTAssertTrue(app.staticTexts["Recorded by you. This is your assessment, not an automated test result."].exists)
         app.buttons["ops-company-action-save"].tap()
-        XCTAssertTrue(record.waitForExistence(timeout: 10))
-        let test = app.buttons["Test"]
-        scrollTo(test, in: app); test.tap()
+        XCTAssertTrue(app.buttons["ops-company-more"].waitForExistence(timeout: 10))
+        let test = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Test · Passed")).firstMatch
+        XCTAssertTrue(test.waitForExistence(timeout: 10)); scrollTo(test, in: app); test.tap()
         XCTAssertTrue(app.staticTexts["Source: Recorded by you"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Checked an empty export and confirmed the download completed"].exists)
         capture(app, "Ops owner recorded check")
@@ -238,14 +250,15 @@ final class LaunchTests: XCTestCase {
         scrollTo(menu, in: app)
         capture(app, "Ops shared work board")
         menu.tap()
-        let destination = app.buttons["Move to In progress"]
+        let destination = app.buttons.matching(identifier: "ops-kanban-move-to-doing").firstMatch
         XCTAssertTrue(destination.waitForExistence(timeout: 5)); destination.tap()
         let moved = app.descendants(matching: .any)["ops-kanban-card-job-1-doing"].firstMatch
         XCTAssertTrue(moved.waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any)["ops-kanban-card-job-1-todo"].firstMatch.exists)
         capture(app, "Ops acknowledged board move")
         app.buttons["ops-company-job-job-1"].tap()
-        XCTAssertTrue(app.staticTexts["Investigating"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["ops-company-current-status"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["ops-company-current-status"].label, "In progress")
         XCTAssertTrue(app.staticTexts["Several projects could not export their files."].exists)
     }
     func testOpsCapacityAtLargeTextSize() throws {

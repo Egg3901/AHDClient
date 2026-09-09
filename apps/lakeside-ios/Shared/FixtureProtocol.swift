@@ -40,7 +40,7 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
             case "move":
                 guard let target = body["column"] as? String, ["todo", "doing", "review"].contains(target) else { return (["error": "Complete the required checks before moving here."], 409) }
                 jobs[index]["column"] = target
-                jobs[index]["status"] = target == "doing" ? "investigating" : target == "review" ? "awaiting_verification" : "detected"
+                jobs[index]["status"] = target == "doing" ? "working" : target == "review" ? "awaiting_verification" : "detected"
             case "evidence":
                 var check = body; check["id"] = "check-\(checks.count + 1)"; checks.append(check)
             case "verify": checks.append(["id": "github-check-1", "kind": "test", "summary": "GitHub checks passed for the recorded version.", "artifact": body["artifact"] ?? "", "passed": true, "source": "github"])

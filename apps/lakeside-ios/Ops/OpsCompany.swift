@@ -9,13 +9,14 @@ struct OpsCompany: View {
     @EnvironmentObject private var session: AppSession
     @ObservedObject var model: OpsWorkspaceModel
     @Environment(\.scenePhase) private var phase
-    @State private var visible = false
+    @State private var visible = true
     @State private var refreshing = false
     @State private var snapshot: JSONValue = .null
     @State private var search = ""
     @State private var filter = "all"
     @State private var layout = "board"
     @State private var create = false
+    @State private var projects = false
     @State private var loading = false
     @State private var error: String?
     private var jobs: [JSONValue] {
@@ -26,70 +27,37 @@ struct OpsCompany: View {
         }
     }
     var body: some View {
-        List {
-            Section {
-                HStack(alignment: .top) {
-                    count("Active", key: "active"); Spacer(); count("Needs you", key: "needsOwner"); Spacer(); count("Fix holding", key: "monitoring"); Spacer(); count("Verified", key: "verified")
-                }.padding(.vertical, 4)
-                Text("See why work started, who owns it, and what proves it is done.").font(.caption).foregroundStyle(.secondary)
-                if !snapshot["automation"]["description"].string.isEmpty { Text(snapshot["automation"]["description"].string).font(.caption).foregroundStyle(.secondary) }
-            }
-            Section("Work") {
-                Picker("Layout", selection: $layout) { Text("Board").tag("board"); Text("List").tag("list") }.pickerStyle(.segmented).accessibilityIdentifier("ops-company-layout")
-                Picker("Show", selection: $filter) { Text("All").tag("all"); Text("Active").tag("active"); Text("Needs you").tag("attention"); Text("Verified").tag("done") }.pickerStyle(.menu)
-                if loading && snapshot == .null { ProgressView("Loading work") }
-                if jobs.isEmpty && !loading { Text(search.isEmpty ? "No work here yet. Add something to investigate or improve." : "No matching work.").font(.callout).foregroundStyle(.secondary) }
-                if layout == "board" {
-                    OpsKanban(jobs: jobs, entities: snapshot["entities"].array, staff: snapshot["staff"].array.isEmpty ? model.staff : snapshot["staff"].array, columnData: snapshot["boardColumns"].array, model: model, onMoved: { updated in
-                        acceptMove(updated)
-                        await load()
-                    }, onReload: { await load() })
-                    .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
-                } else {
-                ForEach(jobs, id: \.["id"].string) { job in
-                    NavigationLink {
-                        OpsCompanyDetail(jobID: job["id"].string, model: model)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(job["title"].string).font(.callout.weight(.medium))
-                            Text(companyStatus(job["status"].string)).font(.caption).foregroundStyle(job["status"].string == "blocked" ? Color.orange : OpsTheme.mint)
-                            Text(job["objective"].string).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                        }.padding(.vertical, 3)
-                    }.accessibilityIdentifier("ops-company-job-\(job["id"].string)")
+        VStack(spacing: 0) {
+            if loading && snapshot == .null { ProgressView("Loading work").padding() }
+            if let error { Text(error).font(.caption).foregroundStyle(.orange).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20).padding(.vertical, 8) }
+            OpsKanban(jobs: jobs, entities: snapshot["entities"].array, staff: snapshot["staff"].array.isEmpty ? model.staff : snapshot["staff"].array, columnData: snapshot["boardColumns"].array, model: model, showAll: layout == "list", onMoved: { updated in
+                acceptMove(updated)
+                await load()
+            }, onReload: { await load() })
+        }.background(Brand.background).foregroundStyle(Brand.ink).tint(Brand.sky)
+            .navigationTitle("Work").navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $search, prompt: "Find work")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Show", selection: $filter) { Text("All work").tag("all"); Text("Active").tag("active"); Text("Needs you").tag("attention"); Text("Verified").tag("done") }
+                        Picker("View", selection: $layout) { Text("Board").tag("board"); Text("List").tag("list") }
+                        Button("Projects") { projects = true }
+                    } label: { Image(systemName: "line.3.horizontal.decrease") }
+                    .accessibilityLabel("Work view options").accessibilityIdentifier("ops-company-view-options")
                 }
-                }
+                ToolbarItem(placement: .topBarTrailing) { Button { create = true } label: { Image(systemName: "plus") }.accessibilityLabel("Add work").accessibilityIdentifier("ops-company-create") }
             }
-            Section("Company map") {
-                ForEach(snapshot["entities"].array.filter { search.isEmpty || $0["title"].string.localizedCaseInsensitiveContains(search) }, id: \.["id"].string) { item in
-                    DisclosureGroup {
-                        Text(item["summary"].string).font(.callout)
-                        if !item["source"].string.isEmpty { Text("Source: \(item["source"].string)").font(.caption).foregroundStyle(.secondary) }
-                        ForEach(snapshot["links"].array.filter { $0["from_id"] == item["id"] || $0["to_id"] == item["id"] }, id: \.["id"].string) { link in
-                            let other = link["from_id"] == item["id"] ? link["to_id"] : link["from_id"]
-                            let title = snapshot["entities"].array.first { $0["id"] == other }?["title"].string ?? other.string
-                            Text("\(link["relation"].string) · \(title)").font(.caption)
-                        }
-                    } label: { VStack(alignment: .leading) { Text(item["title"].string).font(.callout); Text(item["kind"].string.capitalized).font(.caption).foregroundStyle(.secondary) } }
-                }
-                Button("Import known projects") { Task {
-                    loading = true
-                    do { _ = try await session.post("/api/ops/company/sync", [:]); await load() }
-                    catch { self.error = error.localizedDescription; loading = false }
-                } }.disabled(loading).accessibilityIdentifier("ops-company-sync")
-            }
-            if let error { Section { Text(error).font(.caption).foregroundStyle(.orange); Button("Reload") { Task { await load() } } } }
-        }.opsScreen().navigationTitle("Company").navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $search, prompt: "Find work or a project")
-            .toolbar { Button { create = true } label: { Image(systemName: "plus") }.accessibilityLabel("Add work").accessibilityIdentifier("ops-company-create") }
-            .sheet(isPresented: $create, onDismiss: { Task { await load() } }) { OpsCompanyCreate(entities: snapshot["entities"].array) }
+            .sheet(isPresented: $create, onDismiss: { Task { await load() } }) { OpsCompanyCreate(entities: snapshot["entities"].array).tint(Brand.sky) }
+            .sheet(isPresented: $projects) { OpsCompanyProjects(snapshot: snapshot, onReload: { await load() }) }
             .onAppear { visible = true }.onDisappear { visible = false }
-            .task(id: "\(visible)-\(phase == .active)-\(create)") {
-                guard visible, phase == .active, !create else { return }
+            .task(id: "\(visible)-\(phase == .active)-\(create)-\(projects)") {
+                guard visible, phase == .active, !create, !projects else { return }
                 while !Task.isCancelled {
                     await load()
                     do { try await Task.sleep(for: .seconds(10)) } catch { return }
                 }
-            }.refreshable { await load() }
+            }
     }
     private func acceptMove(_ updated: JSONValue) {
         guard !updated["id"].string.isEmpty else { return }
@@ -97,12 +65,12 @@ struct OpsCompany: View {
         fields["missions"] = .array(snapshot["missions"].array.map { $0["id"] == updated["id"] ? updated : $0 })
         snapshot = .object(fields)
     }
-    private func count(_ title: String, key: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) { Text(snapshot["counts"][key].string.nonempty ?? "0").font(.title3.weight(.semibold)).monospacedDigit(); Text(title).font(.caption2).foregroundStyle(.secondary) }
-    }
     private func load() async {
-        guard !refreshing else { return }
-        refreshing = true; loading = true; defer { refreshing = false; loading = false }
+        while refreshing {
+            do { try await Task.sleep(for: .milliseconds(25)) } catch { return }
+        }
+        guard !Task.isCancelled else { return }
+        refreshing = true; loading = snapshot == .null; defer { refreshing = false; loading = false }
         do {
             let result = try await session.get("/api/ops/company")
             try Task.checkCancellation()
@@ -114,8 +82,41 @@ struct OpsCompany: View {
                 if let current = known[incoming["id"].string], (current["version"].number ?? 0) > (incoming["version"].number ?? 0) { return current }
                 return incoming
             })
-            snapshot = .object(fields); error = nil
+            let next = JSONValue.object(fields)
+            if snapshot != next { snapshot = next }; error = nil
         } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
+    }
+}
+
+private struct OpsCompanyProjects: View {
+    let snapshot: JSONValue
+    let onReload: () async -> Void
+    @EnvironmentObject private var session: AppSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var busy = false
+    @State private var error: String?
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(snapshot["entities"].array, id: \.["id"].string) { item in
+                    DisclosureGroup(item["title"].string) {
+                        Text(item["summary"].string).font(.callout)
+                        Text(item["source"].string).font(.caption).foregroundStyle(.secondary)
+                        ForEach(snapshot["links"].array.filter { $0["from_id"] == item["id"] || $0["to_id"] == item["id"] }, id: \.["id"].string) { link in
+                            let other = link["from_id"] == item["id"] ? link["to_id"] : link["from_id"]
+                            let title = snapshot["entities"].array.first { $0["id"] == other }?["title"].string ?? other.string
+                            Text("\(link["relation"].string) · \(title)").font(.caption)
+                        }
+                    }
+                }
+                Button("Import known projects") { Task {
+                    busy = true; defer { busy = false }
+                    do { _ = try await session.post("/api/ops/company/sync", [:]); await onReload(); dismiss() }
+                    catch { self.error = error.localizedDescription }
+                } }.disabled(busy).accessibilityIdentifier("ops-company-sync")
+                if let error { Text(error).font(.caption).foregroundStyle(.orange) }
+            }.navigationTitle("Projects").toolbar { Button("Done") { dismiss() } }.tint(Brand.sky)
+        }
     }
 }
 
@@ -143,7 +144,7 @@ struct OpsCompanyDetail: View {
     @ObservedObject var model: OpsWorkspaceModel
     @EnvironmentObject private var session: AppSession
     @Environment(\.scenePhase) private var phase
-    @State private var visible = false
+    @State private var visible = true
     @State private var refreshing = false
     @State private var detail: JSONValue = .null
     @State private var action: CompanyAction?
@@ -152,79 +153,24 @@ struct OpsCompanyDetail: View {
     @State private var loading = false
     private var job: JSONValue { detail["mission"] }
     var body: some View {
-        List {
-            if loading && detail == .null { ProgressView("Loading work") }
-            Section {
-                Text(job["title"].string).font(.headline)
-                Text(companyStatus(job["status"].string)).font(.caption.weight(.medium)).foregroundStyle(OpsTheme.mint)
-                Text(job["objective"].string).font(.callout)
-                if !job["error"].string.isEmpty { Text(job["error"].string).font(.caption).foregroundStyle(.orange) }
-            }
-            Section("Why it started") {
-                Text(detail["signal"]["summary"].string.nonempty ?? "Requested by you.").font(.callout)
-                if !detail["signal"]["source"].string.isEmpty { LabeledContent("Source", value: detail["signal"]["source"].string.capitalized).font(.caption) }
-                if !detail["signal"]["observed_at"].string.isEmpty { Text(opsDate(detail["signal"]["observed_at"].string)).font(.caption).foregroundStyle(.secondary) }
-            }
-            Section("What done looks like") {
-                ForEach(Array(job["acceptance"].array.enumerated()), id: \.offset) { _, criterion in Label(criterion.string, systemImage: "checklist").font(.callout) }
-            }
-            Section("Team") {
-                Button("Assign next step") { assignment = true }.accessibilityIdentifier("ops-company-assign")
-                ForEach(Array(detail["assignments"].array.enumerated()), id: \.offset) { _, run in
-                    if run["worker_id"].string.isEmpty {
-                        assignmentRow(run)
-                    } else {
-                        NavigationLink {
-                            ScrollView { OpsWorkerActivity(workerID: run["worker_id"].string).padding() }.navigationTitle("Worker activity")
-                        } label: { assignmentRow(run) }
-                    }
-                }
-                if !job["conversation_id"].string.isEmpty {
-                    Button("Open supervising chat") { Task { await model.select(job["conversation_id"].string, session); model.selectedTab = 0 } }
-                }
-            }
-            Section("Checks and approval") {
-                LabeledContent("Version to check", value: job["artifact"].string.nonempty ?? "Not set").font(.caption).textSelection(.enabled)
-                if !job["approved_artifact"].string.isEmpty { LabeledContent("Approved version", value: job["approved_artifact"].string).font(.caption).textSelection(.enabled) }
-                if !job["deployment_receipt"].string.isEmpty { LabeledContent("Deployment receipt", value: job["deployment_receipt"].string).font(.caption).textSelection(.enabled) }
-                Button("Set version to check") { action = .version }
-                Button("Check GitHub results") { action = .github }.disabled(job["artifact"].string.isEmpty).accessibilityIdentifier("ops-company-github-check")
-                Button("Record a check") { action = .check }.disabled(job["artifact"].string.isEmpty).accessibilityIdentifier("ops-company-record-check")
-                ForEach(detail["evidence"].array, id: \.["id"].string) { check in
-                    DisclosureGroup {
-                        Text(check["summary"].string).font(.callout)
-                        Text("Version: \(check["artifact"].string)").font(.caption).textSelection(.enabled)
-                        Text("Source: \(check["source"].string == "owner" ? "Recorded by you" : check["source"].string)").font(.caption).foregroundStyle(.secondary)
-                        if check["source"].string == "owner" { Text("This is your recorded assessment, not an automated check.").font(.caption).foregroundStyle(.secondary) }
-                    } label: { Label(check["kind"].string.capitalized, systemImage: check["passed"].bool ? "checkmark.circle" : "exclamationmark.circle").font(.callout) }
-                }
-                if job["status"].string == "awaiting_approval" { Button("Approve this version") { action = .approve } }
-                if job["status"].string == "approved" {
-                    if ["research", "analysis", "review"].contains(job["task_type"].string) { Button("Mark work complete") { action = .finish } }
-                    else { Button("Record deployment") { action = .monitor } }
-                }
-                if job["status"].string == "monitoring" { Text("Checking that the fix holds. Record a fresh health check after the observation period ends.").font(.caption).foregroundStyle(.secondary) }
-                if job["status"].string == "verified" { Label(job["completion_mode"].string == "reviewed" ? "Result checked and accepted" : "Checks passed and the fix held through observation.", systemImage: "checkmark.seal").font(.caption).foregroundStyle(OpsTheme.mint) }
-                if !job["monitor_until"].string.isEmpty { LabeledContent("Observe until", value: opsDate(job["monitor_until"].string)).font(.caption) }
-            }
-            Section {
-                Button("Review permissions") { action = .permissions }
-                Text("Permissions apply to this work only. Approval and deployment are separate steps.").font(.caption).foregroundStyle(.secondary)
-            }
-            Section("History") {
-                ForEach(detail["events"].array, id: \.["id"].string) { event in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(event["detail"].string.nonempty ?? event["type"].string.replacingOccurrences(of: "_", with: " ")).font(.callout)
-                        Text(opsDate(event["created_at"].string)).font(.caption2).foregroundStyle(.secondary)
-                    }
-                }
-            }
-            Section {
-                if ["blocked", "verified"].contains(job["status"].string) { Button("Reopen work") { action = .reopen } }
-                if !["cancelled", "verified"].contains(job["status"].string) { Button("Cancel work", role: .destructive) { action = .cancel } }
-            }
-            if let error { Section { Text(error).font(.caption).foregroundStyle(.orange); Button("Reload") { Task { await load() } } } }
-        }.opsScreen().navigationTitle("Work details").navigationBarTitleDisplayMode(.inline)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                if loading && detail == .null { ProgressView("Loading work") }
+                header
+                why
+                completionChecks
+                people
+                recordedChecks
+                progress
+                if let error { Text(error).font(.caption).foregroundStyle(.orange); Button("Reload") { Task { await load() } } }
+            }.padding(.horizontal, 24).padding(.top, 20).padding(.bottom, 28)
+                .frame(maxWidth: 720, alignment: .leading).frame(maxWidth: .infinity)
+        }.background(Brand.background).foregroundStyle(Brand.ink).tint(Brand.sky)
+            .accessibilityElement(children: .contain).accessibilityIdentifier("ops-company-detail-scroll")
+            .navigationTitle("Work").navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .tabBar)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { moreActions } }
+            .safeAreaInset(edge: .bottom) { nextStep.padding(.horizontal, 24).padding(.vertical, 12).frame(maxWidth: .infinity).background(Brand.background) }
             .onAppear { visible = true }.onDisappear { visible = false }
             .task(id: "\(visible)-\(phase == .active)-\(action?.rawValue ?? "")-\(assignment)") {
                 guard visible, phase == .active, action == nil, !assignment else { return }
@@ -233,9 +179,113 @@ struct OpsCompanyDetail: View {
                     do { try await Task.sleep(for: .seconds(10)) } catch { return }
                 }
             }.refreshable { await load() }
-            .sheet(item: $action, onDismiss: { Task { await load() } }) { action in OpsCompanyAction(job: job, action: action) }
-            .sheet(isPresented: $assignment, onDismiss: { Task { await load(); await model.refreshTeam(session) } }) { OpsCompanyAssign(job: job, conversationID: model.conversation) }
+            .sheet(item: $action, onDismiss: { Task { await load() } }) { action in OpsCompanyAction(job: job, action: action).tint(Brand.sky) }
+            .sheet(isPresented: $assignment, onDismiss: { Task { await load(); await model.refreshTeam(session) } }) { OpsCompanyAssign(job: job, conversationID: model.conversation).tint(Brand.sky) }
     }
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(job["title"].string).font(.title2.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
+            Text(companyStatus(job["status"].string)).font(.caption.weight(.medium)).foregroundStyle(job["status"].string == "blocked" ? Color.orange : Brand.sky).accessibilityIdentifier("ops-company-current-status")
+            Text(job["objective"].string).font(.body).foregroundStyle(.secondary)
+            if !job["error"].string.isEmpty { Text(job["error"].string).font(.caption).foregroundStyle(.orange) }
+        }
+    }
+    private var why: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            heading("Why")
+            Text(detail["signal"]["summary"].string.nonempty ?? "Requested by you.").font(.body)
+            Text([detail["signal"]["source"].string.capitalized, opsDate(detail["signal"]["observed_at"].string)].filter { !$0.isEmpty }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    private var completionChecks: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            heading("Done looks like")
+            ForEach(Array(job["acceptance"].array.enumerated()), id: \.offset) { index, criterion in
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "circle").font(.caption).foregroundStyle(Brand.sky).padding(.top, 4)
+                    Text(criterion.string).font(.callout).accessibilityIdentifier("ops-company-criterion-\(index)")
+                }
+            }
+        }
+    }
+    private var people: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            heading("People")
+            if detail["assignments"].array.isEmpty { Text("Not assigned yet").font(.callout).foregroundStyle(.secondary) }
+            ForEach(Array(detail["assignments"].array.enumerated()), id: \.offset) { _, run in
+                if run["worker_id"].string.isEmpty { assignmentRow(run) }
+                else {
+                    NavigationLink { ScrollView { OpsWorkerActivity(workerID: run["worker_id"].string).padding() }.navigationTitle("Worker activity") } label: { assignmentRow(run) }
+                }
+            }
+            if !job["conversation_id"].string.isEmpty { Button("Open supervising chat") { Task { await model.select(job["conversation_id"].string, session); model.selectedTab = 0 } }.font(.callout) }
+        }
+    }
+    private var recordedChecks: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            heading("Checks")
+            if !job["artifact"].string.isEmpty { Text("Version · \(job["artifact"].string)").font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled) }
+            if detail["evidence"].array.isEmpty { Text("No checks recorded yet").font(.callout).foregroundStyle(.secondary) }
+            ForEach(detail["evidence"].array, id: \.["id"].string) { check in
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(check["summary"].string).font(.callout)
+                        Text("Version: \(check["artifact"].string)").font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                        Text("Source: \(check["source"].string == "owner" ? "Recorded by you" : check["source"].string)").font(.caption).foregroundStyle(.secondary)
+                        if check["source"].string == "owner" { Text("This is your recorded assessment, not an automated check.").font(.caption).foregroundStyle(.secondary) }
+                    }.padding(.top, 8)
+                } label: { Label("\(check["kind"].string.capitalized) · \(check["passed"].bool ? "Passed" : "Failed")", systemImage: check["passed"].bool ? "checkmark.circle" : "exclamationmark.circle").font(.callout) }
+                .accessibilityElement(children: .contain).accessibilityIdentifier("ops-company-check-\(check["id"].string)")
+            }
+            if !job["approved_artifact"].string.isEmpty { Text("Approved version · \(job["approved_artifact"].string)").font(.caption).textSelection(.enabled) }
+            if !job["deployment_receipt"].string.isEmpty { Text("Deployment · \(job["deployment_receipt"].string)").font(.caption).textSelection(.enabled) }
+            if job["status"].string == "monitoring" { Text("Record a fresh health check after the observation period ends.").font(.caption).foregroundStyle(.secondary) }
+            if !job["monitor_until"].string.isEmpty { Text("Observe until \(opsDate(job["monitor_until"].string))").font(.caption).foregroundStyle(.secondary) }
+            if job["status"].string == "verified" { Label(job["completion_mode"].string == "reviewed" ? "Result checked and accepted" : "Checks passed and the fix held through observation.", systemImage: "checkmark.seal").font(.callout).foregroundStyle(Brand.mint) }
+        }
+    }
+    private var progress: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            heading("Progress")
+            ForEach(Array(detail["events"].array.prefix(5)), id: \.["id"].string) { event in eventRow(event) }
+            if detail["events"].array.count > 5 {
+                DisclosureGroup("Earlier updates") { ForEach(Array(detail["events"].array.dropFirst(5)), id: \.["id"].string) { event in eventRow(event) } }.font(.caption)
+            }
+        }
+    }
+    private func eventRow(_ event: JSONValue) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Circle().fill(Brand.sky.opacity(0.6)).frame(width: 5, height: 5).padding(.top, 7)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(event["detail"].string.nonempty ?? event["type"].string.replacingOccurrences(of: "_", with: " ")).font(.callout)
+                Text(opsDate(event["created_at"].string)).font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+    }
+    private func heading(_ value: String) -> some View { Text(value).font(.subheadline.weight(.semibold)) }
+    private var moreActions: some View {
+        Menu {
+            Button("Assign next step") { assignment = true }.accessibilityIdentifier("ops-company-assign")
+            Button("Record a check") { action = .check }.disabled(job["artifact"].string.isEmpty).accessibilityIdentifier("ops-company-record-check")
+            Button("Check GitHub results") { action = .github }.disabled(job["artifact"].string.isEmpty).accessibilityIdentifier("ops-company-github-check")
+            Button("Set version to check") { action = .version }
+            Button("Review permissions") { action = .permissions }
+            if ["blocked", "verified"].contains(job["status"].string) { Button("Reopen work") { action = .reopen } }
+            if !["cancelled", "verified"].contains(job["status"].string) { Button("Cancel work", role: .destructive) { action = .cancel } }
+        } label: { Image(systemName: "ellipsis").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle()) }
+        .accessibilityLabel("More work actions").accessibilityIdentifier("ops-company-more")
+    }
+    @ViewBuilder private var nextStep: some View {
+        if let running = detail["assignments"].array.first(where: { !["completed", "failed", "cancelled"].contains($0["status"].string) && !$0["worker_id"].string.isEmpty }) {
+            NavigationLink { ScrollView { OpsWorkerActivity(workerID: running["worker_id"].string).padding() }.navigationTitle("Worker activity") } label: { primaryLabel("Open worker") }
+        } else if job["status"].string == "awaiting_approval" { Button { action = .approve } label: { primaryLabel("Approve this version") } }
+        else if job["status"].string == "approved" { Button { action = ["research", "analysis", "review"].contains(job["task_type"].string) ? .finish : .monitor } label: { primaryLabel(["research", "analysis", "review"].contains(job["task_type"].string) ? "Mark work complete" : "Record deployment") } }
+        else if job["status"].string == "awaiting_verification" { Button { action = job["artifact"].string.isEmpty ? .version : .check } label: { primaryLabel(job["artifact"].string.isEmpty ? "Set version to check" : "Record a check") } }
+        else if job["status"].string == "blocked" { Button { action = .reopen } label: { primaryLabel("Reopen work") } }
+        else if job["status"].string == "monitoring" { Text("Observing the deployed change").font(.caption).foregroundStyle(.secondary) }
+        else if !["verified", "cancelled"].contains(job["status"].string), detail != .null { Button { assignment = true } label: { primaryLabel("Assign next step") } }
+    }
+    private func primaryLabel(_ title: String) -> some View { Text(title).font(.callout.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 14).background(Brand.sky, in: RoundedRectangle(cornerRadius: 12)).foregroundStyle(Brand.onAccent) }
     private func assignmentRow(_ run: JSONValue) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(stageLabel(run["stage"].string)).font(.callout.weight(.medium))
@@ -246,12 +296,15 @@ struct OpsCompanyDetail: View {
     }
     private func stageLabel(_ stage: String) -> String { ["investigate": "Investigate", "implement": "Make the change", "verify": "Check the result"][stage] ?? stage.capitalized }
     private func load() async {
-        guard !refreshing else { return }
-        refreshing = true; loading = true; defer { refreshing = false; loading = false }
+        while refreshing {
+            do { try await Task.sleep(for: .milliseconds(25)) } catch { return }
+        }
+        guard !Task.isCancelled else { return }
+        refreshing = true; loading = detail == .null; defer { refreshing = false; loading = false }
         do {
             let result = try await session.get("/api/ops/company/missions/\(try opsSafePathID(jobID))")
             try Task.checkCancellation()
-            detail = result; error = nil
+            if detail != result { detail = result }; error = nil
         } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     }
 }

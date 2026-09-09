@@ -4,16 +4,7 @@ import LakesideCore
 struct OpsBoardColumn: Identifiable, Sendable {
     let id: String
     let title: String
-    var color: Color {
-        switch id {
-        case "doing": return OpsTheme.sky
-        case "review": return .orange
-        case "ready": return .purple
-        case "watching": return .cyan
-        case "done": return OpsTheme.mint
-        default: return .secondary
-        }
-    }
+    var color: Color { id == "done" ? Brand.mint : Brand.sky }
     static let defaults: [OpsBoardColumn] = [
         .init(id: "todo", title: "To do"), .init(id: "doing", title: "In progress"),
         .init(id: "review", title: "Needs review"), .init(id: "ready", title: "Approved"),
@@ -47,13 +38,14 @@ struct OpsKanban: View {
     let staff: [JSONValue]
     let columnData: [JSONValue]
     @ObservedObject var model: OpsWorkspaceModel
+    var showAll = false
     let onMoved: (JSONValue) async -> Void
     let onReload: () async -> Void
     @EnvironmentObject private var session: AppSession
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var moving = false
     @State private var error: String?
-    @State private var destination: String?
+    @State private var selectedColumn = "todo"
     private var columns: [OpsBoardColumn] {
         let parsed = columnData.compactMap { row -> OpsBoardColumn? in
             guard OpsBoardColumn.defaults.contains(where: { $0.id == row["id"].string }) else { return nil }
@@ -62,49 +54,55 @@ struct OpsKanban: View {
         return parsed.isEmpty ? OpsBoardColumn.defaults : parsed
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 7) {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                Text("One board, shared everywhere")
-                Spacer()
-                if moving { ProgressView().controlSize(.small) }
-            }.font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 16)
-            GeometryReader { geometry in
-                ScrollViewReader { proxy in
-                    ScrollView(.horizontal) {
-                        LazyHStack(alignment: .top, spacing: 14) {
-                            ForEach(columns) { column in
-                                OpsKanbanLane(column: column, jobs: jobs.filter { opsBoardColumn($0) == column.id }.sorted(by: ordered), entities: entities, staff: staff, columns: columns, model: model, moving: moving) { job, target in
-                                    Task { await move(job, to: target) }
-                                } dropped: { payload in
-                                    guard payload.utf8.count <= 2048, let captured = try? JSONValue.parse(payload),
-                                          let version = captured["version"].number, version.isFinite, version > 0,
-                                          let current = jobs.first(where: { $0["id"] == captured["id"] }),
-                                          opsBoardColumn(current) != column.id, !moving else { return false }
-                                    guard current["version"] == captured["version"] else {
-                                        error = "This card changed while you were moving it. Review the refreshed card and try again."
-                                        Task { await onReload() }
-                                        return false
-                                    }
-                                    Task { await move(captured, to: column.id) }
-                                    return true
-                                }
-                                .frame(width: max(245, min(340, geometry.size.width - 40)))
-                                .id(column.id)
-                            }
-                        }.scrollTargetLayout().padding(.horizontal, 16)
-                    }.scrollTargetBehavior(.viewAligned).scrollIndicators(.hidden)
-                        .onChange(of: destination) { _, target in
-                            if let target {
-                                if reduceMotion { proxy.scrollTo(target, anchor: .leading) }
-                                else { withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(target, anchor: .leading) } }
-                            }
+        VStack(spacing: 0) {
+            if !showAll {
+                HStack {
+                    Picker("Stage", selection: $selectedColumn) {
+                        ForEach(columns) { column in
+                            Text("\(column.title) · \(jobs.filter { opsBoardColumn($0) == column.id }.count)").tag(column.id)
                         }
+                    }.pickerStyle(.menu).font(.subheadline.weight(.semibold)).accessibilityIdentifier("ops-kanban-stage")
+                    Spacer()
+                    if moving { ProgressView().controlSize(.small) }
+                }.padding(.horizontal, 16).padding(.vertical, 8)
+            }
+            if let error { Text(error).font(.caption).foregroundStyle(.orange).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20).padding(.bottom, 8).accessibilityIdentifier("ops-kanban-error") }
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    ForEach(jobs.filter { showAll || opsBoardColumn($0) == selectedColumn }.sorted(by: ordered), id: \.["id"].string) { job in
+                        OpsKanbanCard(job: job, column: columns.first { $0.id == opsBoardColumn(job) } ?? columns[0], product: entities.first { $0["id"] == job["entity_id"] }?["title"].string ?? "", owner: staff.first { $0["id"] == job["staff_id"] }?["name"].string ?? "", columns: columns, model: model, moving: moving) { captured, target in
+                            Task { await move(captured, to: target) }
+                        }.draggable(opsBoardDragPayload(job))
+                    }
+                    if jobs.filter({ showAll || opsBoardColumn($0) == selectedColumn }).isEmpty {
+                        Text(jobs.isEmpty ? "No work yet. Add something for Ops to take on." : "No work in this stage.")
+                            .font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 24)
+                    }
+                }.padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 24)
+            }.refreshable { await onReload() }
+                .dropDestination(for: String.self) { payloads, _ in
+                    guard !showAll, payloads.count == 1, let payload = payloads.first else { return false }
+                    return drop(payload, into: selectedColumn)
                 }
-            }.frame(height: 490)
-            if let error { Text(error).font(.caption).foregroundStyle(.orange).padding(.horizontal, 16).accessibilityIdentifier("ops-kanban-error") }
-            Text("Move cards to plan work. Starting workers, approving changes, and deploying remain separate steps.").font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 16)
-        }.padding(.vertical, 8).accessibilityElement(children: .contain).accessibilityIdentifier("ops-kanban-board")
+                .accessibilityElement(children: .contain).accessibilityIdentifier("ops-kanban-scroll")
+        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .onChange(of: jobs.map { $0["id"].string }) { _, _ in
+                if !showAll, !jobs.contains(where: { opsBoardColumn($0) == selectedColumn }), let first = jobs.first { selectedColumn = opsBoardColumn(first) }
+            }
+            .accessibilityElement(children: .contain).accessibilityIdentifier("ops-kanban-board")
+    }
+    private func drop(_ payload: String, into column: String) -> Bool {
+        guard payload.utf8.count <= 2048, let captured = try? JSONValue.parse(payload),
+              let version = captured["version"].number, version.isFinite, version > 0,
+              let current = jobs.first(where: { $0["id"] == captured["id"] }),
+              opsBoardColumn(current) != column, !moving else { return false }
+        guard current["version"] == captured["version"] else {
+            error = "This card changed while you were moving it. Review the refreshed card and try again."
+            Task { await onReload() }
+            return false
+        }
+        Task { await move(captured, to: column) }
+        return true
     }
     private func ordered(_ a: JSONValue, _ b: JSONValue) -> Bool {
         let left = a["board_rank"].number ?? 0, right = b["board_rank"].number ?? 0
@@ -118,64 +116,16 @@ struct OpsKanban: View {
             await onReload()
             return
         }
-        moving = true; destination = nil; defer { moving = false }
+        moving = true; defer { moving = false }
         do {
             let result = try await session.post("/api/ops/company/missions/\(try opsSafePathID(job["id"].string))/move", ["version": job["version"], "column": .string(column)])
             await onMoved(result["mission"])
-            error = nil; destination = column
+            error = nil; selectedColumn = column
         } catch {
             self.error = error.localizedDescription
             // Reload also resolves an ambiguous response without showing an optimistic move.
             await onReload()
         }
-    }
-}
-
-private struct OpsKanbanLane: View {
-    let column: OpsBoardColumn
-    let jobs: [JSONValue]
-    let entities: [JSONValue]
-    let staff: [JSONValue]
-    let columns: [OpsBoardColumn]
-    @ObservedObject var model: OpsWorkspaceModel
-    let moving: Bool
-    let move: (JSONValue, String) -> Void
-    let dropped: (String) -> Bool
-    @State private var targeted = false
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Circle().fill(column.color).frame(width: 7, height: 7)
-                Text(column.title).font(.subheadline.weight(.semibold))
-                Spacer(minLength: 4)
-                Text("\(jobs.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    .padding(.horizontal, 7).padding(.vertical, 3).background(.primary.opacity(0.05), in: Capsule())
-            }.padding(.horizontal, 2)
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(jobs, id: \.["id"].string) { job in
-                        OpsKanbanCard(job: job, column: column, product: entities.first { $0["id"] == job["entity_id"] }?["title"].string ?? "", owner: staff.first { $0["id"] == job["staff_id"] }?["name"].string ?? "", columns: columns, model: model, moving: moving, move: move)
-                            .draggable(opsBoardDragPayload(job))
-                    }
-                    if jobs.isEmpty {
-                        VStack(spacing: 8) {
-                            Image(systemName: column.id == "done" ? "checkmark.circle" : "rectangle.stack").font(.title3).foregroundStyle(column.color.opacity(0.7))
-                            Text("Nothing here yet").font(.caption.weight(.medium))
-                            Text("Move a card here when it is ready.").font(.caption2).foregroundStyle(.secondary)
-                        }.frame(maxWidth: .infinity).padding(.vertical, 30)
-                            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.08), style: StrokeStyle(lineWidth: 1, dash: [4])))
-                    }
-                }.padding(.bottom, 10)
-            }.scrollIndicators(.hidden)
-        }.padding(12).frame(maxHeight: .infinity, alignment: .top)
-            .background(targeted ? column.color.opacity(0.10) : OpsTheme.surface.opacity(0.72), in: RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(targeted ? column.color.opacity(0.5) : .primary.opacity(0.05)))
-            .dropDestination(for: String.self) { values, _ in
-                guard values.count == 1, let id = values.first else { return false }
-                return dropped(id)
-            } isTargeted: { targeted = $0 }
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("ops-kanban-lane-\(column.id)")
     }
 }
 
@@ -193,18 +143,28 @@ private struct OpsKanbanCard: View {
     private var workerActive: Bool { ["running", "starting", "queued", "awaiting_permission", "awaiting_input", "cancelling"].contains(job["worker_status"].string) }
     private var kind: String { ["bugfix": "Bug fix", "implementation": "Build", "research": "Research", "analysis": "Analysis", "review": "Review"][job["task_type"].string] ?? "Work" }
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            HStack {
-                Text(kind.uppercased()).font(.caption2.weight(.semibold)).tracking(0.8).foregroundStyle(column.color)
-                Spacer()
-                Button {
-                    capturedJob = job
-                    showMoves = true
-                } label: {
-                    Image(systemName: "ellipsis").font(.callout.weight(.medium))
-                        .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).disabled(moving)
+        HStack(alignment: .top, spacing: 0) {
+            NavigationLink {
+                OpsCompanyDetail(jobID: job["id"].string, model: model)
+            } label: {
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(job["title"].string).font(.callout.weight(.semibold)).foregroundStyle(Brand.ink).fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        if job["status"].string == "blocked" { Text("Needs you").font(.caption2.weight(.medium)).foregroundStyle(.orange) }
+                        else if workerActive { Text("Running").font(.caption2.weight(.medium)).foregroundStyle(Brand.mint) }
+                    }
+                    Text([owner.isEmpty ? "Unassigned" : owner, product].filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    if workerActive {
+                        Text([job.first("worker_provider", "provider", "runtime_provider"), job.first("worker_model", "model")].filter { !$0.isEmpty }.joined(separator: " · ")).font(.caption2).foregroundStyle(Brand.mint).lineLimit(1)
+                    }
+                }.padding(.vertical, 16).padding(.leading, 16).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityIdentifier("ops-company-job-\(job["id"].string)")
+            Button { capturedJob = job; showMoves = true } label: {
+                Image(systemName: "ellipsis").font(.callout).foregroundStyle(.secondary)
+                    .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+            }.buttonStyle(.plain).disabled(moving).padding(.top, 5)
                 .accessibilityLabel("Move \(job["title"].string)").accessibilityIdentifier("ops-kanban-move-\(job["id"].string)")
                 .confirmationDialog("Move \(capturedJob["title"].string)", isPresented: $showMoves, titleVisibility: .visible) {
                     ForEach(columns.filter { $0.id != opsBoardColumn(capturedJob) }) { target in
@@ -212,35 +172,10 @@ private struct OpsKanbanCard: View {
                     }
                     Button("Cancel", role: .cancel) {}
                 }
-
+        }.background(Brand.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(alignment: .leading) {
+                if workerActive || job["status"].string == "blocked" { RoundedRectangle(cornerRadius: 1).fill(job["status"].string == "blocked" ? Color.orange : Brand.mint).frame(width: 2).padding(.vertical, 12) }
             }
-            NavigationLink {
-                OpsCompanyDetail(jobID: job["id"].string, model: model)
-            } label: {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(job["title"].string).font(.callout.weight(.semibold)).foregroundStyle(OpsTheme.ink).fixedSize(horizontal: false, vertical: true)
-                    Text(job.first("signal_summary", "why", "objective")).font(.caption).foregroundStyle(.secondary).lineLimit(3)
-                    if !product.isEmpty { Label(product, systemImage: "square.stack.3d.up").font(.caption2).foregroundStyle(.secondary).lineLimit(1) }
-                }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityIdentifier("ops-company-job-\(job["id"].string)")
-            Divider().overlay(.primary.opacity(0.03))
-            HStack(spacing: 8) {
-                Text(owner.isEmpty ? "?" : String(owner.prefix(1)).uppercased()).font(.caption2.weight(.semibold))
-                    .frame(width: 25, height: 25).background(column.color.opacity(0.12), in: Circle()).foregroundStyle(column.color)
-                    .accessibilityHidden(true)
-                Text(owner.isEmpty ? "Unassigned" : owner).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                Spacer(minLength: 0)
-                if job["status"].string == "blocked" { Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange).accessibilityLabel("Needs attention") }
-            }
-            if workerActive {
-                Label([job["worker_status"].string.replacingOccurrences(of: "_", with: " ").capitalized, job.first("worker_provider", "provider", "runtime_provider"), job.first("worker_model", "model")].filter { !$0.isEmpty }.joined(separator: " · "), systemImage: "waveform")
-                    .font(.caption2).foregroundStyle(OpsTheme.mint).lineLimit(2)
-            } else {
-                Text(companyStatus(job["status"].string)).font(.caption2).foregroundStyle(.secondary)
-            }
-        }.padding(14).background(OpsTheme.raised.opacity(0.7), in: RoundedRectangle(cornerRadius: 15))
-            .overlay(RoundedRectangle(cornerRadius: 15).strokeBorder(.primary.opacity(0.07)))
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("ops-kanban-card-\(job["id"].string)-\(column.id)")
+            .accessibilityElement(children: .contain).accessibilityIdentifier("ops-kanban-card-\(job["id"].string)-\(column.id)")
     }
 }
