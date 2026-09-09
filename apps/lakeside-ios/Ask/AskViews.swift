@@ -271,7 +271,7 @@ struct AskConversation: View {
     }
     private func send() {
         let entered = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        let question = entered.isEmpty && !attachments.items.isEmpty ? "Please examine the attached files." : entered
+        let question = entered.utf16.count < 5 && !attachments.items.isEmpty ? (entered.isEmpty ? "Please examine the attached files." : entered + "\nPlease examine the attached files.") : entered
         guard !streaming, !attachments.uploading, (5...500).contains(question.utf16.count) else { return }
         let files = attachments.payload
         if conversationID.isEmpty { conversationID = String(UUID().uuidString.prefix(18)) }
