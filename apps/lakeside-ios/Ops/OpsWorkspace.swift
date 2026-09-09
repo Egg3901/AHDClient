@@ -12,19 +12,25 @@ import LakesideCore
     @Published var selectedTab = 0
     @Published var fileQuestion = ""
     @Published var connected = false
+    @Published var replyConnected = false
+    var replyIsLive: Bool { connected && replyConnected && !streamingID.isEmpty && !activity.lowercased().hasPrefix("reconnecting") }
     @Published var error: String?
     @Published var sending = false
     @Published var liveText = ""
     @Published var activity = ""
     @Published var liveActions: [JSONValue] = []
     @Published var streamingID = ""
+    @Published var routing: JSONValue = .null
+    @Published var submissionUncertain = false
     private var cursor = "0"
+    private var usageRefreshTask: Task<Void, Never>?
     private var replyTask: Task<Void, Never>?
     private var flushTask: Task<Void, Never>?
     private var pendingText = ""
+    private var pendingSubmission: (payload: JSONValue, id: String)?
 
     func connect(_ session: AppSession) async {
-        defer { connected = false; replyTask?.cancel(); flushTask?.cancel(); flushTask = nil }
+        defer { connected = false; replyConnected = false; replyTask?.cancel(); streamingID = ""; flushTask?.cancel(); flushTask = nil }
         var delay = 1.0
         while !Task.isCancelled {
             do {
@@ -73,7 +79,7 @@ import LakesideCore
     }
     func select(_ id: String, _ session: AppSession) async {
         replyTask?.cancel(); flushTask?.cancel(); flushTask = nil; streamingID = ""; liveText = ""; pendingText = ""
-        conversation = id; turns = []
+        conversation = id; turns = []; routing = .null; replyConnected = false
         do { try await loadTurns(session) } catch { self.error = error.localizedDescription }
     }
     func older(_ session: AppSession) async {
@@ -89,20 +95,45 @@ import LakesideCore
     func send(_ text: String, _ session: AppSession, attachments: JSONValue = .array([])) async -> Bool {
         guard !sending, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.array.isEmpty else { return false }
         sending = true; defer { sending = false }
+        let selected = conversation
+        let payload: JSONValue = .object(["conversation": .string(selected), "text": .string(text), "attachments": attachments])
+        if pendingSubmission?.payload != payload { pendingSubmission = (payload, UUID().uuidString) }
+        let requestID = pendingSubmission!.id
         do {
-            _ = try await session.post("/api/chat/send", ["conversation": .string(conversation), "text": .string(text), "attachments": attachments])
-            try await loadTurns(session); error = nil; return true
-        } catch { self.error = error.localizedDescription; return false }
+            _ = try await session.post("/api/chat/send", ["conversation": .string(selected), "text": .string(text), "attachments": attachments, "requestId": .string(requestID)])
+            pendingSubmission = nil; submissionUncertain = false
+        } catch { submissionUncertain = true; self.error = error.localizedDescription; return false }
+        // Acceptance and refreshing the transcript are separate outcomes.
+        // A refresh failure must not make the composer submit a second turn.
+        do { if selected == conversation { try await loadTurns(session) }; error = nil }
+        catch { self.error = "Message accepted. Reconnecting to the conversation." }
+        return true
     }
+
+    func loadRouting(_ session: AppSession) async {
+        let selected = conversation
+        guard !selected.isEmpty else { return }
+        do {
+            let result = try await session.get("/api/ops/conversations/\(selected)/routing")
+            if selected == conversation { routing = result }
+        } catch { if selected == conversation { routing = .null } }
+    }
+
     private func attach(_ id: String, _ session: AppSession) {
         guard streamingID != id else { return }
         replyTask?.cancel(); flushTask?.cancel(); flushTask = nil
-        streamingID = id; liveActions = []; pendingText = ""; liveText = ""; activity = "Working"
+        streamingID = id; replyConnected = false; liveActions = []; pendingText = ""; liveText = ""; activity = "Working"
         replyTask = Task {
-            do {
+            var delay = 1.0
+            while !Task.isCancelled, self.streamingID == id {
+              self.pendingText = ""
+              self.liveActions = []
+              do {
                 try await session.events("/api/chat/stream/\(id)") { event in
-                    guard self.streamingID == id else { return }
+                    guard !Task.isCancelled, self.streamingID == id else { return }
                     let payload = try JSONValue.parse(event.data)
+                    self.replyConnected = true
+                    if self.activity.lowercased().hasPrefix("reconnecting") { self.activity = "Working" }
                     switch event.name {
                     case "delta":
                         self.pendingText += payload["text"].string
@@ -116,16 +147,25 @@ import LakesideCore
                         self.activity = payload.first("label", "text", "name")
                         if let index = self.liveActions.firstIndex(where: { !$0["id"].string.isEmpty && $0["id"] == payload["id"] }) { self.liveActions[index] = payload }
                         else { self.liveActions.append(payload); if self.liveActions.count > 200 { self.liveActions.removeFirst() } }
+                    case "route":
+                        if let index = self.turns.firstIndex(where: { $0["id"].string == id }) {
+                            var fields = self.turns[index].object; fields["route"] = payload["route"]; self.turns[index] = .object(fields)
+                        }
                     case "status": self.activity = payload.first("label", "text", "name")
                     case "final":
                         self.flushTask?.cancel(); self.flushTask = nil
-                        self.streamingID = ""; self.liveText = ""; self.activity = ""
+                        self.streamingID = ""; self.replyConnected = false; self.liveText = ""; self.activity = ""
                         try await self.loadTurns(session)
                     default: break
                     }
                 }
-            } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
-            if self.streamingID == id { self.streamingID = "" }
+              } catch { if !Task.isCancelled { self.replyConnected = false; self.activity = "Reconnecting to live activity" } }
+              guard !Task.isCancelled, self.streamingID == id else { return }
+              self.replyConnected = false; self.activity = "Reconnecting to live activity"
+              self.flushTask?.cancel(); self.flushTask = nil
+              do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+              delay = min(15, delay * 2)
+            }
         }
     }
     @discardableResult func newConversation(_ session: AppSession) async -> Bool {
@@ -145,13 +185,24 @@ import LakesideCore
         catch { self.error = error.localizedDescription }
     }
     func refreshUsage(_ session: AppSession) async {
-        do {
-            async let inventory = session.get("/api/ops/providers")
-            async let measured = session.get("/api/ops/usage")
-            let (a, b) = try await (inventory, measured)
-            providers = a["providers"].array; usage = b["providers"].array
-        } catch { self.error = error.localizedDescription }
+        if let task = usageRefreshTask { await task.value; return }
+        // The model owns this request so a tab transition cannot cancel a
+        // refresh that the newly visible screen is also waiting for.
+        let task = Task { @MainActor in
+            defer { usageRefreshTask = nil }
+            do {
+                async let inventory = session.get("/api/ops/providers")
+                async let measured = session.get("/api/ops/usage")
+                let (a, b) = try await (inventory, measured)
+                providers = a["providers"].array; usage = b["providers"].array
+            } catch {
+                if !Task.isCancelled { self.error = error.localizedDescription }
+            }
+        }
+        usageRefreshTask = task
+        await task.value
     }
+
     func refreshTeam(_ session: AppSession) async {
         do {
             async let a = session.get("/api/ops/workers")
@@ -176,7 +227,7 @@ struct OpsWorkspace: View {
             NavigationStack { OpsTeam(model: model) }.tabItem { Label("Team", systemImage: "person.2") }.tag(1)
             NavigationStack { OpsCapacity(model: model) }.tabItem { Label("Usage", systemImage: "chart.pie.fill") }.tag(2)
             NavigationStack { OpsFiles() }.tabItem { Label("Files", systemImage: "folder") }.tag(3)
-            NavigationStack { OpsHubTools() }.tabItem { Label("Hub", systemImage: "square.grid.2x2") }.tag(4)
+            NavigationStack { OpsHubTools(model: model) }.tabItem { Label("Hub", systemImage: "square.grid.2x2") }.tag(4)
         }
         .environmentObject(model)
         .tint(OpsTheme.sky)
@@ -191,6 +242,7 @@ struct OpsConversation: View {
     @ObservedObject var model: OpsWorkspaceModel
     @State private var draft = ""
     @State private var history = false
+    @State private var showRouting = false
     @FocusState private var composing: Bool
     private var title: String { model.conversations.first { $0["id"].string == model.conversation }?["title"].string ?? "Assistant" }
     var body: some View {
@@ -199,7 +251,12 @@ struct OpsConversation: View {
                 Circle().fill(model.connected ? OpsTheme.mint : Color.orange).frame(width: 5, height: 5)
                 Text(model.connected ? "Connected" : "Reconnecting")
                 Spacer()
-                Text("Codex / Muse").foregroundStyle(.secondary)
+                Button { showRouting = true } label: {
+                    Label(opsRoutingLabel(model.routing), systemImage: "slider.horizontal.3")
+                        .padding(.horizontal, 8).frame(minHeight: 44).contentShape(Rectangle())
+                }.buttonStyle(.plain)
+                    .disabled(model.sending || model.submissionUncertain || model.conversation.isEmpty)
+                    .accessibilityIdentifier("ops-routing-open")
             }.font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.vertical, 10)
             ScrollViewReader { proxy in
                 ScrollView {
@@ -271,10 +328,13 @@ struct OpsConversation: View {
             }
             .onChange(of: model.fileQuestion) { _, question in if !question.isEmpty { draft = question; model.fileQuestion = ""; composing = true } }
             .sheet(isPresented: $history) { OpsHistory(model: model) }
+            .sheet(isPresented: $showRouting) { OpsRouting(conversationID: model.conversation, selection: $model.routing) }
+            .task(id: model.conversation) { await model.loadRouting(session) }
     }
 }
 
 private struct OpsMessage: View {
+    @State private var showLiveActivity = false
     let turn: JSONValue
     @ObservedObject var model: OpsWorkspaceModel
     private var owner: Bool { turn["role"].string == "owner" }
@@ -291,12 +351,24 @@ private struct OpsMessage: View {
                     BrandMark(surface: .hub, size: 22)
                     Text(turn["role"].string == "assistant" ? "Ops" : "Team").font(.subheadline.weight(.semibold))
                     Spacer()
-                    Text(turn["route"]["label"].string).font(.caption2).foregroundStyle(.secondary)
+                    Text([turn["route"].first("label", "provider", "engine"), turn["route"]["model"].string, turn["route"]["effort"].string].filter { !$0.isEmpty }.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary)
                 }
-                if live && model.liveText.isEmpty { LoadingShimmer(text: "Thinking…") }
+                if live && model.liveText.isEmpty {
+                    if model.replyIsLive { LoadingShimmer(text: "Thinking…") }
+                    else { Text("Reconnecting to live activity").font(.caption).foregroundStyle(.secondary) }
+                }
                 else { NativeMarkdown(text: live ? model.liveText : (turn["body"].string.nonempty ?? turn["status"].string.capitalized), streaming: live) }
-                OpsActivity(actions: live ? model.liveActions : turn["actions"].array)
-                if live && !model.activity.isEmpty { LoadingShimmer(text: model.activity).font(.caption).lineLimit(2) }
+                OpsActivity(actions: live ? model.liveActions : turn["actions"].array, active: live && model.replyIsLive && !showLiveActivity)
+                if live {
+                    Button { showLiveActivity = true } label: {
+                        HStack {
+                            OpsActivityBadge(state: model.replyIsLive && !showLiveActivity ? "running" : "reconnecting", label: model.replyIsLive ? model.activity.nonempty ?? "Working" : "Reconnecting")
+                            Spacer(minLength: 8)
+                            Image(systemName: "arrow.up.right").font(.caption2)
+                        }.padding(12).background(OpsTheme.sky.opacity(model.replyIsLive ? 0.13 : 0.04), in: RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(OpsTheme.sky.opacity(model.replyIsLive ? 0.35 : 0.12)))
+                    }.buttonStyle(OpsAgentPressStyle()).accessibilityLabel("Open live activity").accessibilityIdentifier("ops-live-activity-open")
+                }
                 if !turn["error"].string.isEmpty { Text(turn["error"].string).font(.caption).foregroundStyle(.orange) }
                 if !live && !turn["body"].string.isEmpty {
                     HStack(spacing: 22) {
@@ -306,6 +378,7 @@ private struct OpsMessage: View {
                 }
             }
         }.frame(maxWidth: .infinity, alignment: .leading)
+            .sheet(isPresented: $showLiveActivity) { OpsLiveActivitySheet(model: model) }
     }
 }
 
@@ -359,14 +432,20 @@ struct OpsTeam: View {
         let matches = filter == "All" || (filter == "Active" && !terminal) || (filter == "Finished" && terminal) || (filter == "Needs you" && !$0["permissions"].array.isEmpty)
         return matches && (search.isEmpty || ($0["name"].string + " " + $0["brief"].string).localizedCaseInsensitiveContains(search))
     } }
+    private func staffState(_ member: JSONValue) -> String {
+        guard model.connected else { return "stale" }
+        let runs = model.workers.filter { $0["staff_id"] == member["id"] }
+        if runs.contains(where: { !$0["permissions"].array.isEmpty }) { return "awaiting_permission" }
+        return runs.contains(where: { $0["job_status"].string == "running" }) ? "running" : "idle"
+    }
     var body: some View {
         List {
             Section {
-                HStack(spacing: 12) {
-                    BrandMark(surface: .hub, size: 30)
-                    VStack(alignment: .leading, spacing: 4) { Text("Ops assistant").font(.headline); Text("Main agent · Codex / Muse").font(.caption).foregroundStyle(.secondary) }
+                Button { model.selectedTab = 0 } label: { HStack(spacing: 12) {
+                    OpsActivityMark(state: model.replyIsLive ? "running" : "idle", size: 44, activity: model.activity)
+                    VStack(alignment: .leading, spacing: 4) { Text("Ops assistant").font(.headline); Text(!model.connected || (!model.streamingID.isEmpty && !model.replyIsLive) ? "Reconnecting" : model.replyIsLive ? "Working · \(opsRoutingLabel(model.routing))" : "Ready · \(opsRoutingLabel(model.routing))").font(.caption).foregroundStyle(.secondary) }
                     Spacer()
-                }.padding(.vertical, 8)
+                }.padding(.vertical, 8) }.buttonStyle(OpsAgentPressStyle()).accessibilityLabel("Open main assistant")
                 Text("Your team").font(.title2.weight(.semibold))
                 Text("Keep a standing team, launch specialists, and step into their work.").font(.callout).foregroundStyle(.secondary)
                 Picker("Filter workers", selection: $filter) { ForEach(["All", "Active", "Needs you", "Finished"], id: \.self) { Text($0) } }.pickerStyle(.segmented)
@@ -375,10 +454,12 @@ struct OpsTeam: View {
                 ForEach(model.staff.filter { search.isEmpty || ($0["name"].string + " " + $0["role"].string).localizedCaseInsensitiveContains(search) }, id: \.["id"].string) { member in
                     NavigationLink { OpsStaffDetail(model: model, staff: member) } label: {
                         VStack(alignment: .leading, spacing: 6) {
-                            Label(member["name"].string, systemImage: "person.crop.circle").font(.headline)
+                            HStack(spacing: 10) { OpsActivityMark(state: staffState(member), size: 44, activity: model.workers.first(where: { $0["staff_id"] == member["id"] && $0["job_status"].string == "running" })?["name"].string ?? "", identity: member["id"].string); Text(member["name"].string).font(.headline) }
                             Text(member["role"].string).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                             let count = model.workers.filter { $0["staff_id"].string == member["id"].string && !["completed", "failed", "cancelled"].contains($0["job_status"].string) }.count
-                            Text(count == 0 ? "Available for assignments" : "\(count) active \(count == 1 ? "assignment" : "assignments")").font(.caption2).foregroundStyle(OpsTheme.mint)
+                            let running = model.workers.contains { $0["staff_id"] == member["id"] && $0["job_status"].string == "running" }
+                            let needsDecision = model.workers.contains { $0["staff_id"] == member["id"] && !$0["permissions"].array.isEmpty }
+                            Text(!model.connected ? "Reconnecting · last known \(count) assignments" : needsDecision ? "Needs your decision" : count == 0 ? "Available for assignments" : "\(count) active \(count == 1 ? "assignment" : "assignments")").font(.caption).foregroundStyle(needsDecision ? Color.orange : running && model.connected ? OpsTheme.sky : OpsTheme.ink.opacity(0.72))
                         }.padding(.vertical, 6)
                     }.listRowBackground(OpsTheme.surface)
                 }
@@ -389,7 +470,7 @@ struct OpsTeam: View {
             ForEach(filtered, id: \.["id"].string) { worker in
                 NavigationLink { OpsWorkerDetail(worker: worker, model: model) } label: {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack { Text(worker["name"].string).font(.headline); Spacer(); OpsStatus(value: worker["job_status"].string) }
+                        HStack { Text(worker["name"].string).font(.headline); Spacer(); OpsStatus(value: worker["job_status"].string, identity: worker["staff_id"].string.nonempty ?? worker["id"].string, needsDecision: !worker["permissions"].array.isEmpty, connected: model.connected) }
                         Text(worker["brief"].string).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
                         HStack { Text(worker.first("runtime_provider", "provider").capitalized); if !worker["permissions"].array.isEmpty { Label("Decision needed", systemImage: "hand.raised") } }.font(.caption).foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
@@ -405,8 +486,13 @@ struct OpsTeam: View {
 
 struct OpsStatus: View {
     let value: String
-    private var color: Color { ["failed", "waiting"].contains(value) ? .orange : value == "completed" ? OpsTheme.mint : .secondary }
-    var body: some View { Text(value == "delivery_unknown" ? "Delivery uncertain" : value.capitalized).font(.caption2.weight(.medium)).foregroundStyle(color).padding(.horizontal, 8).padding(.vertical, 4).background(color.opacity(0.09), in: Capsule()) }
+    var identity = "ops-lead"
+    var needsDecision = false
+    var connected = true
+    private var state: String { !connected ? "stale" : needsDecision ? "awaiting_permission" : value }
+    private var knownLabel: String { needsDecision ? "Needs your decision" : value == "delivery_unknown" ? "Delivery uncertain" : value.replacingOccurrences(of: "_", with: " ").capitalized }
+    private var color: Color { needsDecision || ["failed", "waiting"].contains(value) ? .orange : value == "completed" ? OpsTheme.mint : .secondary }
+    var body: some View { OpsActivityBadge(state: state, label: connected ? knownLabel : "Last known: \(knownLabel)", compact: true, identity: identity).padding(.horizontal, 8).padding(.vertical, 4).background((state == "running" ? OpsTheme.sky : color).opacity(0.09), in: Capsule()) }
 }
 
 struct OpsWorkerDetail: View {
@@ -414,18 +500,12 @@ struct OpsWorkerDetail: View {
     let worker: JSONValue
     @ObservedObject var model: OpsWorkspaceModel
     @State private var detail: JSONValue = .null
-    @State private var activityLog = ""
-    @State private var activityLoading = false
-    @State private var activityError: String?
-    @State private var activityRefresh = 0
-    @State private var activityUpdated: Date?
     @State private var message = ""
     @State private var messageID = UUID().uuidString
     @State private var submittedMessage: String?
     @State private var messages: [JSONValue] = []
     @State private var sendingMessage = false
     @State private var messageError: String?
-    @State private var showActivity = false
     @Environment(\.scenePhase) private var phase
     private var current: JSONValue {
         let summary = model.workers.first { $0["id"] == worker["id"] } ?? worker
@@ -439,6 +519,7 @@ struct OpsWorkerDetail: View {
     var body: some View {
         List {
             Section("Assignment") {
+                OpsStatus(value: current["job_status"].string, identity: current["staff_id"].string.nonempty ?? current["id"].string, needsDecision: !current["permissions"].array.isEmpty, connected: model.connected)
                 Text(current["brief"].string)
                 LabeledContent("Status", value: current["job_status"].string.capitalized)
                 LabeledContent("Assigned by", value: current["origin"].string == "owner" ? "You" : "Ops assistant")
@@ -485,22 +566,8 @@ struct OpsWorkerDetail: View {
                     }
                 }
             }
-            Section {
-                DisclosureGroup("Conversation & tools", isExpanded: $showActivity) {
-                    if activityLoading && activityLog.isEmpty { ProgressView("Loading activity") }
-                    else if activityLog.isEmpty && activityError == nil { Text("No activity reported yet.").foregroundStyle(.secondary) }
-                    if !activityLog.isEmpty {
-                        ScrollView { NativeMarkdown(text: activityLog).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 380)
-                    }
-                    if let activityError { Text(activityError).font(.caption).foregroundStyle(.orange) }
-                    HStack {
-                        if let activityUpdated { Text("Updated \(activityUpdated.formatted(date: .omitted, time: .shortened))").font(.caption2).foregroundStyle(.secondary) }
-                        Spacer()
-                        Button("Refresh") { activityRefresh += 1 }.disabled(activityLoading)
-                        Button { UIPasteboard.general.string = activityLog } label: { Image(systemName: "doc.on.doc") }.disabled(activityLog.isEmpty).accessibilityLabel("Copy worker activity")
-                    }.buttonStyle(.borderless)
-                }
-            }
+            Section { OpsWorkerActivity(workerID: worker["id"].string) }
+            Section { OpsSubagents(workerID: worker["id"].string) }
             if !current["workspace_id"].string.isEmpty {
                 Section { NavigationLink("Workspace files") { OpsDirectory(workspace: .object(["workspaceId": current["workspace_id"]]), path: "") } }
             }
@@ -513,21 +580,18 @@ struct OpsWorkerDetail: View {
                 }
             }
             if let error = model.error { Text(error).foregroundStyle(.orange) }
-        }.opsScreen().navigationTitle(current["name"].string)
-            .task(id: "\(showActivity)-\(phase == .active)-\(activityRefresh)-\(current["job_status"].string)") {
-                guard showActivity && phase == .active else { return }
+        }.opsScreen().navigationTitle(current["name"].string.nonempty ?? "Worker")
+            .navigationBarTitleDisplayMode(.inline)
+            .task(id: "\(phase == .active)-\(current["job_status"].string)") {
+                guard phase == .active else { return }
                 while !Task.isCancelled {
                     do {
-                        activityLoading = true
-                        async let a = session.get("/api/ops/workers/\(worker["id"].string)/activity")
-                        async let b = session.get("/api/ops/workers/\(worker["id"].string)/messages")
-                        let (result, inbox) = try await (a, b)
+                        let inbox = try await session.get("/api/ops/workers/\(worker["id"].string)/messages")
                         try Task.checkCancellation()
                         messages = inbox["messages"].array
-                        activityLog = result["content"].string; activityError = nil; activityUpdated = Date(); activityLoading = false
                         if ["completed", "failed", "cancelled"].contains(current["job_status"].string) { return }
                         try await Task.sleep(for: .seconds(3))
-                    } catch { if !Task.isCancelled { activityError = error.localizedDescription }; activityLoading = false; return }
+                    } catch { if !Task.isCancelled { messageError = error.localizedDescription }; return }
                 }
             }
             .task(id: model.workers.first { $0["id"] == worker["id"] }?["job_updated_at"].string) {
@@ -548,55 +612,15 @@ struct OpsWorkerDetail: View {
             _ = try await session.post("/api/ops/workers/\(worker["id"].string)/messages", ["requestId": .string(messageID), "text": .string(text)])
             submittedMessage = nil; message = ""; messageID = UUID().uuidString; messageError = nil
             messages = try await session.get("/api/ops/workers/\(worker["id"].string)/messages")["messages"].array
-            showActivity = true; activityRefresh += 1
         } catch { messageError = error.localizedDescription }
     }
 }
 
-struct OpsCapacity: View {
-    @EnvironmentObject private var session: AppSession
+struct OpsHubTools: View {
     @ObservedObject var model: OpsWorkspaceModel
     var body: some View {
         List {
-            Section { Text("Capacity & activity").font(.title2.weight(.semibold)); Text("Today's measured assistant and worker usage. Subscription capacity is shown only when the provider reports it.").font(.callout).foregroundStyle(.secondary) }
-            ForEach(model.providers, id: \.["id"].string) { provider in
-                Section(provider["label"].string) {
-                    LabeledContent("Runtime", value: provider["status"].string.capitalized)
-                    let measured = model.usage.first { $0["provider"] == provider["id"] } ?? .null
-                    LabeledContent("Attempts today", value: measured["attempts"].string.isEmpty ? "0" : measured["attempts"].string)
-                    if let input = measured["input_tokens"].number, let output = measured["output_tokens"].number {
-                        HStack(spacing: 16) {
-                            UsageRing(fraction: output / max(1, input + output), color: OpsTheme.sky, size: 48)
-                            VStack(alignment: .leading) {
-                                Text("\(Int(input + output).formatted()) measured tokens").font(.headline)
-                                Text("\(Int(input).formatted()) input · \(Int(output).formatted()) output").font(.caption).foregroundStyle(.secondary)
-                            }
-                        }.padding(.vertical, 8)
-                    }
-                    if provider["allowances"].array.isEmpty {
-                        Text(provider["billing"].string == "free" ? "Free model routing" : "Subscription remaining: not reported").font(.caption).foregroundStyle(.secondary)
-                    }
-                    ForEach(provider["allowances"].array, id: \.["id"].string) { allowance in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack { Text(allowance["label"].string); Spacer(); Text("\(Int(allowance["remainingPercent"].number ?? 0))% left").monospacedDigit() }.font(.caption)
-                            ProgressView(value: allowance["remainingPercent"].number ?? 0, total: 100).tint(OpsTheme.mint)
-                            if let observed = allowance["observedAt"].number {
-                                Text("Reported \(Date(timeIntervalSince1970: observed / 1000).formatted(date: .omitted, time: .shortened))").font(.caption2).foregroundStyle(.secondary)
-                            }
-                        }.padding(.vertical, 4)
-                    }
-                    if let count = measured["unmeasured_token_attempts"].number, count > 0 { Text("\(Int(count)) attempts have no token measurement.").font(.caption).foregroundStyle(.secondary) }
-                }
-            }
-            if let error = model.error { Text(error).foregroundStyle(.orange) }
-            Section { NavigationLink { OpsBenchmarks() } label: { Label("Provider benchmarks", systemImage: "speedometer") } }
-        }.opsScreen().navigationTitle("Usage").task { await model.refreshUsage(session) }.refreshable { await model.refreshUsage(session) }
-    }
-}
-
-struct OpsHubTools: View {
-    var body: some View {
-        List {
+            Section { NavigationLink { OpsCompany(model: model) } label: { Label("Company", systemImage: "building.2") }.accessibilityIdentifier("ops-company-open") }
             Section("Remember and plan") {
                 NavigationLink { OpsMemoryView() } label: { Label("Assistant memory", systemImage: "text.book.closed") }
                 NavigationLink { OpsSchedules() } label: { Label("Schedules", systemImage: "calendar.badge.clock") }

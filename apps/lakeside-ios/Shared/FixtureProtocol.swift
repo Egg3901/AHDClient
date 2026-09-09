@@ -3,10 +3,85 @@ import Foundation
 
 /// Isolated UI-test transport. It never contacts a server and is absent in Release.
 final class FixtureProtocol: URLProtocol, @unchecked Sendable {
+    private final class RoutingState: @unchecked Sendable {
+        let lock = NSLock()
+        var selection: [String: Any] = ["provider": "auto", "model": NSNull(), "effort": "auto", "allowFallback": true]
+        func access(_ update: [String: Any]? = nil) -> [String: Any] {
+            lock.lock(); defer { lock.unlock() }
+            if let update { selection = update }
+            return selection
+        }
+    }
+    private static let routing = RoutingState()
+    private final class CompanyState: @unchecked Sendable {
+        let lock = NSLock()
+        var jobs: [[String: Any]] = [["id": "job-1", "title": "Fix export failures", "objective": "Make exports reliable for every project.", "status": "detected", "column": "todo", "board_rank": 100, "entity_id": "project-1", "staff_id": "staff-1", "version": 1, "task_type": "bugfix", "artifact": "fixture-commit-abc", "acceptance": ["Empty exports complete successfully"], "contract": ["investigate": true, "draft": true, "change": false, "merge": false, "deploy": false, "communicate": false], "conversation_id": 1]]
+        var checks: [[String: Any]] = []
+        var requests: Set<String> = []
+        func route(_ path: String, method: String, body: [String: Any]) -> (Any, Int) {
+            lock.lock(); defer { lock.unlock() }
+            let project: [String: Any] = ["id": "project-1", "kind": "product", "title": "Studio hub", "summary": "Studio tools", "source": "UI fixture"]
+            if path == "/api/ops/company" { return (["missions": jobs, "boardColumns": [["id": "todo", "title": "To do"], ["id": "doing", "title": "In progress"], ["id": "review", "title": "Needs review"], ["id": "ready", "title": "Ready to ship"], ["id": "watching", "title": "Watching"], ["id": "done", "title": "Done"]], "entities": [project], "links": [], "counts": ["active": jobs.count, "needsOwner": 1, "monitoring": 0, "verified": 0], "automation": ["enabled": false, "description": "External sources are not connected."]], 200) }
+            if path == "/api/ops/company/sync" { return (["imported": 1], 200) }
+            if path == "/api/ops/company/signals" {
+                guard let key = body["requestId"] as? String, let title = body["title"] as? String else { return (["error": "Missing work request"], 400) }
+                if requests.contains(key) { return (["mission": jobs.last ?? [:], "duplicate": true], 200) }
+                var job = jobs[0]; job["id"] = "job-\(jobs.count + 1)"; job["title"] = title; job["objective"] = body["objective"]; job["acceptance"] = body["acceptance"]; job["status"] = "detected"; job["version"] = 1
+                jobs.append(job); requests.insert(key)
+                return (["mission": job, "duplicate": false], 200)
+            }
+            let pieces = path.split(separator: "/").map(String.init)
+            guard pieces.count >= 5, let index = jobs.firstIndex(where: { $0["id"] as? String == pieces[4] }) else { return (["error": "Work not found"], 404) }
+            if method == "GET" {
+                return (["mission": jobs[index], "events": [["id": "event-1", "type": "detected", "detail": "Export failures reported by support.", "created_at": "2026-09-09T12:00:00Z"]], "evidence": checks, "assignments": [], "signal": ["summary": "Several projects could not export their files.", "source": "support", "observed_at": "2026-09-09T12:00:00Z"]], 200)
+            }
+            guard pieces.count == 6, body["version"] as? Int == jobs[index]["version"] as? Int else { return (["error": "This work changed. Reload before saving."], 409) }
+            switch pieces[5] {
+            case "move":
+                guard let target = body["column"] as? String, ["todo", "doing", "review"].contains(target) else { return (["error": "Complete the required checks before moving here."], 409) }
+                jobs[index]["column"] = target
+                jobs[index]["status"] = target == "doing" ? "working" : target == "review" ? "awaiting_verification" : "detected"
+            case "evidence":
+                var check = body; check["id"] = "check-\(checks.count + 1)"; checks.append(check)
+            case "verify": checks.append(["id": "github-check-1", "kind": "test", "summary": "GitHub checks passed for the recorded version.", "artifact": body["artifact"] ?? "", "passed": true, "source": "github"])
+            case "contract": jobs[index]["contract"] = body["contract"]
+            case "artifact": jobs[index]["artifact"] = body["artifact"]
+            case "assign": jobs[index]["status"] = "investigating"
+            case "approve": jobs[index]["status"] = "approved"
+            case "monitor": jobs[index]["status"] = "monitoring"
+            case "finish": jobs[index]["status"] = "verified"; jobs[index]["completion_mode"] = "reviewed"
+            case "reopen": jobs[index]["status"] = "investigating"
+            case "cancel": jobs[index]["status"] = "cancelled"
+            default: return (["error": "Unknown action"], 404)
+            }
+            jobs[index]["version"] = (jobs[index]["version"] as? Int ?? 0) + 1
+            return (["mission": jobs[index]], 200)
+        }
+    }
+    private static let company = CompanyState()
+
+    private func bodyObject() -> [String: Any]? {
+        var data = request.httpBody ?? Data()
+        if data.isEmpty, let stream = request.httpBodyStream {
+            stream.open(); defer { stream.close() }
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                if count <= 0 { break }
+                data.append(contentsOf: buffer.prefix(count))
+            }
+        }
+        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         guard let url = request.url else { return }
+        if url.path.hasPrefix("/api/ops/company") {
+            let (value, status) = Self.company.route(url.path, method: request.httpMethod ?? "GET", body: bodyObject() ?? [:])
+            deliver((try? JSONSerialization.data(withJSONObject: value)) ?? Data(), url: url, status: status, type: "application/json")
+            return
+        }
         let isAsk = url.host?.hasPrefix("ask.") == true
         var value: Any = ["error": "No test fixture for this endpoint"]
         var status = 200
@@ -20,6 +95,13 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
             value = isAsk ? ["identity": ["username": "Test operator"], "entitlement": ["allowed": true, "label": "Staff"], "usage": ["used": 46.5, "limit": 200, "remaining": 153.5, "mcpLimit": 40, "mcpRemaining": 12, "vizLimit": 10, "vizRemaining": 8, "resetAt": 1788912000000, "tier": "Staff"]] : ["email": "operator@example.test", "role": "admin"]
         case "/api/ops/bootstrap": value = ["cursor": 0, "conversation": ["id": 1], "conversations": [["id": 1, "title": "Build the studio hub"]], "staff": [["id": "staff-1", "name": "Release engineer", "role": "Maintain release quality", "provider": "auto"]], "workers": [["id": "worker-1", "name": "Export repair", "brief": "Repair and verify the export flow.", "job_status": "completed", "runtime_provider": "codex", "permissions": [], "result": "Export fixed. All checks passed."]]]
         case "/api/chat/turns": value = ["turns": [["id": 1, "role": "owner", "body": "Help me build the studio hub.", "status": "done"], ["id": 2, "role": "assistant", "body": "The export worker has finished. I am checking the changes before accepting them.", "status": "done", "route": ["label": "Muse"], "actions": [["name": "bash", "label": "Run export checks", "command": "npm test", "output": "All 12 checks passed", "state": "completed", "exitCode": 0]]]]]
+            if ProcessInfo.processInfo.arguments.contains("--uitest-live-activity") {
+                value = ["turns": [["id": 1, "role": "owner", "body": "Check the export flow.", "status": "done"], ["id": 2, "role": "assistant", "body": "", "status": "running", "route": ["label": "Codex"], "actions": []]]]
+            }
+        case "/api/chat/stream/2":
+            guard ProcessInfo.processInfo.arguments.contains("--uitest-live-activity") else { status = 404; break }
+            let live = "event: action\ndata: {\"id\":\"live-tool\",\"name\":\"bash\",\"label\":\"Running export checks\",\"command\":\"npm test\",\"state\":\"running\"}\n\nevent: status\ndata: {\"label\":\"Running export checks\"}\n\nevent: delta\ndata: {\"text\":\"Checking the export flow.\"}\n\n"
+            deliver(Data(live.utf8), url: url, status: 200, type: "text/event-stream", finish: false); return
         case "/api/ops/events":
             deliver(Data(": connected\n\n".utf8), url: url, status: 200, type: "text/event-stream", finish: false); return
         case "/api/ops/staff": value = ["staff": [["id": "staff-1", "name": "Release engineer", "role": "Maintain release quality", "provider": "auto"]]]
@@ -27,7 +109,27 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         case "/api/ops/projects": value = ["projects": [["name": "Studio hub", "path": "/fixture/studio"]]]
         case "/api/ops/workers/worker-1/messages": value = ["messages": []]
         case "/api/ops/workers/worker-1": value = ["worker": ["brief": "Repair and verify the export flow.", "result": "Export fixed. All checks passed."]]
-        case "/api/ops/providers": value = ["providers": [["id": "codex", "label": "Codex", "status": "available", "capabilities": ["tools"], "models": [["id": "fixture-model", "isDefault": true]]], ["id": "muse", "label": "Muse", "status": "available", "capabilities": ["tools"], "models": [["id": "fixture-model", "isDefault": true]]], ["id": "grok", "label": "Grok", "status": "available", "capabilities": ["tools"], "models": [["id": "fixture-model", "isDefault": true]]]]]
+        case "/api/ops/conversations/1/routing":
+            if request.httpMethod == "POST" {
+                if let body = bodyObject(), body["provider"] is String, body["effort"] is String, body["allowFallback"] is Bool {
+                    value = Self.routing.access(body)
+                } else { status = 400; value = ["error": "Routing request body missing"] }
+            } else { value = Self.routing.access() }
+        case "/api/ops/providers":
+            let stamp = Date().timeIntervalSince1970 * 1000
+            let definitions: [(String, String)] = [("codex", "Codex"), ("muse", "Muse"), ("grok", "Grok"), ("freerouter", "Free Router")]
+            value = ["providers": definitions.map { id, label -> [String: Any] in
+                var capacity: [String: Any] = ["status": "available", "source": "UI fixture", "observedAt": stamp, "stale": false, "message": "Quota reported", "windows": [], "balances": []]
+                if id == "codex" || id == "grok" {
+                    capacity["windows"] = [["id": "quota", "label": id == "codex" ? "5-hour allowance" : "Weekly allowance", "remainingPercent": id == "codex" ? 65 : 18, "resetsAt": stamp + 3600000, "observedAt": stamp]]
+                } else if id == "muse" {
+                    capacity["status"] = "unavailable"; capacity["message"] = "Account quota not reported"
+                } else {
+                    capacity["message"] = "Routes ready"; capacity["readiness"] = ["ready": 7, "total": 9, "coolingDown": 2]
+                }
+                return ["id": id, "label": label, "enabled": true, "status": "available", "billing": id == "freerouter" ? "free" : "subscription", "capabilities": id == "freerouter" ? ["text"] : ["tools"], "models": [["id": "fixture-model", "label": "Fixture model", "isDefault": true, "thinkingOptions": id == "freerouter" ? [] : [["id": "low"], ["id": "medium"], ["id": "high"]]]], "capacity": capacity]
+            }]
+
         case "/api/ops/benchmarks": value = ["scores": [["provider": "codex", "model": "fixture-model", "suite": "coding", "effort": "medium", "passed": 4, "checks": 4, "samples": 1, "latency_ms": 2500]], "runs": []]
         case "/api/ops/usage": value = ["providers": [["provider": "codex", "attempts": 3, "input_tokens": 12000, "output_tokens": 3000, "unmeasured_token_attempts": 1]]]
         case "/api/ops/memory": value = ["body": "Keep each implementation worker in a separate worktree. Verify results before accepting them.", "version": "fixture-version"]
@@ -41,7 +143,16 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         case "/api/ops/files/changes": value = ["entries": [["name": "app.swift", "path": "app.swift", "status": " M", "deleted": false, "untracked": false]]]
         case "/api/ops/files/read": value = ["content": "// Studio hub\nlet version = \"1.3.0\"", "size": 40]
         case "/api/ops/files/diff": value = ["content": "-let version = 1.2\n+let version = 1.3"]
-        case "/api/ops/workers/worker-1/activity": value = ["content": "Ran export checks. All 12 checks passed.", "updateCount": 3]
+        case "/api/ops/workers/worker-1/activity":
+            value = ["content": "Ran export checks. All 12 checks passed.", "entries": [
+                ["id": "message-1", "kind": "message", "role": "assistant", "title": "Assistant", "body": "Checking the export implementation."],
+                ["id": "tool-1", "kind": "tool", "title": "Run export checks", "body": "npm test\nAll 12 checks passed", "state": "completed"]
+            ], "updateCount": 2, "revision": "fixture-worker-v1", "saved": true, "stale": false, "truncated": false, "observedAt": Date().timeIntervalSince1970 * 1000]
+        case "/api/ops/workers/worker-1/subagents":
+            value = ["subagents": [["id": "child-1", "parentAgentId": "fixture-runtime", "provider": "codex", "title": "Export reviewer", "description": "Review edge cases before accepting the repair.", "status": "completed"]], "saved": true, "stale": false]
+        case "/api/ops/workers/worker-1/subagents/child-1/activity":
+            value = ["entries": [["id": "child-message-1", "kind": "message", "role": "assistant", "title": "Assistant", "body": "Reviewed empty exports and unicode filenames."]], "content": "Reviewed empty exports and unicode filenames.", "revision": "fixture-child-v1", "updateCount": 1, "saved": true, "stale": false, "truncated": false]
+
         case "/api/schedules": value = ["schedules": [["id": 1, "title": "Morning review", "brief": "Review overnight activity", "cadence": "daily", "enabled": 1]]]
         case "/api/tasks": value = ["tasks": [["id": 1, "title": "Review deployment", "status": "completed", "brief": "Check the release"]]]
         case "/api/tasks/1": value = ["task": ["id": 1, "status": "completed", "result": "Release verified."]]

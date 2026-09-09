@@ -2,14 +2,15 @@ import SwiftUI
 import LakesideCore
 
 enum OpsTheme {
-    static let background = Brand.adaptive(0x101317, 0xf7f8fa)
-    static let surface = Brand.adaptive(0x191e24, 0xffffff)
-    static let raised = Brand.adaptive(0x222a33, 0xeaf0f6)
-    static let sky = Brand.adaptive(0x94bada, 0x356c98)
-    static let mint = Brand.adaptive(0x96bea9, 0x33785c)
-    static let ink = Brand.adaptive(0xe9edf1, 0x20252c)
-    static let onAccent = Brand.adaptive(0x14212c, 0xffffff)
+    static let background = Brand.background
+    static let surface = Brand.surface
+    static let raised = Brand.raised
+    static let sky = Brand.sky
+    static let mint = Brand.mint
+    static let ink = Brand.ink
+    static let onAccent = Brand.onAccent
 }
+
 extension View {
     func opsScreen() -> some View {
         scrollContentBackground(.hidden).background(OpsTheme.background)
@@ -31,6 +32,8 @@ private struct OpsActivityEntry: Identifiable {
 
 struct OpsActivity: View {
     var actions: [JSONValue]
+    var startsExpanded = false
+    var active = false
     @State private var search = ""
     @FocusState private var searchFocused: Bool
     @State private var filter = "All"
@@ -50,7 +53,8 @@ struct OpsActivity: View {
                 Button { expanded.toggle() } label: {
                 HStack(spacing: 8) {
                     Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                    Label("Activity · \(actions.count) \(actions.count == 1 ? "step" : "steps")", systemImage: "list.bullet.rectangle")
+                    OpsActivityMark(state: active && entries.contains { $0.state == "running" } ? "running" : "idle", size: 18)
+                    Text("Activity · \(actions.count) \(actions.count == 1 ? "step" : "steps")")
                     Spacer()
                     let failed = entries.filter { $0.state == "failed" }.count
                     if failed > 0 { Text("\(failed) failed").foregroundStyle(.orange) }
@@ -68,17 +72,18 @@ struct OpsActivity: View {
                     }.pickerStyle(.segmented)
                     if visible.isEmpty { Text("No matching activity").font(.caption).foregroundStyle(.secondary) }
                     ForEach(visible) { entry in
-                        OpsActivityStep(entry: entry)
+                        OpsActivityStep(entry: entry, active: active)
                     }
                 }.padding(.top, 12)
                 }
-            }.foregroundStyle(.secondary)
+            }.foregroundStyle(.secondary).onAppear { if startsExpanded { expanded = true } }
         }
     }
 }
 
 private struct OpsActivityStep: View {
     let entry: OpsActivityEntry
+    let active: Bool
     @State private var expanded = false
     private var icon: String {
         switch entry.state {
@@ -104,7 +109,7 @@ private struct OpsActivityStep: View {
             }
         } label: {
             HStack(alignment: .top, spacing: 8) {
-                Image(systemName: icon).foregroundStyle(color)
+                OpsActivityMark(state: entry.state == "running" && !active ? "recorded" : entry.state, size: 22, activity: entry.title)
                 Text(entry.title).lineLimit(2).foregroundStyle(OpsTheme.ink)
                 Spacer(minLength: 4)
                 Text(entry.state.capitalized).foregroundStyle(color)

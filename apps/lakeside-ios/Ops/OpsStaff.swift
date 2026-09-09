@@ -200,7 +200,7 @@ struct OpsStaffDetail: View {
                     NavigationLink { OpsWorkerDetail(worker: run, model: model) } label: {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(run["name"].string).font(.headline)
-                            HStack { OpsStatus(value: run["job_status"].string); Text(opsDate(run["created_at"].string)).font(.caption).foregroundStyle(.secondary) }
+                            HStack { OpsStatus(value: (model.workers.first { $0["id"] == run["id"] } ?? run)["job_status"].string, identity: staff["id"].string, needsDecision: !(model.workers.first { $0["id"] == run["id"] } ?? run)["permissions"].array.isEmpty, connected: model.connected); Text(opsDate(run["created_at"].string)).font(.caption).foregroundStyle(.secondary) }
                         }.padding(.vertical, 5)
                     }
                 }
