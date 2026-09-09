@@ -33,6 +33,8 @@ jobs:
         run: dotnet publish Ops.Client/Ops.Client.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained true -o pilot
       - name: Publish independent runner
         run: dotnet publish Ops.Runner/Ops.Runner.csproj -c Release -r win-x64 --self-contained true -o pilot/runner
+      - name: Launch native UI and capture rendering
+        run: ./scripts/Smoke.ps1 -Executable pilot/Ops.Client.exe -OutputDirectory smoke
       - name: Assemble unsigned pilot
         run: |
           Copy-Item README.md pilot/README.md
@@ -43,6 +45,12 @@ jobs:
         with:
           name: Ops-Windows-x64-unsigned-pilot
           path: apps/ops-windows/Ops-Windows-x64-pilot.zip
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Ops-Windows-native-smoke
+          path: apps/ops-windows/smoke/*
           retention-days: 7
       - uses: actions/upload-artifact@v4
         if: always()

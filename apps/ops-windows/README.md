@@ -1,6 +1,6 @@
 # Ops Windows unsigned pilot
 
-Native C# WinUI 3 Work client and a separate per-user local runner. Targets Windows 11 x64, .NET 10 LTS, Windows App SDK 1.8. The unsigned ZIP bundles application runtimes. No WebView, Tauri, Apple signing, public installer identity, or automatic update channel is involved.
+Native C# WinUI 3 Work client and a separate per-user local runner. Targets Windows 11 x64, .NET 10 LTS, Windows App SDK 1.8. The unsigned ZIP bundles application runtimes. CI launch screenshots use synthetic local work records and no account credentials. No WebView, Tauri, Apple signing, public installer identity, or automatic update channel is involved.
 
 ## Start
 
@@ -31,7 +31,7 @@ dotnet publish Ops.Client/Ops.Client.csproj -c Release -r win-x64 -p:Platform=x6
 dotnet publish Ops.Runner/Ops.Runner.csproj -c Release -r win-x64 --self-contained true -o pilot/runner
 ```
 
-The `Ops Windows pilot` GitHub workflow performs Windows builds, runs both suites, and creates an unsigned ZIP artifact retained for seven days. Artifacts from this public repository may be publicly accessible. This is an unsigned pilot, not a signed production release. Linux can run the core and portable runner unit tests, but cannot execute the Windows XAML compiler or establish Windows behavior.
+The `Ops Windows pilot` GitHub workflow performs Windows builds, runs both suites, launches the native client with a local fixture, captures a screenshot, and creates an unsigned ZIP artifact retained for seven days. Artifacts from this public repository may be publicly accessible. This is an unsigned pilot, not a signed production release. Linux can run the core and portable runner unit tests, but cannot execute the Windows XAML compiler or establish Windows behavior.
 
 ## Device acceptance still required
 

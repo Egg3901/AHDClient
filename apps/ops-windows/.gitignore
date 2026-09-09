@@ -3,3 +3,4 @@ obj/
 TestResults/
 pilot/
 *.zip
+smoke/
