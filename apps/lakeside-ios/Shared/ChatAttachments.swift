@@ -1,7 +1,21 @@
 import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
+import ImageIO
 import LakesideCore
+
+private func attachmentPhoto(_ data: Data) throws -> Data {
+    guard data.count <= 20 * 1024 * 1024,
+          let source = CGImageSourceCreateWithData(data as CFData, nil),
+          let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 2048
+          ] as CFDictionary), let jpeg = UIImage(cgImage: thumbnail).jpegData(compressionQuality: 0.85) else {
+        throw AppFailure(message: "This photo could not be loaded. Choose an image smaller than 20 MB.")
+    }
+    return jpeg
+}
 
 @MainActor
 final class ChatAttachments: ObservableObject {
@@ -42,7 +56,10 @@ final class ChatAttachments: ObservableObject {
                 return data
             }.value
             let type = UTType(filenameExtension: url.pathExtension)
-            await add(data, name: url.lastPathComponent, mime: type?.preferredMIMEType ?? "text/plain", session: session)
+            if type?.conforms(to: .image) == true {
+                let jpeg = try await Task.detached { try attachmentPhoto(data) }.value
+                await add(jpeg, name: url.deletingPathExtension().lastPathComponent + ".jpg", mime: "image/jpeg", session: session)
+            } else { await add(data, name: url.lastPathComponent, mime: type?.preferredMIMEType ?? "text/plain", session: session) }
         } catch { self.error = error.localizedDescription }
     }
 }
@@ -70,8 +87,8 @@ struct AttachmentPicker: View {
                 Task {
                     defer { photo = nil }
                     do {
-                        guard let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data),
-                              let jpeg = image.jpegData(compressionQuality: 0.85) else { throw AppFailure(message: "This photo could not be loaded.") }
+                        guard let data = try await item.loadTransferable(type: Data.self) else { throw AppFailure(message: "This photo could not be loaded.") }
+                        let jpeg = try await Task.detached { try attachmentPhoto(data) }.value
                         await attachments.add(jpeg, name: "Photo.jpg", mime: "image/jpeg", session: session)
                     } catch { attachments.error = error.localizedDescription }
                 }
