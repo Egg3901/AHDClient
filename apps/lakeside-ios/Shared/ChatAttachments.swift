@@ -129,14 +129,15 @@ struct AttachmentTray: View {
 
 struct LoadingShimmer: View {
     var text: String
+    @State private var visible = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var phase
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || phase != .active)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || phase != .active || !visible)) { context in
             let position = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.8) / 1.8
             Text(text).foregroundStyle(.secondary)
                 .overlay {
-                    if !reduceMotion {
+                    if !reduceMotion && visible && phase == .active {
                         GeometryReader { geometry in
                             LinearGradient(colors: [.clear, .primary.opacity(0.85), .clear], startPoint: .leading, endPoint: .trailing)
                                 .frame(width: geometry.size.width * 0.55)
@@ -144,6 +145,6 @@ struct LoadingShimmer: View {
                         }.mask(Text(text))
                     }
                 }
-        }.accessibilityLabel(text)
+        }.accessibilityLabel(text).onAppear { visible = true }.onDisappear { visible = false }
     }
 }

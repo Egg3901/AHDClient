@@ -261,6 +261,23 @@ final class LaunchTests: XCTestCase {
         XCTAssertEqual(app.staticTexts["ops-company-current-status"].label, "In progress")
         XCTAssertTrue(app.staticTexts["Several projects could not export their files."].exists)
     }
+    func testOpsLiveAgentActivityOpensRealToolDetails() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures", "--uitest-live-activity"]; app.launch()
+        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops live activity") }
+        let live = app.buttons["ops-live-activity-open"]
+        XCTAssertTrue(live.waitForExistence(timeout: 10))
+        capture(app, "Ops live assistant presence")
+        live.tap()
+        XCTAssertTrue(app.navigationBars["Live activity"].waitForExistence(timeout: 5))
+        let search = app.textFields["ops-activity-search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap(); search.typeText("npm test\n")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "Running export checks")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["No matching activity"].exists)
+        capture(app, "Ops live tool inspector")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(live.waitForExistence(timeout: 5))
+    }
     func testOpsCapacityAtLargeTextSize() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--uitest-fixtures", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]

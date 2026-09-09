@@ -95,6 +95,13 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
             value = isAsk ? ["identity": ["username": "Test operator"], "entitlement": ["allowed": true, "label": "Staff"], "usage": ["used": 46.5, "limit": 200, "remaining": 153.5, "mcpLimit": 40, "mcpRemaining": 12, "vizLimit": 10, "vizRemaining": 8, "resetAt": 1788912000000, "tier": "Staff"]] : ["email": "operator@example.test", "role": "admin"]
         case "/api/ops/bootstrap": value = ["cursor": 0, "conversation": ["id": 1], "conversations": [["id": 1, "title": "Build the studio hub"]], "staff": [["id": "staff-1", "name": "Release engineer", "role": "Maintain release quality", "provider": "auto"]], "workers": [["id": "worker-1", "name": "Export repair", "brief": "Repair and verify the export flow.", "job_status": "completed", "runtime_provider": "codex", "permissions": [], "result": "Export fixed. All checks passed."]]]
         case "/api/chat/turns": value = ["turns": [["id": 1, "role": "owner", "body": "Help me build the studio hub.", "status": "done"], ["id": 2, "role": "assistant", "body": "The export worker has finished. I am checking the changes before accepting them.", "status": "done", "route": ["label": "Muse"], "actions": [["name": "bash", "label": "Run export checks", "command": "npm test", "output": "All 12 checks passed", "state": "completed", "exitCode": 0]]]]]
+            if ProcessInfo.processInfo.arguments.contains("--uitest-live-activity") {
+                value = ["turns": [["id": 1, "role": "owner", "body": "Check the export flow.", "status": "done"], ["id": 2, "role": "assistant", "body": "", "status": "running", "route": ["label": "Codex"], "actions": []]]]
+            }
+        case "/api/chat/stream/2":
+            guard ProcessInfo.processInfo.arguments.contains("--uitest-live-activity") else { status = 404; break }
+            let live = "event: action\ndata: {\"id\":\"live-tool\",\"name\":\"bash\",\"label\":\"Running export checks\",\"command\":\"npm test\",\"state\":\"running\"}\n\nevent: status\ndata: {\"label\":\"Running export checks\"}\n\nevent: delta\ndata: {\"text\":\"Checking the export flow.\"}\n\n"
+            deliver(Data(live.utf8), url: url, status: 200, type: "text/event-stream", finish: false); return
         case "/api/ops/events":
             deliver(Data(": connected\n\n".utf8), url: url, status: 200, type: "text/event-stream", finish: false); return
         case "/api/ops/staff": value = ["staff": [["id": "staff-1", "name": "Release engineer", "role": "Maintain release quality", "provider": "auto"]]]

@@ -329,6 +329,7 @@ struct OpsConversation: View {
 }
 
 private struct OpsMessage: View {
+    @State private var showLiveActivity = false
     let turn: JSONValue
     @ObservedObject var model: OpsWorkspaceModel
     private var owner: Bool { turn["role"].string == "owner" }
@@ -349,8 +350,16 @@ private struct OpsMessage: View {
                 }
                 if live && model.liveText.isEmpty { LoadingShimmer(text: "Thinking…") }
                 else { NativeMarkdown(text: live ? model.liveText : (turn["body"].string.nonempty ?? turn["status"].string.capitalized), streaming: live) }
-                OpsActivity(actions: live ? model.liveActions : turn["actions"].array)
-                if live && !model.activity.isEmpty { LoadingShimmer(text: model.activity).font(.caption).lineLimit(2) }
+                OpsActivity(actions: live ? model.liveActions : turn["actions"].array, active: live && model.connected && !showLiveActivity)
+                if live {
+                    Button { showLiveActivity = true } label: {
+                        HStack {
+                            OpsActivityBadge(state: model.connected && !showLiveActivity ? "running" : "reconnecting", label: model.connected ? model.activity.nonempty ?? "Working" : "Reconnecting")
+                            Spacer(minLength: 8)
+                            Image(systemName: "arrow.up.right").font(.caption2)
+                        }.padding(12).background(OpsTheme.sky.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                    }.buttonStyle(.plain).accessibilityLabel("Open live activity").accessibilityIdentifier("ops-live-activity-open")
+                }
                 if !turn["error"].string.isEmpty { Text(turn["error"].string).font(.caption).foregroundStyle(.orange) }
                 if !live && !turn["body"].string.isEmpty {
                     HStack(spacing: 22) {
@@ -360,6 +369,7 @@ private struct OpsMessage: View {
                 }
             }
         }.frame(maxWidth: .infinity, alignment: .leading)
+            .sheet(isPresented: $showLiveActivity) { OpsLiveActivitySheet(model: model) }
     }
 }
 
@@ -416,11 +426,11 @@ struct OpsTeam: View {
     var body: some View {
         List {
             Section {
-                HStack(spacing: 12) {
+                Button { model.selectedTab = 0 } label: { HStack(spacing: 12) {
                     BrandMark(surface: .hub, size: 30)
-                    VStack(alignment: .leading, spacing: 4) { Text("Ops assistant").font(.headline); Text("Main agent · Codex / Muse").font(.caption).foregroundStyle(.secondary) }
+                    VStack(alignment: .leading, spacing: 4) { Text("Ops assistant").font(.headline); OpsActivityBadge(state: !model.streamingID.isEmpty && model.connected ? "running" : "idle", label: !model.streamingID.isEmpty ? "Working · \(opsRoutingLabel(model.routing))" : "Ready · \(opsRoutingLabel(model.routing))", compact: true) }
                     Spacer()
-                }.padding(.vertical, 8)
+                }.padding(.vertical, 8) }.buttonStyle(.plain).accessibilityLabel("Open main assistant")
                 Text("Your team").font(.title2.weight(.semibold))
                 Text("Keep a standing team, launch specialists, and step into their work.").font(.callout).foregroundStyle(.secondary)
                 Picker("Filter workers", selection: $filter) { ForEach(["All", "Active", "Needs you", "Finished"], id: \.self) { Text($0) } }.pickerStyle(.segmented)
@@ -432,7 +442,8 @@ struct OpsTeam: View {
                             Label(member["name"].string, systemImage: "person.crop.circle").font(.headline)
                             Text(member["role"].string).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                             let count = model.workers.filter { $0["staff_id"].string == member["id"].string && !["completed", "failed", "cancelled"].contains($0["job_status"].string) }.count
-                            Text(count == 0 ? "Available for assignments" : "\(count) active \(count == 1 ? "assignment" : "assignments")").font(.caption2).foregroundStyle(OpsTheme.mint)
+                            let running = model.workers.contains { $0["staff_id"] == member["id"] && $0["job_status"].string == "running" }
+                            OpsActivityBadge(state: running ? "running" : "idle", label: count == 0 ? "Available for assignments" : "\(count) active \(count == 1 ? "assignment" : "assignments")", compact: true)
                         }.padding(.vertical, 6)
                     }.listRowBackground(OpsTheme.surface)
                 }
@@ -460,7 +471,7 @@ struct OpsTeam: View {
 struct OpsStatus: View {
     let value: String
     private var color: Color { ["failed", "waiting"].contains(value) ? .orange : value == "completed" ? OpsTheme.mint : .secondary }
-    var body: some View { Text(value == "delivery_unknown" ? "Delivery uncertain" : value.capitalized).font(.caption2.weight(.medium)).foregroundStyle(color).padding(.horizontal, 8).padding(.vertical, 4).background(color.opacity(0.09), in: Capsule()) }
+    var body: some View { OpsActivityBadge(state: value, label: value == "delivery_unknown" ? "Delivery uncertain" : value.replacingOccurrences(of: "_", with: " ").capitalized, compact: true).padding(.horizontal, 8).padding(.vertical, 4).background((value == "running" ? OpsTheme.sky : color).opacity(0.09), in: Capsule()) }
 }
 
 struct OpsWorkerDetail: View {
@@ -487,6 +498,7 @@ struct OpsWorkerDetail: View {
     var body: some View {
         List {
             Section("Assignment") {
+                OpsActivityBadge(state: current["job_status"].string, label: current["job_status"].string == "running" ? "Working on this assignment" : current["job_status"].string.capitalized)
                 Text(current["brief"].string)
                 LabeledContent("Status", value: current["job_status"].string.capitalized)
                 LabeledContent("Assigned by", value: current["origin"].string == "owner" ? "You" : "Ops assistant")

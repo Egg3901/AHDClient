@@ -74,7 +74,7 @@ struct OpsWorkerActivity: View {
                     Text(emptyMessage).font(.caption).foregroundStyle(.secondary)
                 }
                 ForEach(visibleItems) { item in
-                    WorkerActivityRow(item: item, expanded: expansionBinding(item.id))
+                    WorkerActivityRow(item: item, expanded: expansionBinding(item.id), live: !saved && !stale)
                         .accessibilityIdentifier("ops-worker-activity-entry-\(item.id)")
                 }
                 if entries.isEmpty && !content.isEmpty {
@@ -273,11 +273,12 @@ private struct WorkerActivityItem: Identifiable, Equatable {
 private struct WorkerActivityRow: View {
     let item: WorkerActivityItem
     @Binding var expanded: Bool
+    let live: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 8) {
-                Image(systemName: icon).foregroundStyle(color)
+                OpsActivityMark(state: item.state == "running" && !live ? "recorded" : item.state ?? "recorded", size: 20)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title).font(.caption.weight(.medium)).foregroundStyle(OpsTheme.ink)
                     if !item.role.isEmpty {
