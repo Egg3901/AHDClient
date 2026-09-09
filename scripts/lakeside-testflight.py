@@ -27,8 +27,11 @@ def api(path, body=None):
     except urllib.error.HTTPError as error:
         # Apple errors may echo a tester email. Never write their raw payload to public logs.
         details = json.loads(error.read()).get('errors', [])
+        codes = [item.get('code', 'UNKNOWN') for item in details]
+        if error.code == 409 and 'STATE_ERROR.TESTER_INVITE.ALREADY_ACCEPTED' in codes:
+            return {'alreadyAccepted': True}
         categories = [word for word in ['external', 'internal', 'already', 'permission', 'access'] if any(word in x.get('detail', '').lower() for x in details)]
-        raise RuntimeError('Apple HTTP %s: %s (%s)' % (error.code, ', '.join(x.get('code', 'UNKNOWN') for x in details), ', '.join(categories))) from None
+        raise RuntimeError('Apple HTTP %s: %s (%s)' % (error.code, ', '.join(codes), ', '.join(categories))) from None
 
 
 def listed(path, **filters):
@@ -86,9 +89,9 @@ def main():
             # Apple must establish internal membership when resolving the tester by email.
             tester = api('betaTesters', {'data': {'type': 'betaTesters', 'attributes': {'email': email},
                 'relationships': {'betaGroups': {'data': [ref('betaGroups', group['id'])]}}}})['data']
-        api('betaTesterInvitations', {'data': {'type': 'betaTesterInvitations', 'relationships': {
+        invitation = api('betaTesterInvitations', {'data': {'type': 'betaTesterInvitations', 'relationships': {
             'app': {'data': ref('apps', app_id)}, 'betaTester': {'data': ref('betaTesters', tester['id'])}}}})
-        print(bundle, 'TestFlight invitation requested successfully')
+        print(bundle, 'TestFlight access confirmed' if invitation.get('alreadyAccepted') else 'TestFlight invitation requested successfully')
 
 
 if __name__ == '__main__':
