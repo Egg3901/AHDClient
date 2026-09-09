@@ -16,7 +16,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createWriteStream } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -137,6 +137,141 @@ async function stageNativeVariants(staging, triple) {
   }
 }
 
+const STAGED_TOP_FILES = new Set([
+  "server.js",
+  "package.json",
+  "launch.mjs",
+  "README.txt",
+  "LICENSE.md",
+  "AHD_BUILD.json",
+]);
+const STAGED_TOP_DIRS = new Set([".next", "public", "node_modules"]);
+
+export function shouldKeepStagedGamePath(relPosix) {
+  if (!relPosix || relPosix === ".") return true;
+  if (STAGED_TOP_FILES.has(relPosix)) return true;
+  const top = relPosix.split("/")[0];
+  if (STAGED_TOP_DIRS.has(top)) return true;
+  if (relPosix.startsWith("src/data/") && relPosix.endsWith(".json")) return true;
+  if (relPosix.startsWith("content/changelog/public/") && relPosix.endsWith(".md")) return true;
+  if (relPosix.startsWith("content/changelog/legacy/") && relPosix.endsWith(".md")) return true;
+  return false;
+}
+
+function walkFiles(root) {
+  const files = [];
+  if (!existsSync(root)) return files;
+  const visit = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const full = path.join(dir, name);
+      let st;
+      try {
+        st = statSync(full);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) visit(full);
+      else files.push(full.slice(root.length + 1).split(path.sep).join("/"));
+    }
+  };
+  visit(root);
+  return files;
+}
+
+function pruneEmptyDirs(root) {
+  const visit = (dir) => {
+    if (!existsSync(dir)) return true;
+    let empty = true;
+    for (const name of readdirSync(dir)) {
+      const full = path.join(dir, name);
+      let st;
+      try {
+        st = statSync(full);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        if (!visit(full)) empty = false;
+      } else empty = false;
+    }
+    if (empty && dir !== root) {
+      rmSync(dir, { recursive: true, force: true });
+      return true;
+    }
+    return false;
+  };
+  visit(root);
+}
+
+/** Drop source, docs, tests and plan markdown the file trace still copies. */
+export function pruneStagedGame(root) {
+  const dropped = [];
+  for (const rel of walkFiles(root)) {
+    if (shouldKeepStagedGamePath(rel)) continue;
+    rmSync(path.join(root, ...rel.split("/")), { force: true });
+    dropped.push(rel);
+  }
+  rmSync(path.join(root, ".next", "cache"), { recursive: true, force: true });
+  pruneEmptyDirs(root);
+  return dropped;
+}
+
+const ALIAS_PATTERN = /require\("([a-z0-9][a-z0-9-]+-[a-f0-9]{16})"\)/g;
+
+export function assertStagedGame(root, triple) {
+  const missing = [];
+  for (const req of ["server.js", "launch.mjs", ".next/static", ".next/server", "public", "node_modules"]) {
+    if (!existsSync(path.join(root, ...req.split("/")))) missing.push(req);
+  }
+  const chunkDir = path.join(root, ".next", "server", "chunks");
+  if (existsSync(chunkDir)) {
+    const aliases = new Set();
+    for (const entry of readdirSync(chunkDir)) {
+      if (!entry.endsWith(".js")) continue;
+      const source = readFileSync(path.join(chunkDir, entry), "utf8");
+      for (const match of source.matchAll(ALIAS_PATTERN)) aliases.add(match[1]);
+    }
+    for (const alias of aliases) {
+      if (!existsSync(path.join(root, "node_modules", alias))) missing.push(`node_modules/${alias}`);
+    }
+  }
+  if (!existsSync(path.join(root, "node_modules", "mongodb"))) missing.push("node_modules/mongodb");
+  const want = NATIVE_PLATFORM[triple];
+  if (existsSync(path.join(root, "node_modules", "sharp")) && want) {
+    if (!existsSync(path.join(root, "node_modules", "@img", `sharp-${want}`))) {
+      missing.push(`node_modules/@img/sharp-${want}`);
+    }
+  }
+  let strayTs = 0;
+  let tests = 0;
+  let docs = 0;
+  let plans = 0;
+  for (const rel of walkFiles(root)) {
+    if (rel.startsWith("node_modules/")) continue;
+    if (rel.startsWith("src/") && /\.[cm]?tsx?$/.test(rel)) strayTs += 1;
+    if (/(^|\/)(tests|e2e)(\/|$)/.test(rel) || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(rel)) tests += 1;
+    if (rel === "docs" || rel.startsWith("docs/")) docs += 1;
+    if (
+      rel.endsWith(".md") &&
+      rel !== "LICENSE.md" &&
+      !rel.startsWith("content/changelog/public/") &&
+      !rel.startsWith("content/changelog/legacy/")
+    ) {
+      plans += 1;
+    }
+  }
+  const budgetHits = [];
+  if (strayTs > 0) budgetHits.push(`strayTs ${strayTs} > 0`);
+  if (tests > 0) budgetHits.push(`tests ${tests} > 0`);
+  if (docs > 0) budgetHits.push(`docs ${docs} > 0`);
+  if (plans > 0) budgetHits.push(`plans ${plans} > 0`);
+  if (missing.length || budgetHits.length) {
+    throw new Error(
+      `staged game payload allowlist failed: ${[...missing.map((m) => `missing ${m}`), ...budgetHits].join("; ")}`,
+    );
+  }
+}
+
 export async function stageGame(gameDir, triple, { skipBuild = false } = {}) {
   if (!gameDir) throw new Error("pass --game-dir or set AHDGAME_DIR to an AHDGame checkout");
   gameDir = path.resolve(gameDir);
@@ -175,6 +310,8 @@ export async function stageGame(gameDir, triple, { skipBuild = false } = {}) {
     path.join(staging, "AHD_BUILD.json"),
     `${JSON.stringify({ clientVersion, gameCommit: revision.stdout.trim() }, null, 2)}\n`,
   );
+  pruneStagedGame(staging);
+  assertStagedGame(staging, triple);
   rmSync(dest, { recursive: true, force: true });
   renameSync(staging, dest);
   // tauri-build copies resources next to the binary at compile time and

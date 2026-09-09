@@ -107,6 +107,24 @@
   color: #eee5d6;
 }
 
+.client-update-progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #ffffff14;
+}
+
+.client-update-progress > span {
+  display: block;
+  height: 100%;
+  background: #e6b65f;
+  transition: width 0.2s linear;
+}
+
+.client-update-progress-indeterminate {
+  animation: client-update-indeterminate 1.2s ease-in-out infinite;
+}
+
 .client-update-mark-pulse {
   animation: client-update-pulse 1.3s ease-in-out infinite;
 }
@@ -114,6 +132,21 @@
 @keyframes client-update-pulse {
   50% {
     opacity: 0.55;
+  }
+}
+
+@keyframes client-update-indeterminate {
+  0% {
+    width: 20%;
+    margin-left: 0;
+  }
+  50% {
+    width: 45%;
+    margin-left: 30%;
+  }
+  100% {
+    width: 20%;
+    margin-left: 80%;
   }
 }
 
@@ -125,7 +158,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .client-update-mark-pulse {
+  .client-update-mark-pulse,
+  .client-update-progress-indeterminate {
     animation: none;
   }
 }

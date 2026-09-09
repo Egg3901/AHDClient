@@ -13,6 +13,7 @@ export default defineConfig({
     target: "esnext",
   },
   test: {
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "../../scripts/**/*.test.mjs"],
     exclude: ["**/node_modules/**", "src-tauri/**", "dist/**"],
   },
 });

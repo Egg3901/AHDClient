@@ -84,7 +84,7 @@
         "https://ops.lakesidegames.net/downloads/AHDClient-latest.json"
       ],
       "windows": {
-        "installMode": "passive"
+        "installMode": "quiet"
       }
     }
   }

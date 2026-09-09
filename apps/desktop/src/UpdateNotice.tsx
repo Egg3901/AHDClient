@@ -1,86 +1,63 @@
 import { useEffect, useState } from "react";
+import {
+  confirmRestartToUpdate,
+  getUpdaterSnapshot,
+  startBackgroundUpdateCheck,
+  subscribeUpdater,
+  type UpdaterSnapshot,
+} from "./updater.js";
 import "./update.css";
-
-type UpdateState =
-  | { kind: "checking" }
-  | { kind: "current" }
-  | {
-      kind: "available";
-      version: string;
-      notes: string;
-      install: () => Promise<void>;
-    }
-  | { kind: "installing" }
-  | { kind: "error"; message: string };
 
 interface Props {
   /** App-store builds update through their store and have no updater ACL. */
   enabled?: boolean;
 }
 
+function progressPercent(state: Extract<UpdaterSnapshot, { kind: "downloading" }>): number | null {
+  if (!state.total || state.total <= 0) return null;
+  return Math.min(100, Math.round((state.received / state.total) * 100));
+}
+
+function releaseNotes(notes: string): string[] {
+  return notes
+    .split("\n")
+    .map((note) => note.trim().replace(/^[-*]\s+/, ""))
+    .filter(Boolean);
+}
+
 export function UpdateNotice({ enabled = true }: Props): JSX.Element | null {
-  const [state, setState] = useState<UpdateState>({ kind: "checking" });
+  const [state, setState] = useState<UpdaterSnapshot>(getUpdaterSnapshot);
   const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => subscribeUpdater(() => setState(getUpdaterSnapshot())), []);
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      void (async () => {
-        try {
-          const { check } = await import("@tauri-apps/plugin-updater");
-          const update = await check({ timeout: 15_000 });
-          if (cancelled) return;
-          if (!update) {
-            setState({ kind: "current" });
-            return;
-          }
-          setState({
-            kind: "available",
-            version: update.version,
-            notes:
-              update.body ?? "A new AHDClient and paired game build are ready.",
-            install: async () => {
-              setState({ kind: "installing" });
-              try {
-                await update.downloadAndInstall();
-                const { relaunch } = await import("@tauri-apps/plugin-process");
-                await relaunch();
-              } catch (error) {
-                setState({
-                  kind: "error",
-                  message:
-                    error instanceof Error ? error.message : String(error),
-                });
-              }
-            },
-          });
-        } catch (error) {
-          if (!cancelled) {
-            setState({
-              kind: "error",
-              message: error instanceof Error ? error.message : String(error),
-            });
-          }
-        }
-      })();
-    }, 4_000);
+      if (!cancelled) void startBackgroundUpdateCheck();
+    }, 400);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
   }, [enabled]);
 
-  if (state.kind === "checking" || state.kind === "current" || dismissed)
-    return null;
+  useEffect(() => {
+    if (state.kind === "ready") setDismissed(false);
+  }, [state.kind]);
 
-  const notes =
-    state.kind === "available"
-      ? state.notes
-          .split("\n")
-          .map((note) => note.trim().replace(/^[-*]\s+/, ""))
-          .filter(Boolean)
-      : [];
+  if (!enabled) return null;
+  if (dismissed && state.kind !== "installing") return null;
+  if (
+    state.kind === "idle" ||
+    state.kind === "checking" ||
+    state.kind === "current"
+  ) {
+    return null;
+  }
+
+  const notes = state.kind === "ready" || state.kind === "downloading" ? releaseNotes(state.notes) : [];
 
   return (
     <aside className="client-update-notice" role="status" aria-live="polite">
@@ -113,9 +90,50 @@ export function UpdateNotice({ enabled = true }: Props): JSX.Element | null {
           </span>
           <div>
             <strong>Installing update</strong>
-            <p>AHDClient will restart when it is ready.</p>
+            <p>AHDClient will reopen on the new build.</p>
           </div>
         </div>
+      ) : state.kind === "downloading" ? (
+        <>
+          <div className="client-update-heading">
+            <span
+              className="client-update-mark client-update-mark-pulse"
+              aria-hidden="true"
+            >
+              &#8593;
+            </span>
+            <div>
+              <strong>Downloading AHDClient {state.version}</strong>
+              <p>
+                {progressPercent(state) == null
+                  ? "The update is downloading in the background."
+                  : `${progressPercent(state)}% downloaded. You can keep playing.`}
+              </p>
+            </div>
+          </div>
+          <div
+            className="client-update-progress"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progressPercent(state) ?? undefined}
+          >
+            <span
+              style={{
+                width:
+                  progressPercent(state) == null ? "35%" : `${progressPercent(state)}%`,
+              }}
+              className={progressPercent(state) == null ? "client-update-progress-indeterminate" : undefined}
+            />
+          </div>
+          <button
+            className="client-update-later"
+            type="button"
+            onClick={() => setDismissed(true)}
+          >
+            Hide
+          </button>
+        </>
       ) : (
         <>
           <div className="client-update-heading">
@@ -124,7 +142,7 @@ export function UpdateNotice({ enabled = true }: Props): JSX.Element | null {
             </span>
             <div>
               <strong>AHDClient {state.version} is ready</strong>
-              <p>A new client and paired game build are available.</p>
+              <p>Restart to install the downloaded update.</p>
             </div>
           </div>
           {notes.length > 0 && (
@@ -141,9 +159,9 @@ export function UpdateNotice({ enabled = true }: Props): JSX.Element | null {
             <button
               className="client-update-primary"
               type="button"
-              onClick={() => void state.install()}
+              onClick={() => void confirmRestartToUpdate()}
             >
-              Update and restart
+              Restart to update
             </button>
             <button
               className="client-update-later"

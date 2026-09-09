@@ -194,6 +194,10 @@ describe("desktop platform configuration", () => {
     expect(workflow).toContain("tar -xzf \"$archive\"");
   });
 
+  it("installs Windows updates quietly after the player confirms restart", () => {
+    expect(tauriConfig.plugins.updater.windows.installMode).toBe("quiet");
+  });
+
   it("retains signed updater artifacts for every desktop platform", () => {
     const workflow = read("../../../.github/workflows/release-desktop.yml");
     const manifestGenerator = read(

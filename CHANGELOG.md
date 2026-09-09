@@ -2,6 +2,11 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.3.1] - 2026-09-09
+
+- Download desktop updates in the background and wait for Restart to update before installing. Windows quiet install starts only after that confirmation, so the app does not exit while the file is still downloading.
+- Stage only the runtime game payload: traced modules, mongodb aliases, the target sharp native, server.js, launch.mjs, .next/static and public. Fail packaging if leftover source, docs, tests or plan markdown remain.
+
 ## [2.3.0] - 2026-09-09
 
 - Replace the singleplayer maintenance soft lock with a limited local Control Room. Local players remain non-admins while retaining safe start, pause, turn, rules and diagnostic controls.

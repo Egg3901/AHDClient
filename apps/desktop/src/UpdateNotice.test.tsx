@@ -4,16 +4,26 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const mocks = vi.hoisted(() => ({ check: vi.fn() }));
+const download = vi.fn();
+const install = vi.fn();
+const downloadAndInstall = vi.fn();
+const check = vi.fn();
+const relaunch = vi.fn();
 
-vi.mock("@tauri-apps/plugin-updater", () => ({ check: mocks.check }));
-vi.mock("@tauri-apps/plugin-process", () => ({ relaunch: vi.fn() }));
+vi.mock("@tauri-apps/plugin-updater", () => ({
+  check: (...args: unknown[]) => check(...args),
+}));
+vi.mock("@tauri-apps/plugin-process", () => ({
+  relaunch: (...args: unknown[]) => relaunch(...args),
+}));
 
 import { UpdateNotice } from "./UpdateNotice.js";
+import { resetUpdaterForTests } from "./updater.js";
 
 describe("UpdateNotice", () => {
   afterEach(() => {
     cleanup();
+    resetUpdaterForTests();
     vi.clearAllMocks();
     vi.useRealTimers();
   });
@@ -22,35 +32,66 @@ describe("UpdateNotice", () => {
     vi.useFakeTimers();
     render(<UpdateNotice enabled={false} />);
     await vi.advanceTimersByTimeAsync(5_000);
-    expect(mocks.check).not.toHaveBeenCalled();
+    expect(check).not.toHaveBeenCalled();
   });
 
-  it("keeps long release notes in a collapsed fixed update card", async () => {
+  it("shows a dismissable download bar then Restart to update after download", async () => {
     vi.useFakeTimers();
-    mocks.check.mockResolvedValue({
-      version: "2.1.2",
+    let finishDownload: () => void = () => {};
+    download.mockImplementation(
+      async (
+        onEvent?: (event: {
+          event: string;
+          data?: { contentLength?: number; chunkLength?: number };
+        }) => void,
+      ) => {
+        onEvent?.({ event: "Started", data: { contentLength: 50 } });
+        onEvent?.({ event: "Progress", data: { chunkLength: 25 } });
+        await new Promise<void>((resolve) => {
+          finishDownload = resolve;
+        });
+        onEvent?.({ event: "Progress", data: { chunkLength: 25 } });
+      },
+    );
+    install.mockResolvedValue(undefined);
+    check.mockResolvedValue({
+      version: "2.3.1",
       body: "- First improvement\n- Second improvement with much more detail",
-      downloadAndInstall: vi.fn(),
+      download,
+      install,
+      downloadAndInstall,
     });
 
     render(<UpdateNotice />);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(4_000);
+      await vi.advanceTimersByTimeAsync(400);
       await Promise.resolve();
     });
 
+    expect(screen.getByRole("status").textContent).toContain("Downloading AHDClient 2.3.1");
+    expect(screen.getByRole("progressbar")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(downloadAndInstall).not.toHaveBeenCalled();
+    expect(install).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finishDownload();
+      await Promise.resolve();
+    });
     const notice = screen.getByRole("status");
-    expect(notice.textContent).toContain("AHDClient 2.1.2 is ready");
+    expect(notice.textContent).toContain("AHDClient 2.3.1 is ready");
+    expect(screen.getByRole("button", { name: "Restart to update" })).toBeTruthy();
     const details = screen.getByText("What's new").closest("details");
     expect(details?.hasAttribute("open")).toBe(false);
     expect(details?.textContent).toContain("First improvement");
-    expect(details?.textContent).toContain("Second improvement");
 
     const css = readFileSync(join(process.cwd(), "src/update.css"), "utf8");
     expect(css).toMatch(/\.client-update-notice\s*\{[^}]*position:\s*fixed/s);
-    expect(css).toMatch(/\.client-update-notice\s*\{[^}]*max-width:/s);
+    expect(css).toMatch(/\.client-update-progress\s*\{/s);
 
     fireEvent.click(screen.getByRole("button", { name: "Later" }));
     expect(screen.queryByRole("status")).toBeNull();
+    expect(relaunch).not.toHaveBeenCalled();
   });
 });
