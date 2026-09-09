@@ -4,12 +4,14 @@
     "slug": "lakeside-ops",
     "owner": "lakeside-games",
     "version": "1.4.0",
-    "sdkVersion": "56.0.0",
     "platforms": [
       "ios"
     ],
     "ios": {
-      "bundleIdentifier": "net.lakesidegames.ops"
+      "bundleIdentifier": "net.lakesidegames.ops",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "extra": {
       "eas": {

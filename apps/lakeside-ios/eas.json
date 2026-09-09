@@ -13,6 +13,12 @@
         "image": "latest",
         "resourceClass": "m-medium"
       }
+    },
+    "preflight": {
+      "extends": "production",
+      "ios": {
+        "config": "preflight.yml"
+      }
     }
   }
 }

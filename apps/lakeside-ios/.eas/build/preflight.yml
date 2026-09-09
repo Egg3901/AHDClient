@@ -1,0 +1,13 @@
+build:
+  name: Verify native build host
+  steps:
+    - eas/checkout
+    - run:
+        name: Verify Apple credentials and Swift toolchain
+        command: |
+          set -eu
+          test -f project.yml
+          test -n "$APPLE_API_KEY_CONTENT"
+          test -n "$APPLE_DEVELOPMENT_TEAM"
+          xcrun --sdk iphoneos --show-sdk-version
+          swift test --package-path Core
