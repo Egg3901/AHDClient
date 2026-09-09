@@ -8,6 +8,7 @@ import CryptoKit
 struct BriefingStatus: Codable {
   var status: String?
   var name: String?
+  var avatarUrl: String?
   var actions: Double?
   var actionCap: Double?
   var funds: Double?
@@ -18,23 +19,50 @@ struct BriefingStatus: Codable {
   var isImperial: Bool?
   var electionStats: ElectionStats?
   var corpNav: CorporationStats?
+  var marketWatch: [MarketWatchItem]?
 
   struct ElectionStats: Codable {
     var electionId: String
+    var electionType: String?
+    var countryId: String?
+    var state: String?
+    var status: String?
+    var electionYear: Double?
+    var endTurn: Double?
     var myVotePct: Double?
     var marginPct: Double?
     var seatsProjected: Double?
     var totalSeats: Double?
     var isMultiSeat: Bool?
+    var history: [ElectionPoint]?
   }
+  struct ElectionPoint: Codable { var turn: Double; var pct: Double; var seats: Double? }
   struct CorporationStats: Codable {
     var sequentialId: Int
     var name: String
+    var logoUrl: String?
+    var tickerSymbol: String?
     var sharePrice: Double?
     var priceChange1h: Double?
     var liquidCapital: Double?
     var liquidCurrencyCode: String?
     var marketingStrength: Double?
+    var history: [CorporationPoint]?
+  }
+  struct CorporationPoint: Codable {
+    var turn: Double
+    var sharePrice: Double
+    var marketingStrength: Double
+    var liquidCapital: Double
+  }
+  struct MarketWatchItem: Codable {
+    var sequentialId: Int
+    var name: String
+    var logoUrl: String?
+    var tickerSymbol: String?
+    var sharePrice: Double?
+    var liquidCurrencyCode: String?
+    var ownedShares: Double
   }
 }
 
@@ -148,12 +176,32 @@ enum BriefingStore {
             var data = try? JSONDecoder().decode(BriefingStatus.self, from: bytes),
             data.name != nil || data.status == "no-character" else { finish(read()); return }
           data.name = data.name.map { String($0.prefix(120)) }
+          data.avatarUrl = trustedImageURL(data.avatarUrl)
+          if var corporation = data.corpNav {
+            corporation.logoUrl = trustedImageURL(corporation.logoUrl)
+            data.corpNav = corporation
+          }
+          data.marketWatch = data.marketWatch?.prefix(5).map { item in
+            var safe = item
+            safe.name = String(safe.name.prefix(120))
+            safe.logoUrl = trustedImageURL(safe.logoUrl)
+            safe.tickerSymbol = safe.tickerSymbol.map { String($0.prefix(8)) }
+            return safe
+          }
           let saved = SavedBriefing(updatedAt: Date(), sessionId: fingerprint(cookie), data: data)
           save(saved)
           finish(saved)
         }
       }.resume()
     }
+  }
+
+  private static func trustedImageURL(_ value: String?) -> String? {
+    guard let value = value, value.utf8.count <= 2048, let url = URL(string: value),
+      url.scheme == "https", let host = url.host?.lowercased() else { return nil }
+    let trusted = host == "ahousedividedgame.com" || host.hasSuffix(".ahousedividedgame.com")
+      || host == "cdn.discordapp.com" || host.hasSuffix(".public.blob.vercel-storage.com")
+    return trusted ? value : nil
   }
 }
 

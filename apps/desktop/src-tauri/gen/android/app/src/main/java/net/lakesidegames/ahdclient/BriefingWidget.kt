@@ -36,9 +36,9 @@ open class BriefingWidget : AppWidgetProvider() {
         val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
         if (!BriefingWidgets.ids(context).contains(id)) return
         val current = BriefingWidgets.section(context, id)
-        val delta = if (intent.action == BriefingWidgets.NEXT) 1 else 2
+        val delta = if (intent.action == BriefingWidgets.NEXT) 1 else BriefingWidgets.sections.size - 1
         context.getSharedPreferences("briefing-widget-prefs", Context.MODE_PRIVATE).edit()
-          .putInt("section-$id", (current + delta) % 3).apply()
+          .putInt("section-$id", (current + delta) % BriefingWidgets.sections.size).apply()
         BriefingWidgets.render(context)
       }
       BriefingWidgets.REFRESH -> BriefingWidgets.schedule(context)
@@ -62,6 +62,7 @@ open class BriefingWidget : AppWidgetProvider() {
 class ProfileWidget : BriefingWidget()
 class ElectionWidget : BriefingWidget()
 class CorporationWidget : BriefingWidget()
+class StocksWidget : BriefingWidget()
 
 object BriefingWidgets {
   const val JOB_ID = 21001
@@ -69,8 +70,8 @@ object BriefingWidgets {
   const val PREVIOUS = "net.lakesidegames.ahdclient.widget.PREVIOUS"
   const val REFRESH = "net.lakesidegames.ahdclient.widget.REFRESH"
   const val ORIGIN = "https://ahousedividedgame.com"
-  val sections = listOf("profile", "election", "corporation")
-  private val providers = listOf(ProfileWidget::class.java, ElectionWidget::class.java, CorporationWidget::class.java)
+  val sections = listOf("profile", "election", "corporation", "stocks")
+  private val providers = listOf(ProfileWidget::class.java, ElectionWidget::class.java, CorporationWidget::class.java, StocksWidget::class.java)
   private val lock = Any()
 
   fun ids(context: Context): List<Int> = providers.flatMap {
@@ -81,7 +82,7 @@ object BriefingWidgets {
     val provider = AppWidgetManager.getInstance(context).getAppWidgetInfo(id)?.provider?.className
     val default = providers.indexOfFirst { it.name == provider }.coerceAtLeast(0)
     return context.getSharedPreferences("briefing-widget-prefs", Context.MODE_PRIVATE)
-      .getInt("section-$id", default).coerceIn(0, 2)
+      .getInt("section-$id", default).coerceIn(sections.indices)
   }
 
   fun schedule(context: Context) {
@@ -163,20 +164,43 @@ object BriefingWidgets {
     if (raw.optString("status") == "no-character") return JSONObject().put("status", "no-character")
     require(raw.has("name") && raw.get("name") is String)
     val safe = JSONObject().put("status", "ready")
-    for (key in listOf("name", "actions", "actionCap", "funds", "personalHomeLiquid", "homeCurrency", "politicalInfluence", "favorability", "isImperial")) {
-      if (raw.has(key)) safe.put(key, raw.get(key))
+    for (key in listOf("name", "avatarUrl", "actions", "actionCap", "funds", "personalHomeLiquid", "homeCurrency", "politicalInfluence", "favorability", "isImperial")) {
+      if (raw.has(key) && (key != "avatarUrl" || safeImageUrl(raw.optString(key)) != null)) safe.put(key, raw.get(key))
     }
     for ((key, fields) in mapOf(
       "electionStats" to listOf("electionId", "myVotePct", "marginPct", "seatsProjected", "totalSeats", "isMultiSeat"),
-      "corpNav" to listOf("sequentialId", "name", "sharePrice", "priceChange1h", "liquidCapital", "liquidCurrencyCode", "marketingStrength")
+      "corpNav" to listOf("sequentialId", "name", "logoUrl", "tickerSymbol", "sharePrice", "priceChange1h", "liquidCapital", "liquidCurrencyCode", "marketingStrength")
     )) {
       val source = raw.optJSONObject(key) ?: continue
       val child = JSONObject()
-      fields.forEach { if (source.has(it)) child.put(it, source.get(it)) }
+      fields.forEach {
+        if (source.has(it) && (it != "logoUrl" || safeImageUrl(source.optString(it)) != null)) child.put(it, source.get(it))
+      }
       safe.put(key, child)
+    }
+    raw.optJSONArray("marketWatch")?.let { source ->
+      val watched = org.json.JSONArray()
+      for (index in 0 until minOf(source.length(), 5)) {
+        val item = source.optJSONObject(index) ?: continue
+        if (item.optLong("sequentialId", -1) <= 0 || item.optDouble("ownedShares", 0.0) <= 0) continue
+        val child = JSONObject()
+        for (key in listOf("sequentialId", "name", "logoUrl", "tickerSymbol", "sharePrice", "liquidCurrencyCode", "ownedShares")) {
+          if (item.has(key) && (key != "logoUrl" || safeImageUrl(item.optString(key)) != null)) child.put(key, item.get(key))
+        }
+        watched.put(child)
+      }
+      safe.put("marketWatch", watched)
     }
     return safe
   }
+
+  private fun safeImageUrl(value: String): String? = try {
+    val uri = Uri.parse(value)
+    val host = uri.host?.lowercase().orEmpty()
+    value.takeIf { it.length <= 2048 && uri.scheme == "https" &&
+      (host == "ahousedividedgame.com" || host.endsWith(".ahousedividedgame.com") ||
+        host == "cdn.discordapp.com" || host.endsWith(".public.blob.vercel-storage.com")) }
+  } catch (_: Exception) { null }
 
   fun page(context: Context, section: String): String? {
     val data = read(context)
@@ -211,7 +235,7 @@ object BriefingWidgets {
       val selected = section(context, id)
       val views = RemoteViews(context.packageName, R.layout.briefing_widget)
       val currency = data?.optString("homeCurrency", "")?.takeUnless { it == "null" }.orEmpty()
-      var title = listOf("Profile", "Election", "Corporation")[selected]
+      var title = listOf("Profile", "Election", "Corporation", "Stocks")[selected]
       val content = if (!ready) {
         if (data?.optString("status") == "no-character") "Choose a character in the app."
         else if (data != null) "Saved stats expired. Open the app to refresh."
@@ -231,12 +255,19 @@ object BriefingWidgets {
           "Vote share  ${number(election, "myVotePct", "%")}\nMargin  ${number(election, "marginPct", " pp")}" +
             if (election.optBoolean("isMultiSeat")) "\nProjected seats  ${number(election, "seatsProjected")}" else ""
         } ?: "No election tally available yet."
-        else -> data!!.optJSONObject("corpNav")?.let { corp ->
+        2 -> data!!.optJSONObject("corpNav")?.let { corp ->
           title = corp.optString("name").take(100)
           val ccy = corp.optString("liquidCurrencyCode", "").takeUnless { it == "null" }.orEmpty()
           val suffix = if (ccy.isEmpty()) "" else " $ccy"
           "Share price  ${number(corp, "sharePrice", suffix)}\nChange  ${number(corp, "priceChange1h", "%")}\nCapital  ${number(corp, "liquidCapital", suffix)}"
         } ?: "Your character does not lead a corporation."
+        else -> data!!.optJSONArray("marketWatch")?.optJSONObject(0)?.let { corp ->
+          title = corp.optString("tickerSymbol").takeIf { it.isNotBlank() }?.let { "\$$it" }
+            ?: corp.optString("name").take(100)
+          val ccy = corp.optString("liquidCurrencyCode", "").takeUnless { it == "null" }.orEmpty()
+          val suffix = if (ccy.isEmpty()) "" else " $ccy"
+          "${corp.optString("name").take(100)}\nQuote  ${number(corp, "sharePrice", suffix)}\nOwned  ${number(corp, "ownedShares")} shares"
+        } ?: "Buy shares to populate your private market watch."
       }
       views.setTextViewText(R.id.briefing_title, title)
       views.setTextViewText(R.id.briefing_content, content)
@@ -244,7 +275,7 @@ object BriefingWidgets {
         val mins = (age / 60000).coerceAtLeast(0)
         if (mins < 1) "Updated just now" else "Updated ${mins}m ago"
       } else "Multiplayer")
-      views.setTextViewText(R.id.briefing_section, "${selected + 1} / 3")
+      views.setTextViewText(R.id.briefing_section, "${selected + 1} / ${sections.size}")
       val open = Intent(context, MainActivity::class.java).setAction(Intent.ACTION_VIEW)
         .setData(Uri.parse("ahdclient://briefing/${sections[selected]}"))
       views.setOnClickPendingIntent(R.id.briefing_content_area, PendingIntent.getActivity(context, id, open,

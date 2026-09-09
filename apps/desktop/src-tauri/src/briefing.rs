@@ -14,6 +14,7 @@ const MAX_BODY: u64 = 128 * 1024;
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Profile {
   pub name: String,
+  pub avatar_url: Option<String>,
   pub actions: Option<f64>,
   pub action_cap: Option<f64>,
   pub funds: Option<f64>,
@@ -29,12 +30,28 @@ pub(crate) struct Profile {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Election {
   pub election_id: String,
+  pub election_type: Option<String>,
+  pub country_id: Option<String>,
+  pub state: Option<String>,
+  pub status: Option<String>,
+  pub election_year: Option<f64>,
+  pub end_turn: Option<f64>,
   pub my_vote_pct: Option<f64>,
   pub margin_pct: Option<f64>,
   pub seats_projected: Option<f64>,
   pub total_seats: Option<f64>,
   #[serde(default)]
   pub is_multi_seat: bool,
+  #[serde(default)]
+  pub history: Vec<ElectionPoint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ElectionPoint {
+  pub turn: f64,
+  pub pct: f64,
+  pub seats: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,11 +59,36 @@ pub(crate) struct Election {
 pub(crate) struct Corporation {
   pub sequential_id: u64,
   pub name: String,
+  pub logo_url: Option<String>,
+  pub ticker_symbol: Option<String>,
   pub share_price: Option<f64>,
   pub price_change1h: Option<f64>,
   pub liquid_capital: Option<f64>,
   pub liquid_currency_code: Option<String>,
   pub marketing_strength: Option<f64>,
+  #[serde(default)]
+  pub history: Vec<CorporationPoint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CorporationPoint {
+  pub turn: f64,
+  pub share_price: f64,
+  pub marketing_strength: f64,
+  pub liquid_capital: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct MarketWatchItem {
+  pub sequential_id: u64,
+  pub name: String,
+  pub logo_url: Option<String>,
+  pub ticker_symbol: Option<String>,
+  pub share_price: Option<f64>,
+  pub liquid_currency_code: Option<String>,
+  pub owned_shares: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,11 +99,26 @@ pub(crate) struct Briefing {
   pub profile: Option<Profile>,
   pub election: Option<Election>,
   pub corporation: Option<Corporation>,
+  #[serde(default)]
+  pub turn_briefing: Vec<TurnBriefingItem>,
+  #[serde(default)]
+  pub market_watch: Vec<MarketWatchItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TurnBriefingItem {
+  pub category: String,
+  pub label: String,
+  pub value: f64,
+  pub delta: f64,
+  pub unit: String,
+  pub href: String,
 }
 
 impl Briefing {
   fn empty(status: &str) -> Self {
-    Self { status: status.into(), updated_at: now_ms(), profile: None, election: None, corporation: None }
+    Self { status: status.into(), updated_at: now_ms(), profile: None, election: None, corporation: None, turn_briefing: Vec::new(), market_watch: Vec::new() }
   }
 }
 
@@ -75,19 +132,68 @@ pub(crate) fn parse_status(value: serde_json::Value) -> Result<Briefing, String>
   }
   let mut profile: Profile = serde_json::from_value(value.clone()).map_err(|_| "Invalid briefing response.")?;
   profile.name = profile.name.chars().take(120).collect();
+  profile.avatar_url = bounded_https_url(profile.avatar_url);
   let election = value.get("electionStats").filter(|v| !v.is_null()).map(|v| {
-    let election: Election = serde_json::from_value(v.clone()).map_err(|_| "Invalid election response.")?;
+    let mut election: Election = serde_json::from_value(v.clone()).map_err(|_| "Invalid election response.")?;
     if election.election_id.len() != 24 || !election.election_id.chars().all(|c| c.is_ascii_hexdigit()) {
       return Err("Invalid election link.");
     }
+    election.election_type = bounded_text(election.election_type, 40);
+    election.country_id = bounded_text(election.country_id, 8);
+    election.state = bounded_text(election.state, 80);
+    election.status = bounded_text(election.status, 20);
+    election.history.truncate(12);
+    election.history.retain(|point| point.turn.is_finite() && point.pct.is_finite()
+      && point.seats.map(f64::is_finite).unwrap_or(true));
     Ok(election)
   }).transpose()?;
   let corporation = value.get("corpNav").filter(|v| !v.is_null()).map(|v| {
     let mut corp: Corporation = serde_json::from_value(v.clone()).map_err(|_| "Invalid corporation response.")?;
     corp.name = corp.name.chars().take(120).collect();
+    corp.logo_url = bounded_https_url(corp.logo_url);
+    corp.ticker_symbol = corp.ticker_symbol.map(|value| value.chars().take(8).collect());
+    corp.history.truncate(12);
+    corp.history.retain(|point| point.turn.is_finite() && point.share_price.is_finite()
+      && point.marketing_strength.is_finite() && point.liquid_capital.is_finite());
     Ok::<_, &str>(corp)
   }).transpose()?;
-  Ok(Briefing { status: "ready".into(), updated_at: now_ms(), profile: Some(profile), election, corporation })
+  let mut turn_briefing = value.get("turnBriefing").cloned()
+    .and_then(|items| serde_json::from_value::<Vec<TurnBriefingItem>>(items).ok()).unwrap_or_default();
+  turn_briefing.truncate(5);
+  turn_briefing.retain(|item| item.value.is_finite() && item.delta.is_finite()
+    && item.href.starts_with('/') && !item.href.starts_with("//"));
+  for item in &mut turn_briefing {
+    item.category = item.category.chars().take(20).collect();
+    item.label = item.label.chars().take(80).collect();
+    item.unit = item.unit.chars().take(16).collect();
+    item.href = item.href.chars().take(160).collect();
+  }
+  let mut market_watch = value.get("marketWatch").cloned()
+    .and_then(|items| serde_json::from_value::<Vec<MarketWatchItem>>(items).ok()).unwrap_or_default();
+  market_watch.truncate(5);
+  market_watch.retain(|item| item.sequential_id > 0 && item.owned_shares.is_finite() && item.owned_shares > 0.0);
+  for item in &mut market_watch {
+    item.name = item.name.chars().take(120).collect();
+    item.logo_url = bounded_https_url(item.logo_url.take());
+    item.ticker_symbol = item.ticker_symbol.take().map(|value| value.chars().take(8).collect());
+  }
+  Ok(Briefing { status: "ready".into(), updated_at: now_ms(), profile: Some(profile), election, corporation, turn_briefing, market_watch })
+}
+
+fn bounded_https_url(value: Option<String>) -> Option<String> {
+  let value = value?.trim().to_string();
+  if value.len() > 2048 { return None; }
+  let url = Url::parse(&value).ok()?;
+  let host = url.host_str()?.to_ascii_lowercase();
+  let trusted = host == "ahousedividedgame.com"
+    || host.ends_with(".ahousedividedgame.com")
+    || host == "cdn.discordapp.com"
+    || host.ends_with(".public.blob.vercel-storage.com");
+  (url.scheme() == "https" && trusted).then_some(value)
+}
+
+fn bounded_text(value: Option<String>, limit: usize) -> Option<String> {
+  value.map(|text| text.chars().take(limit).collect())
 }
 
 struct Cached {
@@ -167,7 +273,7 @@ pub(crate) async fn get_briefing(app: AppHandle) -> Result<Briefing, String> {
 
 #[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub(crate) enum Section { Profile, Election, Corporation }
+pub(crate) enum Section { Profile, Election, Corporation, Stocks, Turns }
 
 fn section_path(section: Section, briefing: Option<&Briefing>) -> String {
   match section {
@@ -176,6 +282,8 @@ fn section_path(section: Section, briefing: Option<&Briefing>) -> String {
       .map(|e| format!("/elections/{}", e.election_id)).unwrap_or("/elections".into()),
     Section::Corporation => briefing.and_then(|b| b.corporation.as_ref())
       .map(|c| format!("/corporation/{}", c.sequential_id)).unwrap_or("/corporation".into()),
+    Section::Stocks => "/stockmarket/global".into(),
+    Section::Turns => "/profile".into(),
   }
 }
 
@@ -244,5 +352,23 @@ mod tests {
     assert!(parse_status(json!({"error":"failed"})).is_err());
     assert!(parse_status(json!({"name":"Example","electionStats":{"electionId":"//example.com"}})).is_err());
     assert!(parse_status(json!({"name":"Example","corpNav":{"sequentialId":"../settings","name":"Example"}})).is_err());
+  }
+
+  #[test]
+  fn identity_images_allow_only_bounded_https_urls() {
+    let result = parse_status(json!({
+      "name":"Example",
+      "avatarUrl":"http://example.com/avatar.png",
+      "corpNav":{
+        "sequentialId":7,
+        "name":"Example Corp",
+        "logoUrl":"https://cdn.ahousedividedgame.com/logo.png",
+        "tickerSymbol":"EXAMPLE-LONG"
+      }
+    })).unwrap();
+    assert_eq!(result.profile.unwrap().avatar_url, None);
+    let corporation = result.corporation.unwrap();
+    assert_eq!(corporation.logo_url.as_deref(), Some("https://cdn.ahousedividedgame.com/logo.png"));
+    assert_eq!(corporation.ticker_symbol.as_deref(), Some("EXAMPLE-"));
   }
 }

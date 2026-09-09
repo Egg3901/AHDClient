@@ -2,6 +2,15 @@
 
 All notable AHDClient changes are recorded here.
 
+## [2.3.0] - 2026-09-09
+
+- Replace the singleplayer maintenance soft lock with a limited local Control Room. Local players remain non-admins while retaining safe start, pause, turn, rules and diagnostic controls.
+- Redesign briefing widgets around character and corporation identity with PFPs, logos, monogram fallbacks and calmer rounded metric tiles.
+- Add a private Stocks view and native Stocks widgets backed by up to five corporations from the active character's real portfolio.
+- Enrich Election briefing with race context, live margin and seat projections, plus recorded vote-share history.
+- Add deterministic Turn Briefings built only from recorded corporation, market and election changes.
+- Restrict native remote identity images to bounded HTTPS URLs on trusted A House Divided, Discord and Vercel Blob hosts.
+
 ## [2.1.2] - 2026-09-08
 
 - Replace the overflowing update changelog strip with a compact branded card that keeps release notes collapsed, stays clear of launcher controls and can be dismissed until the next launch.

@@ -1,15 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export const SECTIONS = ["profile", "election", "corporation"] as const;
+export const SECTIONS = ["profile", "election", "corporation", "stocks", "turns"] as const;
 export type Section = (typeof SECTIONS)[number];
 export const SECTION_LABELS: Record<Section, string> = {
-  profile: "Profile", election: "Election", corporation: "Corporation",
+  profile: "Profile", election: "Election", corporation: "Corporation", stocks: "Stocks", turns: "Turns",
 };
 export interface Snapshot {
   status: "ready" | "signed-out" | "no-character";
   updatedAt: number;
   profile: null | {
     name: string;
+    avatarUrl?: string | null;
     actions: number | null;
     actionCap: number | null;
     funds: number | null;
@@ -21,21 +22,48 @@ export interface Snapshot {
   };
   election: null | {
     electionId: string;
+    electionType?: string | null;
+    countryId?: string | null;
+    state?: string | null;
+    status?: string | null;
+    electionYear?: number | null;
+    endTurn?: number | null;
     myVotePct: number | null;
     marginPct: number | null;
     seatsProjected: number | null;
     totalSeats: number | null;
     isMultiSeat: boolean;
+    history?: { turn: number; pct: number; seats: number | null }[];
   };
   corporation: null | {
     name: string;
+    logoUrl?: string | null;
+    tickerSymbol?: string | null;
     sequentialId: number;
     sharePrice: number | null;
     priceChange1h: number | null;
     liquidCapital: number | null;
     liquidCurrencyCode: string | null;
     marketingStrength: number | null;
+    history?: { turn: number; sharePrice: number; marketingStrength: number; liquidCapital: number }[];
   };
+  turnBriefing?: {
+    category: string;
+    label: string;
+    value: number;
+    delta: number;
+    unit: "currency" | "points" | "percent";
+    href: string;
+  }[];
+  marketWatch?: {
+    sequentialId: number;
+    name: string;
+    logoUrl?: string | null;
+    tickerSymbol?: string | null;
+    sharePrice: number | null;
+    liquidCurrencyCode: string | null;
+    ownedShares: number;
+  }[];
 }
 
 export const briefing = {
