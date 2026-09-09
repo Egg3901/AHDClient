@@ -177,7 +177,10 @@ enum BriefingStore {
             data.name != nil || data.status == "no-character" else { finish(read()); return }
           data.name = data.name.map { String($0.prefix(120)) }
           data.avatarUrl = trustedImageURL(data.avatarUrl)
-          data.corpNav?.logoUrl = trustedImageURL(data.corpNav?.logoUrl)
+          if var corporation = data.corpNav {
+            corporation.logoUrl = trustedImageURL(corporation.logoUrl)
+            data.corpNav = corporation
+          }
           data.marketWatch = data.marketWatch?.prefix(5).map { item in
             var safe = item
             safe.name = String(safe.name.prefix(120))
