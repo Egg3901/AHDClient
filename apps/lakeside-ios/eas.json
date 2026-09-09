@@ -19,6 +19,16 @@
       "ios": {
         "config": "preflight.yml"
       }
+    },
+    "ahdclient-production": {
+      "environment": "production",
+      "distribution": "store",
+      "withoutCredentials": true,
+      "ios": {
+        "config": "ahdclient-release.yml",
+        "image": "latest",
+        "resourceClass": "m-medium"
+      }
     }
   }
 }

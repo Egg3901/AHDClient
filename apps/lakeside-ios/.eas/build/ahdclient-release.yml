@@ -1,0 +1,7 @@
+build:
+  name: AHDClient private TestFlight
+  steps:
+    - eas/checkout
+    - run:
+        name: Build and deliver AHDClient
+        command: bash scripts/eas-ahdclient-release.sh
