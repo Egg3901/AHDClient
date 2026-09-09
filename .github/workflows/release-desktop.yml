@@ -60,7 +60,7 @@ jobs:
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
-          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          grep -RIlZ 'dl.google.com/linux/chrome' /etc/apt/sources.list.d | sudo xargs -0r rm -f
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
 
