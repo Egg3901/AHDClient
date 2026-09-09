@@ -11,6 +11,9 @@ brew install xcodegen
 swift test --package-path Core
 swift scripts/icons.swift
 xcodegen generate
+# Validate the exact uploaded source before signing either app.
+bash scripts/simulator.sh LakesideAsk
+bash scripts/simulator.sh LakesideOps
 export LAKESIDE_RELEASE_TARGET=both
 # Independent, increasing build numbers across CI providers.
 export GITHUB_RUN_NUMBER="$(python3 -c 'from datetime import datetime, timezone; d=datetime.now(timezone.utc); print(str((d.date()-datetime(2020,1,1).date()).days)+d.strftime(".%H.%M"))')"
