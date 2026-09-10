@@ -2,7 +2,7 @@
 
 All notable AHDClient changes are recorded here.
 
-## [2.3.2]
+## [2.3.2] - 2026-09-10
 
 - Open singleplayer setup on the Normal play mode even when Worldsim was used last. A stored Worldsim mode was leaking across entry points; the Worldsim tab still preselects simulation mode.
 - Restyle world setup with selectable option cards, a visible checked state, and an era hero banner. The play-mode, autonomy, and world-setting controls previously fell back to unstyled browser defaults.
