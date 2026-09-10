@@ -303,7 +303,14 @@ final class LaunchTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Make exports reliable for every project."].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["ops-company-assign"].isEnabled, "Cached work must not imply permission to dispatch offline")
         fillCompanyField("ops-work-comment", with: "Review this plan when connected", in: app)
+        // The keyboard accessory bar can cover a row above the keyboard frame.
+        let done = app.buttons["ops-work-keyboard-done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
+        let keyboardHidden = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.keyboards.firstMatch)
+        XCTAssertEqual(XCTWaiter.wait(for: [keyboardHidden], timeout: 5), .completed)
         let save = app.buttons["ops-work-comment-save"]; scrollTo(save, in: app); save.tap()
+        let saved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == false"), object: save)
+        XCTAssertEqual(XCTWaiter.wait(for: [saved], timeout: 5), .completed, "Saving offline must durably queue the comment and clear its draft")
         let dispatch = app.buttons["ops-company-assign"]
         scrollTo(dispatch, in: app, upward: false)
         XCTAssertTrue(dispatch.exists)
