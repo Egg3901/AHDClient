@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -70,6 +71,13 @@ describe("Launcher", () => {
     const timeline = screen.getByRole("list", { name: "Starting era timeline" });
     expect(timeline.querySelectorAll('[role="listitem"]')).toHaveLength(7);
     expect(timeline.querySelector('button[aria-current="true"]')?.textContent).toContain("1953");
+  });
+
+  it("gives the selected era preview the full panel width", () => {
+    const css = readFileSync("src/launcher/launcher.css", "utf8");
+    expect(css).toMatch(/\.launcher-era-carousel\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+    expect(css).toMatch(/\.launcher-era-timeline button small\s*\{[^}]*white-space:\s*normal/s);
+    expect(css).not.toMatch(/\.launcher-era-timeline button small\s*\{[^}]*text-overflow:\s*ellipsis/s);
   });
 
   it("renders the launcher in German when the locale setting selects it", () => {

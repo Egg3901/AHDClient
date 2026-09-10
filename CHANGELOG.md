@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.4] - 2026-09-10
+
+- Never replace a newer bundled game with an older published runtime, while keeping compatible prior game versions selectable.
+- Keep local-world loading progress inside its track and prevent reported progress from moving backwards.
+- Repair the era timeline preview width and show complete era names instead of clipped labels.
+- Mark desktop game webviews as AHDClient surfaces so cookie disclosure and online-player indicators stay out of the native shell.
+- Remove the game's duplicate singleplayer End Turn control when the native toolbar already provides it.
+
 ## [2.3.3] - 2026-09-10
 
 - Prevent two client instances from opening the same world database, and pair this with an atomic shared MongoDB runtime install.

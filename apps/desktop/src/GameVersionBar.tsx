@@ -4,7 +4,17 @@ import type { GameVersion } from "./worlds.js";
 import type { ClientLanguage } from "./i18n.js";
 
 /** Runtime baked into this desktop bundle. Downloaded runtimes are versioned independently. */
-const BUNDLED_GAME_VERSION = "1.8.1";
+const BUNDLED_GAME_VERSION = "1.8.2";
+
+function compareVersions(left: string, right: string): number {
+  const a = left.split(".").map(Number);
+  const b = right.split(".").map(Number);
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const difference = (a[index] ?? 0) - (b[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
+}
 
 export function GameVersionBar({ language = "en" }: { language?: ClientLanguage }): JSX.Element {
   const de = language === "de";
@@ -24,8 +34,16 @@ export function GameVersionBar({ language = "en" }: { language?: ClientLanguage 
   useEffect(() => {
     void (async () => {
       const listed = await refresh();
-      const latest = listed[0];
-      if (!latest || latest.version === BUNDLED_GAME_VERSION || latest.selected) return;
+      const latest = [...listed].sort((a, b) => compareVersions(b.version, a.version))[0];
+      if (!latest || compareVersions(latest.version, BUNDLED_GAME_VERSION) <= 0) {
+        if (listed.some((version) => version.selected)) {
+          await gameVersions.select(null);
+          await refresh();
+          setMessage(`Latest game ${BUNDLED_GAME_VERSION} ready`);
+        }
+        return;
+      }
+      if (latest.selected) return;
       setBusy(true);
       setMessage(`Updating game to ${latest.version}…`);
       try {

@@ -19,7 +19,7 @@ describe("GameVersionBar", () => {
     render(<GameVersionBar />);
 
     expect(screen.getByText("Game runtime")).toBeTruthy();
-    expect(screen.getByRole("option", { name: "Bundled game 1.8.1" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Bundled game 1.8.2" })).toBeTruthy();
     await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(1));
   });
 
@@ -37,5 +37,18 @@ describe("GameVersionBar", () => {
 
     await waitFor(() => expect(mocks.install).toHaveBeenCalledWith("1.9.0"));
     expect(mocks.select).toHaveBeenCalledWith("1.9.0");
+  });
+
+  it("never replaces the newer bundled runtime with an older published runtime", async () => {
+    mocks.list.mockResolvedValue([
+      { version: "1.8.1", installed: false, selected: false },
+    ]);
+
+    render(<GameVersionBar />);
+
+    await waitFor(() => expect(mocks.list).toHaveBeenCalled());
+    expect(mocks.install).not.toHaveBeenCalled();
+    expect(mocks.select).not.toHaveBeenCalled();
+    expect(screen.getByRole("option", { name: "1.8.1 · download" })).toBeTruthy();
   });
 });
