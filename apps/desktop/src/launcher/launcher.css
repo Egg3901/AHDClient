@@ -915,13 +915,6 @@
   }
 }
 
-/* The controls above the globe change by mode; keep the globe on one visual
-   anchor instead of letting those conditional rows push it around. */
-@media (min-width: 701px) and (max-width: 1099px) {
-  .launcher-console { position: relative; min-height: 650px; }
-  .launcher-globe-wrap { position: absolute; top: 220px; left: 50%; transform: translateX(-50%); }
-}
-
 @media (max-width: 390px) {
   .launcher-stage {
     gap: 11px;
@@ -1102,40 +1095,6 @@
   font-size: 12px;
   line-height: 1.6;
 }
-@media (min-width: 1100px) {
-  .launcher-scope[data-choosing-era="true"] .launcher-stage {
-    width: min(1160px, 100%);
-  }
-  .launcher-scope[data-choosing-era="true"] .launcher-console {
-    display: grid;
-    width: 100%;
-    max-width: none;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: center;
-    gap: 20px 28px;
-  }
-  .launcher-scope[data-choosing-era="true"] .launcher-toggle {
-    grid-column: 1 / -1;
-    justify-self: center;
-  }
-  .launcher-scope[data-choosing-era="true"] .launcher-error {
-    grid-column: 1 / -1;
-  }
-  .launcher-scope[data-choosing-era="true"] .launcher-era-panel {
-    grid-column: 1;
-    grid-row: 2;
-  }
-  .launcher-scope[data-choosing-era="true"] .launcher-actions {
-    grid-column: 1;
-    grid-row: 3;
-  }
-  .launcher-scope[data-choosing-era="true"] .launcher-globe-wrap {
-    grid-column: 2;
-    grid-row: 2 / 4;
-    width: 100%;
-    max-width: 540px;
-  }
-}
 @media (max-width: 600px) {
   .launcher-settings {
     top: 10px;
@@ -1184,4 +1143,36 @@
   .launcher-stage {
     padding-top: max(14px, env(safe-area-inset-top));
   }
+}
+
+/* The globe belongs to the viewport. Menus occupy their own layer above it. */
+.launcher-globe-wrap {
+  position: fixed;
+  top: auto;
+  bottom: clamp(28px, 5svh, 64px);
+  left: 50%;
+  z-index: -1;
+  width: min(60svh, 580px, 84vw);
+  max-width: none;
+  transform: translateX(-50%);
+  pointer-events: none;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  transition: filter 180ms ease, opacity 180ms ease;
+}
+.launcher-era-panel,
+.launcher-online-summary {
+  background: rgb(25 27 40 / 0.78);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.launcher-scope[data-choosing-era="true"] .launcher-globe-wrap,
+.launcher-scope:has([aria-expanded="true"]) .launcher-globe-wrap {
+  filter: blur(2px);
+  opacity: 0.8;
+}
+:root[data-animations="off"] .launcher-globe-wrap {
+  transition: none;
 }

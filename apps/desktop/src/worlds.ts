@@ -258,7 +258,7 @@ export const game = {
   setupProgress: () =>
     game.request<SetupProgress>("GET", "/api/singleplayer/setup/progress"),
   advanceTurn: () =>
-    game.request<{ success: boolean; turn: number; message: string }>(
+    game.request<{ success: boolean; turn: number; message: string; briefing?: { fundsDelta: number; actionsDelta: number } }>(
       "POST",
       "/api/singleplayer/turn/advance",
     ),
@@ -268,7 +268,7 @@ export const game = {
    * server still rejects with 409 while the world is paused.
    */
   advanceWorldsim: () =>
-    game.request<{ success: boolean; turn: number }>(
+    game.request<{ success: boolean; turn: number; briefing?: { fundsDelta: number; actionsDelta: number } }>(
       "POST",
       "/api/singleplayer/worldsim/advance",
       { turns: 1 },

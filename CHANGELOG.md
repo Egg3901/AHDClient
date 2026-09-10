@@ -4,6 +4,14 @@ All notable AHDClient changes are recorded here.
 
 ## [2.3.1] - 2026-09-09
 
+- Start local play with native world setup and character creation. End turn stays locked until a character exists, except in Worldsim.
+- Keep the launcher globe anchored while menus cover it, with softer overlap and lighting that matches the website.
+- Add a compact playing bar with End turn, linked identity, pause, and save controls. Refresh the current game page and show actual funds/actions changes after a turn.
+- Explain autonomy and difficulty separately, show v4 as the live multiplayer tier, and label permanent head of state and Worldsim as Beta.
+- Show linked account pictures from trusted hosts, or Admin for an unlinked local identity. Keep account privileges separate from local play.
+- Organize settings into Launcher, Game, Updates, and Support, with startup logs and diagnostics under Advanced.
+- Bundle local maintenance, session, and turn-progress fixes. The progress popup is singleplayer-only, centered on phones, and reports stale or disconnected turns without spinning forever.
+
 - Download desktop updates in the background and wait for Restart to update before installing. Windows quiet install starts only after that confirmation, so the app does not exit while the file is still downloading.
 - Stage only the runtime game payload: traced modules, mongodb aliases, the target sharp native, server.js, launch.mjs, .next/static and public. Fail packaging if leftover source, docs, tests or plan markdown remain.
 

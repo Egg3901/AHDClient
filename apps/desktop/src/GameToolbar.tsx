@@ -68,7 +68,9 @@ export function GameToolbar({
   const [turnState, setTurnState] = useState<TurnState | null>(null);
   const [availability, setAvailability] = useState<"open" | "sealed" | null>(null);
   const [endingTurn, setEndingTurn] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [pauseBusy, setPauseBusy] = useState(false);
+  const [turnBriefing, setTurnBriefing] = useState<string | null>(null);
   const [turnError, setTurnError] = useState<string | null>(null);
   /** Guards the interval against overlapping reads on a slow local server. */
   const refreshing = useRef(false);
@@ -118,6 +120,11 @@ export function GameToolbar({
     setTurnError(null);
     try {
       const result = worldsim ? await game.advanceWorldsim() : await game.advanceTurn();
+      const briefing = result.briefing;
+      const signed = (value: number) => `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
+      setTurnBriefing(briefing
+        ? `Turn ${result.turn}: funds ${signed(briefing.fundsDelta)}, actions ${signed(briefing.actionsDelta)}`
+        : `Turn ${result.turn} complete`);
       await refreshTurn();
       await refreshAvailability();
       onTurnAdvanced?.(result.turn);
@@ -147,7 +154,7 @@ export function GameToolbar({
   // not-yet-loaded disable End turn for both modes: the server answers 409
   // while paused, and an unknown state must not offer a turn that fails.
   const canEndTurn =
-    !endingTurn && !paused && turnState != null && (worldsim || turnState.hasCharacter);
+    !endingTurn && availability === "open" && turnState != null && (worldsim || turnState.hasCharacter);
   const endTurnTitle = endingTurn
     ? "The turn is running"
     : paused
@@ -163,6 +170,7 @@ export function GameToolbar({
   return (
     <nav className="client-game-toolbar" aria-label="Client controls">
       <button type="button" className="client-toolbar-quiet" onClick={onLauncher}>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12" /></svg>
         Launcher
       </button>
       <button
@@ -172,9 +180,11 @@ export function GameToolbar({
         title={turnError ?? endTurnTitle}
         onClick={() => void endTurn()}
       >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m5 5 10 7L5 19ZM19 5v14" /></svg>
         {endingTurn ? "Running turn" : "End turn"}
       </button>
       <strong title={worldName}>{worldName}</strong>
+      {turnBriefing && <small className="client-toolbar-briefing" role="status" title={turnBriefing}>{turnBriefing}</small>}
       {headOfState && (
         <small
           className="client-toolbar-mode"
@@ -213,8 +223,8 @@ export function GameToolbar({
           {turnError}
         </span>
       )}
-      <details className="client-toolbar-overflow">
-        <summary aria-label="More actions">···</summary>
+      <details className="client-toolbar-overflow" onToggle={(event) => setMenuOpen(event.currentTarget.open)}>
+        <summary aria-label={menuOpen ? "Close actions" : "More actions"}>{menuOpen ? "×" : "···"}</summary>
         <div role="menu">
           <button
             role="menuitem"

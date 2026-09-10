@@ -109,12 +109,16 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
 
       ctx!.save();
       ctx!.beginPath();
-      ctx!.arc(cx, cy, R + S * 0.055, 0, Math.PI * 2);
+      ctx!.arc(cx, cy, R, 0, Math.PI * 2);
       ctx!.clip();
-      // Keep the globe close to the main game's deep blue world treatment. The
-      // land remains deliberately quiet so the launcher reads as a setting,
-      // rather than a diagnostic display.
-      ctx!.fillStyle = "#081b2c";
+      // Match the website's ocean lighting and restrained neutral country fill.
+      const ocean = ctx!.createRadialGradient(cx - R * 0.24, cy - R * 0.3, 0, cx, cy, R);
+      ocean.addColorStop(0, "#a8d8ea");
+      ocean.addColorStop(0.18, "#3d9bd4");
+      ocean.addColorStop(0.45, "#1a6b9f");
+      ocean.addColorStop(0.72, "#0d4876");
+      ocean.addColorStop(1, "#071d3a");
+      ctx!.fillStyle = ocean;
       ctx!.fillRect(0, 0, S, S);
 
       const project = (longitude: number, latitude: number): ProjectedPoint => {
@@ -171,11 +175,11 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
           previous = current;
           previousPoint = currentPoint;
         }
-        ctx!.fillStyle = era.phosphor;
-        ctx!.globalAlpha = 0.72;
+        ctx!.fillStyle = "#474e5a";
+        ctx!.globalAlpha = 0.9;
         ctx!.fill();
         ctx!.globalAlpha = 0.38;
-        ctx!.strokeStyle = `rgba(${era.dim},0.72)`;
+        ctx!.strokeStyle = "rgba(180,197,210,0.65)";
         ctx!.lineWidth = 0.7;
         ctx!.stroke();
       }
@@ -197,7 +201,7 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
         ctx!.beginPath();
         ctx!.arc(x, y, 2.2, 0, Math.PI * 2);
         ctx!.fill();
-        ctx!.fillStyle = `rgba(${era.dim},0.78)`;
+        ctx!.fillStyle = "rgba(230,239,245,0.82)";
         ctx!.fillText(c.name, x + 7, y + 3);
         ctx!.globalAlpha = 1;
       }
@@ -213,11 +217,6 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
       ctx!.lineWidth = 1.4;
       ctx!.beginPath();
       ctx!.arc(cx, cy, R, 0, Math.PI * 2);
-      ctx!.stroke();
-      ctx!.strokeStyle = "rgba(133,181,213,0.24)";
-      ctx!.lineWidth = Math.max(2, S * 0.012);
-      ctx!.beginPath();
-      ctx!.arc(cx, cy, R + S * 0.018, Math.PI * 0.86, Math.PI * 1.82);
       ctx!.stroke();
       ctx!.restore();
     }
@@ -260,16 +259,7 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
     };
     document.addEventListener("ahdclient:settings", onSettingsChange);
 
-    const onMotionChange = (e: MediaQueryListEvent) => {
-      reduceMotion = e.matches;
-      if (e.matches) {
-        cancelAnimationFrame(raf);
-      } else {
-        cancelAnimationFrame(raf);
-        last = performance.now();
-        raf = requestAnimationFrame(frame);
-      }
-    };
+    const onMotionChange = () => onSettingsChange();
     if (typeof mql.addEventListener === "function") {
       mql.addEventListener("change", onMotionChange);
     }

@@ -35,6 +35,8 @@ interface Props {
   sandboxGate?: "unlinked" | "upgrade" | null;
   onLinkAccount?: () => void;
   onUpgradeSupporter?: () => void;
+  /** Entry-gate refusal: the error box offers Link account next to Dismiss. */
+  errorOffersLink?: boolean;
 }
 
 const MODE_STORAGE_KEY = "ahdclient.launcher.mode";
@@ -77,6 +79,7 @@ export function Launcher({
   sandboxGate = null,
   onLinkAccount,
   onUpgradeSupporter,
+  errorOffersLink = false,
 }: Props): JSX.Element {
   const eras = useMemo(() => ERAS, []);
   const modes = mobile ? MOBILE_MODES : DESKTOP_MODES;
@@ -190,6 +193,9 @@ export function Launcher({
           {error && (
             <div className="launcher-error" role="alert">
               <span>{error}</span>
+              {errorOffersLink && onLinkAccount && (
+                <button onClick={onLinkAccount}>Link account</button>
+              )}
               <button onClick={onClearError}>Dismiss</button>
             </div>
           )}

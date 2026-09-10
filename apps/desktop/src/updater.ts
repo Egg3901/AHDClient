@@ -137,7 +137,6 @@ export function checkForUpdatesNow(): Promise<void> {
     return inFlight ?? Promise.resolve();
   }
   if (snapshot.kind === "ready") return Promise.resolve();
-  inFlight = null;
   return startBackgroundUpdateCheck();
 }
 

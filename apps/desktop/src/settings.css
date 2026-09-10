@@ -116,3 +116,32 @@ html[data-animations="off"] .launcher-nebula { animation: none; }
 }
 
 .client-push-status { margin: 0 0 10px; font-size: 12px; line-height: 1.5; color: var(--text-muted, #a7a9b6); }
+
+.client-game-toolbar > button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.client-game-toolbar > button svg { flex-shrink: 0; }
+
+/* Native child views start below this strip. Keep overflow actions inside it. */
+.client-toolbar-overflow[open] > div {
+  position: fixed;
+  inset: 0 0 auto;
+  height: 64px;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px 66px 8px 12px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.client-toolbar-overflow[open] > summary {
+  position: fixed;
+  top: 12px;
+  right: 14px;
+  z-index: 41;
+}
+.client-toolbar-overflow[open] button { width: auto; white-space: nowrap; }
+
+.client-toolbar-briefing { max-width: 22rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #b7c5b9; }

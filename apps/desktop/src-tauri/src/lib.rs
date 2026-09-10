@@ -113,7 +113,7 @@ struct LinkedAccount {
   linked: bool,
   display_name: String,
   supporter: bool,
-  /// Player picture from the game account API. Absent until the game ships it.
+  /// Player picture from the game account API (`avatarUrl`, shipped by the game).
   #[serde(default)]
   avatar_url: Option<String>,
   #[serde(default)]
