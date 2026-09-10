@@ -9,6 +9,7 @@ All notable AHDClient changes are recorded here.
 - Rework world setup and Settings into compact, grouped control surfaces with stronger hierarchy, native switches, responsive layouts, and keyboard-visible focus states.
 - Trim the playing toolbar to window-level controls only. The account chip, Settings, and Diagnostics duplicated the game below; both dialogs stay reachable through the launcher and the Escape shortcut.
 - Slim the embedded-game toolbar and show native turn progress with a spinner and current turn while singleplayer simulation runs.
+- Label the runtime selector explicitly and identify the bundled game as 1.8.0, the first downloadable game-version baseline.
 - Drop the "THE FULL GAME / ON YOUR MACHINE" tagline block from the Windows installer sidebar artwork.
 
 ## [2.3.1] - 2026-09-09

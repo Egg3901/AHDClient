@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { gameVersions } from "./worlds.js";
 import type { GameVersion } from "./worlds.js";
 
+/** Runtime baked into the 2.3.2 desktop bundle. Downloaded runtimes are versioned independently. */
+const BUNDLED_GAME_VERSION = "1.8.0";
+
 export function GameVersionBar(): JSX.Element {
   const [versions, setVersions] = useState<GameVersion[]>([]);
   const [busy, setBusy] = useState(false);
@@ -27,9 +30,9 @@ export function GameVersionBar(): JSX.Element {
   };
   return (
     <div className="client-game-version-bar">
-      <span>Singleplayer version</span>
+      <span>Game runtime</span>
       <select aria-label="Singleplayer game version" value={selected} disabled={busy} onChange={(event) => void choose(event.target.value)}>
-        <option value="bundled">Bundled</option>
+        <option value="bundled">Bundled game {BUNDLED_GAME_VERSION}</option>
         {versions.map((version) => <option key={version.version} value={version.version}>{version.version}{version.installed ? "" : " · download"}</option>)}
       </select>
       <small>{message}</small>
