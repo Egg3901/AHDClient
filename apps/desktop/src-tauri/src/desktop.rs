@@ -552,7 +552,7 @@ pub(crate) async fn link_account(app: AppHandle, separate_window: Option<bool>) 
 // Windows
 // ---------------------------------------------------------------------------
 
-const EMBEDDED_TOP: f64 = 64.0;
+const EMBEDDED_TOP: f64 = 48.0;
 
 fn close_embedded(app: &AppHandle) {
   for label in EMBEDDED_LABELS {

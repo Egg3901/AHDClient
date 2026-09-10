@@ -192,10 +192,10 @@ export function NewWorldScreen({
           <h1 id="new-world-title">New world <span className="client-beta">Beta</span></h1>
         </header>
 
-        <div className="launcher-console screen-console">
+        <div className="launcher-console screen-console screen-setup-console">
           <div className="screen-era" style={{ borderColor: theme.phosphor }}>
             <span className="launcher-era-swatch" style={{ backgroundColor: theme.phosphor }} aria-hidden="true" />
-            <div><strong>{era.label}</strong><small>{era.subtitle} · begins {era.startDate}</small></div>
+            <div><span className="screen-era-kicker">Selected era</span><strong>{era.label}</strong><small>{era.subtitle} · begins {era.startDate}</small></div>
           </div>
 
           <label className="screen-field">
@@ -204,16 +204,21 @@ export function NewWorldScreen({
             {duplicate && <em>You already have a world with this name. It will get a numbered folder.</em>}
           </label>
 
+          <section className="screen-setup-panel" aria-labelledby="campaign-options-title">
+          <div className="screen-section-heading"><span>01</span><div><h2 id="campaign-options-title">Your campaign</h2><p>Name the world and choose how you enter it.</p></div></div>
           <fieldset className="screen-choice-group">
             <legend>Play mode</legend>
             <label><input type="radio" name="play-mode" value="normal" checked={mode === "normal"} onChange={() => setMode("normal")} /> <strong>Normal</strong><small>Climb from citizen to power through a character in the world.</small></label>
             <label><input type="radio" name="play-mode" value="head-of-state" checked={mode === "head-of-state"} onChange={() => setMode("head-of-state")} /> <strong>Permanent head of state <span className="client-beta">Beta</span></strong><small>You enter as head of state and remain head of state. You do not play the normal climb.</small></label>
             <label><input type="radio" name="play-mode" value="worldsim" checked={worldsim} onChange={() => setMode("worldsim")} /> <strong>Worldsim <span className="client-beta">Beta</span></strong><small>Simulate the world without creating a character.</small></label>
           </fieldset>
+          </section>
 
           {/* The help text sits OUTSIDE the label: inside it, it becomes part of
               the select's accessible name, so "Difficulty" would no longer
               address the control for a screen reader or a test. */}
+          <section className="screen-setup-panel" aria-labelledby="simulation-options-title">
+          <div className="screen-section-heading"><span>02</span><div><h2 id="simulation-options-title">Simulation</h2><p>Set the challenge and political autonomy.</p></div></div>
           <div className="screen-field-group">
             <label className="screen-field"><span>Difficulty</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value as SetupDifficulty)}>{DIFFICULTIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
             <small>{DIFFICULTY_HELP}</small>
@@ -230,9 +235,10 @@ export function NewWorldScreen({
               {AUTONOMY_OPTIONS.filter((option) => OLD_AUTONOMY.includes(option.value)).map(autonomyControl)}
             </details>
           </fieldset>
+          </section>
 
-          <section className="screen-features" aria-labelledby="feature-settings-title">
-            <h2 id="feature-settings-title">World settings</h2>
+          <section className="screen-features screen-setup-panel" aria-labelledby="feature-settings-title">
+            <div className="screen-section-heading"><span>03</span><div><h2 id="feature-settings-title">World systems</h2><p>Fine-tune the mechanics active in this save.</p></div></div>
             {featureGroups.map((category) => (
               <fieldset key={category} className="screen-feature-group">
                 <legend>{category}</legend>
@@ -267,9 +273,11 @@ export function NewWorldScreen({
               )}
             </p>
           )}
-          <p className="launcher-caption">{worldsim ? "This mode opens the world simulator after setup and does not create a character." : "Character creation happens in the game after the world starts."} Building a world seeds thirty countries and takes about a minute.</p>
-          <div className="launcher-actions">
-            <button className="launcher-btn launcher-btn-primary" onClick={() => onCreate(name, "", { mode, difficulty, autonomyLevel, featureFlags })} disabled={!name.trim()}>Create and play <span aria-hidden="true">&#8594;</span></button>
+          <div className="screen-launch-bar">
+            <p className="launcher-caption">{worldsim ? "This mode opens the world simulator after setup and does not create a character." : "Character creation happens in the game after the world starts."}<small>Seeds thirty countries · about one minute</small></p>
+            <div className="launcher-actions">
+              <button className="launcher-btn launcher-btn-primary" onClick={() => onCreate(name, "", { mode, difficulty, autonomyLevel, featureFlags })} disabled={!name.trim()}>Create and play <span aria-hidden="true">&#8594;</span></button>
+            </div>
           </div>
         </div>
       </section>

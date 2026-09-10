@@ -168,10 +168,11 @@ export function GameToolbar({
         title={turnError ?? endTurnTitle}
         onClick={() => void endTurn()}
       >
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m5 5 10 7L5 19ZM19 5v14" /></svg>
+        {endingTurn ? <span className="client-toolbar-spinner" aria-hidden="true" /> : <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m5 5 10 7L5 19ZM19 5v14" /></svg>}
         {endingTurn ? "Running turn" : "End turn"}
       </button>
       <strong title={worldName}>{worldName}</strong>
+      {endingTurn && <span className="client-toolbar-progress" role="status" aria-label="Running turn"><span className="client-toolbar-spinner" aria-hidden="true" /><span><b>Simulating</b><small className="client-toolbar-turn">Turn {turnState?.turn ?? ""}</small></span></span>}
       {turnBriefing && <small className="client-toolbar-briefing" role="status" title={turnBriefing}>{turnBriefing}</small>}
       {headOfState && (
         <small

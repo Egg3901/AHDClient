@@ -546,3 +546,32 @@
   font-size: 1.6rem;
   letter-spacing: 0.02em;
 }
+
+/* Treat world setup as a campaign briefing instead of a flat form. */
+.screen-stage:has(.screen-setup-console) { width: min(100%, 920px); }
+.screen-setup-console { width: 100%; gap: 1rem; }
+.screen-setup-console .screen-era { min-height: 112px; box-sizing: border-box; padding: 1.25rem 1.4rem; border-width: 1px; border-color: color-mix(in srgb, var(--accent) 45%, var(--border)) !important; border-radius: 16px; background: linear-gradient(100deg, color-mix(in srgb, var(--accent) 22%, #15151f), rgb(21 21 31 / 76%) 54%, #15151f); box-shadow: inset 0 1px rgb(255 255 255 / 7%), 0 18px 45px rgb(0 0 0 / 22%); }
+.screen-setup-console .launcher-era-swatch { width: 6px; height: 64px; border-radius: 999px; box-shadow: 0 0 24px currentColor; }
+.screen-era-kicker { display: block; margin-bottom: 0.2rem; color: color-mix(in srgb, var(--accent) 70%, white); font-size: 0.65rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
+.screen-setup-console .screen-era strong { font: 600 clamp(1.8rem, 4vw, 2.5rem)/1 Georgia, "Times New Roman", serif; letter-spacing: -0.025em; }
+.screen-setup-console .screen-era small { margin-top: 0.4rem; font-size: 0.8rem; letter-spacing: 0.04em; }
+.screen-setup-panel { min-width: 0; padding: 1.15rem; border: 1px solid var(--border); border-radius: 14px; background: linear-gradient(145deg, rgb(38 38 58 / 88%), rgb(20 20 28 / 94%)); box-shadow: inset 0 1px rgb(255 255 255 / 5%), 0 14px 36px rgb(0 0 0 / 16%); }
+.screen-section-heading { display: flex; gap: 0.75rem; align-items: flex-start; margin-bottom: 1rem; }
+.screen-section-heading > span { display: grid; place-items: center; width: 28px; height: 28px; flex: none; border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); border-radius: 50%; color: var(--accent); font-size: 0.66rem; font-weight: 900; }
+.screen-section-heading h2, .screen-section-heading p { margin: 0; }
+.screen-section-heading h2 { font: 600 1.15rem/1.2 Georgia, "Times New Roman", serif; }
+.screen-section-heading p { margin-top: 0.16rem; color: var(--muted); font-size: 0.76rem; }
+.screen-setup-panel .screen-choice-group, .screen-setup-panel .screen-feature-group { border: 0; background: transparent; padding: 0; }
+.screen-choice-group label { position: relative; border-color: rgb(255 255 255 / 9%); background: rgb(255 255 255 / 2.5%); }
+.screen-choice-group label:has(input:checked) { border-color: color-mix(in srgb, var(--accent) 75%, white); background: linear-gradient(110deg, color-mix(in srgb, var(--accent) 19%, transparent), rgb(255 255 255 / 3%)); box-shadow: inset 3px 0 var(--accent), 0 8px 20px rgb(0 0 0 / 20%); }
+.screen-choice-group label:has(input:focus-visible), .screen-feature:has(input:focus-visible), .screen-consent:has(input:focus-visible) { outline: 2px solid color-mix(in srgb, var(--accent) 80%, white); outline-offset: 2px; }
+.screen-setup-panel .screen-field input, .screen-setup-panel select { min-height: 44px; box-sizing: border-box; border-radius: 8px; background: rgb(8 9 15 / 72%); }
+.screen-setup-panel select { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border); color: var(--text); font: inherit; }
+.screen-features .screen-feature-group { padding: 0.65rem; border: 1px solid rgb(255 255 255 / 8%); border-radius: 10px; background: rgb(5 6 11 / 25%); }
+.screen-feature:has(input:checked) { border-color: color-mix(in srgb, var(--accent) 32%, transparent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.screen-consent { width: 100%; box-sizing: border-box; border-style: solid; border-color: rgb(255 255 255 / 10%); background: rgb(8 9 15 / 48%); }
+.screen-launch-bar { position: sticky; bottom: 0.75rem; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; box-sizing: border-box; padding: 0.8rem 0.9rem 0.8rem 1.1rem; border: 1px solid rgb(255 255 255 / 14%); border-radius: 12px; background: rgb(17 18 27 / 92%); box-shadow: 0 14px 40px rgb(0 0 0 / 45%); backdrop-filter: blur(16px); }
+.screen-launch-bar .launcher-caption { margin: 0; text-align: left; }
+.screen-launch-bar .launcher-caption small { display: block; margin-top: 0.12rem; color: var(--muted); font-size: 0.7rem; }
+.screen-launch-bar .launcher-actions { flex: none; }
+@media (max-width: 620px) { .screen-setup-panel { padding: 1rem; } .screen-launch-bar { position: static; align-items: stretch; flex-direction: column; } .screen-launch-bar .launcher-actions, .screen-launch-bar .launcher-btn { width: 100%; } }

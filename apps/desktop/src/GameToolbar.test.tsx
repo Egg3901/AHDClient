@@ -79,6 +79,20 @@ describe("GameToolbar", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("turn exploded");
   });
 
+  it("shows native turn progress until singleplayer advancement finishes", async () => {
+    prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
+    let finishTurn!: (result: { success: boolean; turn: number; message: string }) => void;
+    mocks.advanceTurn.mockReturnValue(new Promise((resolve) => { finishTurn = resolve; }));
+    render(<GameToolbar {...base} worldsim={false} />);
+    const button = screen.getByRole("button", { name: "End turn" });
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+    await userEvent.click(button);
+    expect(screen.getByRole("status", { name: "Running turn" })).toBeTruthy();
+    expect(screen.getByText("Turn 1", { selector: ".client-toolbar-turn" })).toBeTruthy();
+    finishTurn({ success: true, turn: 2, message: "Turn 2" });
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Running turn" })).toBeNull());
+  });
+
   it("enables End turn for worldsim without a character and advances one turn", async () => {
     prepare({ hasWorld: true, turn: 40, hasCharacter: false, characterName: null, mode: "worldsim" });
     const onViewStats = vi.fn();

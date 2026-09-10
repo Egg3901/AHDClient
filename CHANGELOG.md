@@ -6,7 +6,9 @@ All notable AHDClient changes are recorded here.
 
 - Open singleplayer setup on the Normal play mode even when Worldsim was used last. A stored Worldsim mode was leaking across entry points; the Worldsim tab still preselects simulation mode.
 - Restyle world setup with selectable option cards, a visible checked state, and an era hero banner. The play-mode, autonomy, and world-setting controls previously fell back to unstyled browser defaults.
+- Rework world setup and Settings into compact, grouped control surfaces with stronger hierarchy, native switches, responsive layouts, and keyboard-visible focus states.
 - Trim the playing toolbar to window-level controls only. The account chip, Settings, and Diagnostics duplicated the game below; both dialogs stay reachable through the launcher and the Escape shortcut.
+- Slim the embedded-game toolbar and show native turn progress with a spinner and current turn while singleplayer simulation runs.
 - Drop the "THE FULL GAME / ON YOUR MACHINE" tagline block from the Windows installer sidebar artwork.
 
 ## [2.3.1] - 2026-09-09
