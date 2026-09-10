@@ -352,3 +352,197 @@
   margin: 6px 0 0;
   font-size: 25px;
 }
+
+/*
+ * Setup choice cards. The play-mode radios, autonomy tiers, and world-setting
+ * checkboxes previously had no styles of their own and fell back to
+ * browser-default fieldsets, which is why setup read as flat. Options render
+ * as selectable cards with a visible checked state.
+ */
+.screen-choice-group,
+.screen-feature-group {
+  margin: 0;
+  padding: 0.9rem 1rem 1rem;
+  display: grid;
+  gap: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-muted) 100%);
+}
+
+.screen-choice-group > legend,
+.screen-feature-group > legend {
+  padding-inline: 0.4rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.screen-choice-group label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.7rem;
+  align-items: start;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 2%);
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.screen-choice-group label:hover {
+  border-color: #46465f;
+  background: var(--panel-elevated);
+}
+
+.screen-choice-group label:has(input:checked) {
+  border-color: var(--accent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 14%, var(--panel)) 0%,
+    var(--panel-muted) 100%
+  );
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 6px 18px rgb(0 0 0 / 35%);
+}
+
+.screen-choice-group label > input {
+  margin-top: 0.25rem;
+  accent-color: var(--accent);
+}
+
+.screen-choice-group label > strong {
+  font-size: 0.95rem;
+}
+
+.screen-choice-group label > small {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.screen-choice-group details {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.screen-choice-group summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.screen-field-group {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.screen-field-group small {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.screen-features {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.screen-features details > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.screen-feature {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.screen-feature:hover {
+  border-color: var(--border);
+  background: var(--panel-elevated);
+}
+
+.screen-feature input {
+  margin-top: 0.2rem;
+  accent-color: var(--accent);
+}
+
+.screen-feature strong {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.screen-feature small {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.screen-feature-list {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.screen-consent {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  padding: 0.8rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 2%);
+  cursor: pointer;
+}
+
+.screen-consent input {
+  margin-top: 0.2rem;
+  accent-color: var(--accent);
+}
+
+.screen-consent strong {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.screen-consent small {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+/* The era banner carries the setup: an accent wash so it reads as a hero. */
+.screen-era {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background:
+    linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--accent) 22%, transparent) 0%,
+      transparent 45%
+    ),
+    var(--panel-muted);
+}
+
+.screen-era strong {
+  font-size: 1.6rem;
+  letter-spacing: 0.02em;
+}

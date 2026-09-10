@@ -27,8 +27,6 @@ const base = {
   worldName: "Cold War dawn, 1953",
   onLauncher: vi.fn(),
   onSaveAndStop: vi.fn(),
-  onOpenSettings: vi.fn(),
-  onOpenDiagnostics: vi.fn(),
 };
 
 function prepare(status: unknown, availability: "open" | "sealed" = "open") {
@@ -49,19 +47,18 @@ afterEach(() => {
 describe("GameToolbar", () => {
   it("locks End turn until the game reports a character", async () => {
     prepare({ hasWorld: true, turn: 1, hasCharacter: false, characterName: null, mode: "normal" });
-    render(<GameToolbar {...base} worldsim={false} identity={null} />);
+    render(<GameToolbar {...base} worldsim={false} />);
 
     const button = screen.getByRole("button", { name: "End turn" });
     expect((button as HTMLButtonElement).disabled).toBe(true);
     await waitFor(() => expect(button.getAttribute("title")).toMatch(/Create a character/));
-    expect(screen.getByText("Admin")).toBeTruthy();
     expect(mocks.advanceTurn).not.toHaveBeenCalled();
   });
 
   it("advances the turn once a character exists and reports the new turn", async () => {
     prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
     const onTurnAdvanced = vi.fn();
-    render(<GameToolbar {...base} worldsim={false} identity={null} onTurnAdvanced={onTurnAdvanced} />);
+    render(<GameToolbar {...base} worldsim={false} onTurnAdvanced={onTurnAdvanced} />);
 
     const button = await screen.findByRole("button", { name: "End turn" });
     await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
@@ -74,7 +71,7 @@ describe("GameToolbar", () => {
   it("surfaces turn failures without losing the toolbar", async () => {
     prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
     mocks.advanceTurn.mockRejectedValue(new Error("turn exploded"));
-    render(<GameToolbar {...base} worldsim={false} identity={null} />);
+    render(<GameToolbar {...base} worldsim={false} />);
 
     const button = await screen.findByRole("button", { name: "End turn" });
     await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
@@ -86,7 +83,7 @@ describe("GameToolbar", () => {
     prepare({ hasWorld: true, turn: 40, hasCharacter: false, characterName: null, mode: "worldsim" });
     const onViewStats = vi.fn();
     const onTurnAdvanced = vi.fn();
-    render(<GameToolbar {...base} worldsim identity={null} onViewStats={onViewStats} onTurnAdvanced={onTurnAdvanced} />);
+    render(<GameToolbar {...base} worldsim onViewStats={onViewStats} onTurnAdvanced={onTurnAdvanced} />);
 
     const button = await screen.findByRole("button", { name: "End turn" });
     // No character gate for the playerless simulation.
@@ -105,7 +102,7 @@ describe("GameToolbar", () => {
     vi.useFakeTimers();
     try {
       prepare({ hasWorld: true, turn: 1, hasCharacter: false, characterName: null, mode: "normal" });
-      render(<GameToolbar {...base} worldsim={false} identity={null} />);
+      render(<GameToolbar {...base} worldsim={false} />);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0);
       });
@@ -130,7 +127,7 @@ describe("GameToolbar", () => {
     vi.useFakeTimers();
     try {
       prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
-      render(<GameToolbar {...base} worldsim={false} identity={null} />);
+      render(<GameToolbar {...base} worldsim={false} />);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0);
       });
@@ -155,14 +152,14 @@ describe("GameToolbar", () => {
 
   it("disables End turn while paused for both normal and worldsim play", async () => {
     prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" }, "sealed");
-    const { unmount } = render(<GameToolbar {...base} worldsim={false} identity={null} />);
+    const { unmount } = render(<GameToolbar {...base} worldsim={false} />);
     const button = await screen.findByRole("button", { name: "End turn" });
     await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(true));
     expect(button.getAttribute("title")).toMatch(/Resume the world/);
     unmount();
 
     prepare({ hasWorld: true, turn: 40, hasCharacter: false, characterName: null, mode: "worldsim" }, "sealed");
-    render(<GameToolbar {...base} worldsim identity={null} />);
+    render(<GameToolbar {...base} worldsim />);
     const simButton = await screen.findByRole("button", { name: "End turn" });
     await waitFor(() => expect((simButton as HTMLButtonElement).disabled).toBe(true));
   });
@@ -173,7 +170,7 @@ describe("GameToolbar", () => {
     mocks.setWorldAvailability.mockImplementation(async (next: "open" | "sealed") =>
       ({ availability: next, mode: "off" }),
     );
-    render(<GameToolbar {...base} worldsim identity={null} />);
+    render(<GameToolbar {...base} worldsim />);
     const button = screen.getByRole("button", { name: "End turn" });
     expect((button as HTMLButtonElement).disabled).toBe(true);
     expect(button.getAttribute("title")).toMatch(/Checking/);
@@ -181,14 +178,14 @@ describe("GameToolbar", () => {
 
   it("marks permanent head of state with a Beta chip", async () => {
     prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "head-of-state" });
-    render(<GameToolbar {...base} worldsim={false} identity={null} />);
+    render(<GameToolbar {...base} worldsim={false} />);
     expect(await screen.findByText(/Head of state/)).toBeTruthy();
     expect(screen.getByText("Beta")).toBeTruthy();
   });
 
   it("pauses and resumes the world from the overflow menu", async () => {
     prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
-    render(<GameToolbar {...base} worldsim={false} identity={null} />);
+    render(<GameToolbar {...base} worldsim={false} />);
 
     const overflow = [...document.querySelectorAll<HTMLButtonElement>(".client-toolbar-overflow [role='menuitem']")];
     const pause = overflow.find((button) => button.textContent === "Pause world");
@@ -205,49 +202,22 @@ describe("GameToolbar", () => {
 
   it("marks the toolbar paused when the world starts sealed", async () => {
     prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" }, "sealed");
-    render(<GameToolbar {...base} worldsim={false} identity={null} />);
+    render(<GameToolbar {...base} worldsim={false} />);
 
     expect(await screen.findByText("Paused")).toBeTruthy();
   });
 
-  it("shows the linked identity with supporter mark and a trusted avatar", async () => {
+  it("leaves identity to the game below and shows no account chip", async () => {
     prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
-    render(
-      <GameToolbar
-        {...base}
-        worldsim={false}
-        identity={{
-          displayName: "Ada Lovelace",
-          avatarUrl: "https://cdn.discordapp.com/avatars/1/a.png",
-          supporter: true,
-        }}
-      />,
-    );
+    render(<GameToolbar {...base} worldsim={false} />);
 
-    expect(screen.getByText("Ada Lovelace")).toBeTruthy();
-    expect(screen.getByText("Supporter")).toBeTruthy();
-    const img = document.querySelector(".client-toolbar-identity img");
-    expect(img?.getAttribute("src")).toBe("https://cdn.discordapp.com/avatars/1/a.png");
+    expect(document.querySelector(".client-toolbar-identity")).toBeNull();
     expect(screen.queryByText("Admin")).toBeNull();
-  });
-
-  it("falls back to an initial for an untrusted avatar URL", async () => {
-    prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
-    render(
-      <GameToolbar
-        {...base}
-        worldsim={false}
-        identity={{ displayName: "Ada Lovelace", avatarUrl: "https://evil.com/a.png", supporter: false }}
-      />,
-    );
-
-    expect(document.querySelector(".client-toolbar-identity img")).toBeNull();
-    expect(document.querySelector(".client-toolbar-identity")?.textContent).toContain("AL");
   });
 
   it("keeps End turn beside Launcher and the world name clear", async () => {
     prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
-    render(<GameToolbar {...base} worldsim={false} identity={null} />);
+    render(<GameToolbar {...base} worldsim={false} />);
 
     const nav = screen.getByRole("navigation", { name: "Client controls" });
     const order = [...nav.querySelectorAll(":scope > button, :scope > strong")]
@@ -260,30 +230,25 @@ describe("GameToolbar", () => {
     );
   });
 
-  it("keeps overflow actions behind More, pause first, without PiP", async () => {
+  it("keeps overflow actions behind More, pause first, without PiP or duplicates", async () => {
     prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
     const handlers = {
       onSaveAndStop: vi.fn(),
-      onOpenDiagnostics: vi.fn(),
-      onOpenSettings: vi.fn(),
     };
-    render(<GameToolbar {...base} {...handlers} worldsim={false} identity={null} />);
+    render(<GameToolbar {...base} {...handlers} worldsim={false} />);
 
     // Closed <details> content stays out of the accessibility tree, so reach
     // the overflow items through the DOM instead of role queries.
     const overflow = [...document.querySelectorAll<HTMLButtonElement>(".client-toolbar-overflow [role='menuitem']")];
     // No picture-in-picture here: that is the multiplayer briefing, and this
-    // bar only ever fronts the local game.
+    // bar only ever fronts the local game. No Settings or Diagnostics either:
+    // the game below owns settings, and both dialogs stay reachable through
+    // the launcher and the Escape shortcut.
     expect(overflow.map((button) => button.textContent)).toEqual([
       "Pause world",
       "Save and stop",
-      "Diagnostics",
-      "Settings",
     ]);
-    const keys = ["onSaveAndStop", "onOpenDiagnostics", "onOpenSettings"] as const;
-    overflow.slice(1).forEach((button, index) => {
-      fireEvent.click(button);
-      expect(handlers[keys[index]!]).toHaveBeenCalledTimes(1);
-    });
+    fireEvent.click(overflow[1]!);
+    expect(handlers.onSaveAndStop).toHaveBeenCalledTimes(1);
   });
 });

@@ -669,19 +669,8 @@ export function App(): JSX.Element {
             <GameToolbar
               worldName={world?.name ?? "A House Divided"}
               worldsim={runningWorldsim}
-              identity={
-                account
-                  ? {
-                      displayName: account.displayName,
-                      avatarUrl: account.avatarUrl,
-                      supporter: account.supporter,
-                    }
-                  : null
-              }
               onLauncher={() => void returnToLauncher().catch(fail)}
               onSaveAndStop={() => void handleStop().catch(fail)}
-              onOpenSettings={() => setSettingsOpen(true)}
-              onOpenDiagnostics={() => setDiagnosticsOpen(true)}
               onViewStats={
                 runningWorldsim
                   ? () => {

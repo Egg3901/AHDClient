@@ -1,24 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { game } from "./worlds.js";
 import type { SingleplayerStatus } from "./worlds.js";
-import { allowedAvatarUrl, initialsFor } from "./avatar.js";
-
-export interface ToolbarIdentity {
-  displayName: string;
-  avatarUrl?: string | null | undefined;
-  supporter: boolean;
-}
 
 interface Props {
   worldName: string;
   /** Worldsim is playerless: End turn skips the character gate and advances one turn. */
   worldsim: boolean;
-  /** Linked MP account, or null for the unlinked local player shown as Admin. */
-  identity: ToolbarIdentity | null;
   onLauncher: () => void;
   onSaveAndStop: () => void;
-  onOpenSettings: () => void;
-  onOpenDiagnostics: () => void;
   /** Worldsim only: return to the world statistics screen. */
   onViewStats?: (() => void) | undefined;
   onTurnAdvanced?: (turn: number) => void;
@@ -49,19 +38,19 @@ async function readTurnState(): Promise<TurnState | null> {
 const STATUS_POLL_MS = 10_000;
 
 /**
- * The singleplayer shell: Launcher | End turn | world name | identity |
- * overflow. End turn sits next to Launcher; everything destructive or rare
- * lives behind More. Briefing PiP is deliberately absent here: it is the
- * multiplayer briefing, and this bar only ever fronts the local game.
+ * The singleplayer shell: Launcher | End turn | world name | overflow. End
+ * turn sits next to Launcher; everything destructive or rare lives behind
+ * More. Identity, Settings and Diagnostics are deliberately absent here: the
+ * game below owns identity and settings, and both dialogs stay reachable
+ * through the launcher and the Escape shortcut. Briefing PiP is absent too:
+ * it is the multiplayer briefing, and this bar only ever fronts the local
+ * game.
  */
 export function GameToolbar({
   worldName,
   worldsim,
-  identity,
   onLauncher,
   onSaveAndStop,
-  onOpenSettings,
-  onOpenDiagnostics,
   onViewStats,
   onTurnAdvanced,
 }: Props): JSX.Element {
@@ -164,7 +153,6 @@ export function GameToolbar({
         : !worldsim && !turnState.hasCharacter
           ? "Create a character in the game to enable End turn"
           : "Advance the world by one turn";
-  const avatar = identity ? allowedAvatarUrl(identity.avatarUrl) : null;
   const headOfState = turnState?.mode === "head-of-state";
 
   return (
@@ -203,21 +191,6 @@ export function GameToolbar({
           World statistics
         </button>
       )}
-      <span className="client-toolbar-identity" aria-label={identity ? `Linked as ${identity.displayName}` : "Local player"}>
-        {identity ? (
-          <>
-            {avatar ? (
-              <img src={avatar} alt="" referrerPolicy="no-referrer" />
-            ) : (
-              <span aria-hidden="true">{initialsFor(identity.displayName)}</span>
-            )}
-            <span className="client-toolbar-name">{identity.displayName}</span>
-            {identity.supporter && <small>Supporter</small>}
-          </>
-        ) : (
-          <span className="client-toolbar-name">Admin</span>
-        )}
-      </span>
       {turnError && (
         <span className="client-toolbar-error" role="alert">
           {turnError}
@@ -241,12 +214,6 @@ export function GameToolbar({
           </button>
           <button role="menuitem" type="button" onClick={onSaveAndStop}>
             Save and stop
-          </button>
-          <button role="menuitem" type="button" onClick={onOpenDiagnostics}>
-            Diagnostics
-          </button>
-          <button role="menuitem" type="button" onClick={onOpenSettings}>
-            Settings
           </button>
         </div>
       </details>

@@ -113,7 +113,14 @@ export function NewWorldScreen({
 }: Props): JSX.Element {
   const [name, setName] = useState(`${era.subtitle}, ${era.label}`);
   const [savedSetup] = useState(readSetupOptions);
-  const [mode, setMode] = useState<SetupMode>(initialWorldsim ? "worldsim" : savedSetup.mode);
+  /**
+   * A stored "worldsim" is a leftover from the Worldsim tab, not a choice for
+   * this screen: singleplayer setup opens on Normal unless Worldsim asked for
+   * it, and the writeback below then repairs the stored value too.
+   */
+  const [mode, setMode] = useState<SetupMode>(
+    initialWorldsim ? "worldsim" : savedSetup.mode === "worldsim" ? "normal" : savedSetup.mode,
+  );
   const [difficulty, setDifficulty] = useState<SetupDifficulty>(savedSetup.difficulty);
   const [autonomyLevel, setAutonomyLevel] = useState<SetupAutonomy>(savedSetup.autonomyLevel);
   const selectedDifficulty: DifficultyOption =

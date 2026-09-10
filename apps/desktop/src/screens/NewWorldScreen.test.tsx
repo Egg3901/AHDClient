@@ -97,6 +97,18 @@ describe("NewWorldScreen", () => {
     expect(screen.getByText(/same action points and funding as you do/)).toBeTruthy();
   });
 
+  it("opens singleplayer setup on Normal even when Worldsim was stored last", async () => {
+    const onCreate = vi.fn();
+    localStorage.setItem(
+      SETUP_OPTIONS_STORAGE_KEY,
+      JSON.stringify({ mode: "worldsim", difficulty: "normal", autonomyLevel: "v4", featureFlags: {} })
+    );
+    render(<NewWorldScreen era={era} taken={[]} onBack={vi.fn()} onCreate={onCreate} />);
+    expect((screen.getByRole("radio", { name: /^Normal/ }) as HTMLInputElement).checked).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: /Create and play/ }));
+    expect(onCreate.mock.calls[0]?.[2]).toMatchObject({ mode: "normal" });
+  });
+
   it("starts worldsim mode when requested and does not show a character field", () => {
     render(<NewWorldScreen era={era} taken={[]} onBack={vi.fn()} onCreate={vi.fn()} initialWorldsim />);
 

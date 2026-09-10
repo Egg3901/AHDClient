@@ -335,8 +335,9 @@ describe("App singleplayer integration", () => {
     // Showing the embedded view on open is expected; the dialog sequence
     // starts from a clean slate.
     mocks.game.setEmbeddedVisible.mockClear();
-    const overflow = [...document.querySelectorAll<HTMLButtonElement>(".client-toolbar-overflow [role='menuitem']")];
-    fireEvent.click(overflow.find((button) => button.textContent === "Settings")!);
+    // The toolbar no longer duplicates the game's settings entry: Settings
+    // opens through the Escape shortcut instead.
+    fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() =>
       expect(mocks.game.setEmbeddedVisible).toHaveBeenCalledWith(false),
     );

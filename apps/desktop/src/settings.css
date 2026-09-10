@@ -64,17 +64,9 @@ img.client-account-avatar { display: block; }
 html[data-animations="off"] .client-toolbar-end-turn { transition: none; }
 @media (prefers-reduced-motion: reduce) { .client-toolbar-end-turn { transition: none; } }
 .client-toolbar-mode { flex: none; color: #adb0c0; font-size: 11px; white-space: nowrap; }
-.client-toolbar-identity { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 220px; flex: none; }
-.client-toolbar-identity img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; }
-.client-toolbar-identity > span[aria-hidden="true"] { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #3a3a4a; font-size: 12px; font-weight: 700; flex: none; }
-.client-toolbar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
-.client-toolbar-identity small { color: #adb0c0; font-size: 11px; }
 @media (max-width: 600px) {
   .client-game-toolbar { gap: 8px; padding: 8px 10px; }
   .client-game-toolbar > button { padding: 8px 10px; font-size: 12px; }
-  .client-toolbar-name { max-width: 92px; }
-  .client-toolbar-identity { max-width: 140px; }
-  .client-toolbar-identity small { display: none; }
   .client-toolbar-mode { display: none; }
 }
 .client-toolbar-error { color: #f3a3a8; font-size: 12px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
