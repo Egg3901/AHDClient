@@ -59,6 +59,7 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         }
     }
     private static let company = CompanyState()
+    private static let work = WorkFixture()
 
     private func bodyObject() -> [String: Any]? {
         var data = request.httpBody ?? Data()
@@ -77,6 +78,11 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         guard let url = request.url else { return }
+        if ["/api/ops/boards", "/api/ops/cards", "/api/ops/commands", "/api/ops/runners", "/api/ops/runs"].contains(where: { url.path.hasPrefix($0) }) {
+            let (value, status) = Self.work.route(url, method: request.httpMethod ?? "GET", body: bodyObject() ?? [:])
+            deliver((try? JSONSerialization.data(withJSONObject: value)) ?? Data(), url: url, status: status, type: "application/json")
+            return
+        }
         if url.path.hasPrefix("/api/ops/company") {
             let (value, status) = Self.company.route(url.path, method: request.httpMethod ?? "GET", body: bodyObject() ?? [:])
             deliver((try? JSONSerialization.data(withJSONObject: value)) ?? Data(), url: url, status: status, type: "application/json")

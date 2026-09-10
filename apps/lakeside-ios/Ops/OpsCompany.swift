@@ -6,86 +6,8 @@ func companyStatus(_ value: String) -> String {
 }
 
 struct OpsCompany: View {
-    @EnvironmentObject private var session: AppSession
     @ObservedObject var model: OpsWorkspaceModel
-    @Environment(\.scenePhase) private var phase
-    @State private var visible = true
-    @State private var refreshing = false
-    @State private var snapshot: JSONValue = .null
-    @State private var search = ""
-    @State private var filter = "all"
-    @State private var layout = "board"
-    @State private var create = false
-    @State private var projects = false
-    @State private var loading = false
-    @State private var error: String?
-    private var jobs: [JSONValue] {
-        snapshot["missions"].array.filter { job in
-            let matches = search.isEmpty || [job["title"].string, job["objective"].string].joined(separator: " ").localizedCaseInsensitiveContains(search)
-            let status = job["status"].string
-            return matches && (filter == "all" || (filter == "attention" && ["blocked", "awaiting_approval", "awaiting_verification"].contains(status)) || (filter == "active" && !["verified", "cancelled"].contains(status)) || (filter == "done" && status == "verified"))
-        }
-    }
-    var body: some View {
-        VStack(spacing: 0) {
-            if loading && snapshot == .null { ProgressView("Loading work").padding() }
-            if let error { Text(error).font(.caption).foregroundStyle(.orange).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20).padding(.vertical, 8) }
-            OpsKanban(jobs: jobs, entities: snapshot["entities"].array, staff: snapshot["staff"].array.isEmpty ? model.staff : snapshot["staff"].array, columnData: snapshot["boardColumns"].array, model: model, showAll: layout == "list", onMoved: { updated in
-                acceptMove(updated)
-                await load()
-            }, onReload: { await load() })
-        }.background(Brand.background).foregroundStyle(Brand.ink).tint(Brand.sky)
-            .navigationTitle("Work").navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $search, prompt: "Find work")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker("Show", selection: $filter) { Text("All work").tag("all"); Text("Active").tag("active"); Text("Needs you").tag("attention"); Text("Verified").tag("done") }
-                        Picker("View", selection: $layout) { Text("Board").tag("board"); Text("List").tag("list") }
-                        Button("Projects") { projects = true }
-                    } label: { Image(systemName: "line.3.horizontal.decrease") }
-                    .accessibilityLabel("Work view options").accessibilityIdentifier("ops-company-view-options")
-                }
-                ToolbarItem(placement: .topBarTrailing) { Button { create = true } label: { Image(systemName: "plus") }.accessibilityLabel("Add work").accessibilityIdentifier("ops-company-create") }
-            }
-            .sheet(isPresented: $create, onDismiss: { Task { await load() } }) { OpsCompanyCreate(entities: snapshot["entities"].array).tint(Brand.sky) }
-            .sheet(isPresented: $projects) { OpsCompanyProjects(snapshot: snapshot, onReload: { await load() }) }
-            .onAppear { visible = true }.onDisappear { visible = false }
-            .task(id: "\(visible)-\(phase == .active)-\(create)-\(projects)") {
-                guard visible, phase == .active, !create, !projects else { return }
-                while !Task.isCancelled {
-                    await load()
-                    do { try await Task.sleep(for: .seconds(10)) } catch { return }
-                }
-            }
-    }
-    private func acceptMove(_ updated: JSONValue) {
-        guard !updated["id"].string.isEmpty else { return }
-        var fields = snapshot.object
-        fields["missions"] = .array(snapshot["missions"].array.map { $0["id"] == updated["id"] ? updated : $0 })
-        snapshot = .object(fields)
-    }
-    private func load() async {
-        while refreshing {
-            do { try await Task.sleep(for: .milliseconds(25)) } catch { return }
-        }
-        guard !Task.isCancelled else { return }
-        refreshing = true; loading = snapshot == .null; defer { refreshing = false; loading = false }
-        do {
-            let result = try await session.get("/api/ops/company")
-            try Task.checkCancellation()
-            // A poll started before a move may arrive after the acknowledgement.
-            // Keep newer acknowledged versions while refreshing the rest of the board.
-            let known = Dictionary(snapshot["missions"].array.map { ($0["id"].string, $0) }, uniquingKeysWith: { _, latest in latest })
-            var fields = result.object
-            fields["missions"] = .array(result["missions"].array.map { incoming in
-                if let current = known[incoming["id"].string], (current["version"].number ?? 0) > (incoming["version"].number ?? 0) { return current }
-                return incoming
-            })
-            let next = JSONValue.object(fields)
-            if snapshot != next { snapshot = next }; error = nil
-        } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
-    }
+    var body: some View { OpsWorkBoard(model: model) }
 }
 
 private struct OpsCompanyProjects: View {
@@ -157,6 +79,16 @@ struct OpsCompanyDetail: View {
             VStack(alignment: .leading, spacing: 28) {
                 if loading && detail == .null { ProgressView("Loading work") }
                 header
+                HStack {
+                    Button("Discuss with Ops") { Task {
+                        if !job["conversation_id"].string.isEmpty { await model.select(job["conversation_id"].string, session) }
+                        model.fileQuestion = "About work \(job["id"].string): \(job["title"].string). "
+                        model.selectedTab = 0
+                    } }.buttonStyle(.bordered).accessibilityIdentifier("ops-work-discuss")
+                    if let worker = model.workers.first(where: { $0["id"] == job["worker_id"] }) {
+                        NavigationLink("Agent activity") { OpsWorkerDetail(worker: worker, model: model) }.buttonStyle(.bordered)
+                    }
+                }
                 why
                 completionChecks
                 people
@@ -168,7 +100,6 @@ struct OpsCompanyDetail: View {
         }.background(Brand.background).foregroundStyle(Brand.ink).tint(Brand.sky)
             .accessibilityElement(children: .contain).accessibilityIdentifier("ops-company-detail-scroll")
             .navigationTitle("Work").navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .tabBar)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { moreActions } }
             .safeAreaInset(edge: .bottom) { nextStep.padding(.horizontal, 24).padding(.vertical, 12).frame(maxWidth: .infinity).background(Brand.background) }
             .onAppear { visible = true }.onDisappear { visible = false }

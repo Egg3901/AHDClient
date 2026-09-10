@@ -4,7 +4,8 @@ import LakesideCore
 struct OpsBoardColumn: Identifiable, Sendable {
     let id: String
     let title: String
-    var color: Color { id == "done" ? Brand.mint : Brand.sky }
+    var color: Color { switch id { case "done": Brand.mint; case "review": .orange; case "ready": .purple; default: Brand.sky } }
+    var hint: String { ["todo": "Ready to pick up", "doing": "Being worked on", "review": "Check the result", "ready": "You approved the next step", "watching": "Check that the change holds", "done": "Finished and checked"][id] ?? "" }
     static let defaults: [OpsBoardColumn] = [
         .init(id: "todo", title: "To do"), .init(id: "doing", title: "In progress"),
         .init(id: "review", title: "Needs review"), .init(id: "ready", title: "Approved"),
@@ -54,42 +55,58 @@ struct OpsKanban: View {
         return parsed.isEmpty ? OpsBoardColumn.defaults : parsed
     }
     var body: some View {
-        VStack(spacing: 0) {
-            if !showAll {
-                HStack {
-                    Picker("Stage", selection: $selectedColumn) {
-                        ForEach(columns) { column in
-                            Text("\(column.title) · \(jobs.filter { opsBoardColumn($0) == column.id }.count)").tag(column.id)
-                        }
-                    }.pickerStyle(.menu).font(.subheadline.weight(.semibold)).accessibilityIdentifier("ops-kanban-stage")
-                    Spacer()
-                    if moving { ProgressView().controlSize(.small) }
-                }.padding(.horizontal, 16).padding(.vertical, 8)
-            }
-            if let error { Text(error).font(.caption).foregroundStyle(.orange).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20).padding(.bottom, 8).accessibilityIdentifier("ops-kanban-error") }
-            ScrollView {
-                LazyVStack(spacing: 10) {
-                    ForEach(jobs.filter { showAll || opsBoardColumn($0) == selectedColumn }.sorted(by: ordered), id: \.["id"].string) { job in
-                        OpsKanbanCard(job: job, column: columns.first { $0.id == opsBoardColumn(job) } ?? columns[0], product: entities.first { $0["id"] == job["entity_id"] }?["title"].string ?? "", owner: staff.first { $0["id"] == job["staff_id"] }?["name"].string ?? "", columns: columns, model: model, moving: moving) { captured, target in
-                            Task { await move(captured, to: target) }
-                        }.draggable(opsBoardDragPayload(job))
-                    }
-                    if jobs.filter({ showAll || opsBoardColumn($0) == selectedColumn }).isEmpty {
-                        Text(jobs.isEmpty ? "No work yet. Add something for Ops to take on." : "No work in this stage.")
-                            .font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 24)
-                    }
-                }.padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 24)
-            }.refreshable { await onReload() }
-                .dropDestination(for: String.self) { payloads, _ in
-                    guard !showAll, payloads.count == 1, let payload = payloads.first else { return false }
-                    return drop(payload, into: selectedColumn)
+        VStack(alignment: .leading, spacing: 8) {
+            if let error { Text(error).font(.caption).foregroundStyle(.orange).padding(.horizontal, 16).accessibilityIdentifier("ops-kanban-error") }
+            if showAll {
+                ScrollView { LazyVStack(spacing: 10) { cards(jobs.sorted(by: ordered)) }.padding(16) }
+                    .refreshable { await onReload() }
+            } else {
+                Text("Swipe through stages. Tap a card for its conversation, agent and next step.")
+                    .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 16)
+                GeometryReader { geometry in
+                    ScrollView(.horizontal) {
+                        LazyHStack(alignment: .top, spacing: 12) {
+                            ForEach(columns) { column in
+                                let work = jobs.filter { opsBoardColumn($0) == column.id }.sorted(by: ordered)
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack {
+                                        Circle().fill(column.color).frame(width: 8, height: 8)
+                                        Text(column.title).font(.headline)
+                                        Spacer()
+                                        Text("\(work.count)").font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+                                    }
+                                    Text(column.hint).font(.caption).foregroundStyle(.secondary)
+                                    ScrollView {
+                                        LazyVStack(spacing: 10) {
+                                            cards(work)
+                                            if work.isEmpty { Text("Nothing here yet").font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 28) }
+                                        }.padding(.bottom, 20)
+                                    }.refreshable { await onReload() }
+                                }.padding(12).frame(width: min(340, max(260, geometry.size.width - 44)), height: geometry.size.height, alignment: .top)
+                                    .background(column.color.opacity(0.045), in: RoundedRectangle(cornerRadius: 18))
+                                    .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(column.color.opacity(0.14)))
+                                    .id(column.id)
+                                    .accessibilityElement(children: .contain).accessibilityIdentifier("ops-kanban-lane-\(column.id)")
+                                    .dropDestination(for: String.self) { payloads, _ in
+                                        guard payloads.count == 1, let payload = payloads.first else { return false }
+                                        return drop(payload, into: column.id)
+                                    }
+                            }
+                        }.scrollTargetLayout().padding(.horizontal, 16)
+                    }.scrollTargetBehavior(.viewAligned)
+                        .scrollPosition(id: Binding<String?>(get: { selectedColumn }, set: { if let value = $0 { selectedColumn = value } }))
+                        .accessibilityIdentifier("ops-kanban-scroll")
                 }
-                .accessibilityElement(children: .contain).accessibilityIdentifier("ops-kanban-scroll")
-        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .onChange(of: jobs.map { $0["id"].string }) { _, _ in
-                if !showAll, !jobs.contains(where: { opsBoardColumn($0) == selectedColumn }), let first = jobs.first { selectedColumn = opsBoardColumn(first) }
             }
+        }.padding(.bottom, 8).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .accessibilityElement(children: .contain).accessibilityIdentifier("ops-kanban-board")
+    }
+    @ViewBuilder private func cards(_ work: [JSONValue]) -> some View {
+        ForEach(work, id: \.["id"].string) { job in
+            OpsKanbanCard(job: job, column: columns.first { $0.id == opsBoardColumn(job) } ?? columns[0], product: entities.first { $0["id"] == job["entity_id"] }?["title"].string ?? "", owner: staff.first { $0["id"] == job["staff_id"] }?["name"].string ?? "", columns: columns, model: model, moving: moving) { captured, target in
+                Task { await move(captured, to: target) }
+            }.draggable(opsBoardDragPayload(job))
+        }
     }
     private func drop(_ payload: String, into column: String) -> Bool {
         guard payload.utf8.count <= 2048, let captured = try? JSONValue.parse(payload),

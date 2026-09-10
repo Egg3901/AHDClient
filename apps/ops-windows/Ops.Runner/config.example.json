@@ -1,0 +1,15 @@
+{
+  "origin": "https://hub.example.com",
+  "workspaces": [
+    { "id": "project", "name": "Local project", "root": "C:\\Users\\you\\source\\project" }
+  ],
+  "providers": [
+    {
+      "id": "codex",
+      "executable": "C:\\Users\\you\\tools\\codex.exe",
+      "kind": "codex",
+      "models": ["replace-with-an-installed-model-id"],
+      "approved": false
+    }
+  ]
+}

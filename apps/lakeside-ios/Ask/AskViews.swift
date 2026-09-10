@@ -265,7 +265,7 @@ struct AskConversation: View {
         guard !conversationID.isEmpty else { return }
         do {
             let data = try await session.get("/api/conversation", query: ["id": conversationID])
-            turns = data["turns"].array.map { ChatTurn(id: $0["id"].string, question: $0["question"].string, answer: $0["answer"].string, citations: $0["citations"].array, answerID: $0["id"], model: $0["model"].string, metadata: $0, attachments: $0["attachments"].array) }
+            turns = data["turns"].array.map { ChatTurn(id: $0["id"].string, question: $0["question"].string, answer: $0["answer"].string, citations: $0["citations"].array, answerID: $0["id"], model: $0.first("modelName", "modelId", "model"), metadata: $0, attachments: $0["attachments"].array) }
             error = nil
         } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
     }
@@ -297,7 +297,7 @@ struct AskConversation: View {
                         if !data["convId"].string.isEmpty { conversationID = data["convId"].string }
                         turns[index].answer = data["answer"].string; turns[index].citations = data["citations"].array
                         turns[index].answerID = data["answerId"]; turns[index].reportURL = data["reportUrl"].string
-                        turns[index].model = data["model"].string
+                        turns[index].model = data.first("modelName", "modelId", "model")
                         followups = data["followups"].array.map { $0.string.nonempty ?? $0["question"].string }.filter { !$0.isEmpty }
                     case "error": throw AppFailure(message: data.string.nonempty ?? data.first("message", "error").nonempty ?? "The answer could not be completed.")
                     default: break
