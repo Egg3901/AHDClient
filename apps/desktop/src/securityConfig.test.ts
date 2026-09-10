@@ -194,8 +194,8 @@ describe("desktop platform configuration", () => {
     expect(workflow).toContain("tar -xzf \"$archive\"");
   });
 
-  it("installs Windows updates quietly after the player confirms restart", () => {
-    expect(tauriConfig.plugins.updater.windows.installMode).toBe("quiet");
+  it("shows Windows installer progress after the player confirms restart", () => {
+    expect(tauriConfig.plugins.updater.windows.installMode).toBe("passive");
   });
 
   it("retains signed updater artifacts for every desktop platform", () => {

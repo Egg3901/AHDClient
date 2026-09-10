@@ -336,7 +336,7 @@
   align-items: center;
   gap: 8px;
 }
-.launcher-era-timeline { position: relative; display: grid; grid-template-columns: repeat(7, minmax(68px, 1fr)); gap: 0; margin: 8px 18px 16px; overflow-x: auto; }
+.launcher-era-timeline { position: relative; display: grid; grid-template-columns: repeat(8, minmax(76px, 1fr)); gap: 0; margin: 8px 18px 16px; overflow-x: auto; scrollbar-width: thin; }
 .launcher-era-timeline::before { content: ""; position: absolute; top: 14px; left: 7%; right: 7%; height: 1px; background: linear-gradient(90deg, #65728a, #aab1c1, #65728a); }
 .launcher-era-timeline > div { position: relative; min-width: 68px; }
 .launcher-era-timeline button { width: 100%; display: grid; justify-items: center; gap: 3px; padding: 3px 5px 8px; border: 0; background: transparent; color: #85899b; cursor: pointer; }
@@ -380,7 +380,8 @@
   height: 92px;
   margin: -18px -22px 14px;
   width: calc(100% + 44px);
-  object-fit: cover;
+  object-fit: contain;
+  background: #0b0d15;
   opacity: 0.78;
   filter: saturate(0.75) contrast(1.04);
 }
@@ -1099,6 +1100,7 @@
 .launcher-era-photo {
   height: 190px;
   object-position: center 60%;
+  object-fit: contain;
   opacity: 1;
 }
 .launcher-playable {
@@ -1159,10 +1161,10 @@
 .launcher-globe-wrap {
   position: fixed;
   top: auto;
-  bottom: clamp(28px, 5svh, 64px);
+  bottom: clamp(-150px, -10svh, -72px);
   left: 50%;
   z-index: -1;
-  width: min(60svh, 580px, 84vw);
+  width: min(96svh, 920px, 112vw);
   max-width: none;
   transform: translateX(-50%);
   pointer-events: none;
@@ -1170,6 +1172,7 @@
   background: transparent;
   box-shadow: none;
   overflow: visible;
+  opacity: 0.62;
   transition: filter 180ms ease, opacity 180ms ease;
 }
 .launcher-era-panel,

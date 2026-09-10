@@ -175,6 +175,22 @@ export const ERAS: readonly Era[] = [
     subtitle: "Realignment",
     startDate: "January 2023",
   },
+  {
+    description:
+      "Inflation is cooling but has not broken. AI, European security and a contested world order reshape the next mandate.",
+    playableNations: [
+      "United States",
+      "United Kingdom",
+      "Japan",
+      "Germany",
+      "China",
+    ],
+    id: "2027",
+    preset: "2027-default",
+    label: "2027",
+    subtitle: "The next mandate",
+    startDate: "January 2027",
+  },
 ];
 
 export function eraById(id: string): Era | undefined {

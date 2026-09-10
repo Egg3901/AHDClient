@@ -18,6 +18,7 @@ const ERA_THEMES: Record<string, EraTheme> = {
   "2007": { phosphor: "#7a5a1e", dim: "122,90,30", label: "World map · 2007" },
   "2019": { phosphor: "#8e2942", dim: "142,41,66", label: "World map · 2019" },
   "2023": { phosphor: "#5a3a8a", dim: "90,58,138", label: "World map · 2023" },
+  "2027": { phosphor: "#365f75", dim: "54,95,117", label: "World map · 2027" },
 };
 
 const DEFAULT_THEME: EraTheme = ERA_THEMES["1953"]!;
@@ -102,7 +103,7 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
       canvas!.width = globeBackingSize(S, dpr);
       canvas!.height = globeBackingSize(S, dpr);
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-      R = S * 0.42;
+      R = S * 0.47;
     }
 
     function drawFrame(): void {

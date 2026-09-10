@@ -19,7 +19,7 @@ describe("GameVersionBar", () => {
     render(<GameVersionBar />);
 
     expect(screen.getByText("Game runtime")).toBeTruthy();
-    expect(screen.getByRole("option", { name: "Bundled game 1.8.2" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Bundled game 1.8.3" })).toBeTruthy();
     await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(1));
   });
 

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { ERAS, eraById, eraForPreset, slugForWorld } from "./worlds.js";
 
 describe("eras", () => {
+  it("includes the incoming 2027 game seed", () => {
+    expect(eraById("2027")?.preset).toBe("2027-default");
+  });
   it("map one to one onto AHDGame reset presets, oldest first", () => {
     expect(ERAS.map((e) => e.preset)).toEqual([
       "1953-default",
@@ -11,6 +14,7 @@ describe("eras", () => {
       "2007-default",
       "2019-default",
       "2023-default",
+      "2027-default",
     ]);
     expect(eraById("1979")?.preset).toBe("1979-default");
     expect(eraForPreset("2019-default")?.id).toBe("2019");

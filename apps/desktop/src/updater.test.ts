@@ -35,6 +35,7 @@ function updateMock(version = "2.3.1") {
 
 beforeEach(() => {
   resetUpdaterForTests();
+  localStorage.clear();
   download.mockReset().mockImplementation(async (onEvent?: (event: unknown) => void) => {
     onEvent?.({ event: "Started", data: { contentLength: 100 } });
     onEvent?.({ event: "Progress", data: { chunkLength: 40 } });
@@ -100,7 +101,7 @@ describe("silent updater", () => {
     expect(relaunch).toHaveBeenCalledTimes(1);
   });
 
-  it("does not relaunch on Windows because install() exits the process", async () => {
+  it("hands Windows restart to the installer after showing its progress UI", async () => {
     Object.defineProperty(window.navigator, "userAgent", {
       configurable: true,
       value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -110,6 +111,7 @@ describe("silent updater", () => {
     await confirmRestartToUpdate();
     expect(install).toHaveBeenCalledWith({ restartAfterInstall: true });
     expect(relaunch).not.toHaveBeenCalled();
+    expect(localStorage.getItem("ahdclient.update.restart")).toContain('"to":"2.3.1"');
   });
 
   it("does not start a second download while one is ready", async () => {

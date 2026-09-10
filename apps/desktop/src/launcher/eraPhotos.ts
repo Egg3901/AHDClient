@@ -67,6 +67,13 @@ export const ERA_PHOTOS: Record<string, EraPhoto> = {
     license: "Public domain, U.S. federal government work",
     sourceUrl: "https://commons.wikimedia.org/wiki/File:P20230106AS-0338_(52644827761).jpg",
   },
+  "2027": {
+    src: bidenOvalOffice,
+    alt: "The Oval Office, representing the incoming 2027 political era",
+    credit: "Adam Schultz, White House",
+    license: "Public domain, U.S. federal government work",
+    sourceUrl: "https://commons.wikimedia.org/wiki/File:P20230106AS-0338_(52644827761).jpg",
+  },
 };
 
 /** Source and rights record for the bundled assets. Keep this next to the map for review. */
@@ -104,5 +111,10 @@ export const ERA_PHOTO_LICENSE_MANIFEST = {
     sourceUrl: ERA_PHOTOS["2023"]!.sourceUrl,
     originalSourceUrl: "https://flickr.com/photos/191819781@N02/52644827761",
     license: ERA_PHOTOS["2023"]!.license,
+  },
+  "2027": {
+    sourceUrl: ERA_PHOTOS["2027"]!.sourceUrl,
+    originalSourceUrl: "https://flickr.com/photos/191819781@N02/52644827761",
+    license: ERA_PHOTOS["2027"]!.license,
   },
 } as const;

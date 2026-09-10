@@ -1,9 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const invoke = vi.fn<(command: string, args?: unknown) => Promise<void>>(async () => undefined);
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: (command: string, args?: unknown) => invoke(command, args),
+}));
 import {
   buildDiagnosticReport,
   clearDiagnostics,
   diagnosticEntries,
   recordDiagnostic,
+  submitAutomaticDiagnostics,
 } from "./diagnostics";
 
 describe("diagnostic reports", () => {
@@ -42,5 +48,14 @@ describe("diagnostic reports", () => {
     for (let index = 0; index < 205; index += 1) recordDiagnostic("log", `line ${index}`);
     expect(diagnosticEntries()).toHaveLength(200);
     expect(diagnosticEntries()[0]?.message).toBe("line 5");
+  });
+
+  it("automatically sends one redacted copy of a repeated failure", async () => {
+    invoke.mockClear();
+    const message = "C:\\Users\\private-name\\update failed";
+    await expect(submitAutomaticDiagnostics("error", message)).resolves.toBe(true);
+    await expect(submitAutomaticDiagnostics("error", message)).resolves.toBe(false);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(invoke.mock.calls)).not.toContain("private-name");
   });
 });
