@@ -255,10 +255,10 @@ export function assertStagedGame(root, triple) {
       missing.push(`node_modules/@img/sharp-${want}`);
     }
   }
+  let foreignSharp = [];
   const imgDir = path.join(root, "node_modules", "@img");
   if (want && existsSync(imgDir)) {
-    const foreign = readdirSync(imgDir).filter((name) => name.startsWith("sharp-") && name !== `sharp-${want}` && name !== `sharp-libvips-${want}`);
-    if (foreign.length) throw new Error(`foreign sharp variants remain: ${foreign.join(", ")}`);
+    foreignSharp = readdirSync(imgDir).filter((name) => name.startsWith("sharp-") && name !== `sharp-${want}` && name !== `sharp-libvips-${want}`);
   }
   let strayTs = 0;
   let tests = 0;
@@ -279,6 +279,7 @@ export function assertStagedGame(root, triple) {
     }
   }
   const budgetHits = [];
+  if (foreignSharp.length) budgetHits.push(`foreign sharp variants remain: ${foreignSharp.join(", ")}`);
   if (strayTs > 0) budgetHits.push(`strayTs ${strayTs} > 0`);
   if (tests > 0) budgetHits.push(`tests ${tests} > 0`);
   if (docs > 0) budgetHits.push(`docs ${docs} > 0`);
