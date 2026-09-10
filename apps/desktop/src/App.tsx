@@ -743,6 +743,7 @@ export function App(): JSX.Element {
     if (era) {
       return withSettings(
         <NewWorldScreen
+          language={settings.language}
           era={era}
           initialWorldsim={pendingWorldsim}
           shareStatistics={settings.shareStatistics}
@@ -843,10 +844,11 @@ export function App(): JSX.Element {
         </aside>
       )}
       <Launcher
+        language={settings.language}
         mobile={mobile}
         settingsControl={settingsControl}
         accountControl={accountControl}
-        gameVersionControl={mobile ? undefined : <GameVersionBar />}
+        gameVersionControl={mobile ? undefined : <GameVersionBar language={settings.language} />}
         onPhotoSource={(eraId) => {
           void online.help(`help.era-photo-${eraId}`).catch(fail);
         }}
