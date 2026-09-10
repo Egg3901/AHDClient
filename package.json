@@ -12,8 +12,9 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:ci": "npm run test:ci --workspaces --if-present",
+    "test:prepare-game": "vitest run scripts/prepare-game.test.mjs",
     "dev": "npm run dev --workspace apps/desktop",
-    "verify": "npm run typecheck && npm run test:ci",
+    "verify": "npm run typecheck && npm run test:ci && npm run test:prepare-game",
     "verify:full": "npm run typecheck && npm run test",
     "release:check": "node scripts/release-check.mjs",
     "prepare:game": "node scripts/prepare-game.mjs"

@@ -28,6 +28,55 @@ export const NODE_VERSION = "v22.23.2";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TAURI = path.join(ROOT, "apps", "desktop", "src-tauri");
+export const BUILD_PROVENANCE_FILE = "build-provenance.json";
+const BUILD_PROVENANCE_SCHEMA_VERSION = 1;
+
+function unknownBuildProvenance() {
+  return {
+    schemaVersion: BUILD_PROVENANCE_SCHEMA_VERSION,
+    sourceCommit: null,
+    sourceDirty: null,
+    status: "unknown",
+  };
+}
+
+function isCommit(value) {
+  return typeof value === "string" && /^[0-9a-f]{40,64}$/i.test(value);
+}
+
+/** Read provenance emitted by the AHDGame packaging step. */
+export function readBuildProvenance(dist) {
+  let metadata;
+  try {
+    metadata = JSON.parse(readFileSync(path.join(dist, BUILD_PROVENANCE_FILE), "utf8"));
+  } catch {
+    return unknownBuildProvenance();
+  }
+  if (!metadata || typeof metadata !== "object" || metadata.schemaVersion !== BUILD_PROVENANCE_SCHEMA_VERSION) {
+    return unknownBuildProvenance();
+  }
+
+  const { sourceCommit, sourceDirty, status } = metadata;
+  if (status === "clean" && isCommit(sourceCommit) && sourceDirty === false) {
+    return { schemaVersion: BUILD_PROVENANCE_SCHEMA_VERSION, sourceCommit, sourceDirty, status };
+  }
+  if (status === "dirty" && isCommit(sourceCommit) && sourceDirty === true) {
+    return { schemaVersion: BUILD_PROVENANCE_SCHEMA_VERSION, sourceCommit, sourceDirty, status };
+  }
+  if (status === "unknown" && (sourceCommit === null || isCommit(sourceCommit)) && sourceDirty === null) {
+    return { schemaVersion: BUILD_PROVENANCE_SCHEMA_VERSION, sourceCommit, sourceDirty, status };
+  }
+  return unknownBuildProvenance();
+}
+
+export function buildInfoFromProvenance(dist, clientVersion) {
+  const provenance = readBuildProvenance(dist);
+  return {
+    clientVersion,
+    gameCommit: provenance.sourceCommit,
+    gameCommitStatus: provenance.status,
+  };
+}
 
 /** Rust target triple -> Node distribution name. */
 export const NODE_DIST = {
@@ -157,6 +206,7 @@ const STAGED_TOP_FILES = new Set([
   "README.txt",
   "LICENSE.md",
   "AHD_BUILD.json",
+  BUILD_PROVENANCE_FILE,
 ]);
 const STAGED_TOP_DIRS = new Set([".next", "public", "node_modules"]);
 
@@ -291,7 +341,7 @@ export function assertStagedGame(root, triple) {
   }
 }
 
-export async function stageGame(gameDir, triple, { skipBuild = false } = {}) {
+export async function stageGame(gameDir, triple, { skipBuild = false, destination } = {}) {
   if (!gameDir) throw new Error("pass --game-dir or set AHDGAME_DIR to an AHDGame checkout");
   gameDir = path.resolve(gameDir);
   if (!existsSync(path.join(gameDir, "scripts", "singleplayer", "package.mjs"))) {
@@ -310,7 +360,7 @@ export async function stageGame(gameDir, triple, { skipBuild = false } = {}) {
   if (!existsSync(path.join(dist, "server.js")) || !existsSync(path.join(dist, "launch.mjs"))) {
     throw new Error(`${dist} is missing server.js or launch.mjs`);
   }
-  const dest = path.join(TAURI, "resources", "game");
+  const dest = destination || path.join(TAURI, "resources", "game");
   const staging = `${dest}.staging`;
   rmSync(staging, { recursive: true, force: true });
   cpSync(dist, staging, { recursive: true });
@@ -318,20 +368,14 @@ export async function stageGame(gameDir, triple, { skipBuild = false } = {}) {
   // weight, and linuxdeploy refuses an AppDir holding an ELF linked to musl.
   await stageNativeVariants(staging, triple);
   pruneForeignSharp(staging, triple);
-  const revision = spawnSync("git", ["rev-parse", "HEAD"], {
-    cwd: gameDir,
-    encoding: "utf8",
-  });
-  if (revision.status !== 0) {
-    throw new Error(`could not record the bundled AHDGame revision for ${gameDir}`);
-  }
   const clientVersion = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
   writeFileSync(
     path.join(staging, "AHD_BUILD.json"),
-    `${JSON.stringify({ clientVersion, gameCommit: revision.stdout.trim() }, null, 2)}\n`,
+    `${JSON.stringify(buildInfoFromProvenance(staging, clientVersion), null, 2)}\n`,
   );
   pruneStagedGame(staging);
   assertStagedGame(staging, triple);
+  mkdirSync(path.dirname(dest), { recursive: true });
   rmSync(dest, { recursive: true, force: true });
   renameSync(staging, dest);
   // tauri-build copies resources next to the binary at compile time and

@@ -1,11 +1,14 @@
-import { mkdirSync, mkdtempSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   assertStagedGame,
+  buildInfoFromProvenance,
+  readBuildProvenance,
   pruneStagedGame,
   pruneForeignSharp,
+  stageGame,
   shouldKeepStagedGamePath,
 } from "./prepare-game.mjs";
 
@@ -24,6 +27,7 @@ describe("prepare-game payload allowlist", () => {
   it("keeps runtime files and drops source, docs, tests and plans", () => {
     expect(shouldKeepStagedGamePath("server.js")).toBe(true);
     expect(shouldKeepStagedGamePath("launch.mjs")).toBe(true);
+    expect(shouldKeepStagedGamePath("build-provenance.json")).toBe(true);
     expect(shouldKeepStagedGamePath(".next/static/app.js")).toBe(true);
     expect(shouldKeepStagedGamePath("node_modules/mongodb-438b504308ffa4be/index.js")).toBe(true);
     expect(shouldKeepStagedGamePath("src/data/npp-images.json")).toBe(true);
@@ -77,5 +81,98 @@ describe("prepare-game payload allowlist", () => {
     touch(root, "node_modules/sharp/package.json", "{}");
     touch(root, "node_modules/@img/sharp-linux-x64/package.json", "{}");
     expect(() => assertStagedGame(root, "x86_64-pc-windows-msvc")).toThrow(/sharp-win32-x64/);
+  });
+});
+
+describe("singleplayer build provenance", () => {
+  it("keeps the revision produced by a reused bundle when the checkout moved on", () => {
+    const dist = mkdtempSync(path.join(process.env.TMPDIR || tmpdir(), "ahd-provenance-stale-"));
+    scratch.push(dist);
+    touch(
+      dist,
+      "build-provenance.json",
+      JSON.stringify({ schemaVersion: 1, sourceCommit: "a".repeat(40), sourceDirty: false, status: "clean" }),
+    );
+
+    expect(buildInfoFromProvenance(dist, "2.3.5")).toEqual({
+      clientVersion: "2.3.5",
+      gameCommit: "a".repeat(40),
+      gameCommitStatus: "clean",
+    });
+  });
+
+  it("marks an old artifact without provenance as unknown", () => {
+    const dist = mkdtempSync(path.join(process.env.TMPDIR || tmpdir(), "ahd-provenance-missing-"));
+    scratch.push(dist);
+
+    expect(readBuildProvenance(dist)).toEqual({
+      schemaVersion: 1,
+      sourceCommit: null,
+      sourceDirty: null,
+      status: "unknown",
+    });
+    expect(buildInfoFromProvenance(dist, "2.3.5")).toEqual({
+      clientVersion: "2.3.5",
+      gameCommit: null,
+      gameCommitStatus: "unknown",
+    });
+  });
+
+  it("rejects invalid metadata instead of preserving a false verified claim", () => {
+    const dist = mkdtempSync(path.join(process.env.TMPDIR || tmpdir(), "ahd-provenance-invalid-"));
+    scratch.push(dist);
+    touch(
+      dist,
+      "build-provenance.json",
+      JSON.stringify({ schemaVersion: 1, sourceCommit: "b".repeat(40), sourceDirty: true, status: "clean" }),
+    );
+
+    expect(buildInfoFromProvenance(dist, "2.3.5").gameCommit).toBe(null);
+    expect(buildInfoFromProvenance(dist, "2.3.5").gameCommitStatus).toBe("unknown");
+  });
+
+  it("accepts metadata emitted for a clean newly built artifact", () => {
+    const dist = mkdtempSync(path.join(process.env.TMPDIR || tmpdir(), "ahd-provenance-valid-"));
+    scratch.push(dist);
+    touch(
+      dist,
+      "build-provenance.json",
+      JSON.stringify({ schemaVersion: 1, sourceCommit: "c".repeat(40), sourceDirty: false, status: "clean" }),
+    );
+
+    expect(readBuildProvenance(dist)).toEqual({
+      schemaVersion: 1,
+      sourceCommit: "c".repeat(40),
+      sourceDirty: false,
+      status: "clean",
+    });
+  });
+
+  it("stages the reused bundle revision instead of the checkout HEAD", async () => {
+    const game = mkdtempSync(path.join(process.env.TMPDIR || tmpdir(), "ahd-provenance-game-"));
+    const destinationRoot = mkdtempSync(path.join(process.env.TMPDIR || tmpdir(), "ahd-provenance-stage-"));
+    scratch.push(game, destinationRoot);
+    const dist = path.join(game, "dist", "singleplayer");
+    touch(game, "scripts/singleplayer/package.mjs");
+    touch(dist, "server.js");
+    touch(dist, "launch.mjs");
+    touch(dist, ".next/static/app.js");
+    touch(dist, ".next/server/app.js");
+    touch(dist, "public/logo.png");
+    touch(dist, "node_modules/mongodb/package.json", "{}");
+    touch(
+      dist,
+      "build-provenance.json",
+      JSON.stringify({ schemaVersion: 1, sourceCommit: "a".repeat(40), sourceDirty: false, status: "clean" }),
+    );
+
+    const staged = path.join(destinationRoot, "game");
+    await stageGame(game, "x86_64-unknown-linux-gnu", { skipBuild: true, destination: staged });
+
+    expect(JSON.parse(readFileSync(path.join(staged, "AHD_BUILD.json"), "utf8"))).toEqual({
+      clientVersion: "2.3.5",
+      gameCommit: "a".repeat(40),
+      gameCommitStatus: "clean",
+    });
   });
 });
