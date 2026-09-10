@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.5] - 2026-09-10
+
+- Make Windows updates visible during installation and leave relaunch ownership with the installer, removing the unexplained blank interval after Restart.
+- Record failed updater handoffs on the next launch and automatically submit bounded, redacted crash, setup and updater diagnostics.
+- Add the 2027 starting era backed by the new `2027-default` game seed.
+- Pull era photographs back to show the full composition and enlarge the globe into a restrained, site-style background element.
+- Pair with AHDGame 1.8.3 so permanent head-of-state singleplayer characters can enact validated national laws directly without legislative votes.
+
 ## [2.3.4] - 2026-09-10
 
 - Never replace a newer bundled game with an older published runtime, while keeping compatible prior game versions selectable.

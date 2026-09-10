@@ -4,7 +4,7 @@ import type { GameVersion } from "./worlds.js";
 import type { ClientLanguage } from "./i18n.js";
 
 /** Runtime baked into this desktop bundle. Downloaded runtimes are versioned independently. */
-const BUNDLED_GAME_VERSION = "1.8.2";
+const BUNDLED_GAME_VERSION = "1.8.3";
 
 function compareVersions(left: string, right: string): number {
   const a = left.split(".").map(Number);

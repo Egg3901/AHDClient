@@ -10,6 +10,8 @@
  */
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import desktopPackage from "../package.json";
+import { submitAutomaticDiagnostics } from "./diagnostics.js";
 
 export const UPDATE_CHECK_TIMEOUT_MS = 15_000;
 
@@ -31,6 +33,7 @@ export type UpdaterSnapshot =
 type Listener = () => void;
 
 const CHECK_OPTIONS = { timeout: UPDATE_CHECK_TIMEOUT_MS };
+const UPDATE_RESTART_KEY = "ahdclient.update.restart";
 
 let snapshot: UpdaterSnapshot = { kind: "idle" };
 let pending: Update | null = null;
@@ -105,6 +108,7 @@ async function downloadUpdate(update: Update): Promise<void> {
 }
 
 async function runCheck(): Promise<void> {
+  auditPreviousRestart();
   emit({ kind: "checking" });
   try {
     const update = await check(CHECK_OPTIONS);
@@ -147,8 +151,18 @@ export async function confirmRestartToUpdate(): Promise<void> {
   const update = pending;
   emit({ kind: "installing", version: update.version });
   try {
-    // Windows: this call starts the quiet NSIS installer and then exits the
-    // app. Do not relaunch here; the installer relaunches when it finishes.
+    try {
+      localStorage.setItem(UPDATE_RESTART_KEY, JSON.stringify({
+        from: desktopPackage.version,
+        to: update.version,
+        requestedAt: Date.now(),
+      }));
+    } catch {
+      // The installer still works when webview storage is unavailable.
+    }
+    // Windows: this call starts the passive NSIS installer and then exits the
+    // app. Its visible progress window closes the long blank interval, while
+    // restartAfterInstall makes NSIS own the one reliable relaunch.
     // download() has already completed, so this is the first moment the
     // process is allowed to quit for an update.
     await update.install({ restartAfterInstall: true });
@@ -158,6 +172,26 @@ export async function confirmRestartToUpdate(): Promise<void> {
     }
   } catch (error) {
     pending = null;
-    emit({ kind: "error", message: errorMessage(error) });
+    const message = errorMessage(error);
+    emit({ kind: "error", message });
+    void submitAutomaticDiagnostics("error", `Desktop update install failed: ${message}`);
+  }
+}
+
+function auditPreviousRestart(): void {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(UPDATE_RESTART_KEY);
+    if (!raw) return;
+    localStorage.removeItem(UPDATE_RESTART_KEY);
+    const attempt = JSON.parse(raw) as { from?: string; to?: string; requestedAt?: number };
+    if (attempt.to === desktopPackage.version) return;
+    if (typeof attempt.requestedAt !== "number" || Date.now() - attempt.requestedAt > 7 * 86_400_000) return;
+    void submitAutomaticDiagnostics(
+      "error",
+      `Desktop updater returned on ${desktopPackage.version} after requesting ${String(attempt.to ?? "unknown")}.`,
+    );
+  } catch {
+    try { localStorage.removeItem(UPDATE_RESTART_KEY); } catch { /* unavailable */ }
   }
 }

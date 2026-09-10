@@ -34,7 +34,7 @@ import { GameToolbar } from "./GameToolbar.js";
 import { GameVersionBar } from "./GameVersionBar.js";
 import { DiagnosticPrompt } from "./DiagnosticPrompt.js";
 import { DiagnosticPanel } from "./DiagnosticPanel.js";
-import { recordDiagnostic, submitDiagnostics, type DiagnosticReason } from "./diagnostics.js";
+import { diagnosticRuntime, recordDiagnostic, submitAutomaticDiagnostics, submitDiagnostics, type DiagnosticReason } from "./diagnostics.js";
 import { mobile } from "./platform.js";
 import { reportIssueRoute } from "./help.js";
 import { Briefing } from "./briefing/Briefing.js";
@@ -288,6 +288,11 @@ export function App(): JSX.Element {
       message,
       lines: [...log],
     });
+    void submitAutomaticDiagnostics(
+      message.includes("stopped reporting progress") ? "stalled" : "error",
+      message,
+      diagnosticRuntime(screen, info.running ? "local-running" : "local-stopped"),
+    );
     setScreen("launcher");
   };
 

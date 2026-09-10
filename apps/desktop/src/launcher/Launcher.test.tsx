@@ -69,7 +69,7 @@ describe("Launcher", () => {
     renderLauncher();
     await userEvent.click(screen.getByRole("button", { name: "New Game" }));
     const timeline = screen.getByRole("list", { name: "Starting era timeline" });
-    expect(timeline.querySelectorAll('[role="listitem"]')).toHaveLength(7);
+    expect(timeline.querySelectorAll('[role="listitem"]')).toHaveLength(8);
     expect(timeline.querySelector('button[aria-current="true"]')?.textContent).toContain("1953");
   });
 
@@ -78,6 +78,7 @@ describe("Launcher", () => {
     expect(css).toMatch(/\.launcher-era-carousel\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
     expect(css).toMatch(/\.launcher-era-timeline button small\s*\{[^}]*white-space:\s*normal/s);
     expect(css).not.toMatch(/\.launcher-era-timeline button small\s*\{[^}]*text-overflow:\s*ellipsis/s);
+    expect(css).toMatch(/\.launcher-era-photo\s*\{[^}]*object-fit:\s*contain/s);
   });
 
   it("renders the launcher in German when the locale setting selects it", () => {

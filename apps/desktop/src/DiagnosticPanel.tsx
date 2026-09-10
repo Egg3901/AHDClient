@@ -54,7 +54,7 @@ export function DiagnosticPanel({ open, screen, game, onClose }: Props): JSX.Ele
           <div><span className="client-settings-kicker">AHDClient</span><h2 id="developer-diagnostics-title">Developer diagnostics</h2></div>
           <button className="client-settings-close" type="button" aria-label="Close diagnostics" onClick={onClose}>×</button>
         </header>
-        <p className="client-diagnostics-privacy">Nothing is sent unless you tap Send. User paths, world names, email addresses, credentials, and tokens are redacted.</p>
+        <p className="client-diagnostics-privacy">Crash, setup and update failures send a small redacted report automatically. Manual logs are sent only when you tap Send. User paths, world names, email addresses, credentials, and tokens are redacted.</p>
         <dl className="client-runtime-grid">
           <div><dt>Version</dt><dd>{runtime.clientVersion}</dd></div>
           <div><dt>Platform</dt><dd>{runtime.platform}</dd></div>

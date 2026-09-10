@@ -26,6 +26,9 @@ const MAX_ENTRIES = 200;
 const entries: DiagnosticEntry[] = [];
 const subscribers = new Set<() => void>();
 let installed = false;
+let automaticReports = 0;
+const automaticFingerprints = new Set<string>();
+const MAX_AUTOMATIC_REPORTS_PER_SESSION = 5;
 
 export const redact = (line: string): string => line
   .replace(/C:\\Users\\[^\\\s]+/gi, "C:\\Users\\[redacted]")
@@ -97,9 +100,11 @@ export function installDiagnosticCapture(): void {
   }
   window.addEventListener("error", (event) => {
     recordDiagnostic("error", event.message, event.filename, event.lineno);
+    void submitAutomaticDiagnostics("error", event.message);
   });
   window.addEventListener("unhandledrejection", (event) => {
     recordDiagnostic("error", "Unhandled promise rejection", event.reason);
+    void submitAutomaticDiagnostics("error", `Unhandled promise rejection: ${printable(event.reason)}`);
   });
   recordDiagnostic("info", "Diagnostic capture started");
 }
@@ -137,4 +142,28 @@ export function formatDiagnosticBundle(runtime: DiagnosticRuntime, lines = diagn
 
 export async function submitDiagnostics(reason: DiagnosticReason, message: string, lines: readonly string[], runtime?: DiagnosticRuntime): Promise<void> {
   await invoke("submit_diagnostics", { report: buildDiagnosticReport(reason, message, lines, runtime) });
+}
+
+/**
+ * Send bounded, redacted failure reports without interrupting the player.
+ * Repeated copies of the same failure are suppressed for this process.
+ */
+export async function submitAutomaticDiagnostics(
+  reason: Exclude<DiagnosticReason, "manual">,
+  message: string,
+  runtime?: DiagnosticRuntime,
+): Promise<boolean> {
+  const fingerprint = `${reason}:${redact(message)}`;
+  if (
+    automaticReports >= MAX_AUTOMATIC_REPORTS_PER_SESSION ||
+    automaticFingerprints.has(fingerprint)
+  ) return false;
+  automaticReports += 1;
+  automaticFingerprints.add(fingerprint);
+  try {
+    await submitDiagnostics(reason, message, diagnosticLines(), runtime);
+    return true;
+  } catch {
+    return false;
+  }
 }
