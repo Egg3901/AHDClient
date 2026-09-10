@@ -18,6 +18,10 @@ interface Props {
   /** Controlled anonymous statistics consent, when the parent has settings available. */
   shareStatistics?: boolean;
   onStatisticsChange?: (share: boolean) => void;
+  /** Entitlement refusal: shown above the form, which stays intact. */
+  error?: string | null;
+  /** Explicit link CTA next to the refusal. Absent when already linked. */
+  onLinkAccount?: (() => void) | undefined;
 }
 
 /**
@@ -29,15 +33,23 @@ interface Props {
 const AUTONOMY_HELP =
   "What the world's politicians are allowed to do. Each step adds activities, not skill.";
 
+/**
+ * What each autonomy tier lets the world's politicians DO. Mirrors the game's
+ * own `NppAutonomyLevel` doc (src/lib/db/types/gameState.ts): tiers add
+ * activities, never skill. Skill is the separate difficulty axis below.
+ */
 const AUTONOMY_OPTIONS: readonly { value: SetupAutonomy; label: string; description: string }[] = [
-  { value: "off", label: "Off", description: "Countries follow authored rules only." },
-  { value: "v0", label: "V0", description: "Light autonomous political activity." },
-  { value: "v1", label: "V1", description: "Measured autonomous political activity." },
-  { value: "v2", label: "V2", description: "Active autonomous political activity." },
-  { value: "v3", label: "V3", description: "Strong autonomous political activity." },
-  { value: "v4", label: "V4", description: "Full autonomous political activity." },
-  { value: "v5", label: "V5 (beta)", description: "Governments hold long-term goals and follow through on them." },
+  { value: "off", label: "Off", description: "Countries follow authored rules only. Nothing acts on its own." },
+  { value: "v0", label: "V0", description: "Chair elections, stalled prime minister cover, bill sponsorship and voting, and international organization votes in non-player countries." },
+  { value: "v1", label: "V1", description: "Adds the governing brain in non-player countries: agenda, executive action, cabinet, ministerial orders, fiscal moves, and opposition." },
+  { value: "v2", label: "V2", description: "Brings the v1 governing brain into player countries and player-owned companies." },
+  { value: "v3", label: "V3", description: "Politicians campaign, fundraise, run for and win office, legislate, and manage personal finances like players do." },
+  { value: "v4", label: "V4", description: "Full political life in every country, with tighter bill sponsorship throttles where you play. This is what the live multiplayer world runs." },
+  { value: "v5", label: "V5 (Beta)", description: "Governments hold long-term goals and follow through on them instead of re-deciding every cycle." },
 ];
+
+/** Tiers the live world has moved past. Still selectable, under disclosure. */
+const OLD_AUTONOMY: readonly SetupAutonomy[] = ["off", "v0", "v1", "v2", "v3"];
 
 /**
  * Difficulty changes two things and the copy says both. NPP skill is a decision
@@ -96,6 +108,8 @@ export function NewWorldScreen({
   initialWorldsim = false,
   shareStatistics,
   onStatisticsChange,
+  error = null,
+  onLinkAccount,
 }: Props): JSX.Element {
   const [name, setName] = useState(`${era.subtitle}, ${era.label}`);
   const [savedSetup] = useState(readSetupOptions);
@@ -104,6 +118,22 @@ export function NewWorldScreen({
   const [autonomyLevel, setAutonomyLevel] = useState<SetupAutonomy>(savedSetup.autonomyLevel);
   const selectedDifficulty: DifficultyOption =
     DIFFICULTIES.find((option) => option.value === difficulty) ?? NORMAL_DIFFICULTY;
+  const autonomyControl = (option: (typeof AUTONOMY_OPTIONS)[number]) => (
+    <label key={option.value}>
+      <input
+        type="radio"
+        name="autonomy"
+        value={option.value}
+        checked={autonomyLevel === option.value}
+        onChange={() => setAutonomyLevel(option.value)}
+      />{" "}
+      <strong>
+        {option.label}
+        {option.value === "v4" && <span className="client-beta"> Recommended</span>}
+      </strong>
+      <small>{option.description}</small>
+    </label>
+  );
   const [featureFlags, setFeatureFlags] = useState<Record<FeatureFlagKey, boolean>>(savedSetup.featureFlags);
   const [localShareStatistics, setLocalShareStatistics] = useState(true);
   const duplicate = taken.some((existing) => existing.trim().toLowerCase() === name.trim().toLowerCase());
@@ -121,6 +151,18 @@ export function NewWorldScreen({
   };
 
   const featureGroups = ["World systems", "Politics", "Economy", "Player systems"] as const;
+  /**
+   * The onboarding checklist is player UI: with no character in Worldsim it
+   * has nothing to attach to. Hidden in that mode with a note, but still
+   * sent as stored, so switching modes never silently flips a real setting.
+   * Every other flag drives the shared turn loop and applies to Worldsim too.
+   */
+  const visibleFeatures = (category: (typeof featureGroups)[number]) =>
+    FEATURE_OPTIONS.filter(
+      (option) =>
+        option.category === category &&
+        !(worldsim && option.key === "onboardingChecklistEnabled"),
+    );
   const featureControl = (option: (typeof FEATURE_OPTIONS)[number]) => (
     <label className="screen-feature" key={option.key}>
       <input
@@ -157,8 +199,8 @@ export function NewWorldScreen({
 
           <fieldset className="screen-choice-group">
             <legend>Play mode</legend>
-            <label><input type="radio" name="play-mode" value="normal" checked={mode === "normal"} onChange={() => setMode("normal")} /> <strong>Normal player</strong><small>Make choices through a character in the world.</small></label>
-            <label><input type="radio" name="play-mode" value="head-of-state" checked={mode === "head-of-state"} onChange={() => setMode("head-of-state")} /> <strong>Permanent head of state</strong><small>Remain in the head-of-state role throughout the campaign.</small></label>
+            <label><input type="radio" name="play-mode" value="normal" checked={mode === "normal"} onChange={() => setMode("normal")} /> <strong>Normal</strong><small>Climb from citizen to power through a character in the world.</small></label>
+            <label><input type="radio" name="play-mode" value="head-of-state" checked={mode === "head-of-state"} onChange={() => setMode("head-of-state")} /> <strong>Permanent head of state <span className="client-beta">Beta</span></strong><small>You enter as head of state and remain head of state. You do not play the normal climb.</small></label>
             <label><input type="radio" name="play-mode" value="worldsim" checked={worldsim} onChange={() => setMode("worldsim")} /> <strong>Worldsim <span className="client-beta">Beta</span></strong><small>Simulate the world without creating a character.</small></label>
           </fieldset>
 
@@ -166,24 +208,33 @@ export function NewWorldScreen({
               the select's accessible name, so "Difficulty" would no longer
               address the control for a screen reader or a test. */}
           <div className="screen-field-group">
-            <label className="screen-field"><span>Difficulty</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value as SetupDifficulty)}>{DIFFICULTIES.map((option) => <option key={option.value} value={option.value}>{option.label} · {option.description}</option>)}</select></label>
+            <label className="screen-field"><span>Difficulty</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value as SetupDifficulty)}>{DIFFICULTIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
             <small>{DIFFICULTY_HELP}</small>
+            <small>{selectedDifficulty.description}</small>
             <small>{selectedDifficulty.skill}</small>
             <small>{selectedDifficulty.resources}</small>
           </div>
-          <div className="screen-field-group">
-            <label className="screen-field"><span>Autonomy</span><select value={autonomyLevel} onChange={(event) => setAutonomyLevel(event.target.value as SetupAutonomy)}>{AUTONOMY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label} · {option.description}</option>)}</select></label>
+          <fieldset className="screen-choice-group">
+            <legend>Autonomy</legend>
             <small>{AUTONOMY_HELP}</small>
-          </div>
+            {AUTONOMY_OPTIONS.filter((option) => !OLD_AUTONOMY.includes(option.value)).map(autonomyControl)}
+            <details>
+              <summary>Older autonomy tiers</summary>
+              {AUTONOMY_OPTIONS.filter((option) => OLD_AUTONOMY.includes(option.value)).map(autonomyControl)}
+            </details>
+          </fieldset>
 
           <section className="screen-features" aria-labelledby="feature-settings-title">
             <h2 id="feature-settings-title">World settings</h2>
             {featureGroups.map((category) => (
               <fieldset key={category} className="screen-feature-group">
                 <legend>{category}</legend>
-                {FEATURE_OPTIONS.filter((option) => option.category === category).map(featureControl)}
+                {visibleFeatures(category).map(featureControl)}
               </fieldset>
             ))}
+            {worldsim && (
+              <small>Onboarding checklist is hidden here: Worldsim has no player to onboard. It stays as stored.</small>
+            )}
             <details>
               <summary>Advanced world settings</summary>
               <div className="screen-feature-list">{FEATURE_OPTIONS.filter((option) => option.category === "Advanced world settings").map(featureControl)}</div>
@@ -195,6 +246,20 @@ export function NewWorldScreen({
             <span><strong>Share anonymous setup statistics</strong><small>Help improve balance with anonymous, aggregate data. You can opt out at any time.</small></span>
           </label>
 
+          {error && (
+            <p className="launcher-error" role="alert">
+              <span>{error}</span>
+              {onLinkAccount && (
+                <button
+                  className="launcher-btn launcher-btn-primary"
+                  type="button"
+                  onClick={onLinkAccount}
+                >
+                  Link account
+                </button>
+              )}
+            </p>
+          )}
           <p className="launcher-caption">{worldsim ? "This mode opens the world simulator after setup and does not create a character." : "Character creation happens in the game after the world starts."} Building a world seeds thirty countries and takes about a minute.</p>
           <div className="launcher-actions">
             <button className="launcher-btn launcher-btn-primary" onClick={() => onCreate(name, "", { mode, difficulty, autonomyLevel, featureFlags })} disabled={!name.trim()}>Create and play <span aria-hidden="true">&#8594;</span></button>

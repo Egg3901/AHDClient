@@ -29,7 +29,9 @@ describe("desktop security configuration", () => {
     expect(tauriConfig.app.security.csp).toEqual({
       "default-src": "'self'",
       "connect-src": "ipc: http://ipc.localhost",
-      "img-src": "'self' asset: http://asset.localhost data:",
+      // Player pictures come from the game account API on exactly the hosts
+      // the native briefing path trusts. No other remote images are allowed.
+      "img-src": "'self' asset: http://asset.localhost data: https://ahousedividedgame.com https://*.ahousedividedgame.com https://cdn.discordapp.com https://*.public.blob.vercel-storage.com",
       "style-src": "'self' 'unsafe-inline'",
     });
   });
@@ -190,6 +192,10 @@ describe("desktop platform configuration", () => {
     expect(workflow).toContain("console.log('ahd-node-jit-ok')");
     expect(workflow).toContain("-name '*.app.tar.gz'");
     expect(workflow).toContain("tar -xzf \"$archive\"");
+  });
+
+  it("installs Windows updates quietly after the player confirms restart", () => {
+    expect(tauriConfig.plugins.updater.windows.installMode).toBe("quiet");
   });
 
   it("retains signed updater artifacts for every desktop platform", () => {

@@ -1,71 +1,65 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  checkForUpdatesNow,
+  confirmRestartToUpdate,
+  getUpdaterSnapshot,
+  subscribeUpdater,
+  type UpdaterSnapshot,
+} from "./updater.js";
 
-type UpdateState =
-  | { kind: "idle" | "checking" | "current" | "installing" }
-  | { kind: "available"; version: string; install: () => Promise<void> }
-  | { kind: "error"; message: string };
+function messageFor(state: UpdaterSnapshot): string {
+  switch (state.kind) {
+    case "current":
+      return "AHDClient is up to date.";
+    case "downloading":
+      return state.total
+        ? `Downloading AHDClient ${state.version} (${Math.min(100, Math.round((state.received / state.total) * 100))}%).`
+        : `Downloading AHDClient ${state.version} in the background.`;
+    case "ready":
+      return `AHDClient ${state.version} is downloaded. Restart to install it.`;
+    case "installing":
+      return "Installing the downloaded update.";
+    case "error":
+      return state.message;
+    case "checking":
+      return "Checking for a signed AHDClient release.";
+    default:
+      return "Check for a signed AHDClient release.";
+  }
+}
 
 export function UpdateControl(): JSX.Element {
-  const [state, setState] = useState<UpdateState>({ kind: "idle" });
-  const checkNow = async () => {
-    setState({ kind: "checking" });
-    try {
-      const { check } = await import("@tauri-apps/plugin-updater");
-      const update = await check({ timeout: 15_000 });
-      if (!update) return setState({ kind: "current" });
-      setState({
-        kind: "available",
-        version: update.version,
-        install: async () => {
-          setState({ kind: "installing" });
-          try {
-            await update.downloadAndInstall();
-            const { relaunch } = await import("@tauri-apps/plugin-process");
-            await relaunch();
-          } catch (error) {
-            setState({
-              kind: "error",
-              message: error instanceof Error ? error.message : String(error),
-            });
-          }
-        },
-      });
-    } catch (error) {
-      setState({
-        kind: "error",
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  };
-  const message =
-    state.kind === "current"
-      ? "AHDClient is up to date."
-      : state.kind === "available"
-        ? `AHDClient ${state.version} is available.`
-        : state.kind === "installing"
-          ? "Installing. AHDClient will restart when ready."
-          : state.kind === "error"
-            ? state.message
-            : "Check for a signed AHDClient release.";
+  const [state, setState] = useState<UpdaterSnapshot>(getUpdaterSnapshot);
+  useEffect(() => subscribeUpdater(() => setState(getUpdaterSnapshot())), []);
+
+  const busy = state.kind === "checking" || state.kind === "downloading" || state.kind === "installing";
+  const label =
+    state.kind === "ready"
+      ? "Restart to update"
+      : state.kind === "checking"
+        ? "Checking…"
+        : state.kind === "downloading"
+          ? "Downloading…"
+          : state.kind === "installing"
+            ? "Installing…"
+            : "Check for updates";
+
   return (
     <section className="client-update-control" aria-live="polite">
       <div>
         <strong>Desktop updates</strong>
-        <small>{message}</small>
+        <small>{messageFor(state)}</small>
       </div>
-      {state.kind === "available" ? (
-        <button type="button" onClick={() => void state.install()}>
-          Update and restart
-        </button>
-      ) : (
-        <button
-          type="button"
-          disabled={state.kind === "checking" || state.kind === "installing"}
-          onClick={() => void checkNow()}
-        >
-          {state.kind === "checking" ? "Checking…" : "Check for updates"}
-        </button>
-      )}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          if (state.kind === "ready") void confirmRestartToUpdate();
+          else void checkForUpdatesNow();
+        }}
+      >
+        {label}
+      </button>
     </section>
   );
 }

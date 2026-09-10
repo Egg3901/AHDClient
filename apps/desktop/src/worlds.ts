@@ -28,6 +28,8 @@ export interface LinkedAccount {
   linked: boolean;
   displayName: string;
   supporter: boolean;
+  /** Player picture from the game account API (`avatarUrl`, shipped by the game). */
+  avatarUrl?: string | null;
   singleplayer: { entitled: boolean; expiresAt: string | null };
 }
 
@@ -231,6 +233,20 @@ export const game = {
   openWindow: (path = "/", separateWindow = false) =>
     invoke<void>("open_game_window", { path, separateWindow }),
   closeEmbedded: () => invoke<void>("close_embedded_game"),
+  /**
+   * Reload the local game view on its current path (funds, map, country and
+   * briefing pages pick up the latest turn). Scoped in Rust to the running
+   * game's own loopback origin+port; multiplayer views are never touched.
+   * Resolves with the refreshed path.
+   */
+  refreshView: () => invoke<string>("refresh_game_view"),
+  /**
+   * Hide the embedded child webviews (which sit above launcher DOM dialogs)
+   * or show them again. Views are never closed or navigated, so the child
+   * keeps its current path and session. No-op without embedded views.
+   */
+  setEmbeddedVisible: (visible: boolean) =>
+    invoke<void>("set_embedded_visible", { visible }),
   singleplayerStatus: () =>
     game.request<SingleplayerStatus>("GET", "/api/singleplayer/status"),
   setup: (preset: string, setup: SetupOptions, displayName?: string) =>
@@ -241,6 +257,39 @@ export const game = {
     }),
   setupProgress: () =>
     game.request<SetupProgress>("GET", "/api/singleplayer/setup/progress"),
+  advanceTurn: () =>
+    game.request<{ success: boolean; turn: number; message: string; briefing?: { fundsDelta: number; actionsDelta: number } }>(
+      "POST",
+      "/api/singleplayer/turn/advance",
+    ),
+  /**
+   * Worldsim runs playerless, so it is exempt from the character gate on the
+   * player turn endpoint and advances one turn at a time here instead. The
+   * server still rejects with 409 while the world is paused.
+   */
+  advanceWorldsim: () =>
+    game.request<{ success: boolean; turn: number; briefing?: { fundsDelta: number; actionsDelta: number } }>(
+      "POST",
+      "/api/singleplayer/worldsim/advance",
+      { turns: 1 },
+    ),
+  /**
+   * Local pause state. The server keeps it separate from hosted maintenance
+   * while answering the legacy open|sealed availability shape. Pausing never
+   * interrupts a running turn; it makes the next advance fail with 409 until
+   * the world is resumed.
+   */
+  worldAvailability: () =>
+    game.request<{ availability: "open" | "sealed"; mode: string }>(
+      "GET",
+      "/api/singleplayer/operator/availability",
+    ),
+  setWorldAvailability: (availability: "open" | "sealed") =>
+    game.request<{ availability: "open" | "sealed"; mode: string }>(
+      "POST",
+      "/api/singleplayer/operator/availability",
+      { availability },
+    ),
   newGame: (preset: string, displayName?: string) =>
     game.request<{ ok: boolean }>("POST", "/api/singleplayer/new-game", {
       preset,

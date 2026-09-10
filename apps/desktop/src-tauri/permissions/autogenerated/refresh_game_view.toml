@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-refresh-game-view"
+description = "Enables the refresh_game_view command without any pre-configured scope."
+commands.allow = ["refresh_game_view"]
+
+[[permission]]
+identifier = "deny-refresh-game-view"
+description = "Denies the refresh_game_view command without any pre-configured scope."
+commands.deny = ["refresh_game_view"]

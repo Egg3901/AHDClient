@@ -30,6 +30,7 @@ import {
 } from "./entitlement.js";
 import { UpdateNotice } from "./UpdateNotice.js";
 import { AccountControl } from "./AccountControl.js";
+import { GameToolbar } from "./GameToolbar.js";
 import { GameVersionBar } from "./GameVersionBar.js";
 import { DiagnosticPrompt } from "./DiagnosticPrompt.js";
 import { DiagnosticPanel } from "./DiagnosticPanel.js";
@@ -75,6 +76,10 @@ export function App(): JSX.Element {
   const [runningWorldsim, setRunningWorldsim] = useState(false);
   const [pendingEra, setPendingEra] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Refusal inside world setup: the form stays mounted, with a link CTA. */
+  const [setupError, setSetupError] = useState<string | null>(null);
+  /** Entry-gate refusal on the launcher: the error box offers Link account. */
+  const [entitlementBlocked, setEntitlementBlocked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [bootTitle, setBootTitle] = useState("Starting");
   const [bootProgress, setBootProgress] = useState<SetupProgress | null>(null);
@@ -90,6 +95,19 @@ export function App(): JSX.Element {
   const [embedded, setEmbedded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  /**
+   * The embedded child webview sits above launcher DOM, so open launcher
+   * dialogs (settings, diagnostics) must hide it to be usable. The view is
+   * hidden, never closed or navigated, so the child keeps its current path
+   * (including /profile) and session; it is shown again when the last dialog
+   * closes. Derived from the union, so the settings to diagnostics handoff
+   * never flashes the game back. Mobile has no embedded views to hide.
+   */
+  const dialogOpen = settingsOpen || diagnosticsOpen;
+  useEffect(() => {
+    if (mobile || !embedded) return;
+    void game.setEmbeddedVisible(!dialogOpen).catch(() => {});
+  }, [dialogOpen, embedded]);
   const [accountNotice, setAccountNotice] = useState(
     () => !accountNoticeSeen(),
   );
@@ -140,32 +158,37 @@ export function App(): JSX.Element {
       return null;
     }
   }, []);
-  const requireSingleplayerEntitlement =
-    useCallback(async (): Promise<boolean> => {
+  /**
+   * Pure entitlement check: no navigation, so callers decide what survives a
+   * refusal. The setup screen keeps its form; the launcher keeps its place.
+   */
+  const checkSingleplayerEntitlement =
+    useCallback(async (): Promise<
+      { ok: true } | { ok: false; linked: boolean; offline: boolean }
+    > => {
       try {
         const linked = await online.account();
         setAccount(linked?.linked ? linked : null);
         setAccountChecked(true);
         if (linked?.singleplayer.entitled) {
           cacheSingleplayerEntitlement(linked.singleplayer);
-          return true;
+          return { ok: true };
         }
-        setError(
-          linked
-            ? "Singleplayer access is not enabled for this account."
-            : "Link an entitled game account to use singleplayer.",
-        );
-        setScreen("launcher");
-        return false;
+        return { ok: false, linked: Boolean(linked), offline: false };
       } catch {
-        if (hasCachedSingleplayerEntitlement()) return true;
-        setError(
-          "Singleplayer needs an entitled account. Connect once to validate access.",
-        );
-        setScreen("launcher");
-        return false;
+        if (hasCachedSingleplayerEntitlement()) return { ok: true };
+        return { ok: false, linked: false, offline: true };
       }
     }, []);
+  const entitlementError = (
+    result: { linked: boolean; offline: boolean },
+  ): string => {
+    if (result.offline)
+      return "Singleplayer needs an entitled account. Connect once to validate access.";
+    return result.linked
+      ? "Singleplayer access is not enabled for this account."
+      : "Link an entitled game account to use singleplayer.";
+  };
   useEffect(() => {
     void checkAccount();
   }, [checkAccount]);
@@ -183,6 +206,7 @@ export function App(): JSX.Element {
         setEmbedded(false);
         setScreen("launcher");
         setAccountNotice(false);
+        setEntitlementBlocked(false);
         rememberAccountNotice();
       } else if (Date.now() < deadline)
         timer = setTimeout(() => void poll(), 2500);
@@ -397,11 +421,26 @@ export function App(): JSX.Element {
     });
   };
 
+  /**
+   * Entitlement is checked BEFORE entering setup, so an unlinked player never
+   * fills in a world they cannot create. The check runs again at creation in
+   * case access changed mid-setup; that refusal keeps the form mounted.
+   */
   const handleNewWorld = (eraId: string, worldsim = false) => {
-    setPendingWorldsim(worldsim);
-    setPendingEra(eraId);
-    setError(null);
-    setScreen("newWorld");
+    void (async () => {
+      setError(null);
+      setEntitlementBlocked(false);
+      const result = await checkSingleplayerEntitlement();
+      if (!result.ok) {
+        setError(entitlementError(result));
+        setEntitlementBlocked(true);
+        return;
+      }
+      setPendingWorldsim(worldsim);
+      setPendingEra(eraId);
+      setSetupError(null);
+      setScreen("newWorld");
+    })();
   };
 
   const handleCreate = async (
@@ -410,7 +449,14 @@ export function App(): JSX.Element {
     setup: SetupOptions,
   ) => {
     if (creating.current) return;
-    if (!(await requireSingleplayerEntitlement())) return;
+    const entitled = await checkSingleplayerEntitlement();
+    if (!entitled.ok) {
+      // Stay on the setup screen: the form (also persisted to storage) is
+      // preserved and the player gets an explicit link CTA. No bypass.
+      setSetupError(entitlementError(entitled));
+      return;
+    }
+    setSetupError(null);
     const era = eraById(pendingEra ?? "");
     if (!era) return fail(new Error("Pick an era first."));
     creating.current = true;
@@ -439,7 +485,12 @@ export function App(): JSX.Element {
 
   const handleContinue = (slot: string) => {
     void (async () => {
-      if (!(await requireSingleplayerEntitlement())) return;
+      const entitled = await checkSingleplayerEntitlement();
+      if (!entitled.ok) {
+        setError(entitlementError(entitled));
+        setScreen("launcher");
+        return;
+      }
       if (info.running && info.slot === slot) {
         if (runningWorldsim) {
           setScreen("worldsim");
@@ -541,6 +592,7 @@ export function App(): JSX.Element {
       checked={accountChecked}
       linked={Boolean(account)}
       displayName={account?.displayName}
+      avatarUrl={account?.avatarUrl}
       supporter={account?.supporter}
       onLink={linkAccount}
       onProfile={() => void online.help("help.profile").catch(fail)}
@@ -609,6 +661,58 @@ export function App(): JSX.Element {
     embedded &&
     (screen === "playing" || screen === "online" || screen === "linking")
   ) {
+    if (screen === "playing") {
+      const world = allWorlds.find((w) => w.slot === info.slot) ?? null;
+      return (
+        <>
+          <main>
+            <GameToolbar
+              worldName={world?.name ?? "A House Divided"}
+              worldsim={runningWorldsim}
+              identity={
+                account
+                  ? {
+                      displayName: account.displayName,
+                      avatarUrl: account.avatarUrl,
+                      supporter: account.supporter,
+                    }
+                  : null
+              }
+              onLauncher={() => void returnToLauncher().catch(fail)}
+              onSaveAndStop={() => void handleStop().catch(fail)}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenDiagnostics={() => setDiagnosticsOpen(true)}
+              onViewStats={
+                runningWorldsim
+                  ? () => {
+                      void game.closeEmbedded().then(() => {
+                        setEmbedded(false);
+                        setScreen("worldsim");
+                      });
+                    }
+                  : undefined
+              }
+              onTurnAdvanced={() =>
+                void (async () => {
+                  await recordProgress().catch(() => {});
+                  // Refresh the child webview on its current path so funds,
+                  // map, country and briefing pages show the turn that just
+                  // advanced instead of the pre-turn snapshot.
+                  try {
+                    await game.refreshView();
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : String(e));
+                  }
+                })()
+              }
+            />
+          </main>
+          {settingsMenu}
+          {diagnosticPanel}
+          {diagnosticPrompt}
+        </>
+      );
+    }
     return (
       <>
         <main>
@@ -622,21 +726,7 @@ export function App(): JSX.Element {
                 : "A House Divided"}
             </strong>
             <button title="Multiplayer briefing in picture-in-picture" onClick={() => void briefing.popOut().catch(fail)}>PiP</button>
-            {screen === "playing" && runningWorldsim && (
-              <button
-                onClick={() => {
-                  void game.closeEmbedded().then(() => {
-                    setEmbedded(false);
-                    setScreen("worldsim");
-                  });
-                }}
-              >
-                World statistics
-              </button>
-            )}
-            {screen === "playing" && (
-              <button onClick={() => void handleStop()}>Save and stop</button>
-            )}
+            <button onClick={() => setSettingsOpen(true)}>Settings</button>
           </nav>
         </main>
         {settingsMenu}
@@ -671,7 +761,12 @@ export function App(): JSX.Element {
             changeSettings({ ...settings, shareStatistics })
           }
           taken={allWorlds.map((w) => w.name)}
-          onBack={() => setScreen("launcher")}
+          error={setupError}
+          onLinkAccount={setupError && !account ? linkAccount : undefined}
+          onBack={() => {
+            setSetupError(null);
+            setScreen("launcher");
+          }}
           onCreate={handleCreate}
         />,
       );
@@ -771,7 +866,11 @@ export function App(): JSX.Element {
         onLoad={() => setScreen("worlds")}
         onPlayOnline={handlePlayOnline}
         error={error}
-        onClearError={() => setError(null)}
+        errorOffersLink={entitlementBlocked && !account}
+        onClearError={() => {
+          setError(null);
+          setEntitlementBlocked(false);
+        }}
         latestWorld={latest}
         runningSlot={info.running ? info.slot : null}
         continueBusy={busy}
