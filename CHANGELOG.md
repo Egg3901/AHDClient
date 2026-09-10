@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.3.3] - 2026-09-10
+
+- Prevent two client instances from opening the same world database, and pair this with an atomic shared MongoDB runtime install.
+- Recover local worlds from inherited hosted maintenance state and improve first-world seed reliability.
+- Default to the newest published game runtime, download it when needed, and avoid listing the bundled version twice.
+- Replace the era carousel with a seven-stop chronological timeline and a stronger selected-era preview.
+- Render the launcher globe against its real layout size at up to 3x display density.
+- Add locale-aware English and German client-shell language selection. Existing browser-based account login remains unchanged.
+- Keep singleplayer on the multiplayer game codebase: only the local supervisor and local startup repair differ.
+
 All notable AHDClient changes are recorded here.
 
 ## [2.3.2] - 2026-09-10

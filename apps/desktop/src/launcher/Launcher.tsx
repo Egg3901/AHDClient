@@ -7,6 +7,7 @@ import type { WorldMeta } from "../worlds.js";
 import { CommandGlobe, themeForEra } from "./CommandGlobe.js";
 import { ERA_PHOTOS } from "./eraPhotos.js";
 import "./launcher.css";
+import type { ClientLanguage } from "../i18n.js";
 
 type Mode = "sp" | "mp" | "sandbox" | "worldsim";
 
@@ -17,6 +18,7 @@ const MOBILE_MODES: readonly Mode[] = ["mp", "sandbox"];
 export type OnlineTarget = "live" | "sandbox";
 
 interface Props {
+  language?: ClientLanguage;
   /** Android or iOS: hides every local-game mode and control. */
   mobile?: boolean;
   settingsControl?: ReactNode;
@@ -59,6 +61,7 @@ function writePreference(key: string, value: string): void {
 }
 
 export function Launcher({
+  language = "en",
   mobile = false,
   settingsControl,
   accountControl,
@@ -81,6 +84,7 @@ export function Launcher({
   onUpgradeSupporter,
   errorOffersLink = false,
 }: Props): JSX.Element {
+  const de = language === "de";
   const eras = useMemo(() => ERAS, []);
   const modes = mobile ? MOBILE_MODES : DESKTOP_MODES;
   const [mode, setMode] = useState<Mode>(() => {
@@ -134,7 +138,7 @@ export function Launcher({
             <p className="launcher-edition">AHDClient</p>
             <h1 id="launcher-title">A House Divided</h1>
             <p className="launcher-subtitle">
-              A historical political simulation
+              {de ? "Eine historische politische Simulation" : "A historical political simulation"}
             </p>
           </div>
           {(accountControl || settingsControl) && (
@@ -159,7 +163,7 @@ export function Launcher({
                 onClick={() => setMode("sp")}
                 aria-pressed={mode === "sp"}
               >
-                Singleplayer <span className="client-beta">Beta</span>
+                {de ? "Einzelspieler" : "Singleplayer"} <span className="client-beta">Beta</span>
               </button>
             )}
             <button
@@ -167,7 +171,7 @@ export function Launcher({
               onClick={() => setMode("mp")}
               aria-pressed={mode === "mp"}
             >
-              Multiplayer
+              {de ? "Mehrspieler" : "Multiplayer"}
             </button>
             <button
               className={mode === "sandbox" ? "active" : ""}
@@ -241,41 +245,15 @@ export function Launcher({
                   className="launcher-back"
                   onClick={() => setChoosingEra(false)}
                 >
-                  Back
+                  {de ? "Zurück" : "Back"}
                 </button>
-                <span>Choose a starting era</span>
-                <span>{eras.length} eras</span>
+                <span>{de ? "Startzeitalter wählen" : "Choose a starting era"}</span>
+                <span>{eras.length} {de ? "Zeitalter" : "eras"}</span>
+              </div>
+              <div className="launcher-era-timeline" role="list" aria-label={de ? "Zeitleiste der Startzeitalter" : "Starting era timeline"}>
+                {eras.map((era) => <div role="listitem" key={era.id}><button type="button" aria-current={era.id === eraId ? "true" : undefined} className={era.id === eraId ? "active" : ""} onClick={() => setEraId(era.id)}><span className="launcher-era-node" style={{ borderColor: themeForEra(era.id).phosphor }} /><strong>{era.label}</strong><small>{era.subtitle}</small></button></div>)}
               </div>
               <div className="launcher-era-carousel">
-                {[-1, 1].map((offset) => {
-                  const era =
-                    eras[
-                      (eras.findIndex((item) => item.id === eraId) +
-                        offset +
-                        eras.length) %
-                        eras.length
-                    ]!;
-                  return (
-                    <div
-                      key={offset}
-                      className={`launcher-era-preview ${offset < 0 ? "previous" : "next"}`}
-                      aria-hidden="true"
-                    >
-                      <img src={ERA_PHOTOS[era.id]?.src} alt="" />
-                      <span>{era.label}</span>
-                    </div>
-                  );
-                })}
-                <button
-                  className="launcher-era-arrow"
-                  aria-label="Previous era"
-                  onClick={() => {
-                    const index = eras.findIndex((era) => era.id === eraId);
-                    setEraId(eras[(index - 1 + eras.length) % eras.length]!.id);
-                  }}
-                >
-                  ‹
-                </button>
                 <div className="launcher-era-card" aria-live="polite">
                   {selectedPhoto && (
                     <img
@@ -312,16 +290,6 @@ export function Launcher({
                     </div>
                   )}
                 </div>
-                <button
-                  className="launcher-era-arrow"
-                  aria-label="Next era"
-                  onClick={() => {
-                    const index = eras.findIndex((era) => era.id === eraId);
-                    setEraId(eras[(index + 1) % eras.length]!.id);
-                  }}
-                >
-                  ›
-                </button>
               </div>
             </div>
           ) : null}
@@ -353,7 +321,7 @@ export function Launcher({
                   }
                   disabled={continueBusy}
                 >
-                  {choosingEra ? "Start new game" : "New Game"}{" "}
+                    {choosingEra ? (de ? "Neues Spiel starten" : "Start new game") : (de ? "Neues Spiel" : "New Game")}{" "}
                   <span aria-hidden="true">&#8594;</span>
                 </button>
                 {!choosingEra && (
@@ -362,7 +330,7 @@ export function Launcher({
                     onClick={onLoad}
                     disabled={continueBusy}
                   >
-                    Load Game
+                    {de ? "Spiel laden" : "Load Game"}
                   </button>
                 )}
                 {latestWorld && !choosingEra && (

@@ -70,6 +70,10 @@ interface Props {
   live?: boolean;
 }
 
+export function globeBackingSize(cssPixels: number, devicePixelRatio: number): number {
+  return Math.max(1, Math.round(cssPixels * Math.min(Math.max(devicePixelRatio, 1), 3)));
+}
+
 export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const eraRef = useRef<EraTheme>(themeForEra(eraId));
@@ -93,10 +97,10 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
     let hidden = document.hidden;
 
     function resize(): void {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      S = canvas!.clientWidth;
-      canvas!.width = S * dpr;
-      canvas!.height = S * dpr;
+      dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
+      S = Math.max(canvas!.clientWidth, canvas!.getBoundingClientRect().width);
+      canvas!.width = globeBackingSize(S, dpr);
+      canvas!.height = globeBackingSize(S, dpr);
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       R = S * 0.42;
     }
@@ -245,6 +249,8 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
       drawFrame();
     };
     window.addEventListener("resize", handleResize);
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(handleResize);
+    resizeObserver?.observe(canvas);
     const onVisibilityChange = () => {
       hidden = document.hidden;
       if (hidden) cancelAnimationFrame(raf);
@@ -267,6 +273,7 @@ export function CommandGlobe({ eraId, live = false }: Props): JSX.Element {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", handleResize);
+      resizeObserver?.disconnect();
       document.removeEventListener("visibilitychange", onVisibilityChange);
       document.removeEventListener("ahdclient:settings", onSettingsChange);
       if (typeof mql.removeEventListener === "function") {

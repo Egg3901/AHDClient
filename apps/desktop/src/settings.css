@@ -31,6 +31,7 @@ img.client-account-avatar { display: block; }
 .client-settings-options small,
 .client-update-control small { display: block; color: #adb0c0; line-height: 1.45; }
 .client-settings-options input { width: 42px; height: 22px; accent-color: #e51f2a; }
+.client-settings-options select { min-width: 132px; padding: 8px 34px 8px 10px; border: 1px solid #505466; border-radius: 8px; background: #171925; color: #f5f5fa; font: inherit; }
 .client-update-control { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 14px 26px; padding: 17px 18px; border: 1px solid #ffffff16; border-radius: 12px; background: #0d0f18a8; }
 .client-support-control { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 14px 26px; padding: 17px 18px; border: 1px solid #ffffff16; border-radius: 12px; background: #0d0f18a8; }
 .client-support-control > div { display: grid; gap: 5px; }

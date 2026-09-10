@@ -4,7 +4,7 @@
 //! site. Nothing here compiles on Android or iOS; see `mobile.rs` for the
 //! single-webview model those platforms use.
 
-use std::fs;
+use std::fs::{self, File, OpenOptions};
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -16,6 +16,7 @@ use tauri::{AppHandle, Emitter, Manager, State, Url, WebviewUrl, WebviewWindowBu
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
+use fs2::FileExt;
 
 use crate::{game_versions, node_path};
 use crate::{help_destination, is_online_navigation_allowed, linked_account, HelpDestination, ONLINE_URL, SANDBOX_HOST, SANDBOX_URL};
@@ -206,6 +207,7 @@ struct GameInner {
   exited: Option<Arc<AtomicBool>>,
   port: Option<u16>,
   slot: Option<String>,
+  world_lease: Option<File>,
 }
 
 struct Game(Mutex<GameInner>, tokio::sync::Mutex<()>);
@@ -283,6 +285,15 @@ fn stop_locked(inner: &mut GameInner) {
   }
   inner.port = None;
   inner.slot = None;
+  inner.world_lease = None;
+}
+
+fn acquire_world_lease(home: &std::path::Path) -> Result<File, String> {
+  let path = home.join(".ahdclient.lock");
+  let file = OpenOptions::new().create(true).read(true).write(true).open(&path)
+    .map_err(|e| format!("cannot open world lock {}: {e}", path.display()))?;
+  file.try_lock_exclusive().map_err(|_| "This world is already open in another AHDClient instance.".to_string())?;
+  Ok(file)
 }
 
 #[tauri::command]
@@ -323,6 +334,7 @@ pub(crate) async fn game_start(app: AppHandle, game: State<'_, Game>, slot: Stri
     inner.generation = inner.generation.wrapping_add(1);
     inner.generation
   };
+  let world_lease = acquire_world_lease(&home)?;
 
   let script = node_path::path_for_node(&launcher_script(&app)?);
   let launch_dir = script.parent().ok_or("game resource directory is missing")?;
@@ -369,6 +381,7 @@ pub(crate) async fn game_start(app: AppHandle, game: State<'_, Game>, slot: Stri
     inner.exited = Some(exited.clone());
     inner.port = Some(port);
     inner.slot = Some(slot.clone());
+    inner.world_lease = Some(world_lease);
   }
 
   let ready_marker = format!("ready at http://127.0.0.1:{port}");
@@ -917,7 +930,7 @@ pub(crate) fn on_exit(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-  use super::{is_local_game_url, refresh_target, valid_slot, EMBEDDED_LABELS};
+  use super::{acquire_world_lease, is_local_game_url, refresh_target, valid_slot, EMBEDDED_LABELS};
   use tauri::Url;
 
   #[test]
@@ -974,5 +987,16 @@ mod tests {
     assert!(!valid_slot("../etc"));
     assert!(!valid_slot("a/b"));
     assert!(!valid_slot("space here"));
+  }
+
+  #[test]
+  fn a_world_can_only_be_owned_by_one_client_process() {
+    let dir = std::env::temp_dir().join(format!("ahd-world-lease-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let first = acquire_world_lease(&dir).unwrap();
+    assert!(acquire_world_lease(&dir).unwrap_err().contains("already open"));
+    drop(first);
+    assert!(acquire_world_lease(&dir).is_ok());
+    let _ = std::fs::remove_dir_all(dir);
   }
 }

@@ -24,6 +24,7 @@ mod mobile;
 #[cfg(desktop)]
 mod node_path;
 mod briefing;
+mod native_auth;
 
 use std::time::Duration;
 

@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Launcher } from "./Launcher.js";
@@ -39,18 +39,19 @@ function renderLauncher(overrides: Partial<Parameters<typeof Launcher>[0]> = {})
 }
 
 describe("Launcher", () => {
+  beforeEach(() => localStorage.clear());
   afterEach(cleanup);
 
   it("keeps singleplayer actions together until New Game opens era selection", async () => {
     const props = renderLauncher();
     expect(screen.getByRole("button", { name: "New Game" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Load Game" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Next era" })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Starting era timeline" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "New Game" }));
-    expect(screen.getByText("Cold War dawn")).toBeTruthy();
-    await userEvent.click(screen.getByRole("button", { name: "Next era" }));
-    expect(screen.getByText("Late Cold War")).toBeTruthy();
-    await userEvent.click(screen.getByRole("button", { name: "Previous era" }));
+    expect(screen.getAllByText("Cold War dawn")).toHaveLength(2);
+    await userEvent.click(screen.getByRole("button", { name: /1979/ }));
+    expect(screen.getAllByText("Late Cold War")).toHaveLength(2);
+    await userEvent.click(screen.getByRole("button", { name: /1953/ }));
     await userEvent.click(screen.getByRole("button", { name: /Start new game/ }));
     expect(props.onNewWorld).toHaveBeenCalledWith("1953");
   });
@@ -58,9 +59,24 @@ describe("Launcher", () => {
   it("starts a new world in the selected era", async () => {
     const props = renderLauncher();
     await userEvent.click(screen.getByRole("button", { name: "New Game" }));
-    await userEvent.click(screen.getByRole("button", { name: "Next era" }));
+    await userEvent.click(screen.getByRole("button", { name: /1979/ }));
     await userEvent.click(screen.getByRole("button", { name: /Start new game/ }));
     expect(props.onNewWorld).toHaveBeenCalledWith("1979");
+  });
+
+  it("presents every era as one chronological timeline", async () => {
+    renderLauncher();
+    await userEvent.click(screen.getByRole("button", { name: "New Game" }));
+    const timeline = screen.getByRole("list", { name: "Starting era timeline" });
+    expect(timeline.querySelectorAll('[role="listitem"]')).toHaveLength(7);
+    expect(timeline.querySelector('button[aria-current="true"]')?.textContent).toContain("1953");
+  });
+
+  it("renders the launcher in German when the locale setting selects it", () => {
+    renderLauncher({ language: "de" });
+    expect(screen.getByRole("button", { name: /Einzelspieler/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mehrspieler" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Neues Spiel" })).toBeTruthy();
   });
 
   it("keeps era photography hidden until New Game and delegates source opening", async () => {

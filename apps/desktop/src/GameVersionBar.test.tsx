@@ -14,12 +14,28 @@ afterEach(() => {
 });
 
 describe("GameVersionBar", () => {
-  it("distinguishes the client bundle from selectable game runtime releases", async () => {
-    mocks.list.mockResolvedValue([{ version: "1.8.0", installed: false, selected: false }]);
+  it("does not list the bundled runtime twice", async () => {
+    mocks.list.mockResolvedValue([{ version: "1.8.1", installed: false, selected: false }]);
     render(<GameVersionBar />);
 
     expect(screen.getByText("Game runtime")).toBeTruthy();
-    expect(screen.getByRole("option", { name: "Bundled game 1.8.0" })).toBeTruthy();
-    await waitFor(() => expect(screen.getByRole("option", { name: "1.8.0 · download" })).toBeTruthy());
+    expect(screen.getByRole("option", { name: "Bundled game 1.8.1" })).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(1));
+  });
+
+  it("downloads and selects the newest published runtime automatically", async () => {
+    mocks.list
+      .mockResolvedValueOnce([
+        { version: "1.9.0", installed: false, selected: false },
+        { version: "1.8.0", installed: false, selected: false },
+      ])
+      .mockResolvedValueOnce([{ version: "1.9.0", installed: true, selected: true }]);
+    mocks.install.mockResolvedValue(undefined);
+    mocks.select.mockResolvedValue(undefined);
+
+    render(<GameVersionBar />);
+
+    await waitFor(() => expect(mocks.install).toHaveBeenCalledWith("1.9.0"));
+    expect(mocks.select).toHaveBeenCalledWith("1.9.0");
   });
 });

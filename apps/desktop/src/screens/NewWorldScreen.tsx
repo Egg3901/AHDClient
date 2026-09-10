@@ -4,10 +4,12 @@ import { themeForEra } from "../launcher/CommandGlobe.js";
 import type { SetupAutonomy, SetupDifficulty, SetupMode, SetupOptions } from "./setupOptions.js";
 import { readSetupOptions, writeSetupOptions } from "./setupOptions.js";
 import { FEATURE_OPTIONS, type FeatureFlagKey } from "./featureOptions.js";
+import type { ClientLanguage } from "../i18n.js";
 
 export type { SetupOptions } from "./setupOptions.js";
 
 interface Props {
+  language?: ClientLanguage;
   era: Era;
   taken: readonly string[];
   onBack: () => void;
@@ -101,6 +103,7 @@ const DIFFICULTIES: readonly DifficultyOption[] = [
 
 /** Configure a world. Character creation happens in the game after the server starts. */
 export function NewWorldScreen({
+  language = "en",
   era,
   taken,
   onBack,
@@ -111,6 +114,7 @@ export function NewWorldScreen({
   error = null,
   onLinkAccount,
 }: Props): JSX.Element {
+  const de = language === "de";
   const [name, setName] = useState(`${era.subtitle}, ${era.label}`);
   const [savedSetup] = useState(readSetupOptions);
   /**
@@ -187,27 +191,27 @@ export function NewWorldScreen({
       <section className="launcher-stage screen-stage" aria-labelledby="new-world-title">
         <header className="screen-head">
           <button className="launcher-btn launcher-btn-secondary screen-back" onClick={onBack}>
-            <span aria-hidden="true">&#8592;</span> Back
+            <span aria-hidden="true">&#8592;</span> {de ? "Zurück" : "Back"}
           </button>
-          <h1 id="new-world-title">New world <span className="client-beta">Beta</span></h1>
+          <h1 id="new-world-title">{de ? "Neue Welt" : "New world"} <span className="client-beta">Beta</span></h1>
         </header>
 
         <div className="launcher-console screen-console screen-setup-console">
           <div className="screen-era" style={{ borderColor: theme.phosphor }}>
             <span className="launcher-era-swatch" style={{ backgroundColor: theme.phosphor }} aria-hidden="true" />
-            <div><span className="screen-era-kicker">Selected era</span><strong>{era.label}</strong><small>{era.subtitle} · begins {era.startDate}</small></div>
+            <div><span className="screen-era-kicker">{de ? "Gewähltes Zeitalter" : "Selected era"}</span><strong>{era.label}</strong><small>{era.subtitle} · {de ? "Beginn" : "begins"} {era.startDate}</small></div>
           </div>
 
           <label className="screen-field">
-            <span>World name</span>
+            <span>{de ? "Name der Welt" : "World name"}</span>
             <input value={name} maxLength={60} onChange={(event) => setName(event.target.value)} autoFocus />
             {duplicate && <em>You already have a world with this name. It will get a numbered folder.</em>}
           </label>
 
           <section className="screen-setup-panel" aria-labelledby="campaign-options-title">
-          <div className="screen-section-heading"><span>01</span><div><h2 id="campaign-options-title">Your campaign</h2><p>Name the world and choose how you enter it.</p></div></div>
+          <div className="screen-section-heading"><span>01</span><div><h2 id="campaign-options-title">{de ? "Deine Kampagne" : "Your campaign"}</h2><p>{de ? "Benenne die Welt und wähle deinen Einstieg." : "Name the world and choose how you enter it."}</p></div></div>
           <fieldset className="screen-choice-group">
-            <legend>Play mode</legend>
+            <legend>{de ? "Spielmodus" : "Play mode"}</legend>
             <label><input type="radio" name="play-mode" value="normal" checked={mode === "normal"} onChange={() => setMode("normal")} /> <strong>Normal</strong><small>Climb from citizen to power through a character in the world.</small></label>
             <label><input type="radio" name="play-mode" value="head-of-state" checked={mode === "head-of-state"} onChange={() => setMode("head-of-state")} /> <strong>Permanent head of state <span className="client-beta">Beta</span></strong><small>You enter as head of state and remain head of state. You do not play the normal climb.</small></label>
             <label><input type="radio" name="play-mode" value="worldsim" checked={worldsim} onChange={() => setMode("worldsim")} /> <strong>Worldsim <span className="client-beta">Beta</span></strong><small>Simulate the world without creating a character.</small></label>
@@ -218,7 +222,7 @@ export function NewWorldScreen({
               the select's accessible name, so "Difficulty" would no longer
               address the control for a screen reader or a test. */}
           <section className="screen-setup-panel" aria-labelledby="simulation-options-title">
-          <div className="screen-section-heading"><span>02</span><div><h2 id="simulation-options-title">Simulation</h2><p>Set the challenge and political autonomy.</p></div></div>
+          <div className="screen-section-heading"><span>02</span><div><h2 id="simulation-options-title">Simulation</h2><p>{de ? "Lege Schwierigkeit und politische Autonomie fest." : "Set the challenge and political autonomy."}</p></div></div>
           <div className="screen-field-group">
             <label className="screen-field"><span>Difficulty</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value as SetupDifficulty)}>{DIFFICULTIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
             <small>{DIFFICULTY_HELP}</small>
