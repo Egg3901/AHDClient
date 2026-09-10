@@ -567,6 +567,15 @@ pub(crate) async fn link_account(app: AppHandle, separate_window: Option<bool>) 
 
 const EMBEDDED_TOP: f64 = 48.0;
 
+fn desktop_user_agent() -> String {
+  let platform = match std::env::consts::OS {
+    "windows" => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128.0.0.0 Safari/537.36",
+    "macos" => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15",
+    _ => "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/128.0.0.0 Safari/537.36",
+  };
+  format!("{platform} AHDClient-Desktop/{}", env!("CARGO_PKG_VERSION"))
+}
+
 fn close_embedded(app: &AppHandle) {
   for label in EMBEDDED_LABELS {
     if let Some(view) = app.get_webview(label) { let _ = view.close(); }
@@ -656,6 +665,7 @@ fn open_embedded(app: &AppHandle, url: Url, local_port: Option<u16>) -> Result<(
   let popup_app = app.clone();
   let label = if local_port.is_some() { "game-embedded" } else { "online-embedded" };
   let builder = WebviewBuilder::new(label, WebviewUrl::External(url))
+    .user_agent(&desktop_user_agent())
     .initialization_script(SETTINGS_SHORTCUT_SCRIPT)
     .on_navigation(move |url| {
       if handle_settings_shortcut(&nav_app, url) { return false; }
@@ -713,6 +723,7 @@ pub(crate) async fn open_game_window(app: AppHandle, game: State<'_, Game>, path
   let new_window_app = app.clone();
   let close_app = app.clone();
   let window = WebviewWindowBuilder::new(&app, "game", WebviewUrl::External(url))
+    .user_agent(&desktop_user_agent())
     .initialization_script(SETTINGS_SHORTCUT_SCRIPT)
     .title("A House Divided")
     .inner_size(1440.0, 900.0)
@@ -785,6 +796,7 @@ async fn open_online_url(app: AppHandle, url: Url) -> Result<(), String> {
     "A House Divided: Online"
   };
   let window = WebviewWindowBuilder::new(&app, "online", WebviewUrl::External(url))
+    .user_agent(&desktop_user_agent())
     .initialization_script(SETTINGS_SHORTCUT_SCRIPT)
     .title(title)
     .inner_size(1280.0, 800.0)

@@ -1,6 +1,6 @@
 {
   "name": "lakeside-ops-native-build",
-  "version": "2.3.3",
+  "version": "2.3.4",
   "private": true,
   "devDependencies": {
     "expo": "57.0.21"

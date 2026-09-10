@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ERAS } from "../worlds.js";
 import { ERA_PHOTOS } from "../launcher/eraPhotos.js";
 import ahdLogo from "../assets/ahd-logo.png";
@@ -54,7 +54,10 @@ export function BootScreen({
   }, []);
   const era = ERAS[slide % ERAS.length]!;
   const photo = ERA_PHOTOS[era.id]!;
-  const progress = liveProgress?.progress ?? Math.min(18, 6 + lines.length * 2);
+  const highestProgress = useRef(0);
+  const reportedProgress = liveProgress?.progress ?? Math.min(18, 6 + lines.length * 2);
+  highestProgress.current = Math.max(highestProgress.current, Math.min(100, Math.max(0, reportedProgress)));
+  const progress = highestProgress.current;
   return (
     <main className="launcher-scope screen-scope">
       <div className="launcher-pattern" aria-hidden="true">

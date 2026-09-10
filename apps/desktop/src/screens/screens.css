@@ -96,7 +96,7 @@
 .boot-progress span {
   position: absolute;
   inset: 0 auto 0 0;
-  min-width: 12%;
+  min-width: 0;
   border-radius: inherit;
   background: linear-gradient(90deg, #8b1118, #e12630 55%, #f3b0a8);
   box-shadow: 0 0 18px rgb(225 38 48 / 55%);
