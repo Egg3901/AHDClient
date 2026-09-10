@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   assertStagedGame,
   pruneStagedGame,
+  pruneForeignSharp,
   shouldKeepStagedGamePath,
 } from "./prepare-game.mjs";
 
@@ -40,6 +41,7 @@ describe("prepare-game payload allowlist", () => {
     touch(root, "package.json", "{}");
     touch(root, ".next/static/app.js");
     touch(root, ".next/server/app.js");
+    touch(root, ".next/node_modules/mongodb-traced/README.md");
     touch(root, ".next/server/chunks/ssr.js", 'require("mongodb-438b504308ffa4be");\n');
     touch(root, "public/ahd-logo.png");
     touch(root, "node_modules/mongodb/package.json", "{}");
@@ -52,6 +54,9 @@ describe("prepare-game payload allowlist", () => {
     touch(root, "src/app/route.ts");
     touch(root, "docs/DESIGN.md");
     pruneStagedGame(root);
+    expect(() => assertStagedGame(root, "x86_64-unknown-linux-gnu")).toThrow(/foreign sharp/);
+    pruneForeignSharp(root, "x86_64-unknown-linux-gnu");
+    expect(existsSync(path.join(root, "node_modules/@img/sharp-wasm32"))).toBe(false);
     expect(existsSync(path.join(root, "AGENTS.md"))).toBe(false);
     expect(existsSync(path.join(root, "src", "app"))).toBe(false);
     expect(existsSync(path.join(root, "docs"))).toBe(false);
@@ -66,6 +71,7 @@ describe("prepare-game payload allowlist", () => {
     touch(root, "launch.mjs");
     touch(root, ".next/static/app.js");
     touch(root, ".next/server/app.js");
+    touch(root, ".next/node_modules/mongodb-traced/README.md");
     touch(root, "public/logo.png");
     touch(root, "node_modules/mongodb/package.json", "{}");
     touch(root, "node_modules/sharp/package.json", "{}");

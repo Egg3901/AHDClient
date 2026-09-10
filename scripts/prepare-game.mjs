@@ -137,6 +137,19 @@ async function stageNativeVariants(staging, triple) {
   }
 }
 
+/** Drop even traced variants absent from sharp's current optional manifest. */
+export function pruneForeignSharp(root, triple) {
+  const want = NATIVE_PLATFORM[triple];
+  if (!want) throw new Error(`no native platform mapping for ${triple}`);
+  const dir = path.join(root, "node_modules", "@img");
+  if (!existsSync(dir)) return;
+  for (const name of readdirSync(dir)) {
+    if (name.startsWith("sharp-") && name !== `sharp-${want}` && name !== `sharp-libvips-${want}`) {
+      rmSync(path.join(dir, name), { recursive: true, force: true });
+    }
+  }
+}
+
 const STAGED_TOP_FILES = new Set([
   "server.js",
   "package.json",
@@ -242,12 +255,17 @@ export function assertStagedGame(root, triple) {
       missing.push(`node_modules/@img/sharp-${want}`);
     }
   }
+  const imgDir = path.join(root, "node_modules", "@img");
+  if (want && existsSync(imgDir)) {
+    const foreign = readdirSync(imgDir).filter((name) => name.startsWith("sharp-") && name !== `sharp-${want}` && name !== `sharp-libvips-${want}`);
+    if (foreign.length) throw new Error(`foreign sharp variants remain: ${foreign.join(", ")}`);
+  }
   let strayTs = 0;
   let tests = 0;
   let docs = 0;
   let plans = 0;
   for (const rel of walkFiles(root)) {
-    if (rel.startsWith("node_modules/")) continue;
+    if (rel.startsWith("node_modules/") || rel.startsWith(".next/node_modules/")) continue;
     if (rel.startsWith("src/") && /\.[cm]?tsx?$/.test(rel)) strayTs += 1;
     if (/(^|\/)(tests|e2e)(\/|$)/.test(rel) || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(rel)) tests += 1;
     if (rel === "docs" || rel.startsWith("docs/")) docs += 1;
@@ -298,6 +316,7 @@ export async function stageGame(gameDir, triple, { skipBuild = false } = {}) {
   // Keep exactly the target platform's native modules. Foreign ones are dead
   // weight, and linuxdeploy refuses an AppDir holding an ELF linked to musl.
   await stageNativeVariants(staging, triple);
+  pruneForeignSharp(staging, triple);
   const revision = spawnSync("git", ["rev-parse", "HEAD"], {
     cwd: gameDir,
     encoding: "utf8",
