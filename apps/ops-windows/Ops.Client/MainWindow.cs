@@ -27,7 +27,7 @@ public sealed partial class MainWindow : Window
     readonly ComboBox boards = new() { MinWidth=170, DisplayMemberPath="Label", PlaceholderText="Choose board" };
     readonly StackPanel lanes = new() { Orientation=Orientation.Horizontal,Spacing=16 };
     readonly StackPanel detail = new() { Spacing=14, MaxWidth=680, HorizontalAlignment=HorizontalAlignment.Left };
-    bool busy; string destination="Work"; Func<Task>? assistantRefresh;
+    bool busy; string destination="Work"; Func<Task>? assistantRefresh; Func<Task>? cardRefresh;
     sealed record Choice(string Id,string Label,JsonObject Data);
     static TextBox Input(string header,string text="",bool multiline=false) => new() { Header=header,Text=text,AcceptsReturn=multiline,TextWrapping=TextWrapping.Wrap,MinWidth=240,MaxHeight=180 };
     Button Button(string label,Func<Task> action) { var b=new Button { Content=label };b.Click+=async(_,_)=>{b.IsEnabled=false;try{await Guard(action);}finally{b.IsEnabled=true;}};return b; }
@@ -191,7 +191,7 @@ public sealed partial class MainWindow : Window
     }
     async void BoardChanged(object sender,SelectionChangedEventArgs e)
     {
-        if(boards.SelectedItem is Choice choice&&choice.Id!=boardId){boardId=choice.Id;selected=null;await Guard(Refresh);}
+        if(boards.SelectedItem is Choice choice&&choice.Id!=boardId){boardId=choice.Id;selected=null;cardRefresh=null;detail.Children.Clear();if(detailSurface is not null)detailSurface.Visibility=Visibility.Collapsed;await Guard(Refresh);}
     }
     async Task Refresh()
     {
@@ -202,7 +202,7 @@ public sealed partial class MainWindow : Window
             if(boardId.Length==0)return;
             var all=new JsonArray();JsonObject? snapshot=null;string? after=null;
             do{var page=await hub.Get($"/api/ops/boards/{Wire.Segment(boardId)}/snapshot?limit=100"+(after is null?"":"&afterId="+Wire.Segment(after)));snapshot??=page;foreach(var card in page["cards"]!.AsArray())all.Add(card!.DeepClone());after=page["nextCursor"]?.ToString();}while(!string.IsNullOrEmpty(after));
-            snapshot!["cards"]=all;store.Cache("board:"+boardId,snapshot);Render(snapshot);status.Text=$"Synced {DateTimeOffset.Now:t}. {store.Pending().Count} pending or conflicting actions.";
+            snapshot!["cards"]=all;store.Cache("board:"+boardId,snapshot);Render(snapshot);if(cardRefresh is not null)await cardRefresh();status.Text=$"Synced {DateTimeOffset.Now:t}. {store.Pending().Count} pending or conflicting actions.";
         }
         catch(Exception ex)
         {
@@ -298,11 +298,6 @@ public sealed partial class MainWindow : Window
     async Task Queue(string type,JsonObject payload,JsonObject? card=null)
     {
         var command=Wire.Command(type,payload,card);store.Queue(Commands,command);await Refresh();
-        if(card is not null&&!store.Pending().Any(item=>item.Id==Wire.Id(command["commandId"])))
-        {
-            var current=store.Read("board:"+boardId).Value?["cards"]?.AsArray().OfType<JsonObject>().FirstOrDefault(item=>Wire.Id(item["id"])==Wire.Id(card["id"]));
-            if(current is not null)await ShowCard(current);
-        }
     }
     async Task<bool> Dialog(string title,StackPanel panel,string primary="Save")
     {
@@ -345,45 +340,63 @@ public sealed partial class MainWindow : Window
     }
     async Task ShowCard(JsonObject card)
     {
-        selected=card;if(detailSurface is not null)detailSurface.Visibility=Visibility.Visible;detail.Children.Clear();detail.Children.Add(Text(card["title"]!.ToString(),22));
+        selected=card;cardRefresh=null;if(detailSurface is not null)detailSurface.Visibility=Visibility.Visible;detail.Children.Clear();var heading=Text(card["title"]!.ToString(),22);detail.Children.Add(heading);var reviewPanel=new StackPanel{Spacing=8};detail.Children.Add(reviewPanel);
+        void UpdateReview()
+        {
+        reviewPanel.Children.Clear();
         if(card["review"] is JsonObject review)
         {
             var state=review["state"]?.ToString()??"unreviewed";
-            detail.Children.Add(NativeStyle.Chip(state switch{"proposed"=>"Agent proposal · Needs your review","approved"=>"Approved for the reviewed result","rejected"=>"Proposal rejected","redirected"=>"Changes requested",_=>"Not yet reviewed"},state is "proposed" or "rejected" or "redirected"?"Review":"Accent"));
-            if(review["note"] is not null)detail.Children.Add(Text(review["note"]!.ToString()));
-            if(review["artifact"] is not null)detail.Children.Add(Text("Reviewed artifact: "+review["artifact"]));
+            reviewPanel.Children.Add(NativeStyle.Chip(state switch{"proposed"=>"Agent proposal · Needs your review","approved"=>"Approved for the reviewed result","rejected"=>"Proposal rejected","redirected"=>"Changes requested",_=>"Not yet reviewed"},state is "proposed" or "rejected" or "redirected"?"Review":"Accent"));
+            if(review["note"] is not null)reviewPanel.Children.Add(Text(review["note"]!.ToString()));
+            if(review["artifact"] is not null)reviewPanel.Children.Add(Text("Reviewed artifact: "+review["artifact"]));
         }
+        }
+        UpdateReview();var draft=new CardDraft(card);
         var title=Input("Title",card["title"]!.ToString());var objective=Input("Objective",card["objective"]?.ToString()??"",true);detail.Children.Add(title);detail.Children.Add(objective);
         detail.Children.Add(Button("Save changes",async()=>
         {
-            var changes=new JsonObject();var bases=new JsonObject();
-            foreach(var (field,value) in new[]{("title",title.Text),("objective",objective.Text)})
-                if((card[field]?.ToString()??"")!=value){changes[field]=value;bases[field]=card[field]?.DeepClone();}
-            if(changes.Count>0)await Queue("card.patch",new(){["changes"]=changes,["base"]=bases},card);
+            var patch=draft.Patch(("title",title.Text),("objective",objective.Text));
+            if(patch["changes"]!.AsObject().Count>0){draft.Submitted(patch);await Queue("card.patch",patch,card);}
         }));
         if(card["conversation_id"] is not null)detail.Children.Add(Button("Open conversation",async()=>{conversationId=Wire.Id(card["conversation_id"]);await Navigate("Assistant");}));
         var move=new ComboBox{Header="Move to",DisplayMemberPath="Label",ItemsSource=board!["columns"]!.AsArray().OfType<JsonObject>().Select(c=>new Choice(Wire.Id(c["id"]),c["title"]!.ToString(),c)).ToList()};detail.Children.Add(move);
         detail.Children.Add(Button("Move card",async()=>{if(move.SelectedItem is Choice c)await Queue("card.move",new(){["columnId"]=c.Id},card);}));
-        var comment=Input("Comment","",true);detail.Children.Add(comment);detail.Children.Add(Button("Add comment",()=>Queue("comment.add",new(){["text"]=comment.Text},card)));
+        var comment=Input("Comment","",true);detail.Children.Add(comment);detail.Children.Add(Button("Add comment",async()=>{var submitted=comment.Text;await Queue("comment.add",new(){["text"]=submitted},card);if(comment.Text==submitted)comment.Text="";}));
         detail.Children.Add(Button("Attach link",async()=>{var name=Input("Name");var url=Input("HTTPS artifact URL");var p=new StackPanel{Spacing=8};p.Children.Add(name);p.Children.Add(url);if(await Dialog("Attach artifact",p))await Queue("artifact.attach",new(){["name"]=name.Text,["url"]=url.Text},card);}));
         detail.Children.Add(Button("Dispatch run",()=>Dispatch(card)));
-        detail.Children.Add(Button("Review proposal",async()=>{var decision=new ComboBox{Header="Decision",ItemsSource=new[]{"approve","reject","redirect"},SelectedIndex=0};var note=Input("Decision note","",true);var p=new StackPanel{Spacing=8};p.Children.Add(decision);p.Children.Add(note);if(await Dialog("Record scoped decision",p,"Confirm")){await Online(Wire.Command("proposal.decide",new(){["decision"]=decision.SelectedItem.ToString(),["note"]=note.Text},card));await Refresh();var updated=await hub!.Get("/api/ops/cards/"+Wire.Segment(Wire.Id(card["id"])));await ShowCard(updated["card"]!.AsObject());}}));
+        detail.Children.Add(Button("Review proposal",async()=>{var proposal=card.DeepClone().AsObject();var decision=new ComboBox{Header="Decision",ItemsSource=new[]{"approve","reject","redirect"},SelectedIndex=0};var note=Input("Decision note","",true);var p=new StackPanel{Spacing=8};p.Children.Add(decision);p.Children.Add(note);if(await Dialog("Record scoped decision",p,"Confirm")){await Online(Wire.Command("proposal.decide",new(){["decision"]=decision.SelectedItem.ToString(),["note"]=note.Text},proposal));await Refresh();}}));
+        var activity=new StackPanel{Spacing=10};detail.Children.Add(activity);
         if(smokeMode)return;
-        try
+        var cardId=Wire.Id(card["id"]);string activityFingerprint="";
+        async Task Reload()
         {
-            var record=await hub!.Get("/api/ops/cards/"+Wire.Segment(Wire.Id(card["id"])));store.Cache("card:"+Wire.Id(card["id"]),record);RenderActivity(record,card);
+            JsonObject? record;
+            try{record=await hub!.Get("/api/ops/cards/"+Wire.Segment(cardId));store.Cache("card:"+cardId,record);}
+            catch(HttpRequestException){record=store.Read("card:"+cardId).Value;}
+            if(record is null||cardRefresh!=(Func<Task>)Reload)return;
+            if(record["card"] is JsonObject latest)
+            {
+                foreach(var (field,input) in new[]{("title",title),("objective",objective)})
+                {
+                    input.Text=draft.RefreshField(field,input.Text,latest);
+                }
+                card=latest;selected=latest;heading.Text=latest["title"]?.ToString()??"";UpdateReview();
+            }
+            var fingerprint=record.ToJsonString();if(fingerprint==activityFingerprint)return;activityFingerprint=fingerprint;
+            activity.Children.Clear();RenderActivity(record,card,activity);
         }
-        catch(HttpRequestException){var cache=store.Read("card:"+Wire.Id(card["id"]));if(cache.Value is not null)RenderActivity(cache.Value,card);}
+        cardRefresh=Reload;await Reload();
     }
-    void RenderActivity(JsonObject record,JsonObject card)
+    void RenderActivity(JsonObject record,JsonObject card,StackPanel activity)
     {
         foreach(var run in record["runs"]?.AsArray().OfType<JsonObject>()??[])
         {
-            detail.Children.Add(Text($"Run {run["id"]}: {run["status"]}"));detail.Children.Add(Text("Reported execution: "+(run["actualProvider"]?.ToString()??"not reported")+" · "+(run["actualModel"]?.ToString()??"model not reported")));
-            detail.Children.Add(Button("Cancel run",async()=>{await Online(Wire.Command("run.cancel",new(){["runId"]=run["id"]!.DeepClone()},card));status.Text="Cancellation requested; waiting for runner acknowledgement.";}));
-            detail.Children.Add(Button("Run output",async()=>{var data=await hub!.Get("/api/ops/runs/"+Wire.Segment(Wire.Id(run["id"])));var p=new StackPanel{Spacing=8};foreach(var e in data["events"]?.AsArray()??new JsonArray())p.Children.Add(Text(HistoryLabel(e)));await Dialog("Run activity",p,"Close");}));
+            activity.Children.Add(Text($"Run {run["id"]}: {run["status"]}"));activity.Children.Add(Text("Reported execution: "+(run["actualProvider"]?.ToString()??"not reported")+" · "+(run["actualModel"]?.ToString()??"model not reported")));
+            activity.Children.Add(Button("Cancel run",async()=>{await Online(Wire.Command("run.cancel",new(){["runId"]=run["id"]!.DeepClone()},card));status.Text="Cancellation requested; waiting for runner acknowledgement.";}));
+            activity.Children.Add(Button("Run output",async()=>{var data=await hub!.Get("/api/ops/runs/"+Wire.Segment(Wire.Id(run["id"])));var p=new StackPanel{Spacing=8};foreach(var e in data["events"]?.AsArray()??new JsonArray())p.Children.Add(Text(HistoryLabel(e)));await Dialog("Run activity",p,"Close");}));
         }
-        foreach(var key in new[]{"comments","artifacts","events"}){detail.Children.Add(Text(key,18));foreach(var item in record[key]?.AsArray()??new JsonArray())detail.Children.Add(Text(HistoryLabel(item)));}
+        foreach(var key in new[]{"comments","artifacts","events"}){activity.Children.Add(Text(key,18));foreach(var item in record[key]?.AsArray()??new JsonArray())activity.Children.Add(Text(HistoryLabel(item)));}
     }
     static string HistoryLabel(JsonNode? item)
     {
@@ -406,7 +419,7 @@ public sealed partial class MainWindow : Window
         if(await Dialog("Dispatch bounded work",p,"Dispatch")&&host.SelectedItem is Choice h&&provider.SelectedItem is Choice pr)
         {
             if(pr.Id!="freerouter"&&workspace.SelectedItem is not Choice)throw new InvalidOperationException("Select a workspace for this provider.");
-            await Online(Wire.Command("run.dispatch",new(){["staffId"]=(staff.SelectedItem as Choice)?.Id is string staffId&&staffId.Length>0?staffId:null,["hostId"]=h.Id,["workspaceId"]=(workspace.SelectedItem as Choice)?.Id??"",["provider"]=pr.Id,["model"]=string.IsNullOrWhiteSpace(model.Text)?null:model.Text,["effort"]=effort.SelectedItem.ToString(),["maxMinutes"]=(int)minutes.Value,["access"]=access.SelectedItem.ToString()},card));status.Text="Dispatch accepted by Hub.";await ShowCard(card);
+            await Online(Wire.Command("run.dispatch",new(){["staffId"]=(staff.SelectedItem as Choice)?.Id is string staffId&&staffId.Length>0?staffId:null,["hostId"]=h.Id,["workspaceId"]=(workspace.SelectedItem as Choice)?.Id??"",["provider"]=pr.Id,["model"]=string.IsNullOrWhiteSpace(model.Text)?null:model.Text,["effort"]=effort.SelectedItem.ToString(),["maxMinutes"]=(int)minutes.Value,["access"]=access.SelectedItem.ToString()},card));status.Text="Dispatch accepted by Hub.";await Refresh();
         }
     }
     async Task Outbox()
