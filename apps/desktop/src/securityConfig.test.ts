@@ -93,12 +93,14 @@ describe("desktop security configuration", () => {
     expect(read("../src-tauri/src/lib.rs")).toContain('"auth.lakesidegames.net"');
     const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
     expect(iosAsk).toContain('"auth.lakesidegames.net"');
+    expect(iosAsk).toContain('"https://auth.ahousedividedgame.com/auth/ahd?return=');
     expect(iosAsk).toContain('request("/api/ask/context"');
     expect(iosAsk).toContain("gameContext: evidence.text");
     const androidAsk = read(
       "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
     );
     expect(androidAsk).toContain('"auth.lakesidegames.net"');
+    expect(androidAsk).toContain("NATIVE_AHD_LOGIN");
   });
 
   it("keeps native Ask sign-in transactions and live-tool evidence intact", () => {
@@ -111,11 +113,22 @@ describe("desktop security configuration", () => {
     expect(iosAsk).toContain("brokerCookie");
     expect(iosAsk).toContain("liveSources");
     expect(androidAsk).toContain("__Host-ask_login");
-    expect(androidAsk).toContain("merge(auth, unifiedAuth, game, sandbox, wwwGame)");
+    expect(androidAsk).toContain("merge(auth, game, sandbox, wwwGame)");
     expect(androidAsk).toContain("text/event-stream");
     expect(iosFoundationModels).toContain("NativeAskLiveTool");
     expect(iosFoundationModels).toContain("LanguageModelSession(tools:");
     expect(iosFoundationModels).toContain("ask_live_game_state");
+  });
+
+  it("retains the unified Ask login transaction and session cookies on mobile", () => {
+    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const androidAsk = read(
+      "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
+    );
+    for (const source of [iosAsk, androidAsk]) {
+      expect(source).toContain("__Host-lakeside_login");
+      expect(source).toContain("__Host-lakeside_session");
+    }
   });
 
   it("gives the launcher no filesystem or shell access of its own", () => {

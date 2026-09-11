@@ -5,6 +5,7 @@ import WebKit
 
 private let nativeAskOrigin = URL(string: "https://ask.lakesidegames.net")!
 private let nativeAskLogin = URL(string: "https://ask.lakesidegames.net/auth/login?next=%2F")!
+private let nativeAhdLogin = URL(string: "https://auth.ahousedividedgame.com/auth/ahd?return=https%3A%2F%2Fask.lakesidegames.net%2Fauth%2Fcallback")!
 private let nativeSandboxHost = "sandbox.ahousedividedgame.com"
 
 enum NativeAskProvider: String, Hashable {
@@ -104,11 +105,21 @@ final class NativeAskAPI: @unchecked Sendable {
     let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
     let gameDomain = domain == "ahousedividedgame.com" || domain == "www.ahousedividedgame.com" || domain == nativeSandboxHost
     let authDomain = domain == "auth.ahousedividedgame.com"
+    let unifiedAuthDomain = domain == "auth.lakesidegames.net"
     let askDomain = domain == "ask.lakesidegames.net"
-    let session = cookie.name == "ask_session" || cookie.name == "__Host-ask_session" || cookie.name == "__Host-ask_login"
+    let session = Self.isAskCookieName(cookie.name)
       || cookie.name == "auth-token" || cookie.name.hasPrefix("auth-token-")
       || cookie.name.range(of: "^(?:__Secure-)?(?:authjs|next-auth)\\.session-token(?:\\.[0-9]+)?$", options: .regularExpression) != nil
-    return (gameDomain || authDomain || askDomain) && session && !cookie.value.isEmpty
+    return (gameDomain || authDomain || unifiedAuthDomain || askDomain) && session && !cookie.value.isEmpty
+  }
+
+  private static func isAskCookieName(_ name: String) -> Bool {
+    name == "ask_session" || name == "__Host-ask_session" || name == "__Host-ask_login"
+      || name == "__Host-lakeside_login" || name == "__Host-lakeside_session"
+  }
+
+  private static func isAskSessionCookie(_ name: String) -> Bool {
+    name == "ask_session" || name == "__Host-ask_session" || name == "__Host-lakeside_session"
   }
 
   private static func isGameAuthCookie(_ cookie: HTTPCookie) -> Bool {
@@ -125,11 +136,11 @@ final class NativeAskAPI: @unchecked Sendable {
   }
 
   private var askCookie: HTTPCookie? {
-    storage.cookies(for: nativeAskOrigin)?.first { $0.name == "ask_session" || $0.name == "__Host-ask_session" }
+    storage.cookies(for: nativeAskOrigin)?.first { Self.isAskSessionCookie($0.name) }
   }
 
   private func clearAskCookies() {
-    for cookie in storage.cookies(for: nativeAskOrigin) ?? [] where cookie.name == "ask_session" || cookie.name == "__Host-ask_session" || cookie.name == "__Host-ask_login" {
+    for cookie in storage.cookies(for: nativeAskOrigin) ?? [] where Self.isAskCookieName(cookie.name) {
       storage.deleteCookie(cookie)
     }
   }
@@ -148,15 +159,27 @@ final class NativeAskAPI: @unchecked Sendable {
     return request
   }
 
-  private func ensureSession(force: Bool = false) async throws {
+  private func establishSession(at loginURL: URL) async throws {
+    let (_, response) = try await transport.data(for: URLRequest(url: loginURL))
+    guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), askCookie != nil else {
+      throw NativeAskError.loginFailed
+    }
+  }
+
+  private func ensureSession(force: Bool = false, preferGameHandoff: Bool = true) async throws {
     if !force, askCookie != nil { return }
-    var request = URLRequest(url: nativeAskLogin)
-    request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
     do {
-      let (_, response) = try await transport.data(for: request)
-      guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), askCookie != nil else {
-        throw NativeAskError.loginFailed
+      if preferGameHandoff {
+        do {
+          try await establishSession(at: nativeAhdLogin)
+          return
+        } catch {
+          // Legacy linked game accounts use the AHD broker. Migrated accounts
+          // may already have a unified Lakeside auth session, so fall through
+          // to Ask's normal login when the broker cannot complete silently.
+        }
       }
+      try await establishSession(at: nativeAskLogin)
     } catch let error as NativeAskError {
       throw error
     } catch {
@@ -185,7 +208,7 @@ final class NativeAskAPI: @unchecked Sendable {
     } catch let error as NativeAskError {
       guard case .signedOut = error else { throw error }
       clearAskCookies()
-      try await ensureSession(force: true)
+      try await ensureSession(force: true, preferGameHandoff: false)
       return try await json(try request("/api/me"))
     }
   }

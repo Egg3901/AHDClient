@@ -39,6 +39,7 @@ private const val NATIVE_GAME_ORIGIN = "https://ahousedividedgame.com"
 private const val NATIVE_SANDBOX_ORIGIN = "https://sandbox.ahousedividedgame.com"
 private const val NATIVE_AUTH_ORIGIN = "https://auth.ahousedividedgame.com"
 private const val NATIVE_UNIFIED_AUTH_ORIGIN = "https://auth.lakesidegames.net"
+private const val NATIVE_AHD_LOGIN = "$NATIVE_AUTH_ORIGIN/auth/ahd?return=https%3A%2F%2Fask.lakesidegames.net%2Fauth%2Fcallback"
 private const val NATIVE_ASK_MAX_REDIRECTS = 10
 
 private val nativeAskAllowedHosts = setOf(
@@ -53,6 +54,8 @@ private val nativeAskAllowedHosts = setOf(
 private val nativeAskSessionName = Regex(
   "^(?:ask_session|__Host-ask_session|__Host-ask_login|auth-token(?:-[A-Za-z0-9-]+)?|(?:__Secure-)?(?:authjs|next-auth)\\.session-token(?:\\.[0-9]+)?)$"
 )
+
+private val nativeAskUnifiedCookieName = Regex("^__Host-lakeside_(?:login|session)$")
 
 private class NativeAskAuthRequired : Exception(
   "Ask could not find a linked game account. Link your game account in AHDClient first."
@@ -72,9 +75,9 @@ private data class NativeAskTurn(val question: String, var answer: String)
 private object NativeAskCookies {
   fun snapshot(): Map<String, String> {
     val manager = CookieManager.getInstance()
-    val ask = filtered(manager.getCookie(NATIVE_ASK_ORIGIN))
+    val ask = filtered(manager.getCookie(NATIVE_ASK_ORIGIN), includeUnified = true)
     val auth = filtered(manager.getCookie(NATIVE_AUTH_ORIGIN))
-    val unifiedAuth = filtered(manager.getCookie(NATIVE_UNIFIED_AUTH_ORIGIN))
+    val unifiedAuth = filtered(manager.getCookie(NATIVE_UNIFIED_AUTH_ORIGIN), includeUnified = true)
     val game = filtered(manager.getCookie("$NATIVE_GAME_ORIGIN/api/client/account"))
     val sandbox = filtered(manager.getCookie("$NATIVE_SANDBOX_ORIGIN/api/client/account"))
     val wwwGame = filtered(manager.getCookie("https://www.ahousedividedgame.com/api/client/account"))
@@ -83,16 +86,19 @@ private object NativeAskCookies {
       // A host-only game cookie is not returned for the auth subdomain. The
       // broker is an explicitly trusted first-party host, so give it the same
       // auth-token cookies the game WebView already holds.
-      "auth.ahousedividedgame.com" to merge(auth, unifiedAuth, game, sandbox, wwwGame),
+      "auth.ahousedividedgame.com" to merge(auth, game, sandbox, wwwGame),
       "auth.lakesidegames.net" to unifiedAuth,
       "ahousedividedgame.com" to game,
       "www.ahousedividedgame.com" to wwwGame
     )
   }
 
-  private fun filtered(header: String?): String = header.orEmpty().split(';')
+  private fun filtered(header: String?, includeUnified: Boolean = false): String = header.orEmpty().split(';')
     .map { it.trim() }
-    .filter { it.substringBefore('=').let(nativeAskSessionName::matches) }
+    .filter {
+      val name = it.substringBefore('=')
+      name.let(nativeAskSessionName::matches) || (includeUnified && name.let(nativeAskUnifiedCookieName::matches))
+    }
     .distinctBy { it.substringBefore('=') }
     .joinToString("; ")
 
@@ -116,8 +122,14 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
       return getJson("/api/me")
     } catch (_: NativeAskAuthRequired) {
       clearAskCookie()
-      login()
-      return getJson("/api/me")
+      login(preferGameHandoff = true)
+      return try {
+        getJson("/api/me")
+      } catch (_: NativeAskAuthRequired) {
+        clearAskCookie()
+        login(preferGameHandoff = false)
+        getJson("/api/me")
+      }
     }
   }
 
@@ -266,8 +278,14 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
     )
   }
 
-  private fun login() {
-    var current = URL(NATIVE_ASK_LOGIN)
+  private fun login(preferGameHandoff: Boolean) {
+    if (preferGameHandoff && runCatching { tryLogin(URL(NATIVE_AHD_LOGIN)) }.getOrDefault(false)) return
+    if (runCatching { tryLogin(URL(NATIVE_ASK_LOGIN)) }.getOrDefault(false)) return
+    throw NativeAskAuthRequired()
+  }
+
+  private fun tryLogin(start: URL): Boolean {
+    var current = start
     repeat(NATIVE_ASK_MAX_REDIRECTS) {
       requireAllowed(current)
       val connection = open(current, "GET", "text/html")
@@ -279,13 +297,13 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
           current = URL(current, location)
           return@repeat
         }
-        if (code in 200..299 && hasAskCookie()) return
-        throw NativeAskAuthRequired()
+        if (code in 200..299) return hasAskCookie()
+        return false
       } finally {
         connection.disconnect()
       }
     }
-    throw NativeAskAuthRequired()
+    return false
   }
 
   private fun getJson(path: String): JSONObject {
@@ -335,7 +353,9 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
     for (header in headerValues) {
       val pair = header.substringBefore(';').trim()
       val name = pair.substringBefore('=')
-      if (name.isBlank() || !nativeAskSessionName.matches(name) || !pair.contains('=')) continue
+      if (name.isBlank() ||
+        !(nativeAskSessionName.matches(name) || nativeAskUnifiedCookieName.matches(name)) ||
+        !pair.contains('=')) continue
       if (pair.substringAfter('=').isBlank() || header.contains("Max-Age=0", ignoreCase = true) || header.contains("Expires=Thu, 01 Jan 1970", ignoreCase = true)) current.remove(name)
       else current[name] = pair.substringAfter('=')
     }
@@ -346,13 +366,16 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
     cookies["ask.lakesidegames.net"] = cookies["ask.lakesidegames.net"].orEmpty().split(';')
       .map { it.trim() }.filter {
         val name = it.substringBefore('=')
-        name != "ask_session" && name != "__Host-ask_session" && name != "__Host-ask_login"
+        name != "ask_session" && name != "__Host-ask_session" && name != "__Host-ask_login" &&
+          name != "__Host-lakeside_login" && name != "__Host-lakeside_session"
       }
       .filter { it.isNotBlank() }.joinToString("; ")
   }
 
   private fun hasAskCookie(): Boolean = cookies["ask.lakesidegames.net"].orEmpty().split(';')
-    .map { it.trim().substringBefore('=') }.any { it == "ask_session" || it == "__Host-ask_session" }
+    .map { it.trim().substringBefore('=') }.any {
+      it == "ask_session" || it == "__Host-ask_session" || it == "__Host-lakeside_session"
+    }
 
   private fun readBody(connection: HttpURLConnection): String {
     val stream: InputStream = try { connection.inputStream } catch (_: Exception) { connection.errorStream ?: return "" }
