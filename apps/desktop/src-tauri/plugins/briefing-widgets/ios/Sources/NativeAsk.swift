@@ -385,7 +385,12 @@ final class NativeAskAPI: @unchecked Sendable {
           guard appleAvailable else { throw FoundationModelBridgeError.unavailable(appleMessage) }
           let options = FoundationModelOptions(question: question, history: history, length: "standard", style: "standard", mode: "ask")
           #if canImport(FoundationModels)
-          let liveTool = signedIn ? api.map { NativeAskLiveTool(api: $0) } : nil
+          let liveTool: Any?
+          if #available(iOS 26.0, *) {
+            liveTool = signedIn ? api.map { NativeAskLiveTool(api: $0) } : nil
+          } else {
+            liveTool = nil
+          }
           let payload = try await AppleFoundationModelBridge.respond(options, liveTool: liveTool)
           #else
           let payload = try await AppleFoundationModelBridge.respond(options)
