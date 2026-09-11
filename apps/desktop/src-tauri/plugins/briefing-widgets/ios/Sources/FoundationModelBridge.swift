@@ -135,17 +135,22 @@ enum AppleFoundationModelBridge {
     ]
   }
 
-#if canImport(FoundationModels)
   static func respond(_ options: FoundationModelOptions, liveTool: Any? = nil) async throws -> [String: Any] {
-#else
-  static func respond(_ options: FoundationModelOptions) async throws -> [String: Any] {
-  #endif
     let question = options.question.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !question.isEmpty else { throw FoundationModelBridgeError.invalidQuestion }
 #if canImport(FoundationModels)
-    guard #available(iOS 26.0, *) else {
-      throw FoundationModelBridgeError.unavailable("Apple Foundation Models require iOS 26 or later")
+    if #available(iOS 26.0, *) {
+      return try await respondWithFoundationModels(options, question: question, liveTool: liveTool)
     }
+    throw FoundationModelBridgeError.unavailable("Apple Foundation Models require iOS 26 or later")
+#else
+    throw FoundationModelBridgeError.unavailable("Apple Foundation Models require an iOS 26 SDK and a supported device")
+#endif
+  }
+
+#if canImport(FoundationModels)
+  @available(iOS 26.0, *)
+  private static func respondWithFoundationModels(_ options: FoundationModelOptions, question: String, liveTool: Any?) async throws -> [String: Any] {
     guard SystemLanguageModel.default.isAvailable else {
       throw FoundationModelBridgeError.unavailable(status()["message"] as? String ?? "Apple Foundation Models are unavailable")
     }
@@ -204,8 +209,6 @@ enum AppleFoundationModelBridge {
       "usedMcp": liveResult?.usedMcp ?? false,
       "liveSources": liveResult?.liveSources ?? [],
     ]
-#else
-    throw FoundationModelBridgeError.unavailable("Apple Foundation Models require an iOS 26 SDK and a supported device")
-#endif
   }
+#endif
 }
