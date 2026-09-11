@@ -48,6 +48,9 @@ jobs:
       - name: Verify AHDClient TestFlight delivery
         env:
           ACTION: status
+          EXPECTED_BUNDLE_ID: net.lakesidegames.ahdclient
+          EXPECTED_BUILD_VERSION: 2.3.8
+          EXPECTED_BUILD_TIMEOUT_SECONDS: 300
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
