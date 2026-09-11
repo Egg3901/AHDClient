@@ -8,7 +8,7 @@ enum Surface {
     var title: String { self == .ask ? "Lakeside Ask" : "Lakeside Ops" }
     var host: String { self == .ask ? "ask.lakesidegames.net" : self == .hub ? "hub.lakesidegames.net" : "ops.lakesidegames.net" }
     var base: URL { URL(string: "https://\(host)")! }
-    var cookie: String { self == .ask ? "ask_session" : self == .hub ? "agency_session" : "ops_session" }
+    var cookie: String { self == .ask ? "__Host-ask_session" : self == .hub ? "agency_session" : "ops_session" }
     var login: String { self == .ask ? "/auth/login" : self == .hub ? "/auth/game" : "/" }
     var symbol: String { self == .ask ? "bubble.left.and.text.bubble.right.fill" : "waveform.path.ecg" }
 }
@@ -112,7 +112,7 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
     func signOut() async {
         if surface == .hub { _ = try? await post("/logout", [:]) }
         else if surface == .ops { _ = try? await post("/api/logout", [:]) }
-        else { _ = try? await get("/auth/logout") }
+        else { _ = try? await post("/auth/logout", [:]) }
         credential = nil; Vault.clear(surface); profile = .null; signedIn = false; error = nil
     }
     private func request(_ path: String, query: [String: String] = [:], body: [String: JSONValue]? = nil) throws -> URLRequest {

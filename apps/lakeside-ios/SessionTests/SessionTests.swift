@@ -7,6 +7,11 @@ import XCTest
         config.protocolClasses = [FixtureProtocol.self]
         return AppSession(.ops, configuration: config)
     }
+    private func askSession() -> AppSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [FixtureProtocol.self]
+        return AppSession(.ask, configuration: config)
+    }
     func testOpsProductionCookieCompletesSignIn() async throws {
         // Same attributes as opsSessionCookie: the server omits Secure.
         let url = URL(string: "https://ops.lakesidegames.net/")!
@@ -27,10 +32,26 @@ import XCTest
         XCTAssertFalse(app.signedIn)
     }
     func testAskStillRequiresItsSecureCookie() async throws {
-        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [FixtureProtocol.self]
-        let app = AppSession(.ask, configuration: config)
-        let cookie = try XCTUnwrap(HTTPCookie(properties: [.name: "ask_session", .value: "fixture-login", .domain: ".lakesidegames.net", .path: "/"]))
+        let app = askSession()
+        let cookie = try XCTUnwrap(HTTPCookie(properties: [.name: "__Host-ask_session", .value: "fixture-login", .domain: "ask.lakesidegames.net", .path: "/"]))
         do { try await app.accept(cookie); XCTFail("Ask accepted an insecure cookie") } catch {}
+        XCTAssertFalse(app.signedIn)
+    }
+    func testAskProductionCookieCompletesSignIn() async throws {
+        let url = URL(string: "https://ask.lakesidegames.net/")!
+        let cookie = try XCTUnwrap(HTTPCookie.cookies(withResponseHeaderFields: [
+            "Set-Cookie": "__Host-ask_session=fixture-login; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600"
+        ], for: url).first)
+        let app = askSession()
+        try await app.accept(cookie)
+        XCTAssertTrue(app.signedIn)
+        XCTAssertEqual(app.profile["identity"]["username"].string, "Test operator")
+        await app.signOut()
+    }
+    func testAskRejectsLegacyCookieName() async throws {
+        let app = askSession()
+        let cookie = try XCTUnwrap(HTTPCookie(properties: [.name: "ask_session", .value: "fixture-login", .domain: "ask.lakesidegames.net", .path: "/", .secure: "TRUE"]))
+        do { try await app.accept(cookie); XCTFail("Ask accepted the legacy cookie name") } catch {}
         XCTAssertFalse(app.signedIn)
     }
     func testUnrelatedCookieCannotSignIn() async throws {
