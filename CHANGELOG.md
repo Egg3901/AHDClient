@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.3.10] - 2026-09-11
+
+- Restore native Ask linked-account handoff on iOS and Android, including the unified Lakeside auth cookies used by the current sign-in flow.
+- Let Apple Foundation Models questions reach grounded Ask evidence and the on-device answer path after the linked account is detected.
+
 ## [2.3.9] - 2026-09-11
 
 - Route Ask and account sign-in through the canonical Lakeside auth portal on desktop, Android, and iOS.
