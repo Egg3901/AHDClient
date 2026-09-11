@@ -38,6 +38,7 @@ const SANDBOX_HOST: &str = "sandbox.ahousedividedgame.com";
 const AUXILIARY_ONLINE_HOSTS: &[&str] = &[
   "www.ahousedividedgame.com",
   "auth.ahousedividedgame.com",
+  "auth.lakesidegames.net",
   "discord.com",
   "accounts.google.com",
   "www.google.com",
@@ -56,6 +57,7 @@ const ASK_URL: &str = "https://ask.lakesidegames.net/";
 const ASK_NAVIGATION_HOSTS: &[&str] = &[
   "ask.lakesidegames.net",
   "auth.ahousedividedgame.com",
+  "auth.lakesidegames.net",
   "ahousedividedgame.com",
   "www.ahousedividedgame.com",
   "sandbox.ahousedividedgame.com",

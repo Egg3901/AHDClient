@@ -38,11 +38,13 @@ private const val NATIVE_ASK_LOGIN = "$NATIVE_ASK_ORIGIN/auth/login?next=%2F"
 private const val NATIVE_GAME_ORIGIN = "https://ahousedividedgame.com"
 private const val NATIVE_SANDBOX_ORIGIN = "https://sandbox.ahousedividedgame.com"
 private const val NATIVE_AUTH_ORIGIN = "https://auth.ahousedividedgame.com"
+private const val NATIVE_UNIFIED_AUTH_ORIGIN = "https://auth.lakesidegames.net"
 private const val NATIVE_ASK_MAX_REDIRECTS = 10
 
 private val nativeAskAllowedHosts = setOf(
   "ask.lakesidegames.net",
   "auth.ahousedividedgame.com",
+  "auth.lakesidegames.net",
   "ahousedividedgame.com",
   "www.ahousedividedgame.com",
   "sandbox.ahousedividedgame.com"
@@ -72,6 +74,7 @@ private object NativeAskCookies {
     val manager = CookieManager.getInstance()
     val ask = filtered(manager.getCookie(NATIVE_ASK_ORIGIN))
     val auth = filtered(manager.getCookie(NATIVE_AUTH_ORIGIN))
+    val unifiedAuth = filtered(manager.getCookie(NATIVE_UNIFIED_AUTH_ORIGIN))
     val game = filtered(manager.getCookie("$NATIVE_GAME_ORIGIN/api/client/account"))
     val sandbox = filtered(manager.getCookie("$NATIVE_SANDBOX_ORIGIN/api/client/account"))
     val wwwGame = filtered(manager.getCookie("https://www.ahousedividedgame.com/api/client/account"))
@@ -80,7 +83,8 @@ private object NativeAskCookies {
       // A host-only game cookie is not returned for the auth subdomain. The
       // broker is an explicitly trusted first-party host, so give it the same
       // auth-token cookies the game WebView already holds.
-      "auth.ahousedividedgame.com" to merge(auth, game, sandbox, wwwGame),
+      "auth.ahousedividedgame.com" to merge(auth, unifiedAuth, game, sandbox, wwwGame),
+      "auth.lakesidegames.net" to unifiedAuth,
       "ahousedividedgame.com" to game,
       "www.ahousedividedgame.com" to wwwGame
     )

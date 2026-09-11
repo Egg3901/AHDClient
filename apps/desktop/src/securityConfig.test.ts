@@ -90,6 +90,15 @@ describe("desktop security configuration", () => {
     ).toContain("class NativeAskPanel");
     expect(read("../src-tauri/build.rs")).toContain("\"open_ask_window\"");
     expect(read("../src-tauri/src/lib.rs")).toContain("https://ask.lakesidegames.net/");
+    expect(read("../src-tauri/src/lib.rs")).toContain('"auth.lakesidegames.net"');
+    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    expect(iosAsk).toContain('"auth.lakesidegames.net"');
+    expect(iosAsk).toContain('request("/api/ask/context"');
+    expect(iosAsk).toContain("gameContext: evidence.text");
+    const androidAsk = read(
+      "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
+    );
+    expect(androidAsk).toContain('"auth.lakesidegames.net"');
   });
 
   it("keeps native Ask sign-in transactions and live-tool evidence intact", () => {

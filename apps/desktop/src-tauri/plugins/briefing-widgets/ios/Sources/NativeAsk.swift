@@ -61,6 +61,7 @@ private final class NativeAskRedirectDelegate: NSObject, URLSessionTaskDelegate,
   private let allowedHosts: Set<String> = [
     "ask.lakesidegames.net",
     "auth.ahousedividedgame.com",
+    "auth.lakesidegames.net",
     "ahousedividedgame.com",
     "www.ahousedividedgame.com",
     "sandbox.ahousedividedgame.com",
@@ -278,6 +279,12 @@ final class NativeAskAPI: @unchecked Sendable {
     )
   }
 
+  func context(question: String) async throws -> (text: String, files: [String]) {
+    try await ensureSession()
+    let payload = try await json(try request("/api/ask/context", body: ["question": question, "game": "ahd"]))
+    return (payload["context"] as? String ?? "", payload["files"] as? [String] ?? [])
+  }
+
   private func readEvents(_ bytes: URLSession.AsyncBytes, handler: (String, Any) throws -> Void) async throws {
     var lineBytes: [UInt8] = []
     var event = "message"
@@ -383,11 +390,14 @@ final class NativeAskAPI: @unchecked Sendable {
         let result: NativeAskResult
         if selectedProvider == .appleOnDevice {
           guard appleAvailable else { throw FoundationModelBridgeError.unavailable(appleMessage) }
-          let options = FoundationModelOptions(question: question, history: history, length: "standard", style: "standard", mode: "ask")
+          guard let api else { throw NativeAskError.signedOut }
+          guard signedIn else { throw NativeAskError.signedOut }
+          let evidence = try await api.context(question: question)
+          let options = FoundationModelOptions(question: question, history: history, length: "standard", style: "standard", mode: "ask", gameContext: evidence.text)
           #if canImport(FoundationModels)
           let liveTool: Any?
           if #available(iOS 26.0, *) {
-            liveTool = signedIn ? api.map { NativeAskLiveTool(api: $0) } : nil
+            liveTool = NativeAskLiveTool(api: api)
           } else {
             liveTool = nil
           }
@@ -395,11 +405,13 @@ final class NativeAskAPI: @unchecked Sendable {
           #else
           let payload = try await AppleFoundationModelBridge.respond(options)
           #endif
+          // The evidence endpoint provides documentation citations; the optional
+          // live tool adds current state citations returned by Ask.
           result = NativeAskResult(
             answer: payload["text"] as? String ?? "",
             conversationID: "",
             model: payload["model"] as? String ?? "Apple Foundation Models",
-            citations: [],
+            citations: evidence.files,
             usedMcp: payload["usedMcp"] as? Bool ?? false,
             liveSources: payload["liveSources"] as? [String] ?? [],
             liveToolCalled: payload["liveToolCalled"] as? Bool ?? false,
@@ -481,9 +493,9 @@ struct NativeAskView: View {
           ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
               if model.turns.isEmpty {
-                  VStack(alignment: .leading, spacing: 10) {
-                    Label("Lakeside Ask", systemImage: "bubble.left.and.text.bubble.right.fill").font(.title2.bold())
-                  Text("Ask about A House Divided. Ask server uses live game evidence and sources. Apple Foundation Models answers on device and can make one read-only live lookup when your linked account is available.")
+                VStack(alignment: .leading, spacing: 10) {
+                  Label("Lakeside Ask", systemImage: "bubble.left.and.text.bubble.right.fill").font(.title2.bold())
+                  Text("Ask about A House Divided. Ask server uses live game evidence and tools. Apple Foundation Models uses retrieved game evidence, can make one read-only live lookup, and generates the answer on this device.")
                     .font(.callout).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 24)
               }
@@ -504,7 +516,7 @@ struct NativeAskView: View {
                     } else if turn.liveToolCalled {
                       Text("Written on device after a live Ask lookup attempt. This question was sent to Ask server, but no live source was returned.").font(.caption).foregroundStyle(.secondary)
                     } else {
-                      Text("On device. This answer was not sent to the server.").font(.caption).foregroundStyle(.secondary)
+                      Text("Written on device from Ask's retrieved game evidence. This question was sent to Ask server for evidence.").font(.caption).foregroundStyle(.secondary)
                     }
                   }
                   if !turn.liveSources.isEmpty { Text("Live sources: " + turn.liveSources.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary) }
