@@ -93,9 +93,11 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         var status = 200
         switch url.path {
         case "/api/me":
-            let expectedName = isAsk ? "__Host-ask_session" : url.host?.hasPrefix("hub.") == true ? "agency_session" : "ops_session"
+            let expectedNames = isAsk ? ["__Host-lakeside_session", "__Host-ask_session"] : [url.host?.hasPrefix("hub.") == true ? "agency_session" : "ops_session"]
             let cookie = request.value(forHTTPHeaderField: "Cookie") ?? ""
-            guard ["ui-test-session", "fixture-login"].contains(where: { cookie == expectedName + "=" + $0 }) else {
+            guard expectedNames.contains(where: { name in
+                ["ui-test-session", "fixture-login"].contains(where: { cookie == name + "=" + $0 })
+            }) else {
                 deliver(Data("{\"error\":\"Fixture requires session cookie\"}".utf8), url: url, status: 401, type: "application/json"); return
             }
             value = isAsk ? ["identity": ["username": "Test operator"], "entitlement": ["allowed": true, "label": "Staff"], "usage": ["used": 46.5, "limit": 200, "remaining": 153.5, "mcpLimit": 40, "mcpRemaining": 12, "vizLimit": 10, "vizRemaining": 8, "resetAt": 1788912000000, "tier": "Staff"]] : ["email": "operator@example.test", "role": "admin"]
