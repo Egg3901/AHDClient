@@ -48,6 +48,17 @@ import XCTest
         XCTAssertEqual(app.profile["identity"]["username"].string, "Test operator")
         await app.signOut()
     }
+    func testAskUnifiedAuthCookieCompletesSignIn() async throws {
+        let url = URL(string: "https://ask.lakesidegames.net/")!
+        let cookie = try XCTUnwrap(HTTPCookie.cookies(withResponseHeaderFields: [
+            "Set-Cookie": "__Host-lakeside_session=fixture-login; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600"
+        ], for: url).first)
+        let app = askSession()
+        try await app.accept(cookie)
+        XCTAssertTrue(app.signedIn)
+        XCTAssertEqual(app.profile["identity"]["username"].string, "Test operator")
+        await app.signOut()
+    }
     func testAskContextUsesTheAuthenticatedSession() async throws {
         let app = askSession()
         let cookie = try XCTUnwrap(HTTPCookie(properties: [.name: "__Host-ask_session", .value: "fixture-login", .domain: "ask.lakesidegames.net", .path: "/", .secure: "TRUE"]))

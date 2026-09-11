@@ -9,6 +9,7 @@ enum Surface {
     var host: String { self == .ask ? "ask.lakesidegames.net" : self == .hub ? "hub.lakesidegames.net" : "ops.lakesidegames.net" }
     var base: URL { URL(string: "https://\(host)")! }
     var cookie: String { self == .ask ? "__Host-ask_session" : self == .hub ? "agency_session" : "ops_session" }
+    var cookies: [String] { self == .ask ? ["__Host-lakeside_session", cookie] : [cookie] }
     var login: String { self == .ask ? "/auth/login" : self == .hub ? "/auth/game" : "/" }
     var symbol: String { self == .ask ? "bubble.left.and.text.bubble.right.fill" : "waveform.path.ecg" }
 }
@@ -20,6 +21,7 @@ struct AppFailure: LocalizedError {
 }
 
 private struct Credential: Codable {
+    let name: String?
     let value: String
     let expires: Date?
 }
@@ -73,7 +75,7 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         transport = URLSession(configuration: config, delegate: NoRedirects(), delegateQueue: nil)
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--uitest-fixtures") {
-            credential = Credential(value: "ui-test-session", expires: nil)
+            credential = Credential(name: nil, value: "ui-test-session", expires: nil)
             return
         }
 #endif
@@ -89,11 +91,11 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
     func accept(_ cookie: HTTPCookie) async throws {
         // Ops currently omits the Secure attribute. Its cookie is still sent only
         // to the pinned HTTPS API origin; redirects never forward credentials.
-        guard cookie.name == surface.cookie, !cookie.value.isEmpty, (surface == .ops || cookie.isSecure),
+        guard surface.cookies.contains(cookie.name), !cookie.value.isEmpty, (surface == .ops || cookie.isSecure),
               cookie.expiresDate.map({ $0 > Date() }) ?? true else { throw AppFailure(message: "Sign-in did not return a valid session.") }
         let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
         guard domain == surface.host || domain == "lakesidegames.net" else { throw AppFailure(message: "Unexpected sign-in domain.") }
-        credential = Credential(value: cookie.value, expires: cookie.expiresDate)
+        credential = Credential(name: cookie.name, value: cookie.value, expires: cookie.expiresDate)
         do {
             let me = try await get("/api/me")
             try Task.checkCancellation()
@@ -122,7 +124,9 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         r.setValue(surface.base.absoluteString + "/", forHTTPHeaderField: "Referer")
         if let credential {
             guard !credential.value.contains("\r"), !credential.value.contains("\n"), !credential.value.contains(";") else { throw URLError(.userAuthenticationRequired) }
-            r.setValue("\(surface.cookie)=\(credential.value)", forHTTPHeaderField: "Cookie")
+            let cookieName = credential.name ?? surface.cookie
+            guard surface.cookies.contains(cookieName) else { throw URLError(.userAuthenticationRequired) }
+            r.setValue("\(cookieName)=\(credential.value)", forHTTPHeaderField: "Cookie")
         }
         if let body { r.httpMethod = "POST"; r.httpBody = try JSONEncoder().encode(JSONValue.object(body)); r.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         return r

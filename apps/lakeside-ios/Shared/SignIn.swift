@@ -71,7 +71,9 @@ private struct LoginBrowser: UIViewRepresentable {
             guard active, !accepting else { return }
             cookieStore.getAllCookies { [weak self] cookies in
                 guard let self, self.active, !self.accepting else { return }
-                guard let cookie = cookies.first(where: { $0.name == self.session.surface.cookie && !$0.value.isEmpty }) else { return }
+                guard let cookie = self.session.surface.cookies.compactMap({ name in
+                    cookies.first(where: { $0.name == name && !$0.value.isEmpty })
+                }).first else { return }
                 self.accepting = true
                 self.signInTask = Task { @MainActor in
                     do { try await self.session.accept(cookie); if self.active { self.done() } }
