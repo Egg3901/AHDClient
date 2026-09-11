@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -45,6 +46,9 @@ def ref(kind, identifier):
 def main():
     email = os.environ['LAKESIDE_TESTFLIGHT_EMAIL'].strip()
     invite = os.environ.get('ACTION', 'status') == 'invite'
+    expected_bundle = os.environ.get('EXPECTED_BUNDLE_ID', '').strip()
+    expected_version = os.environ.get('EXPECTED_BUILD_VERSION', '').strip()
+    expected_timeout = int(os.environ.get('EXPECTED_BUILD_TIMEOUT_SECONDS', '300'))
     users = listed('users', **{'filter[username]': email})
     print('Configured tester is an App Store Connect user:', bool(users))
     for bundle in ['net.lakesidegames.ahdclient', 'net.lakesidegames.ask', 'net.lakesidegames.ops']:
@@ -52,13 +56,24 @@ def main():
         if len(apps) != 1:
             raise RuntimeError(bundle + ': app record missing or ambiguous')
         app_id = apps[0]['id']
-        builds = listed('builds', **{'filter[app]': app_id, 'sort': '-uploadedDate', 'limit': 1})
+        deadline = time.time() + expected_timeout if bundle == expected_bundle and expected_version else 0
+        build = None
+        builds = []
+        while True:
+            builds = listed('builds', **{'filter[app]': app_id, 'sort': '-uploadedDate', 'limit': 20})
+            match_version = expected_version if bundle == expected_bundle else ''
+            build = next((item for item in builds if not match_version or item['attributes'].get('version') == match_version), None)
+            if bundle != expected_bundle or not expected_version or build is not None or time.time() >= deadline:
+                break
+            time.sleep(15)
         print(bundle, 'app record found; builds:', len(builds))
         if not builds:
             if invite:
                 raise RuntimeError(bundle + ': no uploaded build')
             continue
-        build = builds[0]
+        if bundle == expected_bundle and expected_version and build is None:
+            latest = builds[0]['attributes'].get('version', 'unknown')
+            raise RuntimeError(bundle + ': expected build ' + expected_version + ' not found; latest is ' + latest)
         detail = api('builds/' + build['id'] + '/buildBetaDetail')['data']['attributes']
         print(bundle, 'build', build['attributes']['version'], build['attributes']['processingState'],
               'internal:', detail.get('internalBuildState'), 'external:', detail.get('externalBuildState'))

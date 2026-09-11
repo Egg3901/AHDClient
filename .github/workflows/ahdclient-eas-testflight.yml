@@ -24,7 +24,35 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Sync Apple release variables to EAS
+        env:
+          EXPO_TOKEN: ${{ secrets.LAKESIDE_EXPO_TOKEN }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+        run: |
+          set -euo pipefail
+          for variable in APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_CONTENT APPLE_DEVELOPMENT_TEAM; do
+            npx eas-cli@latest env:set \
+              --name "$variable" \
+              --value "${!variable}" \
+              --environment production \
+              --visibility secret \
+              --non-interactive
+          done
       - name: Build and upload AHDClient through EAS
         env:
           EXPO_TOKEN: ${{ secrets.LAKESIDE_EXPO_TOKEN }}
         run: npx eas-cli@latest build --platform ios --profile ahdclient-production --non-interactive
+      - name: Verify AHDClient TestFlight delivery
+        env:
+          ACTION: status
+          EXPECTED_BUNDLE_ID: net.lakesidegames.ahdclient
+          EXPECTED_BUILD_VERSION: 2.3.8
+          EXPECTED_BUILD_TIMEOUT_SECONDS: 300
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          LAKESIDE_TESTFLIGHT_EMAIL: ${{ secrets.LAKESIDE_TESTFLIGHT_EMAIL }}
+        run: python3 ../../scripts/lakeside-testflight.py

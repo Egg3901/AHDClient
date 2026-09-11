@@ -85,6 +85,7 @@ private struct ChatTurn: Identifiable {
     var answerID: JSONValue = .null
     var reportURL: String = ""
     var model: String = ""
+    var local = false
     var trail: [String] = []
     var metadata: JSONValue = .null
     var attachments: [JSONValue] = []
@@ -121,11 +122,16 @@ struct AskConversation: View {
     @State private var followups: [String] = []
     @State private var reportReason = ""
     @State private var feedbackTurn: ChatTurn?
+    @State private var provider: AskProvider = .server
     @FocusState private var focused: Bool
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 28) {
+                    if provider == .appleOnDevice {
+                        Label("Apple on-device answers are private and are not saved to Ask history.", systemImage: "iphone")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     if turns.isEmpty && !loading {
                         VStack(alignment: .leading, spacing: 20) {
                             BrandHero(surface: .ask, compact: true)
@@ -140,6 +146,10 @@ struct AskConversation: View {
                                 .background(Brand.sky.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
                             HStack(spacing: 8) { BrandMark(surface: .ask, size: 22); Text("ASK").font(.caption2.bold()).tracking(1.5); Spacer(); if !turn.model.isEmpty { Text(turn.model).font(.caption2).foregroundStyle(.secondary) } }
                             NativeMarkdown(text: turn.answer, streaming: streaming && turn.id == turns.last?.id)
+                            if turn.local {
+                                Text("On device. This answer was not sent to the server.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
                             if !turn.citations.isEmpty {
                                 DisclosureGroup("Sources (\(turn.citations.count))") {
                                     VStack(alignment: .leading, spacing: 12) {
@@ -201,7 +211,7 @@ struct AskConversation: View {
             }
         }
         .sheet(isPresented: $options) {
-            NavigationStack { AskOptionsView(game: $game, live: $live, visualizations: $visualizations, style: $style, length: $length, effort: $effort, games: games) }
+            NavigationStack { AskOptionsView(game: $game, live: $live, visualizations: $visualizations, style: $style, length: $length, effort: $effort, provider: $provider, games: games, hasAttachments: !attachments.items.isEmpty) }
         }
         .sheet(isPresented: $sharing) {
             NavigationStack { ConversationSharing(id: conversationID, text: turns.map { "# " + $0.question + "\n\n" + $0.answer }.joined(separator: "\n\n")) }
@@ -213,6 +223,12 @@ struct AskConversation: View {
             await refreshCost()
         }
         .onDisappear { stopForDeparture() }
+        .onChange(of: attachments.items.count) { _, count in
+            if count > 0 && provider == .appleOnDevice {
+                provider = .server
+                error = "Apple on-device answers do not support attachments. Ask server is selected instead."
+            }
+        }
         .onChange(of: scenePhase) { _, phase in if phase == .background && streaming { stopForDeparture(); error = "Answer paused when the app went into the background. Reload to see saved answers." } }
         .alert("Report this answer", isPresented: Binding(get: { feedbackTurn != nil }, set: { if !$0 { feedbackTurn = nil } })) {
             TextField("What was wrong?", text: $reportReason)
@@ -233,15 +249,15 @@ struct AskConversation: View {
                 }
             }
             HStack(spacing: 6) {
-                Circle().fill(live ? Brand.mint : Brand.sky).frame(width: 5, height: 5)
-                Text(live ? "Live game data" : "Code and documentation").font(.caption2)
+                Circle().fill(provider == .appleOnDevice ? Brand.mint : live ? Brand.mint : Brand.sky).frame(width: 5, height: 5)
+                Text(provider == .appleOnDevice ? "Private on-device answer" : live ? "Live game data" : "Code and documentation").font(.caption2)
                 Spacer()
-                if let cost = nextCost["cost"].number { Text("\(cost.formatted()) credit\(cost == 1 ? "" : "s")").font(.caption2.monospacedDigit()) }
+                if provider != .appleOnDevice, let cost = nextCost["cost"].number { Text("\(cost.formatted()) credit\(cost == 1 ? "" : "s")").font(.caption2.monospacedDigit()) }
                 Text(games.first(where: { $0["id"].string == game })?["name"].string ?? "A House Divided").font(.caption2).lineLimit(1)
             }.foregroundStyle(.secondary)
             AttachmentTray(attachments: attachments).disabled(streaming)
             HStack(alignment: .bottom, spacing: 12) {
-                AttachmentPicker(attachments: attachments).disabled(streaming)
+                AttachmentPicker(attachments: attachments).disabled(streaming || provider == .appleOnDevice)
                 TextField("Ask a question…", text: $draft, axis: .vertical).lineLimit(1...6).focused($focused)
                     .accessibilityIdentifier("ask-composer")
                     .padding(12).background(Brand.surface, in: RoundedRectangle(cornerRadius: 16)).overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Brand.sky.opacity(0.15))).disabled(streaming)
@@ -273,10 +289,53 @@ struct AskConversation: View {
         let entered = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let question = entered.utf16.count < 5 && !attachments.items.isEmpty ? (entered.isEmpty ? "Please examine the attached files." : entered + "\nPlease examine the attached files.") : entered
         guard !streaming, !attachments.uploading, (5...500).contains(question.utf16.count) else { return }
+        if provider == .appleOnDevice && !attachments.items.isEmpty {
+            error = "Apple on-device answers do not support attachments. Remove them or choose Ask server."
+            return
+        }
         let files = attachments.payload
         if conversationID.isEmpty { conversationID = String(UUID().uuidString.prefix(18)) }
         draft = ""; error = nil; followups = []; focused = false; streaming = true; requestID = ""; status = "Thinking…"
         let turnID = UUID().uuidString; turns.append(ChatTurn(id: turnID, question: question, answer: "", attachments: files.array))
+        if provider == .appleOnDevice {
+            nextCost = .null
+            status = "Generating on device…"
+            let history = turns.dropLast().suffix(8).map { turn in
+                "User: \(turn.question)\nAssistant: \(String(turn.answer.prefix(1200)))"
+            }
+            let selectedGame = game
+            let selectedLength = length
+            let selectedStyle = style
+            let selectedMode = mode.rawValue
+            streamTask = Task {
+                defer { streaming = false; streamTask = nil; requestID = "" }
+                do {
+                    let answer = try await AppleFoundationModelProvider.respond(
+                        question: question,
+                        history: history,
+                        game: selectedGame,
+                        length: selectedLength,
+                        style: selectedStyle,
+                        mode: selectedMode
+                    )
+                    guard let index = turns.firstIndex(where: { $0.id == turnID }) else { return }
+                    turns[index].answer = answer
+                    turns[index].model = "Apple Foundation Models"
+                    turns[index].local = true
+                } catch is CancellationError {
+                    if let index = turns.firstIndex(where: { $0.id == turnID }), turns[index].answer.isEmpty {
+                        turns.remove(at: index)
+                    }
+                } catch {
+                    self.error = error.localizedDescription
+                    if let index = turns.firstIndex(where: { $0.id == turnID }), turns[index].answer.isEmpty {
+                        draft = question
+                        turns.remove(at: index)
+                    }
+                }
+            }
+            return
+        }
         let body: [String: JSONValue] = ["question": .string(question), "convId": .string(conversationID), "game": .string(game), "useMcp": .bool(live), "length": .string(length), "style": .string(style), "effort": .string(effort), "visualizations": .bool(visualizations), "mode": .string(mode.rawValue), "tz": .string(TimeZone.current.identifier), "attachments": files]
         streamTask = Task {
             defer { streaming = false; streamTask = nil; requestID = "" }
@@ -288,6 +347,8 @@ struct AskConversation: View {
                     case "meta": conversationID = data["convId"].string; requestID = data["reqId"].string; status = data["status"].string
                     case "status", "action":
                         status = data["label"].string
+                        let model = data.first("modelName", "modelId", "model")
+                        if !model.isEmpty { turns[index].model = model }
                         if !status.isEmpty && turns[index].trail.count < 80 { turns[index].trail.append(status) }
                     case "delta": turns[index].answer += data.string
                     case "done":

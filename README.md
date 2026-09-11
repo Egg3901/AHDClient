@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/Egg3901/AHDClient/actions/workflows/verify.yml"><img src="https://github.com/Egg3901/AHDClient/actions/workflows/verify.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/version-2.1.0-informational" alt="Version">
+  <img src="https://img.shields.io/badge/version-2.3.8-informational" alt="Version">
   <img src="https://img.shields.io/badge/license-proprietary-red" alt="License">
 </p>
 

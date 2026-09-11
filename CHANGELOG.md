@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.8] - 2026-09-11
+
+- Add an optional Apple on-device Ask provider for supported iOS 26 devices. Questions and answers stay on the device, while live game data, citations, charts, and attachments remain on the Ask server path.
+- Show the serving Free Router model while a native Ask answer is being drafted.
+- Fix native Ask sign-in after auth hardening by capturing the `__Host-ask_session` cookie and using POST for logout.
+- Harden Android startup so optional widget, JobScheduler, and push companion failures cannot terminate the main client WebView.
+- Release the current Head of State singleplayer path with the AHDGame 1.8.3 pairing verified.
+
 ## [2.3.6] - 2026-09-11
 
 - Add an Ask button to the launcher header and the playing toolbar. It opens the player Q&A service in a narrow panel docked against the right edge of the screen, so questions sit beside play. Reopening resumes the same panel in place: history and an in-flight answer survive closing and reopening, and the platform minimize and close buttons work as expected. Sign-in rides the shared app session, so players already signed in skip the password prompt; the daily question allowance is shown inside the panel.

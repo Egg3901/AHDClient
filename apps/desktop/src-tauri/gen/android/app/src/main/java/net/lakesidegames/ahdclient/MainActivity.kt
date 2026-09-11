@@ -23,14 +23,25 @@ class MainActivity : TauriActivity() {
   override fun onResume() {
     super.onResume()
     openWidgetPage()
-    BriefingWidgets.render(this)
-    BriefingWidgets.schedule(this)
+    refreshWidgetsSafely()
   }
 
   override fun onPause() {
-    BriefingWidgets.render(this)
-    BriefingWidgets.schedule(this)
+    refreshWidgetsSafely()
     super.onPause()
+  }
+
+  private fun refreshWidgetsSafely() {
+    // Widgets are an optional companion. A missing provider or a device-level
+    // JobScheduler failure must not prevent the main WebView from launching.
+    try {
+      BriefingWidgets.render(this)
+    } catch (_: Exception) {
+    }
+    try {
+      BriefingWidgets.schedule(this)
+    } catch (_: Exception) {
+    }
   }
 
   private fun openWidgetPage() {

@@ -43,11 +43,12 @@ const AUXILIARY_ONLINE_HOSTS: &[&str] = &[
   "www.google.com",
 ];
 
-/// Player Q&A service. Opened in its own dedicated zero-capability window so
-/// a question can sit beside the game. Sign-in is automatic for players
-/// already signed in anywhere in the app: every window shares the platform's
-/// persistent cookie jar, so the Ask broker bounce reads the existing game
-/// session and the Ask cookie lands without another password prompt.
+/// Player Q&A service. Desktop opens it in its own dedicated zero-capability
+/// window so a question can sit beside the game; mobile presents a native
+/// sheet. Sign-in is automatic for players already signed in anywhere in the
+/// app: the Ask broker bounce reads the existing game session without another
+/// password prompt.
+#[cfg_attr(mobile, allow(dead_code))]
 const ASK_URL: &str = "https://ask.lakesidegames.net/";
 /// Hosts the Ask sign-in bounce may legitimately touch: the Ask service
 /// itself, the Lakeside auth broker, the game origins it reads the session

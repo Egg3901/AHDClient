@@ -316,11 +316,7 @@ export const game = {
 export type OnlineTarget = "live" | "sandbox";
 
 export const ask = {
-  /**
-   * Open the player Q&A panel beside the game. Reopening focuses the existing
-   * panel untouched, so history and an in-flight answer survive. Sign-in rides
-   * the shared app session.
-   */
+  /** Open the player Q&A surface. Mobile presents the native Ask sheet. */
   open: () => invoke<void>("open_ask_window"),
 };
 

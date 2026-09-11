@@ -24,8 +24,8 @@
       "environment": "production",
       "distribution": "store",
       "withoutCredentials": true,
+      "config": "ahdclient-release.yml",
       "ios": {
-        "config": "ahdclient-release.yml",
         "image": "latest",
         "resourceClass": "m-medium"
       }
