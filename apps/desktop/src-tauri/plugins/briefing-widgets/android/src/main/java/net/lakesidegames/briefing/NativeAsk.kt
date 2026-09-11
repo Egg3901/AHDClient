@@ -36,6 +36,7 @@ import java.util.concurrent.Executors
 private const val NATIVE_ASK_ORIGIN = "https://ask.lakesidegames.net"
 private const val NATIVE_ASK_LOGIN = "$NATIVE_ASK_ORIGIN/auth/login?next=%2F"
 private const val NATIVE_GAME_ORIGIN = "https://ahousedividedgame.com"
+private const val NATIVE_SANDBOX_ORIGIN = "https://sandbox.ahousedividedgame.com"
 private const val NATIVE_AUTH_ORIGIN = "https://auth.ahousedividedgame.com"
 private const val NATIVE_ASK_MAX_REDIRECTS = 10
 
@@ -43,11 +44,12 @@ private val nativeAskAllowedHosts = setOf(
   "ask.lakesidegames.net",
   "auth.ahousedividedgame.com",
   "ahousedividedgame.com",
-  "www.ahousedividedgame.com"
+  "www.ahousedividedgame.com",
+  "sandbox.ahousedividedgame.com"
 )
 
 private val nativeAskSessionName = Regex(
-  "^(?:ask_session|__Host-ask_session|auth-token(?:-[A-Za-z0-9-]+)?|(?:__Secure-)?(?:authjs|next-auth)\\.session-token(?:\\.[0-9]+)?)$"
+  "^(?:ask_session|__Host-ask_session|__Host-ask_login|auth-token(?:-[A-Za-z0-9-]+)?|(?:__Secure-)?(?:authjs|next-auth)\\.session-token(?:\\.[0-9]+)?)$"
 )
 
 private class NativeAskAuthRequired : Exception(
@@ -58,7 +60,9 @@ private data class NativeAskResult(
   val answer: String,
   val conversationID: String,
   val model: String,
-  val citations: List<String>
+  val citations: List<String>,
+  val usedMcp: Boolean,
+  val liveSources: List<String>
 )
 
 private data class NativeAskTurn(val question: String, var answer: String)
@@ -66,11 +70,19 @@ private data class NativeAskTurn(val question: String, var answer: String)
 private object NativeAskCookies {
   fun snapshot(): Map<String, String> {
     val manager = CookieManager.getInstance()
+    val ask = filtered(manager.getCookie(NATIVE_ASK_ORIGIN))
+    val auth = filtered(manager.getCookie(NATIVE_AUTH_ORIGIN))
+    val game = filtered(manager.getCookie("$NATIVE_GAME_ORIGIN/api/client/account"))
+    val sandbox = filtered(manager.getCookie("$NATIVE_SANDBOX_ORIGIN/api/client/account"))
+    val wwwGame = filtered(manager.getCookie("https://www.ahousedividedgame.com/api/client/account"))
     return mapOf(
-      "ask.lakesidegames.net" to filtered(manager.getCookie(NATIVE_ASK_ORIGIN)),
-      "auth.ahousedividedgame.com" to filtered(manager.getCookie(NATIVE_AUTH_ORIGIN)),
-      "ahousedividedgame.com" to filtered(manager.getCookie("$NATIVE_GAME_ORIGIN/api/client/account")),
-      "www.ahousedividedgame.com" to filtered(manager.getCookie("https://www.ahousedividedgame.com/api/client/account"))
+      "ask.lakesidegames.net" to ask,
+      // A host-only game cookie is not returned for the auth subdomain. The
+      // broker is an explicitly trusted first-party host, so give it the same
+      // auth-token cookies the game WebView already holds.
+      "auth.ahousedividedgame.com" to merge(auth, game, sandbox, wwwGame),
+      "ahousedividedgame.com" to game,
+      "www.ahousedividedgame.com" to wwwGame
     )
   }
 
@@ -79,6 +91,17 @@ private object NativeAskCookies {
     .filter { it.substringBefore('=').let(nativeAskSessionName::matches) }
     .distinctBy { it.substringBefore('=') }
     .joinToString("; ")
+
+  private fun merge(vararg headers: String): String {
+    val merged = linkedMapOf<String, String>()
+    headers.forEach { header ->
+      header.split(';').map { it.trim() }.forEach { pair ->
+        val name = pair.substringBefore('=')
+        if (pair.contains('=') && nativeAskSessionName.matches(name)) merged.putIfAbsent(name, pair)
+      }
+    }
+    return merged.values.joinToString("; ")
+  }
 }
 
 private class NativeAskApi(initialCookies: Map<String, String>) {
@@ -97,7 +120,8 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
   fun ask(
     question: String,
     conversationID: String,
-    onDelta: (String) -> Unit
+    onDelta: (String) -> Unit,
+    onStatus: (String) -> Unit = {}
   ): NativeAskResult {
     val body = JSONObject()
       .put("question", question)
@@ -121,11 +145,19 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
         val message = readBody(connection).take(4096)
         throw Exception(if (message.isBlank()) "Ask could not start the answer." else message)
       }
+      if (!connection.contentType.orEmpty().contains("text/event-stream", ignoreCase = true)) {
+        val payload = try { JSONObject(readBody(connection)) } catch (_: Exception) {
+          throw Exception("Ask returned invalid data.")
+        }
+        return resultFromJson(payload, conversationID)
+      }
 
       var answer = ""
       var returnedConversationID = conversationID
       var model = ""
       val citations = mutableListOf<String>()
+      var usedMcp = false
+      val liveSources = mutableListOf<String>()
       var eventName = "message"
       var eventData = StringBuilder()
       var completed = false
@@ -136,6 +168,9 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
           catch (_: Exception) { throw Exception("Ask sent an invalid event.") }
         when (eventName) {
           "meta" -> if (value is JSONObject) returnedConversationID = value.optString("convId", returnedConversationID)
+          "status", "action" -> if (value is JSONObject) {
+            value.optString("label").takeIf { it.isNotBlank() }?.let(onStatus)
+          }
           "delta" -> {
             val delta = when (value) {
               is String -> value
@@ -149,6 +184,13 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
             returnedConversationID = value.optString("convId", returnedConversationID)
             answer = value.optString("answer", answer)
             model = value.optString("modelName", value.optString("modelId", value.optString("model", model)))
+            usedMcp = value.optBoolean("usedMcp", false)
+            value.optJSONArray("liveSources")?.let { list ->
+              for (index in 0 until list.length()) {
+                val source = list.optString(index)
+                if (source.isNotBlank()) liveSources += source
+              }
+            }
             value.optJSONArray("citations")?.let { list ->
               for (index in 0 until list.length()) {
                 val item = list.optJSONObject(index) ?: continue
@@ -186,10 +228,38 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
         emit()
       }
       if (!completed || answer.trim().isEmpty()) throw Exception("Ask returned an empty answer.")
-      return NativeAskResult(answer, returnedConversationID, model, citations)
+      return NativeAskResult(answer, returnedConversationID, model, citations, usedMcp, liveSources.distinct())
     } finally {
       connection.disconnect()
     }
+  }
+
+  private fun resultFromJson(value: JSONObject, fallbackConversationID: String): NativeAskResult {
+    val answer = value.optString("answer")
+    if (answer.trim().isEmpty()) throw Exception("Ask returned an empty answer.")
+    val citations = mutableListOf<String>()
+    value.optJSONArray("citations")?.let { list ->
+      for (index in 0 until list.length()) {
+        val item = list.optJSONObject(index) ?: continue
+        val label = item.optString("label", item.optString("path"))
+        if (label.isNotBlank()) citations += label
+      }
+    }
+    val liveSources = mutableListOf<String>()
+    value.optJSONArray("liveSources")?.let { list ->
+      for (index in 0 until list.length()) {
+        val source = list.optString(index)
+        if (source.isNotBlank()) liveSources += source
+      }
+    }
+    return NativeAskResult(
+      answer = answer,
+      conversationID = value.optString("convId", fallbackConversationID),
+      model = value.optString("modelName", value.optString("modelId", value.optString("model"))),
+      citations = citations,
+      usedMcp = value.optBoolean("usedMcp", false),
+      liveSources = liveSources.distinct(),
+    )
   }
 
   private fun login() {
@@ -270,7 +340,10 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
 
   private fun clearAskCookie() {
     cookies["ask.lakesidegames.net"] = cookies["ask.lakesidegames.net"].orEmpty().split(';')
-      .map { it.trim() }.filter { !it.startsWith("ask_session=") && !it.startsWith("__Host-ask_session=") }
+      .map { it.trim() }.filter {
+        val name = it.substringBefore('=')
+        name != "ask_session" && name != "__Host-ask_session" && name != "__Host-ask_login"
+      }
       .filter { it.isNotBlank() }.joinToString("; ")
   }
 
@@ -364,7 +437,7 @@ private class NativeAskPanel(
 
   private fun buildProviderStatus() {
     val provider = TextView(context).apply {
-      text = "Ask server  |  Live game evidence and sources"
+      text = "Ask server  |  Live tools and sources when available"
       textSize = 12f
       setTextColor(Color.rgb(168, 220, 205))
       setPadding(12, 10, 12, 10)
@@ -433,19 +506,30 @@ private class NativeAskPanel(
     statusLabel.visibility = View.VISIBLE
     worker.execute {
       try {
-        val result = api.ask(question, conversationID) { delta ->
-          mainHandler.post {
-            answerView.text = answerView.text.toString() + delta
-            scrollToBottom()
-          }
-        }
+        val result = api.ask(
+          question = question,
+          conversationID = conversationID,
+          onDelta = { delta ->
+            mainHandler.post {
+              answerView.text = answerView.text.toString() + delta
+              scrollToBottom()
+            }
+          },
+          onStatus = { label ->
+            mainHandler.post {
+              statusLabel.text = label
+              statusLabel.visibility = View.VISIBLE
+            }
+          },
+        )
         mainHandler.post {
           turn.answer = result.answer
           answerView.text = formatAnswer(result)
           if (result.conversationID.isNotBlank()) conversationID = result.conversationID
           sending = false
           sendButton.isEnabled = true
-          statusLabel.visibility = View.GONE
+          statusLabel.text = evidenceStatus(result)
+          statusLabel.visibility = View.VISIBLE
           scrollToBottom()
         }
       } catch (failure: Exception) {
@@ -485,6 +569,12 @@ private class NativeAskPanel(
     val sourceText = if (result.citations.isEmpty()) "" else "\n\nSources: ${result.citations.joinToString(" | ")}"
     val modelText = if (result.model.isBlank()) "" else "\n\n${result.model}"
     return result.answer + modelText + sourceText
+  }
+
+  private fun evidenceStatus(result: NativeAskResult): String {
+    if (!result.usedMcp) return "No live game tool result was used for this answer."
+    val sources = result.liveSources.joinToString(", ")
+    return if (sources.isBlank()) "Live game tools used." else "Live game tools used: $sources"
   }
 
   private fun scrollToBottom() { scroll.post { scroll.fullScroll(ScrollView.FOCUS_DOWN) } }

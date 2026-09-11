@@ -92,6 +92,23 @@ describe("desktop security configuration", () => {
     expect(read("../src-tauri/src/lib.rs")).toContain("https://ask.lakesidegames.net/");
   });
 
+  it("keeps native Ask sign-in transactions and live-tool evidence intact", () => {
+    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
+    const androidAsk = read(
+      "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
+    );
+    expect(iosAsk).toContain("__Host-ask_login");
+    expect(iosAsk).toContain("brokerCookie");
+    expect(iosAsk).toContain("liveSources");
+    expect(androidAsk).toContain("__Host-ask_login");
+    expect(androidAsk).toContain("merge(auth, game, sandbox, wwwGame)");
+    expect(androidAsk).toContain("text/event-stream");
+    expect(iosFoundationModels).toContain("NativeAskLiveTool");
+    expect(iosFoundationModels).toContain("LanguageModelSession(tools:");
+    expect(iosFoundationModels).toContain("ask_live_game_state");
+  });
+
   it("gives the launcher no filesystem or shell access of its own", () => {
     const permissions = defaultCapability.permissions as Array<
       string | { identifier: string }
