@@ -111,7 +111,7 @@ describe("desktop security configuration", () => {
     expect(iosAsk).toContain("brokerCookie");
     expect(iosAsk).toContain("liveSources");
     expect(androidAsk).toContain("__Host-ask_login");
-    expect(androidAsk).toContain("merge(auth, game, sandbox, wwwGame)");
+    expect(androidAsk).toContain("merge(auth, unifiedAuth, game, sandbox, wwwGame)");
     expect(androidAsk).toContain("text/event-stream");
     expect(iosFoundationModels).toContain("NativeAskLiveTool");
     expect(iosFoundationModels).toContain("LanguageModelSession(tools:");
