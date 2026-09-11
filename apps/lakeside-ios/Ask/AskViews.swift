@@ -87,6 +87,7 @@ private struct ChatTurn: Identifiable {
     var model: String = ""
     var local = false
     var trail: [String] = []
+    var actions: [JSONValue] = []
     var metadata: JSONValue = .null
     var attachments: [JSONValue] = []
 }
@@ -166,6 +167,16 @@ struct AskConversation: View {
                                     VStack(alignment: .leading, spacing: 10) {
                                         ForEach(Array(turn.trail.enumerated()), id: \.offset) { index, label in
                                             HStack(alignment: .top, spacing: 10) { Text(String(index + 1)).font(.caption.monospacedDigit()).foregroundStyle(Brand.mint); Text(label).font(.caption) }
+                                        }
+                                    }.padding(.top, 8)
+                                }.font(.callout)
+                            }
+                            if !turn.actions.isEmpty {
+                                DisclosureGroup("Tool activity (\(turn.actions.count))") {
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        ForEach(Array(turn.actions.enumerated()), id: \.offset) { _, action in
+                                            Label(action["label"].string.nonempty ?? action["name"].string, systemImage: "wrench.and.screwdriver")
+                                                .font(.caption)
                                         }
                                     }.padding(.top, 8)
                                 }.font(.callout)
@@ -322,7 +333,7 @@ struct AskConversation: View {
                     let gameName = contextResult["game"]["name"].string.nonempty ?? selectedGame
                     let gameSubject = contextResult["game"]["subject"].string.nonempty ?? "the selected game"
                     status = "Generating on device…"
-                    let answer = try await AppleFoundationModelProvider.respond(
+                    let response = try await AppleFoundationModelProvider.respond(
                         question: question,
                         history: history,
                         gameName: gameName,
@@ -330,11 +341,18 @@ struct AskConversation: View {
                         gameEvidence: gameEvidence,
                         length: selectedLength,
                         style: selectedStyle,
-                        mode: selectedMode
+                        mode: selectedMode,
+                        allowLive: live,
+                        allowVisualizations: visualizations,
+                        liveLookup: { lookupQuestion in
+                            try await performAFMLiveLookup(question: lookupQuestion, game: selectedGame)
+                        }
                     )
                     guard let index = turns.firstIndex(where: { $0.id == turnID }) else { return }
-                    turns[index].answer = answer
-                    turns[index].model = "Apple Foundation Models"
+                    turns[index].answer = response.text
+                    turns[index].model = response.modelName
+                    turns[index].actions = response.actions
+                    turns[index].citations = contextResult["files"].array + response.liveSources
                     turns[index].local = true
                 } catch is CancellationError {
                     if let index = turns.firstIndex(where: { $0.id == turnID }), turns[index].answer.isEmpty {
@@ -359,11 +377,14 @@ struct AskConversation: View {
                     guard let index = turns.firstIndex(where: { $0.id == turnID }) else { return }
                     switch event.name {
                     case "meta": conversationID = data["convId"].string; requestID = data["reqId"].string; status = data["status"].string
-                    case "status", "action":
+                    case "status":
                         status = data["label"].string
                         let model = data.first("modelName", "modelId", "model")
                         if !model.isEmpty { turns[index].model = model }
                         if !status.isEmpty && turns[index].trail.count < 80 { turns[index].trail.append(status) }
+                    case "action":
+                        status = data["label"].string
+                        if turns[index].actions.count < 80 { turns[index].actions.append(data) }
                     case "delta": turns[index].answer += data.string
                     case "done":
                         attachments.items.removeAll()
@@ -381,6 +402,31 @@ struct AskConversation: View {
                 await refreshCost()
             } catch { if !Task.isCancelled { self.error = error.localizedDescription; if turns.last?.answer.isEmpty == true { draft = question } } }
         }
+    }
+    @MainActor private func performAFMLiveLookup(question: String, game: String) async throws -> (answer: String, sources: [JSONValue]) {
+        var answer = ""
+        var sources: [JSONValue] = []
+        let lookupID = "afm-\(UUID().uuidString.prefix(14))"
+        try await session.stream([
+            "question": .string(question), "convId": .string(lookupID), "game": .string(game),
+            "useMcp": .bool(true), "length": .string("standard"), "style": .string("technical"),
+            "effort": .string("auto"), "visualizations": .bool(false), "mode": .string("verify"),
+            "tz": .string(TimeZone.current.identifier), "attachments": .array([]),
+        ]) { event in
+            let data = try JSONValue.parse(event.data)
+            switch event.name {
+            case "delta": answer += data.string
+            case "done":
+                answer = data["answer"].string.nonempty ?? answer
+                sources = data["citations"].array
+            case "error": throw AppFailure(message: data.string.nonempty ?? data.first("message", "error").nonempty ?? "Live lookup failed.")
+            default: break
+            }
+        }
+        guard !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw AppFailure(message: "Live lookup returned no evidence.")
+        }
+        return (answer, sources)
     }
     private func stop() async {
         stopping = true; defer { stopping = false }

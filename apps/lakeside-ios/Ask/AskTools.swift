@@ -39,12 +39,10 @@ struct AskOptionsView: View {
             }
             Section {
                 Toggle("Use live game data", isOn: $live)
-                    .disabled(provider == .appleOnDevice)
                 Toggle("Charts, diagrams, and maps", isOn: $visualizations)
-                    .disabled(provider == .appleOnDevice)
             } footer: {
                 if provider == .appleOnDevice {
-                    Text("The answer is generated on this iPhone. Ask receives the question only to retrieve game context; live game data, citations, charts, and attachments are unavailable.")
+                    Text("The answer is generated on this iPhone. Ask can supply retrieved context, one read-only live lookup, citations, and native visualizations. Attachments remain unavailable.")
                 } else if hasAttachments {
                     Text("Remove attachments before selecting Apple on-device answers.")
                 } else {
@@ -60,12 +58,6 @@ struct AskOptionsView: View {
                 }
             }
         }.lakesideScreen().navigationTitle("Answer options").navigationBarTitleDisplayMode(.inline)
-            .onChange(of: provider) { _, selected in
-                if selected == .appleOnDevice {
-                    live = false
-                    visualizations = false
-                }
-            }
             .toolbar { Button("Done") { dismiss() } }
     }
 }
