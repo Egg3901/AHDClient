@@ -1,0 +1,57 @@
+name: AHDClient Codemagic TestFlight
+
+on:
+  workflow_dispatch:
+
+jobs:
+  start-codemagic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Start Codemagic AHDClient build
+        id: start
+        env:
+          CODEMAGIC_API_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER }}
+          APP_STORE_CONNECT_KEY_IDENTIFIER: ${{ secrets.APPLE_API_KEY }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+        run: |
+          set -eu
+          test -n "$CODEMAGIC_API_TOKEN"
+          test -n "$APP_STORE_CONNECT_ISSUER_ID"
+          test -n "$APP_STORE_CONNECT_KEY_IDENTIFIER"
+          test -n "$APP_STORE_CONNECT_PRIVATE_KEY"
+          test -n "$APPLE_DEVELOPMENT_TEAM"
+
+          trap 'rm -f codemagic-request.json codemagic-response.json' EXIT
+          jq -n \
+            --arg branch "$GITHUB_REF_NAME" \
+            --arg issuer "$APP_STORE_CONNECT_ISSUER_ID" \
+            --arg key "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --arg privateKey "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --arg team "$APPLE_DEVELOPMENT_TEAM" \
+            '{
+              appId: "6aa23d5d5ae217812383b467",
+              workflowId: "ahdclient-testflight",
+              branch: $branch,
+              environment: {
+                variables: {
+                  APP_STORE_CONNECT_ISSUER_ID: $issuer,
+                  APP_STORE_CONNECT_KEY_IDENTIFIER: $key,
+                  APP_STORE_CONNECT_PRIVATE_KEY: $privateKey,
+                  APPLE_DEVELOPMENT_TEAM: $team
+                }
+              }
+            }' > codemagic-request.json
+
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-auth-token: $CODEMAGIC_API_TOKEN" \
+            --data-binary @codemagic-request.json \
+            https://api.codemagic.io/builds > codemagic-response.json
+
+          build_id=$(jq -er '.buildId' codemagic-response.json)
+          echo "Codemagic build $build_id started for $GITHUB_REF_NAME"
+          echo "build_id=$build_id" >> "$GITHUB_OUTPUT"

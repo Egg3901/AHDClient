@@ -1,0 +1,90 @@
+definitions:
+  environment:
+    apple_signing: &apple_signing
+      groups:
+        - appstore_credentials
+      xcode: 26.6
+      node: 22
+  scripts:
+    validate_credentials: &validate_credentials
+      name: Validate private Apple credentials
+      script: |
+        set -eu
+        for variable in APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_IDENTIFIER APP_STORE_CONNECT_PRIVATE_KEY APPLE_DEVELOPMENT_TEAM; do
+          eval "value=\${$variable:-}"
+          if [ -z "$value" ]; then
+            echo "Missing encrypted Codemagic variable: $variable" >&2
+            exit 1
+          fi
+        done
+    prepare_key: &prepare_key
+      name: Prepare the temporary App Store Connect key
+      script: |
+        set -eu
+        private_dir="$CM_BUILD_DIR/.private-apple"
+        mkdir -p "$private_dir"
+        chmod 700 "$private_dir"
+        export APPLE_API_KEY_PATH="$private_dir/AuthKey_${APP_STORE_CONNECT_KEY_IDENTIFIER}.p8"
+        python3 - <<'PY'
+        import base64
+        import os
+        from pathlib import Path
+
+        content = os.environ['APP_STORE_CONNECT_PRIVATE_KEY'].strip()
+        key = content.encode() if content.startswith('-----BEGIN PRIVATE KEY-----') else base64.b64decode(''.join(content.split()), validate=True)
+        path = Path(os.environ['APPLE_API_KEY_PATH'])
+        path.write_bytes(key)
+        path.chmod(0o600)
+        PY
+        echo "APPLE_API_KEY_PATH=$APPLE_API_KEY_PATH" >> "$CM_ENV"
+
+workflows:
+  ahdclient-testflight:
+    name: AHDClient private TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment: *apple_signing
+    scripts:
+      - *validate_credentials
+      - name: Install AHDClient build tools
+        script: |
+          set -eu
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+          npm ci
+      - name: Validate AHDClient
+        script: |
+          set -eu
+          npm run release:check
+          npm run typecheck
+          npm test --workspace apps/desktop
+      - name: Generate the iOS project and widgets
+        script: |
+          set -eu
+          if [ ! -d apps/desktop/src-tauri/gen/apple ]; then
+            npm run tauri --workspace apps/desktop -- ios init --ci
+          fi
+          ruby scripts/configure-ios-widgets.rb
+          npm run tauri --workspace apps/desktop -- icon src/assets/ahd-logo.png --ios-color '#ffffff'
+          icon=apps/desktop/src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+          test -s "$icon"
+          sips -s format jpeg "$icon" --out "$CM_BUILD_DIR/.private-icon.jpg"
+          sips -s format png "$CM_BUILD_DIR/.private-icon.jpg" --out "$icon"
+          sips -g hasAlpha "$icon" | grep -q 'hasAlpha: no'
+      - *prepare_key
+      - name: Build and upload AHDClient
+        script: |
+          set -eu
+          export RUNNER_TEMP="$CM_BUILD_DIR/.private-apple"
+          export APPLE_API_ISSUER="$APP_STORE_CONNECT_ISSUER_ID"
+          export APPLE_API_KEY="$APP_STORE_CONNECT_KEY_IDENTIFIER"
+          python3 scripts/private-apple-command.py npm run tauri --workspace apps/desktop -- ios build --export-method app-store-connect
+          ipa=$(find apps/desktop/src-tauri/gen/apple/build/arm64 -type f -name '*.ipa' -print -quit)
+          test -n "$ipa"
+          python3 scripts/verify-ios-widget-bundle.py "$ipa"
+          key_dir="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$key_dir"
+          cp "$APPLE_API_KEY_PATH" "$key_dir/AuthKey_${APPLE_API_KEY}.p8"
+          python3 scripts/private-apple-command.py xcrun altool --upload-app --type ios --file "$ipa" --apiKey "$APPLE_API_KEY" --apiIssuer "$APPLE_API_ISSUER"
+          rm -rf apps/desktop/src-tauri/gen/apple/build "$key_dir" "$CM_BUILD_DIR/.private-apple" "$CM_BUILD_DIR/.private-icon.jpg"
