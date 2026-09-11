@@ -295,10 +295,10 @@ private final class NativeAskAPI {
       signedIn = true
       accountName = Self.name(from: profile) ?? "linked game account"
       error = nil
-    } catch {
+    } catch let failure {
       api = client
       signedIn = false
-      error = error.localizedDescription
+      error = failure.localizedDescription
     }
   }
 
