@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   },
   worlds: { list: vi.fn(), create: vi.fn(), touch: vi.fn(), remove: vi.fn() },
   online: { account: vi.fn(), open: vi.fn(), link: vi.fn() },
+  ask: { open: vi.fn() },
   listen: vi.fn(),
   stats: {
     captureStatistics: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock("./worlds.js", () => ({
   game: mocks.game,
   worlds: mocks.worlds,
   online: mocks.online,
+  ask: mocks.ask,
   eraById: (id: string) =>
     id === "1953"
       ? {

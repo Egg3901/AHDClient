@@ -7,7 +7,7 @@ import { BootScreen } from "./screens/BootScreen.js";
 import { WorldsimScreen } from "./screens/WorldsimScreen.js";
 import type { SetupOptions } from "./screens/setupOptions.js";
 import { PlayingScreen } from "./screens/PlayingScreen.js";
-import { eraById, game, online, slugForWorld, worlds } from "./worlds.js";
+import { ask, eraById, game, online, slugForWorld, worlds } from "./worlds.js";
 import type {
   GameInfo,
   LinkedAccount,
@@ -580,6 +580,16 @@ export function App(): JSX.Element {
     await recordProgress();
     setScreen("launcher");
   };
+  const askControl = (
+    <button
+      className="client-settings-trigger"
+      type="button"
+      onClick={() => void ask.open().catch(fail)}
+      title="Ask questions about the game. Opens beside the client and signs you in with your game account."
+    >
+      Ask
+    </button>
+  );
   const settingsControl = (
     <>
     <button className="client-settings-trigger" type="button" onClick={() => setScreen("briefing")}>Briefing</button>
@@ -676,6 +686,7 @@ export function App(): JSX.Element {
               worldsim={runningWorldsim}
               onLauncher={() => void returnToLauncher().catch(fail)}
               onSaveAndStop={() => void handleStop().catch(fail)}
+              onOpenAsk={() => void ask.open().catch(fail)}
               onViewStats={
                 runningWorldsim
                   ? () => {
@@ -853,6 +864,7 @@ export function App(): JSX.Element {
         mobile={mobile}
         settingsControl={settingsControl}
         accountControl={accountControl}
+        askControl={askControl}
         gameVersionControl={mobile ? undefined : <GameVersionBar language={settings.language} />}
         onPhotoSource={(eraId) => {
           void online.help(`help.era-photo-${eraId}`).catch(fail);

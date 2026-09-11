@@ -43,6 +43,26 @@ const AUXILIARY_ONLINE_HOSTS: &[&str] = &[
   "www.google.com",
 ];
 
+/// Player Q&A service. Opened in its own dedicated zero-capability window so
+/// a question can sit beside the game. Sign-in is automatic for players
+/// already signed in anywhere in the app: every window shares the platform's
+/// persistent cookie jar, so the Ask broker bounce reads the existing game
+/// session and the Ask cookie lands without another password prompt.
+const ASK_URL: &str = "https://ask.lakesidegames.net/";
+/// Hosts the Ask sign-in bounce may legitimately touch: the Ask service
+/// itself, the Lakeside auth broker, the game origins it reads the session
+/// from, and the OAuth hosts the game sign-in uses.
+const ASK_NAVIGATION_HOSTS: &[&str] = &[
+  "ask.lakesidegames.net",
+  "auth.ahousedividedgame.com",
+  "ahousedividedgame.com",
+  "www.ahousedividedgame.com",
+  "sandbox.ahousedividedgame.com",
+  "discord.com",
+  "accounts.google.com",
+  "www.google.com",
+];
+
 // ---------------------------------------------------------------------------
 // Help routing (kept from 1.x)
 // ---------------------------------------------------------------------------
@@ -91,6 +111,17 @@ fn is_online_navigation_allowed(url: &Url) -> bool {
   let secure_default_port = url.scheme() == "https" && url.port_or_known_default() == Some(443);
   is_online_origin(url)
     || (secure_default_port && url.host_str().is_some_and(|host| AUXILIARY_ONLINE_HOSTS.contains(&host)))
+}
+
+/// The Ask window may stay inside the Ask service, the auth broker and game
+/// origins the sign-in bounce touches, and the OAuth hosts the game sign-in
+/// uses. Anything else opens in the system browser.
+fn is_ask_navigation_allowed(url: &Url) -> bool {
+  url.scheme() == "https"
+    && url.port_or_known_default() == Some(443)
+    && url
+      .host_str()
+      .is_some_and(|host| ASK_NAVIGATION_HOSTS.contains(&host))
 }
 
 
@@ -193,10 +224,50 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
   use super::{
-    help_destination, is_account_session_cookie, is_online_navigation_allowed, is_online_origin, HelpDestination,
-    LinkedAccount,
+    help_destination, is_account_session_cookie, is_ask_navigation_allowed, is_online_navigation_allowed,
+    is_online_origin, HelpDestination, LinkedAccount, ASK_URL,
   };
   use tauri::Url;
+
+  #[test]
+  fn ask_target_is_the_https_service_root() {
+    let url: Url = ASK_URL.parse().unwrap();
+    assert_eq!(url.scheme(), "https");
+    assert_eq!(url.host_str(), Some("ask.lakesidegames.net"));
+  }
+
+  #[test]
+  fn ask_navigation_stays_in_app_only_for_ask_and_sign_in_hosts() {
+    let service: Url = "https://ask.lakesidegames.net/".parse().unwrap();
+    let broker: Url = "https://auth.ahousedividedgame.com/auth/ahd?return=x"
+      .parse()
+      .unwrap();
+    let game: Url = "https://ahousedividedgame.com/play".parse().unwrap();
+    let discord: Url = "https://discord.com/oauth2/authorize".parse().unwrap();
+    let google: Url = "https://accounts.google.com/o/oauth2/v2/auth"
+      .parse()
+      .unwrap();
+
+    assert!(is_ask_navigation_allowed(&service));
+    assert!(is_ask_navigation_allowed(&broker));
+    assert!(is_ask_navigation_allowed(&game));
+    assert!(is_ask_navigation_allowed(&discord));
+    assert!(is_ask_navigation_allowed(&google));
+
+    let http: Url = "http://ask.lakesidegames.net/".parse().unwrap();
+    let custom_port: Url = "https://ask.lakesidegames.net:444/".parse().unwrap();
+    let lookalike: Url = "https://ask.lakesidegames.net.evil.example/".parse().unwrap();
+    let subdomain: Url = "https://accounts.ask.lakesidegames.net/".parse().unwrap();
+    let unrelated: Url = "https://example.com/".parse().unwrap();
+    let insecure_auth: Url = "http://discord.com/oauth2/authorize".parse().unwrap();
+
+    assert!(!is_ask_navigation_allowed(&http));
+    assert!(!is_ask_navigation_allowed(&custom_port));
+    assert!(!is_ask_navigation_allowed(&lookalike));
+    assert!(!is_ask_navigation_allowed(&subdomain));
+    assert!(!is_ask_navigation_allowed(&unrelated));
+    assert!(!is_ask_navigation_allowed(&insecure_auth));
+  }
 
   #[test]
   fn linked_account_parses_with_and_without_avatar_url() {

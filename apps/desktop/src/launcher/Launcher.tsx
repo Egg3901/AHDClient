@@ -23,6 +23,7 @@ interface Props {
   mobile?: boolean;
   settingsControl?: ReactNode;
   accountControl?: ReactNode;
+  askControl?: ReactNode;
   gameVersionControl?: ReactNode;
   onPhotoSource?: (eraId: string) => void;
   onNewWorld: (eraId: string, worldsim?: boolean) => void;
@@ -65,6 +66,7 @@ export function Launcher({
   mobile = false,
   settingsControl,
   accountControl,
+  askControl,
   gameVersionControl,
   onPhotoSource,
   onNewWorld,
@@ -141,10 +143,11 @@ export function Launcher({
               {de ? "Eine historische politische Simulation" : "A historical political simulation"}
             </p>
           </div>
-          {(accountControl || settingsControl) && (
+          {(accountControl || settingsControl || askControl) && (
             <div className="launcher-settings">
               {accountControl}
               {settingsControl}
+              {askControl}
             </div>
           )}
         </header>

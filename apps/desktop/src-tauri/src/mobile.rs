@@ -16,7 +16,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::{help_destination, is_online_navigation_allowed, linked_account, HelpDestination, ONLINE_URL, SANDBOX_URL};
+use crate::{help_destination, is_online_navigation_allowed, linked_account, HelpDestination, ASK_URL, ONLINE_URL, SANDBOX_URL};
 
 /// Appended to the platform WebView user agent (Android, in MainActivity.kt)
 /// or used as the WebKit-shaped custom agent (iOS). The site keys ad slots,
@@ -228,6 +228,15 @@ pub(crate) async fn link_account(app: AppHandle) -> Result<(), String> {
   Ok(())
 }
 
+/// Mobile has a single webview, so Ask navigates it the same way multiplayer
+/// does: the Ask cookie jar is the app jar, sign-in stays in-app, and the
+/// system Back button walks back to the local client.
+#[tauri::command]
+pub(crate) async fn open_ask_window(app: AppHandle) -> Result<(), String> {
+  let url: Url = ASK_URL.parse().map_err(|_| "invalid Ask URL")?;
+  navigate_main(&app, url)
+}
+
 #[tauri::command]
 pub(crate) async fn open_help_destination(app: AppHandle, route_id: String) -> Result<(), String> {
   match help_destination(&route_id) {
@@ -268,6 +277,7 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
       link_account,
       open_online_window,
       open_help_destination,
+      open_ask_window,
     ])
     .setup(|app| {
       create_main_window(app.handle())?;

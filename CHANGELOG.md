@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.3.6] - 2026-09-11
+
+- Add an Ask button to the launcher header and the playing toolbar. It opens the player Q&A service in a narrow panel docked against the right edge of the screen, so questions sit beside play. Reopening resumes the same panel in place: history and an in-flight answer survive closing and reopening, and the platform minimize and close buttons work as expected. Sign-in rides the shared app session, so players already signed in skip the password prompt; the daily question allowance is shown inside the panel.
+
 ## [2.3.5] - 2026-09-10
 
 - Make Windows updates visible during installation and leave relaunch ownership with the installer, removing the unexplained blank interval after Restart.
