@@ -54,6 +54,7 @@ private final class NativeAskRedirectDelegate: NSObject, URLSessionTaskDelegate,
   private let allowedHosts: Set<String> = [
     "ask.lakesidegames.net",
     "auth.ahousedividedgame.com",
+    "auth.lakesidegames.net",
     "ahousedividedgame.com",
     "www.ahousedividedgame.com",
   ]
@@ -217,6 +218,12 @@ private final class NativeAskAPI {
     return NativeAskResult(answer: answer, conversationID: returnedConversationID, model: model, citations: citations)
   }
 
+  func context(question: String) async throws -> (text: String, files: [String]) {
+    try await ensureSession()
+    let payload = try await json(try request("/api/ask/context", body: ["question": question, "game": "ahd"]))
+    return (payload["context"] as? String ?? "", payload["files"] as? [String] ?? [])
+  }
+
   private func readEvents(_ bytes: URLSession.AsyncBytes, handler: (String, Any) throws -> Void) async throws {
     var lineBytes: [UInt8] = []
     var event = "message"
@@ -320,9 +327,12 @@ private final class NativeAskAPI {
         let result: NativeAskResult
         if selectedProvider == .appleOnDevice {
           guard appleAvailable else { throw FoundationModelBridgeError.unavailable(appleMessage) }
-          let options = FoundationModelOptions(question: question, history: history, length: "standard", style: "standard", mode: "ask")
+          guard let api else { throw NativeAskError.signedOut }
+          guard signedIn else { throw NativeAskError.signedOut }
+          let evidence = try await api.context(question: question)
+          let options = FoundationModelOptions(question: question, history: history, length: "standard", style: "standard", mode: "ask", gameContext: evidence.text)
           let payload = try await AppleFoundationModelBridge.respond(options)
-          result = NativeAskResult(answer: payload["text"] as? String ?? "", conversationID: "", model: payload["model"] as? String ?? "Apple Foundation Models", citations: [])
+          result = NativeAskResult(answer: payload["text"] as? String ?? "", conversationID: "", model: payload["model"] as? String ?? "Apple Foundation Models", citations: evidence.files)
         } else {
           guard let api else { throw NativeAskError.signedOut }
           guard signedIn else { throw NativeAskError.signedOut }
@@ -371,7 +381,7 @@ struct NativeAskView: View {
       VStack(spacing: 0) {
         providerBar
         if provider == .appleOnDevice {
-          Label("Private on-device answers. No question or conversation is sent to the server.", systemImage: "lock.shield")
+          Label("The question is sent to Ask for game evidence; the answer is generated privately on this device.", systemImage: "lock.shield")
             .font(.caption).foregroundStyle(.secondary).padding(.horizontal).padding(.vertical, 9)
         } else if model.connecting {
           ProgressView("Checking linked game account...").frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
@@ -387,7 +397,7 @@ struct NativeAskView: View {
               if model.turns.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                   Label("Lakeside Ask", systemImage: "bubble.left.and.text.bubble.right.fill").font(.title2.bold())
-                  Text("Ask about A House Divided. Ask server uses live game evidence and sources. Apple Foundation Models answers privately on this device without live game data.")
+                  Text("Ask about A House Divided. Ask server uses live game evidence and tools. Apple Foundation Models uses retrieved game sources and generates the answer on this device.")
                     .font(.callout).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 24)
               }
@@ -402,7 +412,7 @@ struct NativeAskView: View {
                   }.font(.caption.bold()).foregroundStyle(.secondary)
                   if turn.answer.isEmpty && model.sending { ProgressView("Thinking...").font(.callout) }
                   else { Text(turn.answer).font(.body).textSelection(.enabled) }
-                  if turn.local { Text("On device. This answer was not sent to the server.").font(.caption).foregroundStyle(.secondary) }
+                  if turn.local { Text("Generated on device from Ask's retrieved game evidence.").font(.caption).foregroundStyle(.secondary) }
                   if !turn.citations.isEmpty { Text("Sources: " + turn.citations.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary) }
                 }.id(turn.id)
               }

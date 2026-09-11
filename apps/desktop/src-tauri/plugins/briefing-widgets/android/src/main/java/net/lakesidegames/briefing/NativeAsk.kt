@@ -37,11 +37,13 @@ private const val NATIVE_ASK_ORIGIN = "https://ask.lakesidegames.net"
 private const val NATIVE_ASK_LOGIN = "$NATIVE_ASK_ORIGIN/auth/login?next=%2F"
 private const val NATIVE_GAME_ORIGIN = "https://ahousedividedgame.com"
 private const val NATIVE_AUTH_ORIGIN = "https://auth.ahousedividedgame.com"
+private const val NATIVE_UNIFIED_AUTH_ORIGIN = "https://auth.lakesidegames.net"
 private const val NATIVE_ASK_MAX_REDIRECTS = 10
 
 private val nativeAskAllowedHosts = setOf(
   "ask.lakesidegames.net",
   "auth.ahousedividedgame.com",
+  "auth.lakesidegames.net",
   "ahousedividedgame.com",
   "www.ahousedividedgame.com"
 )
@@ -69,6 +71,7 @@ private object NativeAskCookies {
     return mapOf(
       "ask.lakesidegames.net" to filtered(manager.getCookie(NATIVE_ASK_ORIGIN)),
       "auth.ahousedividedgame.com" to filtered(manager.getCookie(NATIVE_AUTH_ORIGIN)),
+      "auth.lakesidegames.net" to filtered(manager.getCookie(NATIVE_UNIFIED_AUTH_ORIGIN)),
       "ahousedividedgame.com" to filtered(manager.getCookie("$NATIVE_GAME_ORIGIN/api/client/account")),
       "www.ahousedividedgame.com" to filtered(manager.getCookie("https://www.ahousedividedgame.com/api/client/account"))
     )
