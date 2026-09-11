@@ -48,11 +48,35 @@ import XCTest
         XCTAssertEqual(app.profile["identity"]["username"].string, "Test operator")
         await app.signOut()
     }
+    func testAskContextUsesTheAuthenticatedSession() async throws {
+        let app = askSession()
+        let cookie = try XCTUnwrap(HTTPCookie(properties: [.name: "__Host-ask_session", .value: "fixture-login", .domain: "ask.lakesidegames.net", .path: "/", .secure: "TRUE"]))
+        try await app.accept(cookie)
+        let context = try await app.post("/api/ask/context", ["question": .string("How does inflation work?"), "game": .string("ahd")])
+        XCTAssertEqual(context["game"]["id"].string, "ahd")
+        XCTAssertTrue(context["context"].string.contains("price index"))
+        await app.signOut()
+    }
     func testAskRejectsLegacyCookieName() async throws {
         let app = askSession()
         let cookie = try XCTUnwrap(HTTPCookie(properties: [.name: "ask_session", .value: "fixture-login", .domain: "ask.lakesidegames.net", .path: "/", .secure: "TRUE"]))
         do { try await app.accept(cookie); XCTFail("Ask accepted the legacy cookie name") } catch {}
         XCTAssertFalse(app.signedIn)
+    }
+    func testApplePromptUsesRetrievedGameEvidence() {
+        let prompt = AppleFoundationModelPrompt.make(
+            question: "How does inflation work?",
+            history: [],
+            gameName: "A House Divided",
+            gameSubject: "a political strategy game",
+            gameEvidence: "SOURCE CODE: inflation is calculated from the price index.",
+            length: "standard",
+            style: "standard",
+            mode: "auto"
+        )
+        XCTAssertTrue(prompt.contains("inflation is calculated from the price index"))
+        XCTAssertTrue(prompt.contains("Use the evidence for game mechanics"))
+        XCTAssertFalse(prompt.contains("You do not have access to current game state, server tools, citations, or live data."))
     }
     func testUnrelatedCookieCannotSignIn() async throws {
         let cookie = try XCTUnwrap(HTTPCookie(properties: [.name: "ops_session", .value: "fixture", .domain: "attacker.example", .path: "/", .secure: "TRUE"]))

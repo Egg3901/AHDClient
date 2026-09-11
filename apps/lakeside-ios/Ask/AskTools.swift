@@ -44,7 +44,7 @@ struct AskOptionsView: View {
                     .disabled(provider == .appleOnDevice)
             } footer: {
                 if provider == .appleOnDevice {
-                    Text("Apple on-device answers stay private on this device. Live game data, citations, charts, and attachments are unavailable.")
+                    Text("The answer is generated on this iPhone. Ask receives the question only to retrieve game context; live game data, citations, charts, and attachments are unavailable.")
                 } else if hasAttachments {
                     Text("Remove attachments before selecting Apple on-device answers.")
                 } else {
