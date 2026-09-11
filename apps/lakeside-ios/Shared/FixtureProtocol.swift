@@ -164,6 +164,7 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         case "/api/tasks/1": value = ["task": ["id": 1, "status": "completed", "result": "Release verified."]]
 
         case "/api/games": value = ["games": [["id": "ahd", "name": "A House Divided"]]]
+        case "/api/ask/context": value = ["game": ["id": "ahd", "name": "A House Divided", "subject": "a political strategy game"], "context": "SOURCE CODE: inflation is calculated from the price index.", "files": [], "available": true]
         case "/api/map/render":
             let svg = ##"<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760"><rect width="1200" height="760" fill="#111827"/><path d="M100 160 L480 100 L540 500 L180 550 Z" fill="#38bdf8"/><path d="M560 180 L990 130 L1060 580 L600 500 Z" fill="#21c8a0"/><text x="80" y="70" fill="#ffffff" font-size="32">Fixture regions</text></svg>"##
             deliver(Data(svg.utf8), url: url, status: 200, type: "image/svg+xml"); return
