@@ -13,9 +13,13 @@ impl<R: Runtime> NativeCompanion<R> {
     self.0.run_mobile_plugin("configurePush", serde_json::json!({ "enabled": enabled }))
       .map_err(|_| "Could not update push settings".to_string())
   }
+  pub fn show_ask(&self) -> Result<serde_json::Value, String> {
+    self.0.run_mobile_plugin("showAsk", ())
+      .map_err(|_| "Could not open native Ask".to_string())
+  }
 }
 
-/// The launcher calls two narrow app commands. No remote page gets plugin IPC.
+/// The launcher calls narrow app commands. No remote page gets plugin IPC.
 pub fn init<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
   tauri::plugin::Builder::new("briefing-widgets")
     .setup(|app, api| {

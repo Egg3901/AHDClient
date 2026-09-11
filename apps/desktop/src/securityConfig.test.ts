@@ -71,6 +71,15 @@ describe("desktop security configuration", () => {
     expect(read("../src-tauri/src/mobile.rs")).toMatch(
       /fn open_ask_window[\s\S]*?navigate_main\(&app, url\)/,
     );
+    expect(read("../src-tauri/src/mobile.rs")).toMatch(
+      /target_os = "ios"[\s\S]*?\.show_ask\(\)/,
+    );
+    expect(read("../src-tauri/plugins/briefing-widgets/src/lib.rs")).toContain(
+      'run_mobile_plugin("showAsk"',
+    );
+    expect(
+      read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift"),
+    ).toContain("UIHostingController");
     expect(read("../src-tauri/build.rs")).toContain("\"open_ask_window\"");
     expect(read("../src-tauri/src/lib.rs")).toContain("https://ask.lakesidegames.net/");
   });

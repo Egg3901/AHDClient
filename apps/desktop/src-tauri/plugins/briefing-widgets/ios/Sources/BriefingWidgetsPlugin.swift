@@ -12,6 +12,7 @@ final class BriefingWidgetsPlugin: Plugin, WKHTTPCookieStoreObserver {
   @objc public override func load(webview: WKWebView) {
     gameView = webview
     NativePush.shared.attach(webview)
+    NativeAskController.shared.attach(webview)
     webview.configuration.websiteDataStore.httpCookieStore.add(self)
     for name in [UIApplication.didBecomeActiveNotification, UIApplication.willResignActiveNotification] {
       observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.sync(); NativePush.shared.refreshPermission() })
@@ -54,6 +55,11 @@ final class BriefingWidgetsPlugin: Plugin, WKHTTPCookieStoreObserver {
     struct Options: Decodable { let enabled: Bool }
     let options = try invoke.parseArgs(Options.self)
     NativePush.shared.configure(options.enabled) { invoke.resolve($0) }
+  }
+
+  @objc public func showAsk(_ invoke: Invoke) {
+    NativeAskController.shared.present()
+    invoke.resolve(["ok": true])
   }
 
   deinit {

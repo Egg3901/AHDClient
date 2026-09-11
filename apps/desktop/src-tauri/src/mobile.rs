@@ -16,7 +16,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::{help_destination, is_online_navigation_allowed, linked_account, HelpDestination, ASK_URL, ONLINE_URL, SANDBOX_URL};
+use crate::{help_destination, is_ask_navigation_allowed, is_online_navigation_allowed, linked_account, HelpDestination, ASK_URL, ONLINE_URL, SANDBOX_URL};
 
 /// Appended to the platform WebView user agent (Android, in MainActivity.kt)
 /// or used as the WebKit-shaped custom agent (iOS). The site keys ad slots,
@@ -126,15 +126,19 @@ fn open_externally(app: &AppHandle, url: &Url) {
   }
 }
 
-/// Allowed in the app webview: the launcher itself and the online allowlist.
-/// The launcher deep link goes home; everything else opens in the system
-/// browser and is denied here.
+fn is_app_navigation_allowed(url: &Url) -> bool {
+  is_app_origin(url) || is_online_navigation_allowed(url) || is_ask_navigation_allowed(url)
+}
+
+/// Allowed in the app webview: the launcher itself, the online allowlist and
+/// the Ask/auth allowlist. The launcher deep link goes home; everything else
+/// opens in the system browser and is denied here.
 fn navigation_policy(app: &AppHandle, url: &Url) -> bool {
   if is_launcher_request(url) {
     go_home_soon(app);
     return false;
   }
-  if is_app_origin(url) || is_online_navigation_allowed(url) {
+  if is_app_navigation_allowed(url) {
     return true;
   }
   open_externally(app, url);
@@ -228,13 +232,28 @@ pub(crate) async fn link_account(app: AppHandle) -> Result<(), String> {
   Ok(())
 }
 
-/// Mobile has a single webview, so Ask navigates it the same way multiplayer
-/// does: the Ask cookie jar is the app jar, sign-in stays in-app, and the
-/// system Back button walks back to the local client.
+/// iOS presents the native Ask sheet from the mobile plugin. Android keeps its
+/// existing single-webview route for now, with the linked-account broker
+/// bounce started automatically when possible.
 #[tauri::command]
 pub(crate) async fn open_ask_window(app: AppHandle) -> Result<(), String> {
-  let url: Url = ASK_URL.parse().map_err(|_| "invalid Ask URL")?;
-  navigate_main(&app, url)
+  #[cfg(target_os = "ios")]
+  {
+    tauri::async_runtime::spawn_blocking(move || {
+      app.state::<tauri_plugin_briefing_widgets::NativeCompanion<tauri::Wry>>().show_ask()
+    }).await.map_err(|_| "Could not open native Ask".to_string())??;
+    return Ok(());
+  }
+
+  #[cfg(not(target_os = "ios"))]
+  {
+    let target = match linked_account(app.clone()).await {
+      Ok(Some(account)) if account.linked => "https://ask.lakesidegames.net/auth/login?next=%2F",
+      _ => ASK_URL,
+    };
+    let url: Url = target.parse().map_err(|_| "invalid Ask URL")?;
+    navigate_main(&app, url)
+  }
 }
 
 #[tauri::command]
@@ -287,7 +306,7 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
 
 #[cfg(test)]
 mod tests {
-  use super::{is_app_origin, is_launcher_request, USER_AGENT_MARKER};
+  use super::{is_app_navigation_allowed, is_app_origin, is_launcher_request, USER_AGENT_MARKER};
   use tauri::Url;
 
   #[test]
@@ -310,6 +329,18 @@ mod tests {
     assert!(is_launcher_request(&home));
     assert!(!is_launcher_request(&settings));
     assert!(!is_launcher_request(&web));
+  }
+
+  #[test]
+  fn mobile_navigation_keeps_ask_auth_inside_the_app() {
+    let ask: Url = "https://ask.lakesidegames.net/auth/login?next=%2F".parse().unwrap();
+    let broker: Url = "https://auth.ahousedividedgame.com/auth/ahd".parse().unwrap();
+    let game: Url = "https://ahousedividedgame.com/api/client/account".parse().unwrap();
+    let outside: Url = "https://example.com/".parse().unwrap();
+    assert!(is_app_navigation_allowed(&ask));
+    assert!(is_app_navigation_allowed(&broker));
+    assert!(is_app_navigation_allowed(&game));
+    assert!(!is_app_navigation_allowed(&outside));
   }
 
   #[test]
