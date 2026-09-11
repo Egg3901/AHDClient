@@ -93,7 +93,7 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         var status = 200
         switch url.path {
         case "/api/me":
-            let expectedName = isAsk ? "ask_session" : url.host?.hasPrefix("hub.") == true ? "agency_session" : "ops_session"
+            let expectedName = isAsk ? "__Host-ask_session" : url.host?.hasPrefix("hub.") == true ? "agency_session" : "ops_session"
             let cookie = request.value(forHTTPHeaderField: "Cookie") ?? ""
             guard ["ui-test-session", "fixture-login"].contains(where: { cookie == expectedName + "=" + $0 }) else {
                 deliver(Data("{\"error\":\"Fixture requires session cookie\"}".utf8), url: url, status: 401, type: "application/json"); return

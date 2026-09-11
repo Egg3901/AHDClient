@@ -347,6 +347,8 @@ struct AskConversation: View {
                     case "meta": conversationID = data["convId"].string; requestID = data["reqId"].string; status = data["status"].string
                     case "status", "action":
                         status = data["label"].string
+                        let model = data.first("modelName", "modelId", "model")
+                        if !model.isEmpty { turns[index].model = model }
                         if !status.isEmpty && turns[index].trail.count < 80 { turns[index].trail.append(status) }
                     case "delta": turns[index].answer += data.string
                     case "done":
