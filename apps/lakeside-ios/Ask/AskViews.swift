@@ -129,7 +129,7 @@ struct AskConversation: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 28) {
                     if provider == .appleOnDevice {
-                        Label("Apple on-device answers are private and are not saved to Ask history.", systemImage: "iphone")
+                        Label("The answer is generated on this iPhone. Ask only retrieves game context, and does not save the answer.", systemImage: "iphone")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     if turns.isEmpty && !loading {
@@ -147,7 +147,7 @@ struct AskConversation: View {
                             HStack(spacing: 8) { BrandMark(surface: .ask, size: 22); Text("ASK").font(.caption2.bold()).tracking(1.5); Spacer(); if !turn.model.isEmpty { Text(turn.model).font(.caption2).foregroundStyle(.secondary) } }
                             NativeMarkdown(text: turn.answer, streaming: streaming && turn.id == turns.last?.id)
                             if turn.local {
-                                Text("On device. This answer was not sent to the server.")
+                                Text("Generated on device. Ask supplied game context; this answer was not saved.")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             if !turn.citations.isEmpty {
@@ -250,7 +250,7 @@ struct AskConversation: View {
             }
             HStack(spacing: 6) {
                 Circle().fill(provider == .appleOnDevice ? Brand.mint : live ? Brand.mint : Brand.sky).frame(width: 5, height: 5)
-                Text(provider == .appleOnDevice ? "Private on-device answer" : live ? "Live game data" : "Code and documentation").font(.caption2)
+                Text(provider == .appleOnDevice ? "On-device answer + game context" : live ? "Live game data" : "Code and documentation").font(.caption2)
                 Spacer()
                 if provider != .appleOnDevice, let cost = nextCost["cost"].number { Text("\(cost.formatted()) credit\(cost == 1 ? "" : "s")").font(.caption2.monospacedDigit()) }
                 Text(games.first(where: { $0["id"].string == game })?["name"].string ?? "A House Divided").font(.caption2).lineLimit(1)
@@ -310,10 +310,24 @@ struct AskConversation: View {
             streamTask = Task {
                 defer { streaming = false; streamTask = nil; requestID = "" }
                 do {
+                    status = "Loading game context…"
+                    let contextResult = try await session.post("/api/ask/context", [
+                        "question": .string(question),
+                        "game": .string(selectedGame),
+                    ])
+                    let gameEvidence = contextResult["context"].string
+                    guard !gameEvidence.isEmpty else {
+                        throw AppFailure(message: "Ask could not load game context. Choose Ask server and try again.")
+                    }
+                    let gameName = contextResult["game"]["name"].string.nonempty ?? selectedGame
+                    let gameSubject = contextResult["game"]["subject"].string.nonempty ?? "the selected game"
+                    status = "Generating on device…"
                     let answer = try await AppleFoundationModelProvider.respond(
                         question: question,
                         history: history,
-                        game: selectedGame,
+                        gameName: gameName,
+                        gameSubject: gameSubject,
+                        gameEvidence: gameEvidence,
                         length: selectedLength,
                         style: selectedStyle,
                         mode: selectedMode
@@ -347,6 +361,8 @@ struct AskConversation: View {
                     case "meta": conversationID = data["convId"].string; requestID = data["reqId"].string; status = data["status"].string
                     case "status", "action":
                         status = data["label"].string
+                        let model = data.first("modelName", "modelId", "model")
+                        if !model.isEmpty { turns[index].model = model }
                         if !status.isEmpty && turns[index].trail.count < 80 { turns[index].trail.append(status) }
                     case "delta": turns[index].answer += data.string
                     case "done":

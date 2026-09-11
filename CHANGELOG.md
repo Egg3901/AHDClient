@@ -2,7 +2,9 @@
 
 ## [2.3.8] - 2026-09-11
 
-- Add an optional Apple on-device Ask provider for supported iOS 26 devices. Questions and answers stay on the device, while live game data, citations, charts, and attachments remain on the Ask server path.
+- Add an optional Apple on-device Ask provider for supported iOS 26 devices. Ask retrieves bounded game evidence for the selected question, then the answer is generated on the iPhone and is not saved; live game data, citations, charts, and attachments remain on the Ask server path.
+- Show the serving Free Router model while a native Ask answer is being drafted.
+- Fix native Ask sign-in after auth hardening by capturing the `__Host-ask_session` cookie and using POST for logout.
 - Harden Android startup so optional widget, JobScheduler, and push companion failures cannot terminate the main client WebView.
 - Release the current Head of State singleplayer path with the AHDGame 1.8.3 pairing verified.
 
