@@ -19,7 +19,7 @@ use tauri_plugin_shell::ShellExt;
 use fs2::FileExt;
 
 use crate::{game_versions, node_path};
-use crate::{help_destination, is_online_navigation_allowed, linked_account, HelpDestination, ONLINE_URL, SANDBOX_HOST, SANDBOX_URL};
+use crate::{help_destination, is_ask_navigation_allowed, is_online_navigation_allowed, linked_account, HelpDestination, ASK_URL, ONLINE_URL, SANDBOX_HOST, SANDBOX_URL};
 
 const SETTINGS_SHORTCUT_SCRIPT: &str = r#"
 document.addEventListener('keydown', function (event) {
@@ -827,6 +827,90 @@ async fn open_online_url(app: AppHandle, url: Url) -> Result<(), String> {
   Ok(())
 }
 
+/// Ask panel size in logical pixels: a narrow panel that sits beside the
+/// game rather than covering it.
+const ASK_WINDOW_WIDTH: f64 = 440.0;
+const ASK_WINDOW_HEIGHT: f64 = 800.0;
+
+/// Top-left origin that docks the Ask panel against the right edge of the
+/// primary monitor, vertically centered. Pure so it can be unit-tested;
+/// inputs are physical pixels except `scale`.
+fn ask_dock_origin(monitor_width: u32, monitor_height: u32, scale: f64) -> (i32, i32) {
+  let width = (ASK_WINDOW_WIDTH * scale) as u32;
+  let height = (ASK_WINDOW_HEIGHT * scale) as u32;
+  let margin = (12.0 * scale) as u32;
+  let x = monitor_width.saturating_sub(width).saturating_sub(margin) as i32;
+  let y = monitor_height.saturating_sub(height) as i32 / 2;
+  (x.max(0), y.max(0))
+}
+
+/// Logical-pixel form of [`ask_dock_origin`] for
+/// `WebviewWindowBuilder::position`, which takes logical coordinates.
+fn ask_dock_logical(monitor_width: u32, monitor_height: u32, scale: f64) -> (f64, f64) {
+  let (x, y) = ask_dock_origin(monitor_width, monitor_height, scale);
+  (f64::from(x) / scale, f64::from(y) / scale)
+}
+
+/// Opens (or resumes) the Ask panel: the player Q&A service in its own
+/// zero-capability window, like the multiplayer window. Reopening focuses the
+/// existing panel untouched, never re-navigating, so history and an in-flight
+/// answer survive closing and reopening. Minimize and close are the platform
+/// window chrome; closing destroys nothing but the view.
+#[tauri::command]
+pub(crate) async fn open_ask_window(app: AppHandle) -> Result<(), String> {
+  if let Some(existing) = app.get_webview_window("ask") {
+    existing.show().map_err(|e| e.to_string())?;
+    existing.set_focus().map_err(|e| e.to_string())?;
+    return Ok(());
+  }
+
+  let url: Url = ASK_URL.parse().map_err(|e| format!("bad ASK_URL: {e}"))?;
+  let nav_app = app.clone();
+  let new_window_app = app.clone();
+  let close_app = app.clone();
+
+  let mut builder = WebviewWindowBuilder::new(&app, "ask", WebviewUrl::External(url))
+    .user_agent(&desktop_user_agent())
+    .title("A House Divided: Ask")
+    .inner_size(ASK_WINDOW_WIDTH, ASK_WINDOW_HEIGHT)
+    .min_inner_size(320.0, 480.0)
+    .resizable(true)
+    .on_navigation(move |url| {
+      if is_ask_navigation_allowed(url) {
+        true
+      } else {
+        let _ = nav_app.opener().open_url(url.to_string(), None::<&str>);
+        false
+      }
+    })
+    .on_new_window(move |url, _features| {
+      let _ = new_window_app
+        .opener()
+        .open_url(url.to_string(), None::<&str>);
+      tauri::webview::NewWindowResponse::Deny
+    });
+
+  if let Ok(Some(monitor)) = app.primary_monitor() {
+    let size = monitor.size();
+    let (x, y) = ask_dock_logical(size.width, size.height, monitor.scale_factor());
+    builder = builder.position(x, y);
+  } else {
+    builder = builder.center();
+  }
+
+  let window = builder.build().map_err(|e| e.to_string())?;
+
+  window.on_window_event(move |event| {
+    if matches!(event, WindowEvent::CloseRequested { .. } | WindowEvent::Destroyed) {
+      if let Some(main) = close_app.get_webview_window("main") {
+        let _ = main.set_focus();
+      }
+    }
+  });
+
+  Ok(())
+}
+
 pub(crate) async fn open_briefing_url(app: AppHandle, url: Url) -> Result<(), String> {
   if let Some(view) = app.get_webview("online-embedded") {
     // A sandbox view must keep its own world and session.
@@ -903,6 +987,7 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
       refresh_game_view,
       open_online_window,
       open_help_destination,
+      open_ask_window,
       open_game_window,
       game_start,
       game_stop,
@@ -942,8 +1027,19 @@ pub(crate) fn on_exit(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-  use super::{acquire_world_lease, is_local_game_url, refresh_target, valid_slot, EMBEDDED_LABELS};
+  use super::{acquire_world_lease, ask_dock_origin, is_local_game_url, refresh_target, valid_slot, EMBEDDED_LABELS};
   use tauri::Url;
+
+  #[test]
+  fn ask_panel_docks_against_the_right_edge() {
+    // 1920x1080 at scale 1: 440-wide panel, 12px margin.
+    assert_eq!(ask_dock_origin(1920, 1080, 1.0), (1468, 140));
+    // Hidpi scale factor scales the panel and the margin together.
+    assert_eq!(ask_dock_origin(3840, 2160, 2.0), (2936, 280));
+    // A monitor narrower than the panel clamps to the left edge instead of
+    // wrapping around.
+    assert_eq!(ask_dock_origin(320, 480, 1.0), (0, 0));
+  }
 
   #[test]
   fn game_window_navigation_is_pinned_to_its_own_loopback_port() {

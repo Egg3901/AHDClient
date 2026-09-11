@@ -14,6 +14,7 @@
     "core:default",
     "allow-open-online-window",
     "allow-open-help-destination",
+    "allow-open-ask-window",
     "allow-open-game-window",
     "allow-game-start",
     "allow-game-stop",

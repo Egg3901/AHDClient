@@ -8,6 +8,7 @@ import rootPackage from "../../../package.json";
 import defaultCapability from "../src-tauri/capabilities/default.json";
 import onlineCapability from "../src-tauri/capabilities/online.json";
 import gameCapability from "../src-tauri/capabilities/game.json";
+import askCapability from "../src-tauri/capabilities/ask.json";
 import mobileCapability from "../src-tauri/capabilities/mobile.json";
 import briefingCapability from "../src-tauri/capabilities/briefing.json";
 import androidConfig from "../src-tauri/tauri.android.conf.json";
@@ -43,13 +44,35 @@ describe("desktop security configuration", () => {
     expect(onlineCapability.permissions).toEqual([]);
     expect(gameCapability.webviews).toEqual(["game", "game-embedded"]);
     expect(gameCapability.permissions).toEqual([]);
+    expect(askCapability.webviews).toEqual(["ask"]);
+    expect(askCapability.permissions).toEqual([]);
     for (const capability of [
       defaultCapability,
       onlineCapability,
       gameCapability,
+      askCapability,
     ]) {
       expect("remote" in capability).toBe(false);
     }
+  });
+
+  it("opens the Ask panel from the launcher with no remote capability", () => {
+    const identifiers = (defaultCapability.permissions as Array<string>).filter(
+      (permission) => typeof permission === "string",
+    );
+    expect(identifiers).toContain("allow-open-ask-window");
+    const desktop = read("../src-tauri/src/desktop.rs");
+    expect(desktop).toMatch(/async fn open_ask_window/);
+    // Resuming focuses the existing panel without re-navigating, so history
+    // and an in-flight answer survive closing and reopening.
+    expect(desktop).toMatch(
+      /fn open_ask_window[\s\S]*?get_webview_window\("ask"\)[\s\S]*?set_focus\(\)/,
+    );
+    expect(read("../src-tauri/src/mobile.rs")).toMatch(
+      /fn open_ask_window[\s\S]*?navigate_main\(&app, url\)/,
+    );
+    expect(read("../src-tauri/build.rs")).toContain("\"open_ask_window\"");
+    expect(read("../src-tauri/src/lib.rs")).toContain("https://ask.lakesidegames.net/");
   });
 
   it("gives the launcher no filesystem or shell access of its own", () => {
@@ -113,6 +136,7 @@ describe("desktop security configuration", () => {
         "core:default",
         "allow-open-online-window",
         "allow-open-help-destination",
+        "allow-open-ask-window",
         "allow-linked-account",
         "allow-link-account",
         "allow-submit-diagnostics",

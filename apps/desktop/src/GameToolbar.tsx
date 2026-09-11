@@ -8,6 +8,8 @@ interface Props {
   worldsim: boolean;
   onLauncher: () => void;
   onSaveAndStop: () => void;
+  /** Open the player Q&A panel beside the game. */
+  onOpenAsk: () => void;
   /** Worldsim only: return to the world statistics screen. */
   onViewStats?: (() => void) | undefined;
   onTurnAdvanced?: (turn: number) => void;
@@ -51,6 +53,7 @@ export function GameToolbar({
   worldsim,
   onLauncher,
   onSaveAndStop,
+  onOpenAsk,
   onViewStats,
   onTurnAdvanced,
 }: Props): JSX.Element {
@@ -170,6 +173,16 @@ export function GameToolbar({
       >
         {endingTurn ? <span className="client-toolbar-spinner" aria-hidden="true" /> : <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m5 5 10 7L5 19ZM19 5v14" /></svg>}
         {endingTurn ? "Running turn" : "End turn"}
+      </button>
+      <button
+        type="button"
+        className="client-toolbar-quiet"
+        onClick={onOpenAsk}
+        title="Ask questions about the game. Opens beside play and signs you in with your game account."
+        aria-label="Ask about the game"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+        Ask
       </button>
       <strong title={worldName}>{worldName}</strong>
       {endingTurn && <span className="client-toolbar-progress" role="status" aria-label="Running turn"><span className="client-toolbar-spinner" aria-hidden="true" /><span><b>Simulating</b><small className="client-toolbar-turn">Turn {turnState?.turn ?? ""}</small></span></span>}

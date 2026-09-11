@@ -27,6 +27,7 @@ const base = {
   worldName: "Cold War dawn, 1953",
   onLauncher: vi.fn(),
   onSaveAndStop: vi.fn(),
+  onOpenAsk: vi.fn(),
 };
 
 function prepare(status: unknown, availability: "open" | "sealed" = "open") {
@@ -238,7 +239,8 @@ describe("GameToolbar", () => {
       .map((node) => node.textContent);
     expect(order[0]).toBe("Launcher");
     expect(order[1]).toMatch(/End turn|Running turn/);
-    expect(order[2]).toBe("Cold War dawn, 1953");
+    expect(order[2]).toBe("Ask");
+    expect(order[3]).toBe("Cold War dawn, 1953");
     expect(nav.querySelector("strong")?.getAttribute("title")).toBe(
       "Cold War dawn, 1953",
     );
@@ -264,5 +266,15 @@ describe("GameToolbar", () => {
     ]);
     fireEvent.click(overflow[1]!);
     expect(handlers.onSaveAndStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the Ask panel from the top bar without touching the turn", async () => {
+    prepare({ hasWorld: true, turn: 1, hasCharacter: true, characterName: "Ada", mode: "normal" });
+    const onOpenAsk = vi.fn();
+    render(<GameToolbar {...base} onOpenAsk={onOpenAsk} worldsim={false} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask about the game" }));
+    expect(onOpenAsk).toHaveBeenCalledTimes(1);
+    expect(mocks.advanceTurn).not.toHaveBeenCalled();
   });
 });

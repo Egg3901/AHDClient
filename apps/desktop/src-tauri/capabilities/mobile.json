@@ -12,6 +12,7 @@
     "core:default",
     "allow-open-online-window",
     "allow-open-help-destination",
+    "allow-open-ask-window",
     "allow-linked-account",
     "allow-link-account",
     "allow-submit-diagnostics",

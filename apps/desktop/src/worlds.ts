@@ -315,6 +315,15 @@ export const game = {
 
 export type OnlineTarget = "live" | "sandbox";
 
+export const ask = {
+  /**
+   * Open the player Q&A panel beside the game. Reopening focuses the existing
+   * panel untouched, so history and an in-flight answer survive. Sign-in rides
+   * the shared app session.
+   */
+  open: () => invoke<void>("open_ask_window"),
+};
+
 export const online = {
   open: (target: OnlineTarget = "live", separateWindow = false) =>
     invoke<void>("open_online_window", { target, separateWindow }),
