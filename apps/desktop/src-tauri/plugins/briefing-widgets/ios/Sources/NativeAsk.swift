@@ -4,7 +4,8 @@ import UIKit
 import WebKit
 
 private let nativeAskOrigin = URL(string: "https://ask.lakesidegames.net")!
-private let nativeAskLogin = nativeAskOrigin.appendingPathComponent("auth/login")
+private let nativeAskLogin = URL(string: "https://ask.lakesidegames.net/auth/login?next=%2F")!
+private let nativeSandboxHost = "sandbox.ahousedividedgame.com"
 
 enum NativeAskProvider: String, Hashable {
   case server
@@ -24,14 +25,20 @@ struct NativeAskTurn: Identifiable {
   var answer: String
   var model: String = ""
   var citations: [String] = []
+  var usedMcp = false
+  var liveSources: [String] = []
+  var liveToolCalled = false
   var local = false
 }
 
-private struct NativeAskResult {
+struct NativeAskResult {
   let answer: String
   let conversationID: String
   let model: String
   let citations: [String]
+  let usedMcp: Bool
+  let liveSources: [String]
+  let liveToolCalled: Bool
 }
 
 private enum NativeAskError: LocalizedError {
@@ -54,8 +61,10 @@ private final class NativeAskRedirectDelegate: NSObject, URLSessionTaskDelegate,
   private let allowedHosts: Set<String> = [
     "ask.lakesidegames.net",
     "auth.ahousedividedgame.com",
+    "auth.lakesidegames.net",
     "ahousedividedgame.com",
     "www.ahousedividedgame.com",
+    "sandbox.ahousedividedgame.com",
   ]
 
   func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
@@ -68,7 +77,7 @@ private final class NativeAskRedirectDelegate: NSObject, URLSessionTaskDelegate,
   }
 }
 
-private final class NativeAskAPI {
+final class NativeAskAPI: @unchecked Sendable {
   private let storage: HTTPCookieStorage
   private let transport: URLSession
 
@@ -85,18 +94,34 @@ private final class NativeAskAPI {
     transport = URLSession(configuration: configuration, delegate: NativeAskRedirectDelegate(), delegateQueue: nil)
     for cookie in gameCookies where Self.isRelevant(cookie) {
       storage.setCookie(cookie)
+      if Self.isGameAuthCookie(cookie), let brokerCookie = Self.brokerCookie(from: cookie) {
+        storage.setCookie(brokerCookie)
+      }
     }
   }
 
   private static func isRelevant(_ cookie: HTTPCookie) -> Bool {
     let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
-    let gameDomain = domain == "ahousedividedgame.com" || domain == "www.ahousedividedgame.com"
+    let gameDomain = domain == "ahousedividedgame.com" || domain == "www.ahousedividedgame.com" || domain == nativeSandboxHost
     let authDomain = domain == "auth.ahousedividedgame.com"
     let askDomain = domain == "ask.lakesidegames.net"
-    let session = cookie.name == "ask_session" || cookie.name == "__Host-ask_session"
+    let session = cookie.name == "ask_session" || cookie.name == "__Host-ask_session" || cookie.name == "__Host-ask_login"
       || cookie.name == "auth-token" || cookie.name.hasPrefix("auth-token-")
       || cookie.name.range(of: "^(?:__Secure-)?(?:authjs|next-auth)\\.session-token(?:\\.[0-9]+)?$", options: .regularExpression) != nil
     return (gameDomain || authDomain || askDomain) && session && !cookie.value.isEmpty
+  }
+
+  private static func isGameAuthCookie(_ cookie: HTTPCookie) -> Bool {
+    cookie.name == "auth-token" || cookie.name.hasPrefix("auth-token-")
+  }
+
+  private static func brokerCookie(from cookie: HTTPCookie) -> HTTPCookie? {
+    guard isGameAuthCookie(cookie) else { return nil }
+    var properties = cookie.properties ?? [:]
+    properties[.domain] = "auth.ahousedividedgame.com"
+    properties[.path] = "/"
+    properties[.secure] = "TRUE"
+    return HTTPCookie(properties: properties)
   }
 
   private var askCookie: HTTPCookie? {
@@ -104,7 +129,7 @@ private final class NativeAskAPI {
   }
 
   private func clearAskCookies() {
-    for cookie in storage.cookies(for: nativeAskOrigin) ?? [] where cookie.name == "ask_session" || cookie.name == "__Host-ask_session" {
+    for cookie in storage.cookies(for: nativeAskOrigin) ?? [] where cookie.name == "ask_session" || cookie.name == "__Host-ask_session" || cookie.name == "__Host-ask_login" {
       storage.deleteCookie(cookie)
     }
   }
@@ -165,7 +190,8 @@ private final class NativeAskAPI {
     }
   }
 
-  func ask(question: String, conversationID: String, length: String, style: String, mode: String) async throws -> NativeAskResult {
+  func ask(question: String, conversationID: String, length: String, style: String, mode: String,
+           onDelta: @escaping (String) -> Void = { _ in }, onStatus: @escaping (String) -> Void = { _ in }) async throws -> NativeAskResult {
     try await ensureSession()
     let body: [String: Any] = [
       "question": question,
@@ -183,26 +209,46 @@ private final class NativeAskAPI {
     let request = try self.request("/api/ask", body: body)
     let (bytes, response) = try await transport.bytes(for: request)
     defer { bytes.task.cancel() }
-    guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+    guard let http = response as? HTTPURLResponse else {
+      throw NativeAskError.server("Ask returned an invalid response.")
+    }
+    guard http.statusCode == 200 else {
+      if http.statusCode == 401 { throw NativeAskError.signedOut }
       throw NativeAskError.server("Ask could not start the answer.")
+    }
+    if http.mimeType != "text/event-stream" {
+      var data = Data()
+      for try await byte in bytes { data.append(byte) }
+      guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+        throw NativeAskError.server("Ask returned invalid data.")
+      }
+      return try result(from: object, fallbackConversationID: conversationID)
     }
 
     var answer = ""
     var model = ""
     var returnedConversationID = conversationID
     var citations: [String] = []
+    var usedMcp = false
+    var liveSources: [String] = []
     try await readEvents(bytes) { name, value in
       let object = value as? [String: Any]
       switch name {
       case "meta":
         returnedConversationID = object?["convId"] as? String ?? returnedConversationID
+      case "status", "action":
+        if let label = object?["label"] as? String, !label.isEmpty { onStatus(label) }
       case "delta":
-        answer += value as? String ?? ""
+        let delta = value as? String ?? (object?["delta"] as? String ?? "")
+        answer += delta
+        if !delta.isEmpty { onDelta(delta) }
       case "done":
         if let object {
           returnedConversationID = object["convId"] as? String ?? returnedConversationID
           answer = object["answer"] as? String ?? answer
           model = object["modelName"] as? String ?? object["modelId"] as? String ?? object["model"] as? String ?? model
+          usedMcp = object["usedMcp"] as? Bool ?? false
+          liveSources = object["liveSources"] as? [String] ?? []
           citations = (object["citations"] as? [[String: Any]] ?? []).compactMap { item in
             item["label"] as? String ?? item["path"] as? String
           }
@@ -214,7 +260,29 @@ private final class NativeAskAPI {
       }
     }
     guard !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw NativeAskError.emptyAnswer }
-    return NativeAskResult(answer: answer, conversationID: returnedConversationID, model: model, citations: citations)
+    return NativeAskResult(answer: answer, conversationID: returnedConversationID, model: model, citations: citations, usedMcp: usedMcp, liveSources: liveSources, liveToolCalled: false)
+  }
+
+  private func result(from object: [String: Any], fallbackConversationID: String) throws -> NativeAskResult {
+    let answer = object["answer"] as? String ?? ""
+    guard !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw NativeAskError.emptyAnswer }
+    return NativeAskResult(
+      answer: answer,
+      conversationID: object["convId"] as? String ?? fallbackConversationID,
+      model: object["modelName"] as? String ?? object["modelId"] as? String ?? object["model"] as? String ?? "",
+      citations: (object["citations"] as? [[String: Any]] ?? []).compactMap { item in
+        item["label"] as? String ?? item["path"] as? String
+      },
+      usedMcp: object["usedMcp"] as? Bool ?? false,
+      liveSources: object["liveSources"] as? [String] ?? [],
+      liveToolCalled: false,
+    )
+  }
+
+  func context(question: String) async throws -> (text: String, files: [String]) {
+    try await ensureSession()
+    let payload = try await json(try request("/api/ask/context", body: ["question": question, "game": "ahd"]))
+    return (payload["context"] as? String ?? "", payload["files"] as? [String] ?? [])
   }
 
   private func readEvents(_ bytes: URLSession.AsyncBytes, handler: (String, Any) throws -> Void) async throws {
@@ -257,6 +325,7 @@ private final class NativeAskAPI {
   @Published var accountName = ""
   @Published var connecting = true
   @Published var sending = false
+  @Published var status = ""
   @Published var error: String?
   @Published var appleAvailable = false
   @Published var appleMessage = "Checking Apple Foundation Models..."
@@ -308,6 +377,7 @@ private final class NativeAskAPI {
     let turnID = UUID().uuidString
     draft = ""
     error = nil
+    status = provider == .appleOnDevice ? "Generating on device..." : "Thinking..."
     turns.append(NativeAskTurn(id: turnID, question: question, answer: ""))
     sending = true
     let selectedProvider = provider
@@ -320,18 +390,53 @@ private final class NativeAskAPI {
         let result: NativeAskResult
         if selectedProvider == .appleOnDevice {
           guard appleAvailable else { throw FoundationModelBridgeError.unavailable(appleMessage) }
-          let options = FoundationModelOptions(question: question, history: history, length: "standard", style: "standard", mode: "ask")
+          guard let api else { throw NativeAskError.signedOut }
+          guard signedIn else { throw NativeAskError.signedOut }
+          let evidence = try await api.context(question: question)
+          let options = FoundationModelOptions(question: question, history: history, length: "standard", style: "standard", mode: "ask", gameContext: evidence.text)
+          #if canImport(FoundationModels)
+          let liveTool: Any?
+          if #available(iOS 26.0, *) {
+            liveTool = NativeAskLiveTool(api: api)
+          } else {
+            liveTool = nil
+          }
+          let payload = try await AppleFoundationModelBridge.respond(options, liveTool: liveTool)
+          #else
           let payload = try await AppleFoundationModelBridge.respond(options)
-          result = NativeAskResult(answer: payload["text"] as? String ?? "", conversationID: "", model: payload["model"] as? String ?? "Apple Foundation Models", citations: [])
+          #endif
+          // The evidence endpoint provides documentation citations; the optional
+          // live tool adds current state citations returned by Ask.
+          result = NativeAskResult(
+            answer: payload["text"] as? String ?? "",
+            conversationID: "",
+            model: payload["model"] as? String ?? "Apple Foundation Models",
+            citations: evidence.files,
+            usedMcp: payload["usedMcp"] as? Bool ?? false,
+            liveSources: payload["liveSources"] as? [String] ?? [],
+            liveToolCalled: payload["liveToolCalled"] as? Bool ?? false,
+          )
         } else {
           guard let api else { throw NativeAskError.signedOut }
           guard signedIn else { throw NativeAskError.signedOut }
-          result = try await api.ask(question: question, conversationID: oldConversationID, length: "standard", style: "standard", mode: "auto")
+          result = try await api.ask(
+            question: question,
+            conversationID: oldConversationID,
+            length: "standard",
+            style: "standard",
+            mode: "auto",
+            onStatus: { [weak self] label in
+              Task { @MainActor in self?.status = label }
+            },
+          )
         }
         guard let index = turns.firstIndex(where: { $0.id == turnID }) else { return }
         turns[index].answer = result.answer
         turns[index].model = result.model
         turns[index].citations = result.citations
+        turns[index].usedMcp = result.usedMcp
+        turns[index].liveSources = result.liveSources
+        turns[index].liveToolCalled = result.liveToolCalled
         turns[index].local = selectedProvider == .appleOnDevice
         if !result.conversationID.isEmpty { conversationID = result.conversationID }
       } catch is CancellationError {
@@ -341,6 +446,7 @@ private final class NativeAskAPI {
         turns.removeAll { $0.id == turnID }
         draft = question
       }
+      status = ""
     }
   }
 
@@ -371,8 +477,7 @@ struct NativeAskView: View {
       VStack(spacing: 0) {
         providerBar
         if provider == .appleOnDevice {
-          Label("Private on-device answers. No question or conversation is sent to the server.", systemImage: "lock.shield")
-            .font(.caption).foregroundStyle(.secondary).padding(.horizontal).padding(.vertical, 9)
+          appleStatusBanner
         } else if model.connecting {
           ProgressView("Checking linked game account...").frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
         } else if model.signedIn {
@@ -381,13 +486,16 @@ struct NativeAskView: View {
         } else {
           signInBanner
         }
+        if model.sending && !model.status.isEmpty {
+          Text(model.status).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
+        }
         ScrollViewReader { proxy in
           ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
               if model.turns.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                   Label("Lakeside Ask", systemImage: "bubble.left.and.text.bubble.right.fill").font(.title2.bold())
-                  Text("Ask about A House Divided. Ask server uses live game evidence and sources. Apple Foundation Models answers privately on this device without live game data.")
+                  Text("Ask about A House Divided. Ask server uses live game evidence and tools. Apple Foundation Models uses retrieved game evidence, can make one read-only live lookup, and generates the answer on this device.")
                     .font(.callout).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 24)
               }
@@ -396,13 +504,22 @@ struct NativeAskView: View {
                   Text(turn.question).font(.headline).padding(12).frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
                   HStack {
-                    Label(turn.local ? "Apple Foundation Models" : "ASK", systemImage: turn.local ? "iphone" : "bubble.left")
+                    Label(turn.local ? (turn.usedMcp ? "Apple + live Ask tools" : "Apple Foundation Models") : (turn.usedMcp ? "ASK + live tools" : "ASK"), systemImage: turn.local ? "iphone" : "bubble.left")
                     Spacer()
                     if !turn.model.isEmpty { Text(turn.model).font(.caption2).foregroundStyle(.secondary) }
                   }.font(.caption.bold()).foregroundStyle(.secondary)
                   if turn.answer.isEmpty && model.sending { ProgressView("Thinking...").font(.callout) }
                   else { Text(turn.answer).font(.body).textSelection(.enabled) }
-                  if turn.local { Text("On device. This answer was not sent to the server.").font(.caption).foregroundStyle(.secondary) }
+                  if turn.local {
+                    if turn.usedMcp {
+                      Text("Written on device after a read-only live Ask lookup. This question and the live result were sent to Ask server.").font(.caption).foregroundStyle(.secondary)
+                    } else if turn.liveToolCalled {
+                      Text("Written on device after a live Ask lookup attempt. This question was sent to Ask server, but no live source was returned.").font(.caption).foregroundStyle(.secondary)
+                    } else {
+                      Text("Written on device from Ask's retrieved game evidence. This question was sent to Ask server for evidence.").font(.caption).foregroundStyle(.secondary)
+                    }
+                  }
+                  if !turn.liveSources.isEmpty { Text("Live sources: " + turn.liveSources.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary) }
                   if !turn.citations.isEmpty { Text("Sources: " + turn.citations.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary) }
                 }.id(turn.id)
               }
@@ -430,7 +547,10 @@ struct NativeAskView: View {
         Text(NativeAskProvider.appleOnDevice.title).tag(NativeAskProvider.appleOnDevice)
       }.pickerStyle(.segmented)
       if model.provider == .appleOnDevice {
-        Text(model.appleAvailable ? "Available on this device" : model.appleMessage).font(.caption).foregroundStyle(model.appleAvailable ? .green : .secondary)
+        Text(model.appleAvailable
+          ? (model.signedIn ? "Available. One read-only live Ask lookup can ground current game questions." : "Available privately. Link the game account to enable live lookup.")
+          : model.appleMessage)
+          .font(.caption).foregroundStyle(model.appleAvailable ? .green : .secondary)
       }
     }.padding(.horizontal).padding(.top, 10).padding(.bottom, 8)
   }
@@ -441,6 +561,20 @@ struct NativeAskView: View {
       if let error = model.error { Text(error).font(.caption).foregroundStyle(.secondary) }
       Button("Link game account", action: onLinkAccount).buttonStyle(.borderedProminent)
     }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
+  }
+
+  private var appleStatusBanner: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      if model.signedIn {
+        Label("Private on-device answer with one optional read-only live Ask lookup. Live lookup sends this question and its result to Ask server.", systemImage: "lock.shield")
+      } else if model.connecting {
+        Label("Private on-device answers. Checking whether live lookup is available...", systemImage: "lock.shield")
+      } else {
+        Label("Private on-device answers. Link your game account to enable live lookup.", systemImage: "lock.shield")
+        if let error = model.error { Text(error).font(.caption).foregroundStyle(.secondary) }
+        Button("Link game account", action: onLinkAccount).buttonStyle(.borderedProminent)
+      }
+    }.font(.caption).foregroundStyle(.secondary).padding(.horizontal).padding(.vertical, 9)
   }
 
   private var composer: some View {

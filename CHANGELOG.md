@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.3.9] - 2026-09-11
+
+- Route Ask and account sign-in through the canonical Lakeside auth portal on desktop, Android, and iOS.
+- Ground Apple Foundation Models answers with Ask's retrieved game documentation and show the supporting source files while keeping answer generation on-device.
+- Keep the standalone Ask app's Apple Foundation Models option aligned with the hosted Ask release.
+
 ## [2.3.8] - 2026-09-11
 
 - Add an optional Apple on-device Ask provider for supported iOS 26 devices. Ask retrieves bounded game evidence for the selected question, then the answer is generated on the iPhone and is not saved; live game data, citations, charts, and attachments remain on the Ask server path.

@@ -90,6 +90,32 @@ describe("desktop security configuration", () => {
     ).toContain("class NativeAskPanel");
     expect(read("../src-tauri/build.rs")).toContain("\"open_ask_window\"");
     expect(read("../src-tauri/src/lib.rs")).toContain("https://ask.lakesidegames.net/");
+    expect(read("../src-tauri/src/lib.rs")).toContain('"auth.lakesidegames.net"');
+    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    expect(iosAsk).toContain('"auth.lakesidegames.net"');
+    expect(iosAsk).toContain('request("/api/ask/context"');
+    expect(iosAsk).toContain("gameContext: evidence.text");
+    const androidAsk = read(
+      "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
+    );
+    expect(androidAsk).toContain('"auth.lakesidegames.net"');
+  });
+
+  it("keeps native Ask sign-in transactions and live-tool evidence intact", () => {
+    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
+    const androidAsk = read(
+      "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
+    );
+    expect(iosAsk).toContain("__Host-ask_login");
+    expect(iosAsk).toContain("brokerCookie");
+    expect(iosAsk).toContain("liveSources");
+    expect(androidAsk).toContain("__Host-ask_login");
+    expect(androidAsk).toContain("merge(auth, unifiedAuth, game, sandbox, wwwGame)");
+    expect(androidAsk).toContain("text/event-stream");
+    expect(iosFoundationModels).toContain("NativeAskLiveTool");
+    expect(iosFoundationModels).toContain("LanguageModelSession(tools:");
+    expect(iosFoundationModels).toContain("ask_live_game_state");
   });
 
   it("gives the launcher no filesystem or shell access of its own", () => {
