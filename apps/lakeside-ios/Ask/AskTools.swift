@@ -21,17 +21,38 @@ struct AskOptionsView: View {
     @Binding var style: String
     @Binding var length: String
     @Binding var effort: String
+    @Binding var provider: AskProvider
     let games: [JSONValue]
+    let hasAttachments: Bool
     var body: some View {
         Form {
             Section("Game") { Picker("Game", selection: $game) { ForEach(games, id: \.["id"].string) { Text($0["name"].string).tag($0["id"].string) } } }
-            Section {
-                Toggle("Use live game data", isOn: $live)
-                Toggle("Charts, diagrams, and maps", isOn: $visualizations)
-            } footer: { Text("Live lookups and visualizations use their own daily allowances.") }
             Section("Response") {
+                Picker("Provider", selection: $provider) {
+                    Text(AskProvider.server.title).tag(AskProvider.server)
+                    if AppleFoundationModelProvider.isAvailable && !hasAttachments {
+                        Text(AskProvider.appleOnDevice.title).tag(AskProvider.appleOnDevice)
+                    }
+                }
                 Picker("Style", selection: $style) { Text("Simplified").tag("simplified"); Text("Standard").tag("standard"); Text("Technical").tag("technical") }
                 Picker("Length", selection: $length) { Text("Concise").tag("concise"); Text("Standard").tag("standard"); Text("Deep").tag("deep") }
+            }
+            Section {
+                Toggle("Use live game data", isOn: $live)
+                    .disabled(provider == .appleOnDevice)
+                Toggle("Charts, diagrams, and maps", isOn: $visualizations)
+                    .disabled(provider == .appleOnDevice)
+            } footer: {
+                if provider == .appleOnDevice {
+                    Text("Apple on-device answers stay private on this device. Live game data, citations, charts, and attachments are unavailable.")
+                } else if hasAttachments {
+                    Text("Remove attachments before selecting Apple on-device answers.")
+                } else {
+                    Text("Live lookups and visualizations use their own daily allowances.")
+                }
+            }
+            if !AppleFoundationModelProvider.isAvailable && !hasAttachments {
+                Section { Text(AppleFoundationModelProvider.availabilityMessage).font(.caption).foregroundStyle(.secondary) }
             }
             if session.profile["entitlement"]["staff"].bool {
                 Section("Reasoning effort") {
@@ -39,6 +60,12 @@ struct AskOptionsView: View {
                 }
             }
         }.lakesideScreen().navigationTitle("Answer options").navigationBarTitleDisplayMode(.inline)
+            .onChange(of: provider) { _, selected in
+                if selected == .appleOnDevice {
+                    live = false
+                    visualizations = false
+                }
+            }
             .toolbar { Button("Done") { dismiss() } }
     }
 }
