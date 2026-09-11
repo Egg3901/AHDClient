@@ -316,7 +316,7 @@ export const game = {
 export type OnlineTarget = "live" | "sandbox";
 
 export const ask = {
-  /** Open the player Q&A surface. iOS presents the native Ask sheet. */
+  /** Open the player Q&A surface. Mobile presents the native Ask sheet. */
   open: () => invoke<void>("open_ask_window"),
 };
 

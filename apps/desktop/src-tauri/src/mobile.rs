@@ -16,7 +16,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::{help_destination, is_ask_navigation_allowed, is_online_navigation_allowed, linked_account, HelpDestination, ASK_URL, ONLINE_URL, SANDBOX_URL};
+use crate::{help_destination, is_ask_navigation_allowed, is_online_navigation_allowed, linked_account, HelpDestination, ONLINE_URL, SANDBOX_URL};
 
 /// Appended to the platform WebView user agent (Android, in MainActivity.kt)
 /// or used as the WebKit-shaped custom agent (iOS). The site keys ad slots,
@@ -127,15 +127,27 @@ fn open_externally(app: &AppHandle, url: &Url) {
 }
 
 fn is_app_navigation_allowed(url: &Url) -> bool {
-  is_app_origin(url) || is_online_navigation_allowed(url) || is_ask_navigation_allowed(url)
+  is_app_origin(url) || is_online_navigation_allowed(url)
 }
 
-/// Allowed in the app webview: the launcher itself, the online allowlist and
-/// the Ask/auth allowlist. The launcher deep link goes home; everything else
-/// opens in the system browser and is denied here.
+async fn present_native_ask(app: AppHandle) -> Result<(), String> {
+  tauri::async_runtime::spawn_blocking(move || {
+    app.state::<tauri_plugin_briefing_widgets::NativeCompanion<tauri::Wry>>().show_ask()
+  }).await.map_err(|_| "Could not open native Ask".to_string())??;
+  Ok(())
+}
+
+/// Allowed in the app webview: the launcher itself and the online allowlist.
+/// Ask links are converted to the native panel so they never fall through to
+/// a browser or a remote Ask webview.
 fn navigation_policy(app: &AppHandle, url: &Url) -> bool {
   if is_launcher_request(url) {
     go_home_soon(app);
+    return false;
+  }
+  if is_ask_navigation_allowed(url) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move { let _ = present_native_ask(app).await; });
     return false;
   }
   if is_app_navigation_allowed(url) {
@@ -166,7 +178,12 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
     .initialization_script(LAUNCHER_CONTROL_SCRIPT)
     .on_navigation(move |url| navigation_policy(&nav_app, url))
     .on_new_window(move |url, _features| {
-      open_externally(&popup_app, &url);
+      if is_ask_navigation_allowed(&url) {
+        let app = popup_app.clone();
+        tauri::async_runtime::spawn(async move { let _ = present_native_ask(app).await; });
+      } else {
+        open_externally(&popup_app, &url);
+      }
       tauri::webview::NewWindowResponse::Deny
     });
   if let Some(agent) = user_agent() {
@@ -232,28 +249,12 @@ pub(crate) async fn link_account(app: AppHandle) -> Result<(), String> {
   Ok(())
 }
 
-/// iOS presents the native Ask sheet from the mobile plugin. Android keeps its
-/// existing single-webview route for now, with the linked-account broker
-/// bounce started automatically when possible.
+/// iOS and Android present a native Ask sheet from the mobile plugin. The
+/// native panel uses the existing WebView cookie jar for silent linked-account
+/// sign-in, but the Ask conversation itself never loads in a browser view.
 #[tauri::command]
 pub(crate) async fn open_ask_window(app: AppHandle) -> Result<(), String> {
-  #[cfg(target_os = "ios")]
-  {
-    tauri::async_runtime::spawn_blocking(move || {
-      app.state::<tauri_plugin_briefing_widgets::NativeCompanion<tauri::Wry>>().show_ask()
-    }).await.map_err(|_| "Could not open native Ask".to_string())??;
-    return Ok(());
-  }
-
-  #[cfg(not(target_os = "ios"))]
-  {
-    let target = match linked_account(app.clone()).await {
-      Ok(Some(account)) if account.linked => "https://ask.lakesidegames.net/auth/login?next=%2F",
-      _ => ASK_URL,
-    };
-    let url: Url = target.parse().map_err(|_| "invalid Ask URL")?;
-    navigate_main(&app, url)
-  }
+  present_native_ask(app).await
 }
 
 #[tauri::command]
@@ -337,7 +338,8 @@ mod tests {
     let broker: Url = "https://auth.ahousedividedgame.com/auth/ahd".parse().unwrap();
     let game: Url = "https://ahousedividedgame.com/api/client/account".parse().unwrap();
     let outside: Url = "https://example.com/".parse().unwrap();
-    assert!(is_app_navigation_allowed(&ask));
+    assert!(is_ask_navigation_allowed(&ask));
+    assert!(!is_app_navigation_allowed(&ask));
     assert!(is_app_navigation_allowed(&broker));
     assert!(is_app_navigation_allowed(&game));
     assert!(!is_app_navigation_allowed(&outside));

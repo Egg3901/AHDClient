@@ -31,8 +31,14 @@ class BriefingPlugin(private val activity: Activity) : Plugin(activity), Applica
     }
   }
   override fun load(webView: WebView) {
+    NativeAskController.attach(activity, webView)
     activity.application.registerActivityLifecycleCallbacks(this)
     handler.post(poll)
+  }
+  @Command
+  fun showAsk(invoke: Invoke) {
+    NativeAskController.present()
+    invoke.resolve(JSObject("{\"ok\":true}"))
   }
   @Command
   fun pushStatus(invoke: Invoke) {
