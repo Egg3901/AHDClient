@@ -43,5 +43,7 @@ jobs:
               startedAt: (.startedAt // .data.startedAt // .build.startedAt // .result.startedAt),
               finishedAt: (.finishedAt // .data.finishedAt // .build.finishedAt // .result.finishedAt),
               artifacts: ([.artifacts[]? // .data.artifacts[]? // .build.artifacts[]? // .result.artifacts[]? | {name, type, url, size}] // []),
-              appStoreConnectTasks: ([.build.appStoreConnectTasks[]? | {status, type, message, startedAt, finishedAt}] // [])
+              artefacts: (if (.build.artefacts | type) == "array" then [.build.artefacts[] | {name, type, url, size, status}] else {type: (.build.artefacts | type), keys: (.build.artefacts | object_keys)} end),
+              buildActions: (if (.build.buildActions | type) == "array" then [.build.buildActions[] | {name, status, message, startedAt, finishedAt}] else {type: (.build.buildActions | type), keys: (.build.buildActions | object_keys)} end),
+              appStoreConnectTasks: (if (.build.appStoreConnectTasks | type) == "array" then [.build.appStoreConnectTasks[] | {status, type, message, startedAt, finishedAt}] else {type: (.build.appStoreConnectTasks | type), keys: (.build.appStoreConnectTasks | object_keys)} end)
             }'
