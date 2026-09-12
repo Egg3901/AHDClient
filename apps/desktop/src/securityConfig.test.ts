@@ -176,9 +176,18 @@ describe("desktop security configuration", () => {
     expect(iosAsk).toContain("let payload = try await withNativeAskTimeout(seconds: 30)");
     expect(iosAsk).toContain('request("/api/ask/context"');
     expect(iosFoundationModels).toContain("let result = try await withNativeAskTimeout(seconds: 60)");
-    expect(iosFoundationModels).toContain("var response = try await withNativeAskTimeout(seconds: 45)");
-    expect(iosFoundationModels).toContain("session.respond(to: prompt)");
+    expect(iosFoundationModels).toContain("var response: LanguageModelSession.Response<String>");
+    expect(iosFoundationModels).toContain("response = try await withNativeAskTimeout(seconds: 45)");
+    expect(iosFoundationModels).toContain("responseSession.respond(to: prompt)");
     expect(iosFoundationModels).not.toContain("let response = try await session.respond(to: prompt)\n    let answer = response.content");
+  });
+
+  it("keeps AFM prompts below the on-device context budget", () => {
+    const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
+    expect(iosFoundationModels).toContain("options.history.suffix(4)");
+    expect(iosFoundationModels).toContain("String($0.prefix(600))");
+    expect(iosFoundationModels).toContain("String(options.gameContext.prefix(6000))");
+    expect(iosFoundationModels).toContain("compactPrompt");
   });
 
   it("retains the unified Ask login transaction and session cookies on mobile", () => {
