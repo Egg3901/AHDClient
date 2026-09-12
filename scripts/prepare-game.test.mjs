@@ -170,7 +170,7 @@ describe("singleplayer build provenance", () => {
     await stageGame(game, "x86_64-unknown-linux-gnu", { skipBuild: true, destination: staged });
 
     expect(JSON.parse(readFileSync(path.join(staged, "AHD_BUILD.json"), "utf8"))).toEqual({
-      clientVersion: "2.3.14",
+      clientVersion: JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version,
       gameCommit: "a".repeat(40),
       gameCommitStatus: "clean",
     });
