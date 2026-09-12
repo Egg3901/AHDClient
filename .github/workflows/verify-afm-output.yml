@@ -1,10 +1,13 @@
-name: AFM output regression
+name: Native Swift regressions
 on:
   pull_request:
     paths:
       - 'apps/lakeside-ios/Shared/AskPrompt.swift'
       - 'apps/desktop/src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift'
       - 'scripts/tests/afm-output.py'
+      - 'scripts/tests/native-ask-auth.py'
+      - 'scripts/tests/native-ask-auth.swift'
+      - 'apps/desktop/src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift'
       - '.github/workflows/verify-afm-output.yml'
   workflow_dispatch:
 permissions:
@@ -12,7 +15,14 @@ permissions:
 jobs:
   output:
     runs-on: macos-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/tests/afm-output.py
+      - run: python3 scripts/tests/native-ask-auth.py
+      - name: Run native authentication on iOS
+        run: |
+          simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json, sys; print(next(d["udid"] for devices in json.load(sys.stdin)["devices"].values() for d in devices if d["name"].startswith("iPhone")))')
+          xcrun simctl boot "$simulator_id"
+          xcrun simctl bootstatus "$simulator_id" -b
+          python3 scripts/tests/native-ask-auth.py --simulator "$simulator_id"

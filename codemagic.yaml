@@ -65,6 +65,7 @@ workflows:
           npm run release:check
           npm run typecheck
           npm test --workspace apps/desktop
+          python3 scripts/tests/native-ask-auth.py
       - name: Generate the iOS project and widgets
         script: |
           set -eu

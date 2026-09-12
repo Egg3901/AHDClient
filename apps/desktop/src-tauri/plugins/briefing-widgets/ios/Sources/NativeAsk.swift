@@ -108,7 +108,10 @@ final class NativeAskAPI: @unchecked Sendable {
   private let gameAuthCookieHeader: String?
 
   init(gameCookies: [HTTPCookie]) {
-    let storage = HTTPCookieStorage()
+    // Use the backed, private store supplied by the ephemeral session.
+    // HTTPCookieStorage() accepts setCookie calls but retains nothing on Apple.
+    let configuration = URLSessionConfiguration.ephemeral
+    let storage = configuration.httpCookieStorage!
     self.storage = storage
     self.unifiedSessionCookie = gameCookies.first { cookie in
       let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
@@ -121,9 +124,7 @@ final class NativeAskAPI: @unchecked Sendable {
       let gameDomain = domain == "ahousedividedgame.com" || domain == "www.ahousedividedgame.com" || domain == nativeSandboxHost
       return gameDomain && Self.isGameAuthCookie(cookie) && !cookie.value.isEmpty
     })
-    let configuration = URLSessionConfiguration.ephemeral
     configuration.httpShouldSetCookies = true
-    configuration.httpCookieStorage = storage
     configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
     configuration.timeoutIntervalForRequest = 30
     configuration.timeoutIntervalForResource = 120
@@ -143,8 +144,12 @@ final class NativeAskAPI: @unchecked Sendable {
     let authDomain = domain == "auth.ahousedividedgame.com"
     let unifiedAuthDomain = domain == "auth.lakesidegames.net"
     let askDomain = domain == "ask.lakesidegames.net"
+    // The issuer's SSO cookies are distinct from each app's opaque session.
+    // Keep their original domain and realm path so Ask's OIDC redirects can
+    // reuse the game login without sending issuer credentials to Ask itself.
+    let issuerSSO = unifiedAuthDomain && (cookie.name == "KEYCLOAK_IDENTITY" || cookie.name == "KEYCLOAK_SESSION")
     let session = Self.isAskCookieName(cookie.name) || Self.isGameAuthCookie(cookie)
-    return (gameDomain || authDomain || unifiedAuthDomain || askDomain) && session && !cookie.value.isEmpty
+    return ((gameDomain || authDomain || unifiedAuthDomain || askDomain) && session || issuerSSO) && !cookie.value.isEmpty
   }
 
   private static func isAskCookieName(_ name: String) -> Bool {
