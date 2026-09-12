@@ -42,15 +42,50 @@ const LAUNCHER_CONTROL_SCRIPT: &str = r#"
   if (location.protocol === 'tauri:' || location.hostname === 'tauri.localhost') return;
   function mount() {
     if (!document.body || document.getElementById('ahdclient-launcher')) return;
-    var button = document.createElement('button');
+    var bottom = 'max(14px,env(safe-area-inset-bottom))';
+    var menu = document.createElement('div');
+    var button;
+    menu.id = 'ahdclient-game-menu';
+    menu.setAttribute('aria-label', 'AHDClient game menu');
+    menu.style.cssText = 'position:fixed;left:max(10px,env(safe-area-inset-left));bottom:calc(' + bottom + ' + 58px);z-index:2147483646;display:none;flex-wrap:wrap;max-width:calc(100vw - 20px);gap:8px;padding:9px;border:1px solid rgba(255,255,255,.28);border-radius:14px;background:rgba(20,20,28,.94);box-shadow:0 8px 28px rgba(0,0,0,.35);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);';
+    function action(label, destination) {
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.textContent = label;
+      item.style.cssText = 'min-width:78px;height:38px;padding:0 12px;border:1px solid rgba(255,255,255,.22);border-radius:9px;background:rgba(255,255,255,.1);color:#fff;font:600 13px/1 ui-sans-serif,system-ui,sans-serif;cursor:pointer;';
+      item.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        menu.style.display = 'none';
+        button.setAttribute('aria-expanded', 'false');
+        location.href = destination;
+      });
+      menu.appendChild(item);
+    }
+    action('Ask', 'ahdclient://ask');
+    action('Multiplayer', 'https://ahousedividedgame.com/');
+    action('Sandbox', 'https://sandbox.ahousedividedgame.com/');
+    action('Launcher', 'ahdclient://launcher');
+    document.body.appendChild(menu);
+    button = document.createElement('button');
     button.id = 'ahdclient-launcher';
     button.type = 'button';
-    button.setAttribute('aria-label', 'Back to the AHDClient launcher');
+    button.setAttribute('aria-label', 'Open the AHDClient game menu');
+    button.setAttribute('aria-expanded', 'false');
     button.textContent = 'AHD';
     button.style.cssText = 'position:fixed;left:max(10px,env(safe-area-inset-left));bottom:max(14px,env(safe-area-inset-bottom));z-index:2147483647;width:44px;height:44px;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(20,20,28,.74);color:#fff;font:700 12px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.04em;opacity:.6;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);cursor:pointer;';
     button.addEventListener('click', function (event) {
       event.preventDefault();
-      location.href = 'ahdclient://launcher';
+      event.stopPropagation();
+      var open = menu.style.display !== 'flex';
+      menu.style.display = open ? 'flex' : 'none';
+      button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', function (event) {
+      if (menu.style.display === 'flex' && event.target !== button && !menu.contains(event.target)) {
+        menu.style.display = 'none';
+        button.setAttribute('aria-expanded', 'false');
+      }
     });
     document.body.appendChild(button);
   }
@@ -130,6 +165,31 @@ fn is_app_navigation_allowed(url: &Url) -> bool {
   is_app_origin(url) || is_online_navigation_allowed(url)
 }
 
+fn is_native_ask_request(url: &Url) -> bool {
+  (url.scheme() == "ahdclient" && url.host_str() == Some("ask")) || is_ask_navigation_allowed(url)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum MobileNavigationAction {
+  ReturnHome,
+  PresentAsk,
+  InApp,
+  External,
+}
+
+fn classify_navigation(url: &Url) -> MobileNavigationAction {
+  if is_launcher_request(url) {
+    return MobileNavigationAction::ReturnHome;
+  }
+  if is_app_navigation_allowed(url) {
+    return MobileNavigationAction::InApp;
+  }
+  if is_native_ask_request(url) {
+    return MobileNavigationAction::PresentAsk;
+  }
+  MobileNavigationAction::External
+}
+
 async fn present_native_ask(app: AppHandle) -> Result<(), String> {
   tauri::async_runtime::spawn_blocking(move || {
     app.state::<tauri_plugin_briefing_widgets::NativeCompanion<tauri::Wry>>().show_ask()
@@ -141,20 +201,22 @@ async fn present_native_ask(app: AppHandle) -> Result<(), String> {
 /// Ask links are converted to the native panel so they never fall through to
 /// a browser or a remote Ask webview.
 fn navigation_policy(app: &AppHandle, url: &Url) -> bool {
-  if is_launcher_request(url) {
-    go_home_soon(app);
-    return false;
+  match classify_navigation(url) {
+    MobileNavigationAction::ReturnHome => {
+      go_home_soon(app);
+      false
+    }
+    MobileNavigationAction::PresentAsk => {
+      let app = app.clone();
+      tauri::async_runtime::spawn(async move { let _ = present_native_ask(app).await; });
+      false
+    }
+    MobileNavigationAction::InApp => true,
+    MobileNavigationAction::External => {
+      open_externally(app, url);
+      false
+    }
   }
-  if is_ask_navigation_allowed(url) {
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move { let _ = present_native_ask(app).await; });
-    return false;
-  }
-  if is_app_navigation_allowed(url) {
-    return true;
-  }
-  open_externally(app, url);
-  false
 }
 
 fn user_agent() -> Option<String> {
@@ -178,11 +240,16 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
     .initialization_script(LAUNCHER_CONTROL_SCRIPT)
     .on_navigation(move |url| navigation_policy(&nav_app, url))
     .on_new_window(move |url, _features| {
-      if is_ask_navigation_allowed(&url) {
-        let app = popup_app.clone();
-        tauri::async_runtime::spawn(async move { let _ = present_native_ask(app).await; });
-      } else {
-        open_externally(&popup_app, &url);
+      match classify_navigation(&url) {
+        MobileNavigationAction::ReturnHome => go_home_soon(&popup_app),
+        MobileNavigationAction::PresentAsk => {
+          let app = popup_app.clone();
+          tauri::async_runtime::spawn(async move { let _ = present_native_ask(app).await; });
+        }
+        MobileNavigationAction::InApp => {
+          let _ = navigate_main(&popup_app, url.clone());
+        }
+        MobileNavigationAction::External => open_externally(&popup_app, &url),
       }
       tauri::webview::NewWindowResponse::Deny
     });
@@ -307,7 +374,7 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
 
 #[cfg(test)]
 mod tests {
-  use super::{is_app_navigation_allowed, is_app_origin, is_launcher_request, USER_AGENT_MARKER};
+  use super::{classify_navigation, is_app_navigation_allowed, is_app_origin, is_launcher_request, MobileNavigationAction, USER_AGENT_MARKER};
   use tauri::Url;
 
   #[test]
@@ -343,6 +410,17 @@ mod tests {
     assert!(is_app_navigation_allowed(&broker));
     assert!(is_app_navigation_allowed(&game));
     assert!(!is_app_navigation_allowed(&outside));
+  }
+
+  #[test]
+  fn game_navigation_is_not_mistaken_for_native_ask() {
+    let multiplayer: Url = "https://ahousedividedgame.com/".parse().unwrap();
+    let sandbox: Url = "https://sandbox.ahousedividedgame.com/".parse().unwrap();
+    let ask: Url = "https://ask.lakesidegames.net/".parse().unwrap();
+
+    assert_eq!(classify_navigation(&multiplayer), MobileNavigationAction::InApp);
+    assert_eq!(classify_navigation(&sandbox), MobileNavigationAction::InApp);
+    assert_eq!(classify_navigation(&ask), MobileNavigationAction::PresentAsk);
   }
 
   #[test]

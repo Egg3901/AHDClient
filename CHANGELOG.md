@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.3.12] - 2026-09-12
+
+- Forward the current unified Lakeside session to native Ask on iOS and Android so linked accounts are recognized without leaking the session to the legacy game broker.
+- Keep Apple Foundation Models questions usable without live evidence, preserve the optional read-only live lookup for linked accounts, and show generation errors instead of silently reverting the question.
+- Keep multiplayer and sandbox navigation inside the game and turn the bottom-left control into a small native game menu with direct Ask access.
+
 ## [2.3.11] - 2026-09-12
 
 - Keep native Ask linked-account handoff working for accounts already routed through unified Lakeside auth.

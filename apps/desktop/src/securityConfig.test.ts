@@ -105,6 +105,19 @@ describe("desktop security configuration", () => {
     expect(androidAsk).toContain("%2Fauth%2Fnative%2Fcallback");
   });
 
+  it("keeps multiplayer and sandbox navigation ahead of Ask interception", () => {
+    const mobile = read("../src-tauri/src/mobile.rs");
+    const classifier = mobile.match(/fn classify_navigation\([\s\S]*?\n}\n/)?.[0] ?? "";
+    expect(classifier).not.toBe("");
+    expect(classifier.indexOf("if is_app_navigation_allowed")).toBeLessThan(
+      classifier.indexOf("if is_native_ask_request"),
+    );
+    expect(mobile).toContain("|| is_ask_navigation_allowed(url)");
+    expect(mobile).toContain("ahdclient://ask");
+    expect(mobile).toContain("https://ahousedividedgame.com/");
+    expect(mobile).toContain("https://sandbox.ahousedividedgame.com/");
+  });
+
   it("keeps native Ask sign-in transactions and live-tool evidence intact", () => {
     const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
     const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
@@ -120,6 +133,24 @@ describe("desktop security configuration", () => {
     expect(iosFoundationModels).toContain("NativeAskLiveTool");
     expect(iosFoundationModels).toContain("LanguageModelSession(tools:");
     expect(iosFoundationModels).toContain("ask_live_game_state");
+  });
+
+  it("forwards an existing unified session to Ask without sending it to the game broker", () => {
+    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const androidAsk = read(
+      "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
+    );
+    expect(iosAsk).toContain("unifiedSessionCookie");
+    expect(iosAsk).toContain("Cookie");
+    expect(androidAsk).toContain("merge(ask, unifiedAuth, includeUnified = true)");
+    expect(androidAsk).toContain("name == \"__Host-lakeside_session\"");
+  });
+
+  it("keeps AFM usable without live auth and shows generation failures", () => {
+    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    expect(iosAsk).toContain("if signedIn, let api");
+    expect(iosAsk).toContain('evidence = (text: "", files: [])');
+    expect(iosAsk).toContain("if let error = model.error");
   });
 
   it("bounds native AFM retrieval, live lookup, and model work", () => {
