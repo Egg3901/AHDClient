@@ -1,0 +1,27 @@
+name: Codemagic Build Status
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: Codemagic build ID
+        required: true
+        type: string
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read Codemagic build status
+        env:
+          CODEMAGIC_API_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}
+          BUILD_ID: ${{ inputs.build_id }}
+        run: |
+          set -eu
+          test -n "$CODEMAGIC_API_TOKEN"
+          test -n "$BUILD_ID"
+          response=$(curl --fail --silent --show-error \
+            -H "x-auth-token: $CODEMAGIC_API_TOKEN" \
+            "https://api.codemagic.io/builds/$BUILD_ID")
+          printf '%s\n' "$response" | jq '{buildId: (.buildId // .id), status, workflowId, branch, commit, startedAt, finishedAt, artifacts: ([.artifacts[]? | {name, type, url}] // [])}'
