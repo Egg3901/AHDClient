@@ -330,8 +330,8 @@ final class NativeAskAPI: @unchecked Sendable {
 
   func context(question: String) async throws -> (text: String, files: [String]) {
     try await ensureSession()
-    let payload = try await withNativeAskTimeout(seconds: 30) {
-      try await json(try request("/api/ask/context", body: ["question": question, "game": "ahd"]))
+    let payload = try await withNativeAskTimeout(seconds: 30) { [self] in
+      try await self.json(try self.request("/api/ask/context", body: ["question": question, "game": "ahd"]))
     }
     return (payload["context"] as? String ?? "", payload["files"] as? [String] ?? [])
   }

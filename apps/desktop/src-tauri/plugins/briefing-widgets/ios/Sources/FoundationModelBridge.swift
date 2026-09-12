@@ -206,7 +206,7 @@ enum AppleFoundationModelBridge {
     Answer guidance:
     \(answerLength) \(answerStyle)
     """
-    let answer = try await withNativeAskTimeout(seconds: 45) {
+    let answer = try await withNativeAskTimeout(seconds: 45) { [session] in
       let response = try await session.respond(to: prompt)
       return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
