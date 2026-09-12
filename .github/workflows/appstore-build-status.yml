@@ -1,0 +1,60 @@
+name: App Store Connect Build Status
+
+on:
+  workflow_dispatch:
+    inputs:
+      bundle_id:
+        description: App Store bundle identifier
+        required: true
+        default: net.lakesidegames.ahdclient
+        type: string
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read App Store Connect processing status
+        env:
+          ASC_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER }}
+          ASC_KEY_ID: ${{ secrets.APPLE_API_KEY }}
+          ASC_PRIVATE_KEY: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+        run: |
+          set -eu
+          test -n "$ASC_ISSUER_ID"
+          test -n "$ASC_KEY_ID"
+          test -n "$ASC_PRIVATE_KEY"
+          test -n "$BUNDLE_ID"
+
+          key_file=$(mktemp)
+          trap 'rm -f "$key_file"' EXIT
+          if printf '%s' "$ASC_PRIVATE_KEY" | grep -q '^-----BEGIN PRIVATE KEY-----'; then
+            printf '%s\n' "$ASC_PRIVATE_KEY" > "$key_file"
+          else
+            printf '%s' "$ASC_PRIVATE_KEY" | tr -d '[:space:]' | base64 --decode > "$key_file"
+          fi
+          chmod 600 "$key_file"
+
+          b64url() { printf '%s' "$1" | openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+          header=$(b64url '{"alg":"ES256","kid":"'"$ASC_KEY_ID"'","typ":"JWT"}')
+          now=$(date +%s)
+          payload=$(b64url '{"iss":"'"$ASC_ISSUER_ID"'","iat":'"$now"',"exp":'"$((now + 900))"',"aud":"appstoreconnect-v1"}')
+          signature=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "$key_file" | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+          token="$header.$payload.$signature"
+
+          app=$(curl --fail --silent --show-error --get \
+            -H "Authorization: Bearer $token" \
+            --data-urlencode "filter[bundleId]=$BUNDLE_ID" \
+            --data-urlencode "fields[apps]=name,bundleId" \
+            https://api.appstoreconnect.apple.com/v1/apps)
+          app_id=$(printf '%s\n' "$app" | jq -er '.data[0].id')
+
+          curl --fail --silent --show-error --get \
+            -H "Authorization: Bearer $token" \
+            --data-urlencode "filter[app]=$app_id" \
+            --data-urlencode "sort=-uploadedDate" \
+            --data-urlencode "limit=10" \
+            --data-urlencode "fields[builds]=version,processingState,uploadedDate,expirationDate,buildAudienceType" \
+            https://api.appstoreconnect.apple.com/v1/builds \
+            | jq '{appId: "'"$app_id"'", builds: [.data[] | {id, version: .attributes.version, processingState: .attributes.processingState, uploadedDate: .attributes.uploadedDate, expirationDate: .attributes.expirationDate, buildAudienceType: .attributes.buildAudienceType}]}'
