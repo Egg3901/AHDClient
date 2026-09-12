@@ -108,7 +108,10 @@ final class NativeAskAPI: @unchecked Sendable {
   private let gameAuthCookieHeader: String?
 
   init(gameCookies: [HTTPCookie]) {
-    let storage = HTTPCookieStorage()
+    // Use the backed, private store supplied by the ephemeral session.
+    // HTTPCookieStorage() accepts setCookie calls but retains nothing on Apple.
+    let configuration = URLSessionConfiguration.ephemeral
+    let storage = configuration.httpCookieStorage!
     self.storage = storage
     self.unifiedSessionCookie = gameCookies.first { cookie in
       let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
@@ -121,9 +124,7 @@ final class NativeAskAPI: @unchecked Sendable {
       let gameDomain = domain == "ahousedividedgame.com" || domain == "www.ahousedividedgame.com" || domain == nativeSandboxHost
       return gameDomain && Self.isGameAuthCookie(cookie) && !cookie.value.isEmpty
     })
-    let configuration = URLSessionConfiguration.ephemeral
     configuration.httpShouldSetCookies = true
-    configuration.httpCookieStorage = storage
     configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
     configuration.timeoutIntervalForRequest = 30
     configuration.timeoutIntervalForResource = 120

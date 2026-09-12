@@ -14,9 +14,6 @@ for module in ['SwiftUI', 'UIKit', 'WebKit']:
     source = source.replace(f'import {module}\n', '')
 if sys.platform != 'darwin':
     source = 'import FoundationNetworking\n' + source
-    # Darwin exposes an isolated initializer; Linux exposes named stores.
-    source = source.replace('let storage = HTTPCookieStorage()',
-                            'let storage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: UUID().uuidString)')
 needle = 'configuration.httpShouldSetCookies = true'
 assert source.count(needle) == 1
 source = source.replace(needle, needle + '\n    configuration.protocolClasses = [AuthTransport.self]')

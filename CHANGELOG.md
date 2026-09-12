@@ -2,6 +2,7 @@
 
 ## [2.3.16] - 2026-09-12
 
+- Retain linked-account cookies in the native iOS Ask session instead of silently discarding them.
 - Let native iOS Ask reuse the existing game login through issuer SSO, including recovery from an expired Ask session.
 - Verify the native authentication path before building the iOS release.
 

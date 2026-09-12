@@ -68,19 +68,8 @@ private func check(_ name: String, cookies: [HTTPCookie], succeeds: Bool = true,
   let loggedIn = AuthTransport.calls.contains { $0.hasSuffix("/auth/login") }
   let passed = connected == succeeds && AuthTransport.violations.isEmpty && (!succeeds || loggedIn == loginExpected)
   print("\(passed ? "PASS" : "FAIL"): \(name)\(failure.isEmpty ? "" : ": " + failure)")
-  if !passed {
-    print("[DEBUG-cookie-store] retained=\(api.authTestCookies.cookies?.map { $0.name } ?? []) calls=\(AuthTransport.calls)")
-  }
   return passed
 }
-
-#if !canImport(FoundationNetworking)
-for (name, jar) in [("initializer", HTTPCookieStorage()), ("ephemeral", URLSessionConfiguration.ephemeral.httpCookieStorage!)] {
-  jar.setCookie(issuerSSO)
-  print("[DEBUG-cookie-store] \(name): retained=\(jar.cookies?.map { $0.name } ?? []); scoped=\(jar.cookies(for: URL(string: "https://auth.lakesidegames.net/realms/accounts/")!)?.map { $0.name } ?? [])")
-}
-
-#endif
 
 Task {
   var passed = true
@@ -92,6 +81,7 @@ Task {
     ("stale Ask session recovers using existing SSO", [linkedGame, issuerSSO, authCookie("__Host-ask_session", "stale", "ask.lakesidegames.net")], true, false, true),
     ("valid Ask session needs no new link", [linkedGame, authCookie("__Host-lakeside_session", "valid-ask", "ask.lakesidegames.net")], true, false, false),
     ("legacy linked game handoff still works", [authCookie("auth-token", "linked-game", ".ahousedividedgame.com")], true, true, false),
+    ("new connection cannot inherit another account session", [], false, false, true),
     ("game session alone cannot impersonate issuer SSO", [linkedGame], false, false, true),
     ("foreign issuer cookie is rejected", [linkedGame, authCookie("KEYCLOAK_IDENTITY", "valid-sso", "auth.lakesidegames.net.evil.invalid")], false, false, true),
     ("expired issuer cookie requires sign-in", [linkedGame, authCookie("KEYCLOAK_IDENTITY", "valid-sso", "auth.lakesidegames.net", expires: Date(timeIntervalSince1970: 1))], false, false, true),
