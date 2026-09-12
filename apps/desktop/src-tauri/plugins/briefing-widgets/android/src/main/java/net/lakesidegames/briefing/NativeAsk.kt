@@ -39,7 +39,7 @@ private const val NATIVE_GAME_ORIGIN = "https://ahousedividedgame.com"
 private const val NATIVE_SANDBOX_ORIGIN = "https://sandbox.ahousedividedgame.com"
 private const val NATIVE_AUTH_ORIGIN = "https://auth.ahousedividedgame.com"
 private const val NATIVE_UNIFIED_AUTH_ORIGIN = "https://auth.lakesidegames.net"
-private const val NATIVE_AHD_LOGIN = "$NATIVE_AUTH_ORIGIN/auth/ahd?return=https%3A%2F%2Fask.lakesidegames.net%2Fauth%2Fcallback"
+private const val NATIVE_AHD_LOGIN = "$NATIVE_AUTH_ORIGIN/auth/ahd?return=https%3A%2F%2Fask.lakesidegames.net%2Fauth%2Fnative%2Fcallback"
 private const val NATIVE_ASK_MAX_REDIRECTS = 10
 
 private val nativeAskAllowedHosts = setOf(

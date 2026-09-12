@@ -5,7 +5,7 @@ import WebKit
 
 private let nativeAskOrigin = URL(string: "https://ask.lakesidegames.net")!
 private let nativeAskLogin = URL(string: "https://ask.lakesidegames.net/auth/login?next=%2F")!
-private let nativeAhdLogin = URL(string: "https://auth.ahousedividedgame.com/auth/ahd?return=https%3A%2F%2Fask.lakesidegames.net%2Fauth%2Fcallback")!
+private let nativeAhdLogin = URL(string: "https://auth.ahousedividedgame.com/auth/ahd?return=https%3A%2F%2Fask.lakesidegames.net%2Fauth%2Fnative%2Fcallback")!
 private let nativeSandboxHost = "sandbox.ahousedividedgame.com"
 
 enum NativeAskProvider: String, Hashable {
@@ -58,6 +58,29 @@ private enum NativeAskError: LocalizedError {
   }
 }
 
+enum NativeAskTimeoutError: LocalizedError {
+  case timedOut(String)
+
+  var errorDescription: String? {
+    switch self {
+    case .timedOut(let operation): return "Ask (\(operation)) timed out. Check your connection and try again."
+    }
+  }
+}
+
+func withNativeAskTimeout<T>(seconds: UInt64, operation: @escaping @Sendable () async throws -> T) async throws -> T {
+  try await withThrowingTaskGroup(of: T.self) { group in
+    group.addTask { try await operation() }
+    group.addTask {
+      try await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+      throw NativeAskTimeoutError.timedOut("request")
+    }
+    defer { group.cancelAll() }
+    guard let result = try await group.next() else { throw CancellationError() }
+    return result
+  }
+}
+
 private final class NativeAskRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
   private let allowedHosts: Set<String> = [
     "ask.lakesidegames.net",
@@ -89,8 +112,8 @@ final class NativeAskAPI: @unchecked Sendable {
     configuration.httpShouldSetCookies = true
     configuration.httpCookieStorage = storage
     configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-    configuration.timeoutIntervalForRequest = 90
-    configuration.timeoutIntervalForResource = 900
+    configuration.timeoutIntervalForRequest = 30
+    configuration.timeoutIntervalForResource = 120
     configuration.urlCache = nil
     transport = URLSession(configuration: configuration, delegate: NativeAskRedirectDelegate(), delegateQueue: nil)
     for cookie in gameCookies where Self.isRelevant(cookie) {
@@ -148,6 +171,7 @@ final class NativeAskAPI: @unchecked Sendable {
   private func request(_ path: String, body: [String: Any]? = nil) throws -> URLRequest {
     guard path.hasPrefix("/") else { throw NativeAskError.server("Invalid Ask request.") }
     var request = URLRequest(url: nativeAskOrigin.appendingPathComponent(String(path.dropFirst())))
+    request.timeoutInterval = path == "/api/ask" ? 120 : 30
     request.setValue("application/json", forHTTPHeaderField: "Accept")
     request.setValue(nativeAskOrigin.absoluteString, forHTTPHeaderField: "Origin")
     request.setValue(nativeAskOrigin.absoluteString + "/", forHTTPHeaderField: "Referer")
@@ -160,7 +184,9 @@ final class NativeAskAPI: @unchecked Sendable {
   }
 
   private func establishSession(at loginURL: URL) async throws {
-    let (_, response) = try await transport.data(for: URLRequest(url: loginURL))
+    var request = URLRequest(url: loginURL)
+    request.timeoutInterval = 30
+    let (_, response) = try await transport.data(for: request)
     guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), askCookie != nil else {
       throw NativeAskError.loginFailed
     }
@@ -304,7 +330,9 @@ final class NativeAskAPI: @unchecked Sendable {
 
   func context(question: String) async throws -> (text: String, files: [String]) {
     try await ensureSession()
-    let payload = try await json(try request("/api/ask/context", body: ["question": question, "game": "ahd"]))
+    let payload = try await withNativeAskTimeout(seconds: 30) {
+      try await json(try request("/api/ask/context", body: ["question": question, "game": "ahd"]))
+    }
     return (payload["context"] as? String ?? "", payload["files"] as? [String] ?? [])
   }
 

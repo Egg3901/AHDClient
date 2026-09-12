@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.3.11] - 2026-09-12
+
+- Keep native Ask linked-account handoff working for accounts already routed through unified Lakeside auth.
+- Bound Apple Foundation Models retrieval, live-tool lookup, and on-device generation so stalled requests fail visibly instead of spinning forever.
+
 ## [2.3.10] - 2026-09-11
 
 - Restore native Ask linked-account handoff on iOS and Android, including the unified Lakeside auth cookies used by the current sign-in flow.
