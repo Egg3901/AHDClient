@@ -37,6 +37,10 @@ The client depends on exactly these AHDGame surfaces and nothing else:
 - `scripts/prepare-game.mjs` copies that metadata and writes the existing `AHD_BUILD.json` fields (`clientVersion`, `gameCommit`) plus `gameCommitStatus`. With `--skip-game-build`, staging reads the reused artifact's metadata and never substitutes the checkout's current `HEAD`. Artifacts from before this contract, or artifacts with invalid metadata, remain explicitly unverified with `gameCommit: null` and `gameCommitStatus: "unknown"`.
 - `launch.mjs --port N --home DIR --no-browser --parent-pid P` starts MongoDB and the server, prints `[ahd] ready at http://127.0.0.1:N` on stdout, mints and persists the server's secrets under `DIR`, mirrors art under `DIR/cdn`, and exits (taking MongoDB with it) when process `P` disappears.
 - `GET /api/singleplayer/status` and `POST /api/singleplayer/new-game {preset, displayName?}`, both loopback-only on the server side.
+- For a local world configured as `head-of-state`, the status handshake also
+  idempotently repairs the player's authored executive and canonical
+  government formation before the client opens the game; the response shape is
+  unchanged.
 - Era presets `1953-default` through `2023-default`, mirrored in `apps/desktop/src/worlds.ts`.
 
 A change to any of these is a change to this contract and lands in both repositories together.

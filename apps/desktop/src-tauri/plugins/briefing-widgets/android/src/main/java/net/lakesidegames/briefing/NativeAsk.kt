@@ -496,30 +496,34 @@ private class NativeAskPanel(
     row.addView(draft, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
     sendButton.text = "Send"
     sendButton.isEnabled = false
-    sendButton.setOnClickListener { send() }
+    sendButton.setOnClickListener { NativeSafety.run("Ask send") { send() } }
     row.addView(sendButton, LayoutParams(LayoutParams.WRAP_CONTENT, 52).apply { leftMargin = 8 })
     addView(row, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = 8 })
   }
 
   private fun checkSession() {
-    worker.execute {
+    submit("Ask session") {
       try {
         val profile = api.connect()
         val name = profileName(profile)
         mainHandler.post {
-          signedIn = true
-          accountLabel.text = "Signed in as ${name.ifBlank { "linked game account" }}"
-          accountLabel.setTextColor(Color.rgb(168, 220, 205))
-          sendButton.isEnabled = true
+          NativeSafety.run("Ask session success UI") {
+            signedIn = true
+            accountLabel.text = "Signed in as ${name.ifBlank { "linked game account" }}"
+            accountLabel.setTextColor(Color.rgb(168, 220, 205))
+            sendButton.isEnabled = true
+          }
         }
       } catch (failure: Exception) {
         mainHandler.post {
-          signedIn = false
-          accountLabel.text = "Ask server needs your linked game account."
-          accountLabel.setTextColor(Color.rgb(255, 190, 150))
-          linkButton.visibility = View.VISIBLE
-          statusLabel.text = failure.message.orEmpty().ifBlank { "Link your game account, then open Ask again." }
-          statusLabel.visibility = View.VISIBLE
+          NativeSafety.run("Ask session failure UI") {
+            signedIn = false
+            accountLabel.text = "Ask server needs your linked game account."
+            accountLabel.setTextColor(Color.rgb(255, 190, 150))
+            linkButton.visibility = View.VISIBLE
+            statusLabel.text = failure.message.orEmpty().ifBlank { "Link your game account, then open Ask again." }
+            statusLabel.visibility = View.VISIBLE
+          }
         }
       }
     }
@@ -536,43 +540,65 @@ private class NativeAskPanel(
     sendButton.isEnabled = false
     statusLabel.text = "Thinking..."
     statusLabel.visibility = View.VISIBLE
-    worker.execute {
+    val submitted = submit("Ask answer") {
       try {
         val result = api.ask(
           question = question,
           conversationID = conversationID,
           onDelta = { delta ->
             mainHandler.post {
-              answerView.text = answerView.text.toString() + delta
-              scrollToBottom()
+              NativeSafety.run("Ask answer delta UI") {
+                answerView.text = answerView.text.toString() + delta
+                scrollToBottom()
+              }
             }
           },
           onStatus = { label ->
             mainHandler.post {
-              statusLabel.text = label
-              statusLabel.visibility = View.VISIBLE
+              NativeSafety.run("Ask answer status UI") {
+                statusLabel.text = label
+                statusLabel.visibility = View.VISIBLE
+              }
             }
           },
         )
         mainHandler.post {
-          turn.answer = result.answer
-          answerView.text = formatAnswer(result)
-          if (result.conversationID.isNotBlank()) conversationID = result.conversationID
-          sending = false
-          sendButton.isEnabled = true
-          statusLabel.text = evidenceStatus(result)
-          statusLabel.visibility = View.VISIBLE
-          scrollToBottom()
+          NativeSafety.run("Ask answer success UI") {
+            turn.answer = result.answer
+            answerView.text = formatAnswer(result)
+            if (result.conversationID.isNotBlank()) conversationID = result.conversationID
+            sending = false
+            sendButton.isEnabled = true
+            statusLabel.text = evidenceStatus(result)
+            statusLabel.visibility = View.VISIBLE
+            scrollToBottom()
+          }
         }
       } catch (failure: Exception) {
         mainHandler.post {
-          answerView.text = failure.message.orEmpty().ifBlank { "Ask could not complete the answer." }
-          sending = false
-          sendButton.isEnabled = signedIn
-          statusLabel.text = "The answer could not be completed."
-          statusLabel.visibility = View.VISIBLE
-          scrollToBottom()
+          NativeSafety.run("Ask answer failure UI") {
+            answerView.text = failure.message.orEmpty().ifBlank { "Ask could not complete the answer." }
+            sending = false
+            sendButton.isEnabled = signedIn
+            statusLabel.text = "The answer could not be completed."
+            statusLabel.visibility = View.VISIBLE
+            scrollToBottom()
+          }
         }
+      }
+    }
+    if (!submitted) {
+      sending = false
+      sendButton.isEnabled = signedIn
+      statusLabel.text = "Ask is unavailable right now."
+      statusLabel.visibility = View.VISIBLE
+    }
+  }
+
+  private fun submit(operation: String, task: () -> Unit): Boolean {
+    return NativeSafety.run("$operation scheduling") {
+      worker.execute {
+        NativeSafety.run("$operation task") { task() }
       }
     }
   }
@@ -609,7 +635,11 @@ private class NativeAskPanel(
     return if (sources.isBlank()) "Live game tools used." else "Live game tools used: $sources"
   }
 
-  private fun scrollToBottom() { scroll.post { scroll.fullScroll(ScrollView.FOCUS_DOWN) } }
+  private fun scrollToBottom() {
+    NativeSafety.run("Ask scroll scheduling") {
+      scroll.post { NativeSafety.run("Ask scroll") { scroll.fullScroll(ScrollView.FOCUS_DOWN) } }
+    }
+  }
 
   private fun profileName(profile: JSONObject): String {
     val identity = profile.optJSONObject("identity")
@@ -639,31 +669,37 @@ object NativeAskController {
 
   fun present() {
     mainHandler.post {
-      val host = activity ?: webView?.context?.findActivity() ?: return@post
-      if (dialog?.isShowing == true) return@post
-      val nativeDialog = Dialog(host)
-      nativeDialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-      val panel = NativeAskPanel(host, NativeAskCookies.snapshot(),
-        onClose = { nativeDialog.dismiss() },
-        onLinkAccount = {
-          nativeDialog.dismiss()
-          webView?.loadUrl("$NATIVE_GAME_ORIGIN/client/link")
-        })
-      nativeDialog.setContentView(panel)
-      nativeDialog.setCanceledOnTouchOutside(true)
-      nativeDialog.setOnDismissListener {
-        panel.dispose()
-        if (dialog === nativeDialog) dialog = null
+      NativeSafety.run("native Ask presentation") {
+        val host = activity ?: webView?.context?.findActivity() ?: return@run
+        if (dialog?.isShowing == true) return@run
+        val nativeDialog = Dialog(host)
+        nativeDialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val panel = NativeAskPanel(host, NativeAskCookies.snapshot(),
+          onClose = { NativeSafety.run("Ask close") { nativeDialog.dismiss() } },
+          onLinkAccount = {
+            NativeSafety.run("Ask account link") {
+              nativeDialog.dismiss()
+              webView?.loadUrl("$NATIVE_GAME_ORIGIN/client/link")
+            }
+          })
+        nativeDialog.setContentView(panel)
+        nativeDialog.setCanceledOnTouchOutside(true)
+        nativeDialog.setOnDismissListener {
+          NativeSafety.run("Ask panel dispose") {
+            panel.dispose()
+            if (dialog === nativeDialog) dialog = null
+          }
+        }
+        nativeDialog.show()
+        nativeDialog.window?.apply {
+          setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+          setDimAmount(0.48f)
+          addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+          setGravity(Gravity.BOTTOM)
+          setLayout(WindowManager.LayoutParams.MATCH_PARENT, (host.resources.displayMetrics.heightPixels * 0.9f).toInt())
+        }
+        dialog = nativeDialog
       }
-      nativeDialog.show()
-      nativeDialog.window?.apply {
-        setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        setDimAmount(0.48f)
-        addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-        setGravity(Gravity.BOTTOM)
-        setLayout(WindowManager.LayoutParams.MATCH_PARENT, (host.resources.displayMetrics.heightPixels * 0.9f).toInt())
-      }
-      dialog = nativeDialog
     }
   }
 }
