@@ -1,0 +1,18 @@
+name: AFM output regression
+on:
+  pull_request:
+    paths:
+      - 'apps/lakeside-ios/Shared/AskPrompt.swift'
+      - 'apps/desktop/src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift'
+      - 'scripts/tests/afm-output.py'
+      - '.github/workflows/verify-afm-output.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  output:
+    runs-on: macos-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/tests/afm-output.py
