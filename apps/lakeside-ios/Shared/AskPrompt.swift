@@ -3,7 +3,15 @@ import Foundation
 enum ToolProtocolSanitizer {
     static func containsProtocol(_ value: String) -> Bool {
         let patterns = ["<tool_call", "<function=", "<parameter=", "\"tool_calls\"", "\"recipient_name\"", "\"tool_input\""]
-        return patterns.contains { value.localizedCaseInsensitiveContains($0) }
+        if patterns.contains(where: { value.localizedCaseInsensitiveContains($0) }) { return true }
+        // Raw or fenced JSON is not a readable answer. Reuse the prose retry.
+        var candidate = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if candidate.hasPrefix("```"), candidate.hasSuffix("```"), let newline = candidate.firstIndex(of: "\n") {
+          candidate = String(candidate[candidate.index(after: newline)...].dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard let data = candidate.data(using: .utf8),
+              let decoded = try? JSONSerialization.jsonObject(with: data) else { return false }
+        return decoded is [String: Any] || decoded is [Any]
     }
 }
 

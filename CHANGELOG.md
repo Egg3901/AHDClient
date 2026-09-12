@@ -1,6 +1,9 @@
 # Changelog
 
-## [Unreleased]
+## [2.3.15] - 2026-09-12
+
+- Recover raw JSON on-device answers as readable prose on iOS.
+- Bundle the existing-save government repair and accurate extraction idle reporting.
 
 - Keep optional Android widgets, push, native Ask, deep links, and WebView
   renderer failures from terminating the main AHDClient process; log a bounded
