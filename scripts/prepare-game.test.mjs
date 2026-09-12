@@ -57,6 +57,9 @@ describe("prepare-game payload allowlist", () => {
     touch(root, "AGENTS.md");
     touch(root, "src/app/route.ts");
     touch(root, "docs/DESIGN.md");
+    touch(root, ".next/server/assets/reservation.27cowm2fu60ac.md");
+    touch(root, ".next/server/assets/proof-admission.test.1nm4z3uugc29n.mjs");
+    touch(root, ".next/server/assets/schema-002.abc123.sql");
     pruneStagedGame(root);
     expect(() => assertStagedGame(root, "x86_64-unknown-linux-gnu")).toThrow(/foreign sharp/);
     pruneForeignSharp(root, "x86_64-unknown-linux-gnu");
@@ -64,6 +67,9 @@ describe("prepare-game payload allowlist", () => {
     expect(existsSync(path.join(root, "AGENTS.md"))).toBe(false);
     expect(existsSync(path.join(root, "src", "app"))).toBe(false);
     expect(existsSync(path.join(root, "docs"))).toBe(false);
+    expect(existsSync(path.join(root, ".next/server/assets/reservation.27cowm2fu60ac.md"))).toBe(false);
+    expect(existsSync(path.join(root, ".next/server/assets/proof-admission.test.1nm4z3uugc29n.mjs"))).toBe(false);
+    expect(existsSync(path.join(root, ".next/server/assets/schema-002.abc123.sql"))).toBe(true);
     expect(existsSync(path.join(root, "server.js"))).toBe(true);
     assertStagedGame(root, "x86_64-unknown-linux-gnu");
   });
