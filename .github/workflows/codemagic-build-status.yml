@@ -33,10 +33,15 @@ jobs:
               resultKeys: (.result | object_keys),
               buildId: (.buildId // .id // .data.buildId // .data.id // .build.id // .result.buildId // .result.id),
               status: (.status // .data.status // .build.status // .result.status),
+              buildStatus: .build.status,
+              buildMessage: .build.message,
+              version: .build.version,
               workflowId: (.workflowId // .data.workflowId // .build.workflowId // .result.workflowId),
+              fileWorkflowId: .build.fileWorkflowId,
               branch: (.branch // .data.branch // .build.branch // .result.branch),
               commit: (.commit // .data.commit // .build.commit // .result.commit),
               startedAt: (.startedAt // .data.startedAt // .build.startedAt // .result.startedAt),
               finishedAt: (.finishedAt // .data.finishedAt // .build.finishedAt // .result.finishedAt),
-              artifacts: ([.artifacts[]? // .data.artifacts[]? // .build.artifacts[]? // .result.artifacts[]? | {name, type, url}] // [])
+              artifacts: ([.artifacts[]? // .data.artifacts[]? // .build.artifacts[]? // .result.artifacts[]? | {name, type, url, size}] // []),
+              appStoreConnectTasks: ([.build.appStoreConnectTasks[]? | {status, type, message, startedAt, finishedAt}] // [])
             }'
