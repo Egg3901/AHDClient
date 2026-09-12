@@ -53,6 +53,13 @@ enum FoundationModelBridgeError: LocalizedError {
   }
 }
 
+private enum NativeAskToolProtocolSanitizer {
+  static func containsProtocol(_ value: String) -> Bool {
+    let patterns = ["<tool_call", "<function=", "<parameter=", "\"tool_calls\"", "\"recipient_name\"", "\"tool_input\""]
+    return patterns.contains { value.localizedCaseInsensitiveContains($0) }
+  }
+}
+
 #if canImport(FoundationModels)
 private actor NativeAskToolTrace {
   private var calls = 0
@@ -206,11 +213,21 @@ enum AppleFoundationModelBridge {
     Answer guidance:
     \(answerLength) \(answerStyle)
     """
-    let answer = try await withNativeAskTimeout(seconds: 45) { [session] in
-      let response = try await session.respond(to: prompt)
-      return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+    var response = try await withNativeAskTimeout(seconds: 45) { [session] in
+      try await session.respond(to: prompt)
     }
+    if NativeAskToolProtocolSanitizer.containsProtocol(response.content) {
+      response = try await withNativeAskTimeout(seconds: 45) { [session] in
+        try await session.respond(to: """
+        Write the final answer as ordinary user-facing prose. Do not output XML, JSON, function names, arguments, or tool-call syntax. Use only the evidence already supplied and do not make another live lookup.
+        """)
+      }
+    }
+    let answer = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !answer.isEmpty else { throw FoundationModelBridgeError.empty }
+    guard !NativeAskToolProtocolSanitizer.containsProtocol(answer) else {
+      throw FoundationModelBridgeError.unavailable("Apple Foundation Models returned an invalid tool request. Try again or choose Ask server.")
+    }
     let liveResult = await nativeLiveTool?.snapshot()
     return [
       "text": answer,

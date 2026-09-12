@@ -146,11 +146,27 @@ describe("desktop security configuration", () => {
     expect(androidAsk).toContain("name == \"__Host-lakeside_session\"");
   });
 
+  it("forwards every accepted game session to the iOS Ask broker", () => {
+    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const gameSessionHelper = iosAsk.match(
+      /private static func isGameAuthCookie\([\s\S]*?\n  }/,
+    )?.[0] ?? "";
+    expect(gameSessionHelper).toMatch(/authjs|next-auth/);
+    expect(iosAsk).toContain("gameAuthCookieHeader");
+    expect(iosAsk).toMatch(
+      /setValue\(gameAuthCookieHeader, forHTTPHeaderField: "Cookie"\)/,
+    );
+  });
+
   it("keeps AFM usable without live auth and shows generation failures", () => {
     const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
     expect(iosAsk).toContain("if signedIn, let api");
     expect(iosAsk).toContain('evidence = (text: "", files: [])');
     expect(iosAsk).toContain("if let error = model.error");
+    expect(iosAsk).toContain("Apple Foundation Models cancelled the answer");
+    expect(iosFoundationModels).toContain("NativeAskToolProtocolSanitizer");
+    expect(iosFoundationModels).toContain("Do not output XML, JSON, function names, arguments, or tool-call syntax");
   });
 
   it("bounds native AFM retrieval, live lookup, and model work", () => {
@@ -160,7 +176,7 @@ describe("desktop security configuration", () => {
     expect(iosAsk).toContain("let payload = try await withNativeAskTimeout(seconds: 30)");
     expect(iosAsk).toContain('request("/api/ask/context"');
     expect(iosFoundationModels).toContain("let result = try await withNativeAskTimeout(seconds: 60)");
-    expect(iosFoundationModels).toContain("let answer = try await withNativeAskTimeout(seconds: 45)");
+    expect(iosFoundationModels).toContain("var response = try await withNativeAskTimeout(seconds: 45)");
     expect(iosFoundationModels).toContain("session.respond(to: prompt)");
     expect(iosFoundationModels).not.toContain("let response = try await session.respond(to: prompt)\n    let answer = response.content");
   });
