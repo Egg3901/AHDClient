@@ -47,3 +47,4 @@ jobs:
               buildActions: (if (.build.buildActions | type) == "array" then [.build.buildActions[] | {name, status, message, startedAt, finishedAt}] else {type: (.build.buildActions | type), keys: (.build.buildActions | object_keys)} end),
               appStoreConnectTasks: (if (.build.appStoreConnectTasks | type) == "array" then [.build.appStoreConnectTasks[] | {status, type, message, startedAt, finishedAt}] else {type: (.build.appStoreConnectTasks | type), keys: (.build.appStoreConnectTasks | object_keys)} end)
             }'
+          printf '%s\n' "$response" | jq '{actions: [.build.buildActions[]? | {name, fields: keys}], buildFields: (.build | keys)}'
