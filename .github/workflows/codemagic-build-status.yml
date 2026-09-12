@@ -24,4 +24,19 @@ jobs:
           response=$(curl --fail --silent --show-error \
             -H "x-auth-token: $CODEMAGIC_API_TOKEN" \
             "https://api.codemagic.io/builds/$BUILD_ID")
-          printf '%s\n' "$response" | jq '{buildId: (.buildId // .id), status, workflowId, branch, commit, startedAt, finishedAt, artifacts: ([.artifacts[]? | {name, type, url}] // [])}'
+          printf '%s\n' "$response" | jq '
+            def object_keys: if type == "object" then keys else [] end;
+            {
+              topLevelKeys: keys,
+              dataKeys: (.data | object_keys),
+              buildKeys: (.build | object_keys),
+              resultKeys: (.result | object_keys),
+              buildId: (.buildId // .id // .data.buildId // .data.id // .build.id // .result.buildId // .result.id),
+              status: (.status // .data.status // .build.status // .result.status),
+              workflowId: (.workflowId // .data.workflowId // .build.workflowId // .result.workflowId),
+              branch: (.branch // .data.branch // .build.branch // .result.branch),
+              commit: (.commit // .data.commit // .build.commit // .result.commit),
+              startedAt: (.startedAt // .data.startedAt // .build.startedAt // .result.startedAt),
+              finishedAt: (.finishedAt // .data.finishedAt // .build.finishedAt // .result.finishedAt),
+              artifacts: ([.artifacts[]? // .data.artifacts[]? // .build.artifacts[]? // .result.artifacts[]? | {name, type, url}] // [])
+            }'
