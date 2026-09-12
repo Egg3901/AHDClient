@@ -213,6 +213,13 @@ const STAGED_TOP_DIRS = new Set([".next", "public", "node_modules"]);
 export function shouldKeepStagedGamePath(relPosix) {
   if (!relPosix || relPosix === ".") return true;
   if (STAGED_TOP_FILES.has(relPosix)) return true;
+  // Dynamic URL tracing can copy dependency documentation and test sources
+  // into hashed server assets. Neither is read by the packaged game; keep
+  // runtime assets such as SQL migrations while dropping these copies.
+  if (relPosix.startsWith(".next/server/assets/") && (
+    relPosix.endsWith(".md") || /(?:^|[/.])(?:test|spec)(?:\.[^/]+)?\.[cm]?[jt]sx?$/.test(relPosix)
+  )) return false;
+
   const top = relPosix.split("/")[0];
   if (STAGED_TOP_DIRS.has(top)) return true;
   if (relPosix.startsWith("src/data/") && relPosix.endsWith(".json")) return true;

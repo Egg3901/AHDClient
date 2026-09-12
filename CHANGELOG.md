@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.3.15] - 2026-09-12
+
+- Recover raw JSON on-device answers as readable prose on iOS.
+- Bundle the existing-save government repair and accurate extraction idle reporting.
+
+- Guard optional Android widgets, push, native Ask, and deep links against
+  native exceptions, with bounded diagnostics for failures.
+- Document the status-handshake contract required by the permanent
+  head-of-state repair, so existing local worlds can recover their canonical
+  government when the updated AHDGame runtime is packaged.
+
 ## [2.3.14] - 2026-09-12
 
 - Keep Apple Foundation Models prompts within the on-device context budget and retry with a compact prompt when retrieved evidence is too large.
@@ -21,6 +32,7 @@
 
 - Keep native Ask linked-account handoff working for accounts already routed through unified Lakeside auth.
 - Bound Apple Foundation Models retrieval, live-tool lookup, and on-device generation so stalled requests fail visibly instead of spinning forever.
+
 
 ## [2.3.10] - 2026-09-11
 

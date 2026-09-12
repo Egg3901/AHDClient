@@ -25,36 +25,43 @@ import java.util.concurrent.Future
 /** Native home-screen stats. No WebView, renderer IPC or stored session copy. */
 open class BriefingWidget : AppWidgetProvider() {
   override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-    BriefingWidgets.render(context)
-    BriefingWidgets.schedule(context)
+    CompanionSafety.run("widget receiver render") { BriefingWidgets.render(context) }
+    CompanionSafety.run("widget receiver schedule") { BriefingWidgets.schedule(context) }
   }
 
   override fun onReceive(context: Context, intent: Intent) {
-    super.onReceive(context, intent)
-    when (intent.action) {
-      BriefingWidgets.NEXT, BriefingWidgets.PREVIOUS -> {
-        val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
-        if (!BriefingWidgets.ids(context).contains(id)) return
-        val current = BriefingWidgets.section(context, id)
-        val delta = if (intent.action == BriefingWidgets.NEXT) 1 else BriefingWidgets.sections.size - 1
-        context.getSharedPreferences("briefing-widget-prefs", Context.MODE_PRIVATE).edit()
-          .putInt("section-$id", (current + delta) % BriefingWidgets.sections.size).apply()
-        BriefingWidgets.render(context)
+    CompanionSafety.run("widget receiver base dispatch") { super.onReceive(context, intent) }
+    CompanionSafety.run("widget receiver action") {
+      when (intent.action) {
+        BriefingWidgets.NEXT, BriefingWidgets.PREVIOUS -> {
+          val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
+          if (BriefingWidgets.ids(context).contains(id)) {
+            val current = BriefingWidgets.section(context, id)
+            val delta = if (intent.action == BriefingWidgets.NEXT) 1 else BriefingWidgets.sections.size - 1
+            context.getSharedPreferences("briefing-widget-prefs", Context.MODE_PRIVATE).edit()
+              .putInt("section-$id", (current + delta) % BriefingWidgets.sections.size).apply()
+            BriefingWidgets.render(context)
+          }
+        }
+        BriefingWidgets.REFRESH -> BriefingWidgets.schedule(context)
       }
-      BriefingWidgets.REFRESH -> BriefingWidgets.schedule(context)
     }
   }
 
   override fun onDeleted(context: Context, ids: IntArray) {
-    val prefs = context.getSharedPreferences("briefing-widget-prefs", Context.MODE_PRIVATE).edit()
-    ids.forEach { prefs.remove("section-$it") }
-    prefs.apply()
+    CompanionSafety.run("widget receiver delete") {
+      val prefs = context.getSharedPreferences("briefing-widget-prefs", Context.MODE_PRIVATE).edit()
+      ids.forEach { prefs.remove("section-$it") }
+      prefs.apply()
+    }
   }
 
   override fun onDisabled(context: Context) {
-    if (BriefingWidgets.ids(context).isEmpty()) {
-      context.getSystemService(JobScheduler::class.java).cancel(BriefingWidgets.JOB_ID)
-      BriefingWidgets.clear(context)
+    CompanionSafety.run("widget receiver disable") {
+      if (BriefingWidgets.ids(context).isEmpty()) {
+        context.getSystemService(JobScheduler::class.java).cancel(BriefingWidgets.JOB_ID)
+        BriefingWidgets.clear(context)
+      }
     }
   }
 }
@@ -74,33 +81,37 @@ object BriefingWidgets {
   private val providers = listOf(ProfileWidget::class.java, ElectionWidget::class.java, CorporationWidget::class.java, StocksWidget::class.java)
   private val lock = Any()
 
-  fun ids(context: Context): List<Int> = providers.flatMap {
-    AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, it)).toList()
+  fun ids(context: Context): List<Int> = CompanionSafety.get("widget lookup", emptyList()) {
+    providers.flatMap {
+      AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, it)).toList()
+    }
   }
 
-  fun section(context: Context, id: Int): Int {
+  fun section(context: Context, id: Int): Int = CompanionSafety.get("widget section lookup", 0) {
     val provider = AppWidgetManager.getInstance(context).getAppWidgetInfo(id)?.provider?.className
     val default = providers.indexOfFirst { it.name == provider }.coerceAtLeast(0)
-    return context.getSharedPreferences("briefing-widget-prefs", Context.MODE_PRIVATE)
+    context.getSharedPreferences("briefing-widget-prefs", Context.MODE_PRIVATE)
       .getInt("section-$id", default).coerceIn(sections.indices)
   }
 
   fun schedule(context: Context) {
-    if (ids(context).isEmpty()) return
-    val scheduler = context.getSystemService(JobScheduler::class.java)
-    if (scheduler.getPendingJob(JOB_ID) != null) return
-    scheduler.schedule(JobInfo.Builder(JOB_ID, ComponentName(context, BriefingRefreshJob::class.java))
-      .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setMinimumLatency(0).build())
+    CompanionSafety.run("widget schedule") {
+      if (ids(context).isEmpty()) return@run
+      val scheduler = context.getSystemService(JobScheduler::class.java)
+      if (scheduler.getPendingJob(JOB_ID) != null) return@run
+      scheduler.schedule(JobInfo.Builder(JOB_ID, ComponentName(context, BriefingRefreshJob::class.java))
+        .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setMinimumLatency(0).build())
+    }
   }
 
   private fun cacheFile(context: Context) = File(context.noBackupFilesDir, "multiplayer-briefing.json")
   fun clear(context: Context) = synchronized(lock) { cacheFile(context).delete(); Unit }
-  private fun read(context: Context): JSONObject? = synchronized(lock) {
-    try {
+  private fun read(context: Context): JSONObject? = CompanionSafety.get("widget cache read", null) {
+    synchronized(lock) {
       val data = JSONObject(cacheFile(context).readText())
       val cookie = session()
       if (cookie.isNotEmpty() && data.optString("identity") == fingerprint(cookie)) data else null
-    } catch (_: Exception) { null }
+    }
   }
 
   private fun session(): String = (CookieManager.getInstance().getCookie("$ORIGIN/api/client-status") ?: "")
@@ -114,24 +125,31 @@ object BriefingWidgets {
     .digest(session.toByteArray()).joinToString("") { "%02x".format(it) }
 
   fun refresh(context: Context) {
-    val cookie = session()
-    val identity = fingerprint(cookie)
-    if (cookie.isEmpty()) { clear(context); render(context); return }
-    if (read(context)?.optString("identity") != identity) { clear(context); render(context) }
-    val connection = URL("$ORIGIN/api/client-status?layout=full").openConnection() as HttpURLConnection
+    CompanionSafety.run("widget refresh") { refreshUnsafe(context) }
+  }
+
+  private fun refreshUnsafe(context: Context) {
+    var connection: HttpURLConnection? = null
     try {
-      connection.connectTimeout = 6000
-      connection.readTimeout = 6000
-      connection.instanceFollowRedirects = false
-      connection.useCaches = false
-      connection.setRequestProperty("Cookie", cookie)
-      connection.setRequestProperty("X-AHD-Client-Version", BuildConfig.VERSION_NAME)
-      connection.setRequestProperty("Cache-Control", "no-cache")
-      val status = connection.responseCode
+      val cookie = session()
+      val identity = fingerprint(cookie)
+      if (cookie.isEmpty()) { clear(context); return }
+      if (read(context)?.optString("identity") != identity) clear(context)
+      val activeConnection = URL("$ORIGIN/api/client-status?layout=full").openConnection() as? HttpURLConnection
+        ?: return
+      connection = activeConnection
+      activeConnection.connectTimeout = 6000
+      activeConnection.readTimeout = 6000
+      activeConnection.instanceFollowRedirects = false
+      activeConnection.useCaches = false
+      activeConnection.setRequestProperty("Cookie", cookie)
+      activeConnection.setRequestProperty("X-AHD-Client-Version", BuildConfig.VERSION_NAME)
+      activeConnection.setRequestProperty("Cache-Control", "no-cache")
+      val status = activeConnection.responseCode
       if (cookie != session()) { clear(context); return }
       if (status == 401 || status == 403) { clear(context); return }
       if (status != 200) return
-      val body = connection.inputStream.use { input ->
+      val body = activeConnection.inputStream.use { input ->
         val output = java.io.ByteArrayOutputStream()
         val buffer = ByteArray(4096)
         while (true) {
@@ -151,12 +169,11 @@ object BriefingWidgets {
         temporary.writeText(safe.toString())
         if (!temporary.renameTo(file)) temporary.delete()
       }
-    } catch (_: Exception) {
-      // Keep the last snapshot with its original timestamp. No credentials or
-      // response content may enter a log, intent, preference or backup.
     } finally {
-      connection.disconnect()
-      render(context)
+      connection?.let { active ->
+        CompanionSafety.run("widget connection cleanup") { active.disconnect() }
+      }
+      CompanionSafety.run("widget refresh render") { render(context) }
     }
   }
 
@@ -194,13 +211,13 @@ object BriefingWidgets {
     return safe
   }
 
-  private fun safeImageUrl(value: String): String? = try {
+  private fun safeImageUrl(value: String): String? = CompanionSafety.get("widget image validation", null) {
     val uri = Uri.parse(value)
     val host = uri.host?.lowercase().orEmpty()
     value.takeIf { it.length <= 2048 && uri.scheme == "https" &&
       (host == "ahousedividedgame.com" || host.endsWith(".ahousedividedgame.com") ||
         host == "cdn.discordapp.com" || host.endsWith(".public.blob.vercel-storage.com")) }
-  } catch (_: Exception) { null }
+  }
 
   fun page(context: Context, section: String): String? {
     val data = read(context)
@@ -227,6 +244,10 @@ object BriefingWidgets {
   }
 
   fun render(context: Context) {
+    CompanionSafety.run("widget render") { renderUnsafe(context) }
+  }
+
+  private fun renderUnsafe(context: Context) {
     val manager = AppWidgetManager.getInstance(context)
     val data = read(context)
     val age = System.currentTimeMillis() - (data?.optLong("updatedAt") ?: 0)
@@ -296,15 +317,24 @@ class BriefingRefreshJob : JobService() {
   private val executor = Executors.newSingleThreadExecutor()
   private var task: Future<*>? = null
   override fun onStartJob(params: JobParameters): Boolean {
-    task = executor.submit {
-      BriefingWidgets.refresh(applicationContext)
-      jobFinished(params, false)
+    val submitted = CompanionSafety.get("widget job start", null as Future<*>?) {
+      executor.submit {
+        try {
+          BriefingWidgets.refresh(applicationContext)
+        } finally {
+          CompanionSafety.run("widget job finish") { jobFinished(params, false) }
+        }
+      }
     }
-    return true
+    task = submitted
+    return submitted != null
   }
   override fun onStopJob(params: JobParameters): Boolean {
-    task?.cancel(true)
+    CompanionSafety.run("widget job stop") { task?.cancel(true) }
     return false
   }
-  override fun onDestroy() { executor.shutdownNow(); super.onDestroy() }
+  override fun onDestroy() {
+    CompanionSafety.run("widget executor shutdown") { executor.shutdownNow() }
+    super.onDestroy()
+  }
 }

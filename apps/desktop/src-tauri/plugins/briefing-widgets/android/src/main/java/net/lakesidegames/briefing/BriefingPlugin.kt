@@ -26,18 +26,22 @@ class BriefingPlugin(private val activity: Activity) : Plugin(activity), Applica
   private val handler = Handler(Looper.getMainLooper())
   private val poll = object : Runnable {
     override fun run() {
-      syncSafely()
-      handler.postDelayed(this, 5000)
+      NativeSafety.run("push poll") {
+        syncSafely()
+        handler.postDelayed(this, 5000)
+      }
     }
   }
   override fun load(webView: WebView) {
-    NativeAskController.attach(activity, webView)
-    activity.application.registerActivityLifecycleCallbacks(this)
-    handler.post(poll)
+    NativeSafety.run("Ask attach") { NativeAskController.attach(activity, webView) }
+    NativeSafety.run("lifecycle registration") {
+      activity.application.registerActivityLifecycleCallbacks(this)
+    }
+    NativeSafety.run("push poll start") { handler.post(poll) }
   }
   @Command
   fun showAsk(invoke: Invoke) {
-    NativeAskController.present()
+    NativeSafety.run("Ask presentation request") { NativeAskController.present() }
     invoke.resolve(JSObject("{\"ok\":true}"))
   }
   @Command
@@ -47,15 +51,24 @@ class BriefingPlugin(private val activity: Activity) : Plugin(activity), Applica
   }
   @Command
   fun configurePush(invoke: Invoke) {
-    val enabled = invoke.parseArgs(PushOptions::class.java).enabled
-    try {
+    val enabled = NativeSafety.get("push argument parsing", false) {
+      invoke.parseArgs(PushOptions::class.java).enabled
+    }
+    if (!NativeSafety.run("push configuration") {
       NativePush.setEnabled(activity, enabled)
-    } catch (_: Exception) {
+    }) {
       invoke.resolve(JSObject(statusSafely().toString()))
       return
     }
-    if (enabled && Build.VERSION.SDK_INT >= 33 && !NativePush.permitted(activity)) {
-      requestPermissionForAlias("notifications", invoke, "pushPermissionResult")
+    val permissionGranted = NativeSafety.get("notification permission check", false) {
+      NativePush.permitted(activity)
+    }
+    if (enabled && Build.VERSION.SDK_INT >= 33 && !permissionGranted) {
+      if (!NativeSafety.run("notification permission request") {
+        requestPermissionForAlias("notifications", invoke, "pushPermissionResult")
+      }) {
+        invoke.resolve(JSObject(statusSafely().toString()))
+      }
     } else {
       syncSafely(true)
       invoke.resolve(JSObject(statusSafely().toString()))
@@ -66,25 +79,44 @@ class BriefingPlugin(private val activity: Activity) : Plugin(activity), Applica
     syncSafely(true)
     invoke.resolve(JSObject(statusSafely().toString()))
   }
-  override fun onActivityResumed(target: Activity) { if (target === activity) { handler.removeCallbacks(poll); handler.post(poll) } }
-  override fun onActivityPaused(target: Activity) { if (target === activity) { handler.removeCallbacks(poll); syncSafely() } }
-  override fun onActivityDestroyed(target: Activity) { if (target === activity) { handler.removeCallbacks(poll); activity.application.unregisterActivityLifecycleCallbacks(this) } }
+  override fun onActivityResumed(target: Activity) {
+    if (target === activity) {
+      NativeSafety.run("push poll resume") {
+        handler.removeCallbacks(poll)
+        handler.post(poll)
+      }
+    }
+  }
+  override fun onActivityPaused(target: Activity) {
+    if (target === activity) {
+      NativeSafety.run("push poll pause") {
+        handler.removeCallbacks(poll)
+        syncSafely()
+      }
+    }
+  }
+  override fun onActivityDestroyed(target: Activity) {
+    if (target === activity) {
+      NativeSafety.run("push poll shutdown") {
+        handler.removeCallbacks(poll)
+        activity.application.unregisterActivityLifecycleCallbacks(this)
+      }
+    }
+  }
   override fun onActivityCreated(target: Activity, state: Bundle?) {}
   override fun onActivityStarted(target: Activity) {}
   override fun onActivityStopped(target: Activity) {}
   override fun onActivitySaveInstanceState(target: Activity, state: Bundle) {}
 
   private fun syncSafely(force: Boolean = false) {
-    try {
+    NativeSafety.run("push sync") {
       NativePush.sync(activity, force)
-    } catch (_: Exception) {
     }
   }
 
-  private fun statusSafely(): JSONObject = try {
+  private fun statusSafely(): JSONObject = NativeSafety.get("push status", JSONObject()
+    .put("enabled", false).put("permissionGranted", false).put("available", false)
+    .put("registered", false).put("message", "Push is unavailable in this build.")) {
     NativePush.status(activity)
-  } catch (_: Exception) {
-    JSONObject().put("enabled", false).put("permissionGranted", false).put("available", false)
-      .put("registered", false).put("message", "Push is unavailable in this build.")
   }
 }
