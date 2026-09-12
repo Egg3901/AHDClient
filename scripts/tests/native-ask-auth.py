@@ -1,9 +1,15 @@
 """Run the production native Ask connection code against a deterministic transport."""
 from pathlib import Path
+import argparse
 import os
+import platform
 import subprocess
 import sys
 import tempfile
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--simulator', help='Run the compiled tests in this booted iOS simulator')
+args = parser.parse_args()
 
 root = Path(__file__).resolve().parents[2]
 source = (root / 'apps/desktop/src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift').read_text()
@@ -21,4 +27,12 @@ checks = (Path(__file__).with_name('native-ask-auth.swift')).read_text()
 with tempfile.TemporaryDirectory() as directory:
     script = Path(directory) / 'main.swift'
     script.write_text(source + '\n' + checks)
-    subprocess.run([os.environ.get('SWIFT', 'swift'), '-swift-version', '5', str(script)], check=True)
+    if args.simulator:
+        sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path'], text=True).strip()
+        binary = Path(directory) / 'native-ask-auth'
+        subprocess.run(['xcrun', '--sdk', 'iphonesimulator', 'swiftc', '-swift-version', '5',
+                        '-sdk', sdk, '-target', f'{platform.machine()}-apple-ios18.0-simulator',
+                        str(script), '-o', str(binary)], check=True)
+        subprocess.run(['xcrun', 'simctl', 'spawn', args.simulator, str(binary)], check=True)
+    else:
+        subprocess.run([os.environ.get('SWIFT', 'swift'), '-swift-version', '5', str(script)], check=True)

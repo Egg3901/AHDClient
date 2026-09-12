@@ -83,13 +83,18 @@ cookie and requests `/api/client/account` on the fixed official HTTPS origin.
 Cookies are never returned over IPC or written to launcher storage. Offline
 play does not require an account; online entitlements are checked online.
 
+Native iOS Ask uses the private cookie store provided by its ephemeral
+URLSession configuration. Do not replace it with `HTTPCookieStorage()`:
+that initializer silently retains no cookies on Apple platforms.
+
 Native iOS Ask reuses the WebView's issuer SSO cookies during its OIDC
 redirects. `KEYCLOAK_IDENTITY` and `KEYCLOAK_SESSION` are accepted only from
 `auth.lakesidegames.net` and retain their original domain and realm path.
 Ask receives its own application session after the callback; the game session
 alone cannot authenticate another application. `scripts/tests/native-ask-auth.py`
 executes the native connection code for linked, stale, expired and foreign-cookie
-cases before the private iOS release build.
+cases on macOS and the iOS simulator without packaging an app, and again before
+the private iOS release build.
 
 Statistics use `/api/singleplayer/statistics` for local allowlisted aggregates
 and `/api/client/statistics` for anonymous ingress. The HTTP sender is separate
