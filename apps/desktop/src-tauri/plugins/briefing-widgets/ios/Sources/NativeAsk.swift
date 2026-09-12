@@ -104,10 +104,17 @@ private final class NativeAskRedirectDelegate: NSObject, URLSessionTaskDelegate,
 final class NativeAskAPI: @unchecked Sendable {
   private let storage: HTTPCookieStorage
   private let transport: URLSession
+  private let unifiedSessionCookie: String?
 
   init(gameCookies: [HTTPCookie]) {
     let storage = HTTPCookieStorage()
     self.storage = storage
+    self.unifiedSessionCookie = gameCookies.first { cookie in
+      let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
+      return cookie.name == "__Host-lakeside_session"
+        && domain == "auth.lakesidegames.net"
+        && !cookie.value.isEmpty
+    }?.value
     let configuration = URLSessionConfiguration.ephemeral
     configuration.httpShouldSetCookies = true
     configuration.httpCookieStorage = storage
@@ -162,6 +169,21 @@ final class NativeAskAPI: @unchecked Sendable {
     storage.cookies(for: nativeAskOrigin)?.first { Self.isAskSessionCookie($0.name) }
   }
 
+  private var hasAskAuthentication: Bool {
+    askCookie != nil || unifiedSessionCookie != nil
+  }
+
+  private func askCookieHeader() -> String? {
+    var values = storage.cookies(for: nativeAskOrigin)?.map { "\($0.name)=\($0.value)" } ?? []
+    if let unifiedSessionCookie,
+       !values.contains(where: { $0.hasPrefix("__Host-lakeside_session=") }) {
+      // The unified session is host-only on auth.lakesidegames.net. Forward it
+      // explicitly only to Ask; never attach it to the legacy game broker.
+      values.append("__Host-lakeside_session=\(unifiedSessionCookie)")
+    }
+    return values.isEmpty ? nil : values.joined(separator: "; ")
+  }
+
   private func clearAskCookies() {
     for cookie in storage.cookies(for: nativeAskOrigin) ?? [] where Self.isAskCookieName(cookie.name) {
       storage.deleteCookie(cookie)
@@ -175,6 +197,9 @@ final class NativeAskAPI: @unchecked Sendable {
     request.setValue("application/json", forHTTPHeaderField: "Accept")
     request.setValue(nativeAskOrigin.absoluteString, forHTTPHeaderField: "Origin")
     request.setValue(nativeAskOrigin.absoluteString + "/", forHTTPHeaderField: "Referer")
+    if let cookieHeader = askCookieHeader() {
+      request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+    }
     if let body {
       request.httpMethod = "POST"
       request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -187,13 +212,13 @@ final class NativeAskAPI: @unchecked Sendable {
     var request = URLRequest(url: loginURL)
     request.timeoutInterval = 30
     let (_, response) = try await transport.data(for: request)
-    guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), askCookie != nil else {
+    guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), hasAskAuthentication else {
       throw NativeAskError.loginFailed
     }
   }
 
   private func ensureSession(force: Bool = false, preferGameHandoff: Bool = true) async throws {
-    if !force, askCookie != nil { return }
+    if !force, hasAskAuthentication { return }
     do {
       if preferGameHandoff {
         do {
@@ -441,14 +466,30 @@ final class NativeAskAPI: @unchecked Sendable {
         let result: NativeAskResult
         if selectedProvider == .appleOnDevice {
           guard appleAvailable else { throw FoundationModelBridgeError.unavailable(appleMessage) }
-          guard let api else { throw NativeAskError.signedOut }
-          guard signedIn else { throw NativeAskError.signedOut }
-          let evidence = try await api.context(question: question)
+          let evidence: (text: String, files: [String])
+          if signedIn, let api {
+            do {
+              evidence = try await api.context(question: question)
+            } catch {
+              // AFM is still useful when live retrieval is unavailable. Keep
+              // the local answer path alive and make the degraded state clear.
+              evidence = (text: "", files: [])
+              status = "Live game evidence unavailable. Answering on device."
+            }
+          } else {
+            // Account linking enables evidence and the optional live tool; it
+            // must not prevent a private on-device answer from being generated.
+            evidence = (text: "", files: [])
+          }
           let options = FoundationModelOptions(question: question, history: history, length: "standard", style: "standard", mode: "ask", gameContext: evidence.text)
           #if canImport(FoundationModels)
           let liveTool: Any?
-          if #available(iOS 26.0, *) {
-            liveTool = NativeAskLiveTool(api: api)
+          if signedIn, let api {
+            if #available(iOS 26.0, *) {
+              liveTool = NativeAskLiveTool(api: api)
+            } else {
+              liveTool = nil
+            }
           } else {
             liveTool = nil
           }
@@ -622,9 +663,9 @@ struct NativeAskView: View {
         Label("Private on-device answers. Checking whether live lookup is available...", systemImage: "lock.shield")
       } else {
         Label("Private on-device answers. Link your game account to enable live lookup.", systemImage: "lock.shield")
-        if let error = model.error { Text(error).font(.caption).foregroundStyle(.secondary) }
         Button("Link game account", action: onLinkAccount).buttonStyle(.borderedProminent)
       }
+      if let error = model.error { Text(error).font(.caption).foregroundStyle(.secondary) }
     }.font(.caption).foregroundStyle(.secondary).padding(.horizontal).padding(.vertical, 9)
   }
 

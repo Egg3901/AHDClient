@@ -82,7 +82,10 @@ private object NativeAskCookies {
     val sandbox = filtered(manager.getCookie("$NATIVE_SANDBOX_ORIGIN/api/client/account"))
     val wwwGame = filtered(manager.getCookie("https://www.ahousedividedgame.com/api/client/account"))
     return mapOf(
-      "ask.lakesidegames.net" to ask,
+      // The unified session is host-only on auth.lakesidegames.net. Ask is
+      // the only other host that receives it, so migrated accounts are
+      // recognized without leaking the cookie to the legacy game broker.
+      "ask.lakesidegames.net" to merge(ask, unifiedAuth, includeUnified = true),
       // A host-only game cookie is not returned for the auth subdomain. The
       // broker is an explicitly trusted first-party host, so give it the same
       // auth-token cookies the game WebView already holds.
@@ -102,12 +105,14 @@ private object NativeAskCookies {
     .distinctBy { it.substringBefore('=') }
     .joinToString("; ")
 
-  private fun merge(vararg headers: String): String {
+  private fun merge(vararg headers: String, includeUnified: Boolean = false): String {
     val merged = linkedMapOf<String, String>()
     headers.forEach { header ->
       header.split(';').map { it.trim() }.forEach { pair ->
         val name = pair.substringBefore('=')
-        if (pair.contains('=') && nativeAskSessionName.matches(name)) merged.putIfAbsent(name, pair)
+        val allowed = nativeAskSessionName.matches(name)
+          || (includeUnified && name == "__Host-lakeside_session")
+        if (pair.contains('=') && allowed) merged.putIfAbsent(name, pair)
       }
     }
     return merged.values.joinToString("; ")
