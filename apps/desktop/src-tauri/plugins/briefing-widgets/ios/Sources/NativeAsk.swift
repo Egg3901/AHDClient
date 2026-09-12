@@ -105,6 +105,7 @@ final class NativeAskAPI: @unchecked Sendable {
   private let storage: HTTPCookieStorage
   private let transport: URLSession
   private let unifiedSessionCookie: String?
+  private let gameAuthCookieHeader: String?
 
   init(gameCookies: [HTTPCookie]) {
     let storage = HTTPCookieStorage()
@@ -112,9 +113,14 @@ final class NativeAskAPI: @unchecked Sendable {
     self.unifiedSessionCookie = gameCookies.first { cookie in
       let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
       return cookie.name == "__Host-lakeside_session"
-        && domain == "auth.lakesidegames.net"
+        && (domain == "auth.lakesidegames.net" || domain == "lakesidegames.net")
         && !cookie.value.isEmpty
     }?.value
+    self.gameAuthCookieHeader = Self.cookieHeader(from: gameCookies.filter { cookie in
+      let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
+      let gameDomain = domain == "ahousedividedgame.com" || domain == "www.ahousedividedgame.com" || domain == nativeSandboxHost
+      return gameDomain && Self.isGameAuthCookie(cookie) && !cookie.value.isEmpty
+    })
     let configuration = URLSessionConfiguration.ephemeral
     configuration.httpShouldSetCookies = true
     configuration.httpCookieStorage = storage
@@ -137,9 +143,7 @@ final class NativeAskAPI: @unchecked Sendable {
     let authDomain = domain == "auth.ahousedividedgame.com"
     let unifiedAuthDomain = domain == "auth.lakesidegames.net"
     let askDomain = domain == "ask.lakesidegames.net"
-    let session = Self.isAskCookieName(cookie.name)
-      || cookie.name == "auth-token" || cookie.name.hasPrefix("auth-token-")
-      || cookie.name.range(of: "^(?:__Secure-)?(?:authjs|next-auth)\\.session-token(?:\\.[0-9]+)?$", options: .regularExpression) != nil
+    let session = Self.isAskCookieName(cookie.name) || Self.isGameAuthCookie(cookie)
     return (gameDomain || authDomain || unifiedAuthDomain || askDomain) && session && !cookie.value.isEmpty
   }
 
@@ -153,7 +157,17 @@ final class NativeAskAPI: @unchecked Sendable {
   }
 
   private static func isGameAuthCookie(_ cookie: HTTPCookie) -> Bool {
-    cookie.name == "auth-token" || cookie.name.hasPrefix("auth-token-")
+    cookie.name == "auth-token" || cookie.name.range(of: "^auth-token-[A-Za-z0-9-]+$", options: .regularExpression) != nil
+      || cookie.name.range(of: "^(?:__Secure-)?(?:authjs|next-auth)\\.session-token(?:\\.[0-9]+)?$", options: .regularExpression) != nil
+  }
+
+  private static func cookieHeader(from cookies: [HTTPCookie]) -> String? {
+    var values = [String: String]()
+    for cookie in cookies {
+      values[cookie.name] = "\(cookie.name)=\(cookie.value)"
+    }
+    let header = values.keys.sorted().compactMap { values[$0] }.joined(separator: "; ")
+    return header.isEmpty ? nil : header
   }
 
   private static func brokerCookie(from cookie: HTTPCookie) -> HTTPCookie? {
@@ -211,6 +225,13 @@ final class NativeAskAPI: @unchecked Sendable {
   private func establishSession(at loginURL: URL) async throws {
     var request = URLRequest(url: loginURL)
     request.timeoutInterval = 30
+    if loginURL.host == "auth.ahousedividedgame.com", let gameAuthCookieHeader {
+      // The desktop link compatibility cookie is scoped to the game's
+      // account endpoint, so URLSession will not send it to the broker even
+      // after cloning it into the ephemeral cookie jar. Send the already
+      // filtered game session explicitly on this trusted first-party hop.
+      request.setValue(gameAuthCookieHeader, forHTTPHeaderField: "Cookie")
+    }
     let (_, response) = try await transport.data(for: request)
     guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), hasAskAuthentication else {
       throw NativeAskError.loginFailed
@@ -532,7 +553,13 @@ final class NativeAskAPI: @unchecked Sendable {
         turns[index].local = selectedProvider == .appleOnDevice
         if !result.conversationID.isEmpty { conversationID = result.conversationID }
       } catch is CancellationError {
-        turns.removeAll { $0.id == turnID }
+        if Task.isCancelled {
+          turns.removeAll { $0.id == turnID }
+        } else {
+          self.error = "Apple Foundation Models cancelled the answer. Try again or choose Ask server."
+          turns.removeAll { $0.id == turnID }
+          draft = question
+        }
       } catch {
         self.error = error.localizedDescription
         turns.removeAll { $0.id == turnID }

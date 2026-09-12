@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.3.13] - 2026-09-12
+
+- Accept the desktop link compatibility session in the Lakeside Auth broker and explicitly forward the scoped game session from iOS native Ask.
+- Preserve iOS Ask authentication across legacy, unified, and current game session cookie shapes.
+- Keep Apple Foundation Models failures visible and recover from tool-call protocol output instead of silently dropping the question.
+
 ## [2.3.12] - 2026-09-12
 
 - Forward the current unified Lakeside session to native Ask on iOS and Android so linked accounts are recognized without leaking the session to the legacy game broker.
