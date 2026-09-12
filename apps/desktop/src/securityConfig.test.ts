@@ -94,6 +94,7 @@ describe("desktop security configuration", () => {
     const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
     expect(iosAsk).toContain('"auth.lakesidegames.net"');
     expect(iosAsk).toContain('"https://auth.ahousedividedgame.com/auth/ahd?return=');
+    expect(iosAsk).toContain("%2Fauth%2Fnative%2Fcallback");
     expect(iosAsk).toContain('request("/api/ask/context"');
     expect(iosAsk).toContain("gameContext: evidence.text");
     const androidAsk = read(
@@ -101,6 +102,7 @@ describe("desktop security configuration", () => {
     );
     expect(androidAsk).toContain('"auth.lakesidegames.net"');
     expect(androidAsk).toContain("NATIVE_AHD_LOGIN");
+    expect(androidAsk).toContain("%2Fauth%2Fnative%2Fcallback");
   });
 
   it("keeps native Ask sign-in transactions and live-tool evidence intact", () => {
@@ -118,6 +120,18 @@ describe("desktop security configuration", () => {
     expect(iosFoundationModels).toContain("NativeAskLiveTool");
     expect(iosFoundationModels).toContain("LanguageModelSession(tools:");
     expect(iosFoundationModels).toContain("ask_live_game_state");
+  });
+
+  it("bounds native AFM retrieval, live lookup, and model work", () => {
+    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
+    expect(iosAsk).toContain("NativeAskTimeoutError");
+    expect(iosAsk).toContain("let payload = try await withNativeAskTimeout(seconds: 30)");
+    expect(iosAsk).toContain('request("/api/ask/context"');
+    expect(iosFoundationModels).toContain("let result = try await withNativeAskTimeout(seconds: 60)");
+    expect(iosFoundationModels).toContain("let answer = try await withNativeAskTimeout(seconds: 45)");
+    expect(iosFoundationModels).toContain("session.respond(to: prompt)");
+    expect(iosFoundationModels).not.toContain("let response = try await session.respond(to: prompt)\n    let answer = response.content");
   });
 
   it("retains the unified Ask login transaction and session cookies on mobile", () => {
