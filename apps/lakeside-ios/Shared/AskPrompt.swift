@@ -1,5 +1,12 @@
 import Foundation
 
+enum ToolProtocolSanitizer {
+    static func containsProtocol(_ value: String) -> Bool {
+        let patterns = ["<tool_call", "<function=", "<parameter=", "\"tool_calls\"", "\"recipient_name\"", "\"tool_input\""]
+        return patterns.contains { value.localizedCaseInsensitiveContains($0) }
+    }
+}
+
 enum AppleFoundationModelPrompt {
     static func make(question: String, history: [String], gameName: String, gameSubject: String, gameEvidence: String,
                      length: String, style: String, mode: String) -> String {
