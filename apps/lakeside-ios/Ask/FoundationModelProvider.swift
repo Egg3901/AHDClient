@@ -88,10 +88,6 @@ private struct AskLiveGameStateTool: Tool {
 #endif
 
 enum AppleFoundationModelProvider {
-    static func containsToolProtocol(_ value: String) -> Bool {
-        let patterns = ["<tool_call", "<function=", "<parameter=", "\"tool_calls\"", "\"recipient_name\"", "\"tool_input\""]
-        return patterns.contains { value.localizedCaseInsensitiveContains($0) }
-    }
     static var isAvailable: Bool {
 #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
@@ -165,7 +161,7 @@ enum AppleFoundationModelProvider {
         )
 
         var response = try await session.respond(to: prompt)
-        if containsToolProtocol(response.content) {
+        if ToolProtocolSanitizer.containsProtocol(response.content) {
             response = try await session.respond(to: """
             Your previous response exposed tool-call protocol. Do not call or imitate tools. Using only the evidence already supplied, write the final user-facing answer as ordinary prose and optional Markdown. Do not output XML, JSON, function names, arguments, or tool syntax.
             """)
@@ -174,7 +170,7 @@ enum AppleFoundationModelProvider {
         guard !answer.isEmpty else {
             throw AppFailure(message: "Apple on-device returned an empty answer.")
         }
-        guard !containsToolProtocol(answer) else {
+        guard !ToolProtocolSanitizer.containsProtocol(answer) else {
             throw AppFailure(message: "Apple on-device produced an invalid tool request. Try again or choose Ask server.")
         }
         let snapshot = await trace.snapshot()

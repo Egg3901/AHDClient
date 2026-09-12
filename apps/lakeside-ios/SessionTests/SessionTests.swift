@@ -90,9 +90,9 @@ import XCTest
         XCTAssertFalse(prompt.contains("You do not have access to current game state, server tools, citations, or live data."))
     }
     func testAppleFoundationModelToolProtocolIsRejected() {
-        XCTAssertTrue(AppleFoundationModelProvider.containsToolProtocol(#"{"recipient_name":"gamestate","tool_input":{"country":"US"}}"#))
-        XCTAssertTrue(AppleFoundationModelProvider.containsToolProtocol("<tool_call><function=country_fiscal>"))
-        XCTAssertFalse(AppleFoundationModelProvider.containsToolProtocol("US inflation is currently elevated."))
+        XCTAssertTrue(ToolProtocolSanitizer.containsProtocol(#"{"recipient_name":"gamestate","tool_input":{"country":"US"}}"#))
+        XCTAssertTrue(ToolProtocolSanitizer.containsProtocol("<tool_call><function=country_fiscal>"))
+        XCTAssertFalse(ToolProtocolSanitizer.containsProtocol("US inflation is currently elevated."))
     }
     func testUnrelatedCookieCannotSignIn() async throws {
         let cookie = try XCTUnwrap(HTTPCookie(properties: [.name: "ops_session", .value: "fixture", .domain: "attacker.example", .path: "/", .secure: "TRUE"]))
