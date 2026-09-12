@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.3.14] - 2026-09-12
+
+- Keep Apple Foundation Models prompts within the on-device context budget and retry with a compact prompt when retrieved evidence is too large.
+- Bound live tool evidence so AFM questions do not fail immediately after account linking.
+
 ## [2.3.13] - 2026-09-12
 
 - Accept the desktop link compatibility session in the Lakeside Auth broker and explicitly forward the scoped game session from iOS native Ask.
