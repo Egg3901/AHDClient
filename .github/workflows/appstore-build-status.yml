@@ -40,7 +40,41 @@ jobs:
           header=$(b64url '{"alg":"ES256","kid":"'"$ASC_KEY_ID"'","typ":"JWT"}')
           now=$(date +%s)
           payload=$(b64url '{"iss":"'"$ASC_ISSUER_ID"'","iat":'"$now"',"exp":'"$((now + 900))"',"aud":"appstoreconnect-v1"}')
-          signature=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "$key_file" | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+          signature=$(python3 - "$key_file" "$header.$payload" <<'PY'
+          import base64
+          import subprocess
+          import sys
+
+          der = subprocess.run(
+              ["openssl", "dgst", "-sha256", "-sign", sys.argv[1]],
+              input=sys.argv[2].encode(),
+              check=True,
+              stdout=subprocess.PIPE,
+          ).stdout
+
+          def read_length(data, offset):
+              first = data[offset]
+              offset += 1
+              if first < 128:
+                  return first, offset
+              count = first & 0x7f
+              return int.from_bytes(data[offset:offset + count], "big"), offset + count
+
+          def read_integer(data, offset):
+              if data[offset] != 0x02:
+                  raise ValueError("invalid ECDSA signature")
+              length, start = read_length(data, offset + 1)
+              return data[start:start + length], start + length
+
+          if der[0] != 0x30:
+              raise ValueError("invalid ECDSA signature sequence")
+          _, offset = read_length(der, 1)
+          r, offset = read_integer(der, offset)
+          s, _ = read_integer(der, offset)
+          raw = r.lstrip(b"\0").rjust(32, b"\0")[-32:] + s.lstrip(b"\0").rjust(32, b"\0")[-32:]
+          print(base64.urlsafe_b64encode(raw).rstrip(b"=").decode(), end="")
+          PY
+          )
           token="$header.$payload.$signature"
 
           app=$(curl --fail --silent --show-error --get \
