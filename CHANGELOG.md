@@ -4,6 +4,8 @@
 
 - Restore native Ask linked-account handoff on iOS and Android, including the unified Lakeside auth cookies used by the current sign-in flow.
 - Let Apple Foundation Models questions reach grounded Ask evidence and the on-device answer path after the linked account is detected.
+- Give Apple Foundation Models one authenticated, read-only live game lookup and show its execution as native tool activity instead of raw protocol text.
+- Enable cited on-device answers and native charts or diagrams, and report the actual AFM variant on supported iOS 27 devices.
 
 ## [2.3.9] - 2026-09-11
 
