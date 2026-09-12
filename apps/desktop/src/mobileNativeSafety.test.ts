@@ -29,7 +29,6 @@ describe("mobile native companion safety", () => {
 
     expect(activity).toContain("CompanionSafety.run");
     expect(activity).toContain('CompanionSafety.run("widget deep link")');
-    expect(activity).toContain("WebViewRenderProcessClient");
     expect(widget).toContain("CompanionSafety.run");
     expect(widget).toContain("jobFinished(params, false)");
     expect(safety).toContain("catch (error: Throwable)");

@@ -5,9 +5,8 @@
 - Recover raw JSON on-device answers as readable prose on iOS.
 - Bundle the existing-save government repair and accurate extraction idle reporting.
 
-- Keep optional Android widgets, push, native Ask, deep links, and WebView
-  renderer failures from terminating the main AHDClient process; log a bounded
-  diagnostic and leave a recoverable fallback when the renderer stops.
+- Guard optional Android widgets, push, native Ask, and deep links against
+  native exceptions, with bounded diagnostics for failures.
 - Document the status-handshake contract required by the permanent
   head-of-state repair, so existing local worlds can recover their canonical
   government when the updated AHDGame runtime is packaged.

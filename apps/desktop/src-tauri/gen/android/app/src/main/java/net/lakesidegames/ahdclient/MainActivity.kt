@@ -2,24 +2,14 @@ package net.lakesidegames.ahdclient
 
 import android.os.Bundle
 import android.content.Intent
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
-import android.view.ViewGroup
-import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
-import android.webkit.WebViewRenderProcessClient
-import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
-  private companion object {
-    const val TAG = "AHDClient"
-  }
-
   private var gameView: WebView? = null
   private val widgetHandler = Handler(Looper.getMainLooper())
   private var widgetNavigation: Runnable? = null
@@ -98,7 +88,6 @@ class MainActivity : TauriActivity() {
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
     gameView = webView
-    installRendererFailureHandler(webView)
     CompanionSafety.run("mobile WebView setup") {
       openWidgetPage()
       // Appended, never replaced: the site keys ad slots, consent prompts and
@@ -121,39 +110,4 @@ class MainActivity : TauriActivity() {
     }
   }
 
-  private fun installRendererFailureHandler(webView: WebView) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-    CompanionSafety.run("WebView renderer diagnostics") {
-      webView.setWebViewRenderProcessClient(object : WebViewRenderProcessClient() {
-        override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
-          return CompanionSafety.get("WebView renderer failure", true) {
-            Log.e(TAG, "WebView renderer stopped; crashed=${detail.didCrash()}")
-            gameView = null
-            widgetNavigation?.let { widgetHandler.removeCallbacks(it) }
-            val parent = view.parent as? ViewGroup
-            if (parent == null) {
-              CompanionSafety.run("renderer cleanup") { view.destroy() }
-            } else {
-              val index = parent.indexOfChild(view).coerceAtLeast(0)
-              val layoutParams = view.layoutParams
-              CompanionSafety.run("renderer fallback") {
-                parent.removeView(view)
-                view.destroy()
-                val fallback = TextView(this@MainActivity).apply {
-                  text = "The game view stopped. Close and reopen AHDClient."
-                  textSize = 16f
-                  setTextColor(0xFFFFFFFF.toInt())
-                  setBackgroundColor(0xFF14141C.toInt())
-                  gravity = android.view.Gravity.CENTER
-                  setPadding(32, 32, 32, 32)
-                }
-                parent.addView(fallback, index, layoutParams)
-              }
-            }
-            true
-          }
-        }
-      })
-    }
-  }
 }
