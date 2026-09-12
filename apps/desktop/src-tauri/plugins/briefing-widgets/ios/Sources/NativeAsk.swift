@@ -143,8 +143,12 @@ final class NativeAskAPI: @unchecked Sendable {
     let authDomain = domain == "auth.ahousedividedgame.com"
     let unifiedAuthDomain = domain == "auth.lakesidegames.net"
     let askDomain = domain == "ask.lakesidegames.net"
+    // The issuer's SSO cookies are distinct from each app's opaque session.
+    // Keep their original domain and realm path so Ask's OIDC redirects can
+    // reuse the game login without sending issuer credentials to Ask itself.
+    let issuerSSO = unifiedAuthDomain && (cookie.name == "KEYCLOAK_IDENTITY" || cookie.name == "KEYCLOAK_SESSION")
     let session = Self.isAskCookieName(cookie.name) || Self.isGameAuthCookie(cookie)
-    return (gameDomain || authDomain || unifiedAuthDomain || askDomain) && session && !cookie.value.isEmpty
+    return ((gameDomain || authDomain || unifiedAuthDomain || askDomain) && session || issuerSSO) && !cookie.value.isEmpty
   }
 
   private static func isAskCookieName(_ name: String) -> Bool {

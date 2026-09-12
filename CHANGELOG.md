@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.3.16] - 2026-09-12
+
+- Let native iOS Ask reuse the existing game login through issuer SSO, including recovery from an expired Ask session.
+- Verify the native authentication path before building the iOS release.
+
 ## [2.3.15] - 2026-09-12
 
 - Recover raw JSON on-device answers as readable prose on iOS.
