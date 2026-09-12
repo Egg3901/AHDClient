@@ -15,7 +15,7 @@ import androidConfig from "../src-tauri/tauri.android.conf.json";
 import iosConfig from "../src-tauri/tauri.ios.conf.json";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (relative: string) => readFileSync(join(here, relative), "utf8");
+const read = (relative: string) => readFileSync(join(here, relative), "utf8").replace(/\r\n/g, "\n");
 
 describe("desktop security configuration", () => {
   it("limits PiP to the local briefing and its read-only commands", () => {
