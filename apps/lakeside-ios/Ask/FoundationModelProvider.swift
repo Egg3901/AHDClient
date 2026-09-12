@@ -114,7 +114,7 @@ enum AppleFoundationModelProvider {
 
     static var modelName: String {
 #if canImport(FoundationModels)
-#if compiler(>=6.3)
+#if canImport(FoundationModels, _version: 2.0)
         if #available(iOS 27.0, *) {
             return SystemLanguageModel.default.variant.displayName
         }
