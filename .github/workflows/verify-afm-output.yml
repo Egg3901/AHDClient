@@ -1,10 +1,13 @@
-name: AFM output regression
+name: Native Swift regressions
 on:
   pull_request:
     paths:
       - 'apps/lakeside-ios/Shared/AskPrompt.swift'
       - 'apps/desktop/src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift'
       - 'scripts/tests/afm-output.py'
+      - 'scripts/tests/native-ask-auth.py'
+      - 'scripts/tests/native-ask-auth.swift'
+      - 'apps/desktop/src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift'
       - '.github/workflows/verify-afm-output.yml'
   workflow_dispatch:
 permissions:
@@ -16,3 +19,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/tests/afm-output.py
+      - run: python3 scripts/tests/native-ask-auth.py
