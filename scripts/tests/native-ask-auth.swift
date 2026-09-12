@@ -68,8 +68,19 @@ private func check(_ name: String, cookies: [HTTPCookie], succeeds: Bool = true,
   let loggedIn = AuthTransport.calls.contains { $0.hasSuffix("/auth/login") }
   let passed = connected == succeeds && AuthTransport.violations.isEmpty && (!succeeds || loggedIn == loginExpected)
   print("\(passed ? "PASS" : "FAIL"): \(name)\(failure.isEmpty ? "" : ": " + failure)")
+  if !passed {
+    print("[DEBUG-cookie-store] retained=\(api.authTestCookies.cookies?.map { $0.name } ?? []) calls=\(AuthTransport.calls)")
+  }
   return passed
 }
+
+#if !canImport(FoundationNetworking)
+for (name, jar) in [("initializer", HTTPCookieStorage()), ("ephemeral", URLSessionConfiguration.ephemeral.httpCookieStorage!)] {
+  jar.setCookie(issuerSSO)
+  print("[DEBUG-cookie-store] \(name): retained=\(jar.cookies?.map { $0.name } ?? []); scoped=\(jar.cookies(for: URL(string: "https://auth.lakesidegames.net/realms/accounts/")!)?.map { $0.name } ?? [])")
+}
+
+#endif
 
 Task {
   var passed = true
