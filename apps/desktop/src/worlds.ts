@@ -19,6 +19,7 @@ export interface WorldMeta {
 
 export interface GameInfo {
   running: boolean;
+  hosted: boolean;
   port: number | null;
   slot: string | null;
   url: string | null;
@@ -241,7 +242,8 @@ export const worlds = {
 };
 
 export const game = {
-  start: (slot: string) => invoke<GameInfo>("game_start", { slot }),
+  start: (slot: string, hosted = false) =>
+    invoke<GameInfo>("game_start", { slot, hosted }),
   stop: () => invoke<GameInfo>("game_stop"),
   status: () => invoke<GameInfo>("game_status"),
   request: <T>(method: string, path: string, body?: unknown) =>

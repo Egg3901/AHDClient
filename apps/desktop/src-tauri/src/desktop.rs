@@ -207,6 +207,7 @@ struct GameInner {
   exited: Option<Arc<AtomicBool>>,
   port: Option<u16>,
   slot: Option<String>,
+  hosted: bool,
   world_lease: Option<File>,
 }
 
@@ -216,6 +217,7 @@ struct Game(Mutex<GameInner>, tokio::sync::Mutex<()>);
 #[serde(rename_all = "camelCase")]
 struct GameInfo {
   running: bool,
+  hosted: bool,
   port: Option<u16>,
   slot: Option<String>,
   url: Option<String>,
@@ -225,6 +227,7 @@ impl GameInner {
   fn info(&self) -> GameInfo {
     GameInfo {
       running: self.child.is_some(),
+      hosted: self.hosted,
       port: self.port,
       slot: self.slot.clone(),
       url: self.port.map(|p| format!("http://127.0.0.1:{p}")),
@@ -285,6 +288,7 @@ fn stop_locked(inner: &mut GameInner) {
   }
   inner.port = None;
   inner.slot = None;
+  inner.hosted = false;
   inner.world_lease = None;
 }
 
@@ -317,7 +321,7 @@ pub(crate) async fn game_stop(app: AppHandle, game: State<'_, Game>) -> Result<G
 /// launcher as `game:log` events the whole time, so a first-run MongoDB
 /// download is visible rather than a frozen button.
 #[tauri::command]
-pub(crate) async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String) -> Result<GameInfo, String> {
+pub(crate) async fn game_start(app: AppHandle, game: State<'_, Game>, slot: String, hosted: Option<bool>) -> Result<GameInfo, String> {
   let _start_guard = game.1.try_lock().map_err(|_| "a world is already starting")?;
   let home = world_dir(&app, &slot)?;
   if !home.join("world.json").exists() {
@@ -343,6 +347,7 @@ pub(crate) async fn game_start(app: AppHandle, game: State<'_, Game>, slot: Stri
   let port = free_port()?;
   let mut mongo_port = free_port()?;
   while mongo_port == port { mongo_port = free_port()?; }
+  let hosted = hosted.unwrap_or(false);
   let mut command = app
     .shell()
     // Named ahd-node, not node: Linux packages install sidecars into
@@ -364,7 +369,13 @@ pub(crate) async fn game_start(app: AppHandle, game: State<'_, Game>, slot: Stri
       "--parent-pid",
       &std::process::id().to_string(),
     ])
-    .env("NODE_ENV", "production");
+    .env("NODE_ENV", "production")
+    // The first account in this isolated world owns its moderation panel.
+    // Since every client world has its own database, bans remain world-only.
+    .env("SINGLEPLAYER_ADMIN", "1");
+  if hosted {
+    command = command.arg("--host");
+  }
   if let Ok(mongod) = std::env::var("MONGOD_PATH") {
     command = command.env("MONGOD_PATH", mongod);
   }
@@ -381,6 +392,7 @@ pub(crate) async fn game_start(app: AppHandle, game: State<'_, Game>, slot: Stri
     inner.exited = Some(exited.clone());
     inner.port = Some(port);
     inner.slot = Some(slot.clone());
+    inner.hosted = hosted;
     inner.world_lease = Some(world_lease);
   }
 

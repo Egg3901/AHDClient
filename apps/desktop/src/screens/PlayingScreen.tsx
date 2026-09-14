@@ -3,6 +3,8 @@ import type { WorldMeta } from "../worlds.js";
 interface Props {
   world: WorldMeta | null;
   lines: string[];
+  hosted: boolean;
+  port: number | null;
   onResume: () => void;
   onStop: () => void;
 }
@@ -11,7 +13,7 @@ interface Props {
  * The launcher window while a game window is open. Small on purpose: the
  * game is in the other window, this one just keeps the server honest.
  */
-export function PlayingScreen({ world, lines, onResume, onStop }: Props): JSX.Element {
+export function PlayingScreen({ world, lines, hosted, port, onResume, onStop }: Props): JSX.Element {
   return (
     <main className="launcher-scope screen-scope">
       <div className="launcher-pattern" aria-hidden="true">
@@ -27,6 +29,13 @@ export function PlayingScreen({ world, lines, onResume, onStop }: Props): JSX.El
             The game is open in its own window. Closing that window keeps the world running so you can
             come straight back; Stop shuts the server down and returns to the launcher.
           </p>
+          {hosted && (
+            <p className="launcher-caption" role="status">
+              <strong>Private world hosting is on.</strong> Players on your network can join at
+              {` http://<this-computer>:${port ?? "port"}`}. The first account owns the admin panel
+              and can ban or unban guests in this world only. Forward this port when hosting on a VPS.
+            </p>
+          )}
           <div className="launcher-actions">
             <button className="launcher-btn launcher-btn-primary" onClick={onResume}>
               Back to the game <span aria-hidden="true">&#8594;</span>

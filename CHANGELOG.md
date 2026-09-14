@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.3.17] - 2026-09-14
+
+- Let players host an existing private world for LAN or VPS guests from the Worlds screen.
+- Restore owner admin permissions for bundled local worlds, including world-local moderation and bans.
+- Bundle the September 13-14 Head of State repairs: visible cabinet offices, working leader authority, and NPP cabinet or head-of-state appointments.
+
 ## [2.3.16] - 2026-09-12
 
 - Retain linked-account cookies in the native iOS Ask session instead of silently discarding them.
