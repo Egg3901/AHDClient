@@ -9,7 +9,6 @@ import defaultCapability from "../src-tauri/capabilities/default.json";
 import onlineCapability from "../src-tauri/capabilities/online.json";
 import gameCapability from "../src-tauri/capabilities/game.json";
 import askCapability from "../src-tauri/capabilities/ask.json";
-import askAuthCapability from "../src-tauri/capabilities/ask-auth.json";
 import mobileCapability from "../src-tauri/capabilities/mobile.json";
 import briefingCapability from "../src-tauri/capabilities/briefing.json";
 import androidConfig from "../src-tauri/tauri.android.conf.json";
@@ -45,43 +44,30 @@ describe("desktop security configuration", () => {
     expect(onlineCapability.permissions).toEqual([]);
     expect(gameCapability.webviews).toEqual(["game", "game-embedded"]);
     expect(gameCapability.permissions).toEqual([]);
-    expect(askAuthCapability.webviews).toEqual(["ask-auth"]);
-    expect(askAuthCapability.permissions).toEqual([]);
+    expect(askCapability.webviews).toEqual(["ask"]);
+    expect(askCapability.permissions).toEqual([]);
     for (const capability of [
       defaultCapability,
       onlineCapability,
       gameCapability,
-      askAuthCapability,
+      askCapability,
     ]) {
       expect("remote" in capability).toBe(false);
     }
   });
 
-  it("limits the native Ask panel to its backend commands", () => {
-    expect(askCapability.webviews).toEqual(["ask"]);
-    expect("remote" in askCapability).toBe(false);
-    expect([...askCapability.permissions].sort()).toEqual([
-      "core:default", "allow-ask-api", "allow-ask-send", "allow-ask-stop",
-    ].sort());
-  });
-
-  it("opens the native Ask panel from the launcher", () => {
+  it("opens the Ask panel from the launcher with no remote capability", () => {
     const identifiers = (defaultCapability.permissions as Array<string>).filter(
       (permission) => typeof permission === "string",
     );
     expect(identifiers).toContain("allow-open-ask-window");
-    const ask = read("../src-tauri/src/ask.rs");
-    expect(ask).toMatch(/async fn open_ask_window/);
+    const desktop = read("../src-tauri/src/desktop.rs");
+    expect(desktop).toMatch(/async fn open_ask_window/);
     // Resuming focuses the existing panel without re-navigating, so history
     // and an in-flight answer survive closing and reopening.
-    expect(ask).toMatch(
-      /fn focus_ask_ui[\s\S]*?get_webview_window\("ask"\)[\s\S]*?set_focus\(\)/,
+    expect(desktop).toMatch(
+      /fn open_ask_window[\s\S]*?get_webview_window\("ask"\)[\s\S]*?set_focus\(\)/,
     );
-    // The panel is local UI now; only the transient sign-in window loads the
-    // Ask origin, under the same navigation guard as before.
-    expect(ask).toMatch(/WebviewUrl::App\("index.html\?view=ask"/);
-    expect(ask).toMatch(/fn open_ask_auth[\s\S]*?WebviewUrl::External/);
-    expect(ask).toMatch(/fn ask_api_allowed/);
     expect(read("../src-tauri/src/mobile.rs")).toMatch(
       /fn open_ask_window[\s\S]*?navigate_main\(&app, url\)/,
     );
@@ -103,7 +89,6 @@ describe("desktop security configuration", () => {
       ),
     ).toContain("class NativeAskPanel");
     expect(read("../src-tauri/build.rs")).toContain("\"open_ask_window\"");
-    expect(read("../src-tauri/build.rs")).toContain("\"ask_send\"");
     expect(read("../src-tauri/src/lib.rs")).toContain("https://ask.lakesidegames.net/");
     expect(read("../src-tauri/src/lib.rs")).toContain('"auth.lakesidegames.net"');
     const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");

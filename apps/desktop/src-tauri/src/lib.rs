@@ -16,8 +16,6 @@
 //! plain webview pointed at an origin we chose.
 
 #[cfg(desktop)]
-mod ask;
-#[cfg(desktop)]
 mod desktop;
 #[cfg(desktop)]
 mod game_versions;
