@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.3.17] - 2026-09-14
+
+- Rework the desktop Ask panel into a native client view in the Ask service's own visual style. History, streaming answers with citations and follow-ups, live-data controls, maps, and question allowance now render inside the app. First-time players get a one-time sign-in window that closes itself after login.
+
 ## [2.3.16] - 2026-09-12
 
 - Retain linked-account cookies in the native iOS Ask session instead of silently discarding them.

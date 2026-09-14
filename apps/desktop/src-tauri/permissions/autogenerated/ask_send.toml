@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ask-send"
+description = "Enables the ask_send command without any pre-configured scope."
+commands.allow = ["ask_send"]
+
+[[permission]]
+identifier = "deny-ask-send"
+description = "Denies the ask_send command without any pre-configured scope."
+commands.deny = ["ask_send"]
