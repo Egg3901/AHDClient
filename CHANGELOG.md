@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.3.18] - 2026-09-14
+
+- Rebuild the bundled game from the post-2.3.17 Head of State repair source.
+- Repair existing local Head of State worlds during the launcher status handshake, restoring the canonical General Secretary or Prime Minister and the cabinet controls without requiring a new game.
+- Keep formal Head of State NPP appointments available after the repaired government is established; the red Admin tab remains a player-only direct tool.
+
 ## [2.3.17] - 2026-09-14
 
 - Let players host an existing private world for LAN or VPS guests from the Worlds screen.
