@@ -9,6 +9,7 @@ interface Props {
   busy: boolean;
   error: string | null;
   onPlay: (slot: string) => void;
+  onHost: (slot: string) => void;
   onDelete: (slot: string) => void;
   onBack: () => void;
 }
@@ -18,7 +19,7 @@ function whenLabel(iso: string): string {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
 }
 
-export function WorldsScreen({ worlds, runningSlot, busy, error, onPlay, onDelete, onBack }: Props): JSX.Element {
+export function WorldsScreen({ worlds, runningSlot, busy, error, onPlay, onHost, onDelete, onBack }: Props): JSX.Element {
   const [confirming, setConfirming] = useState<string | null>(null);
 
   return (
@@ -87,6 +88,16 @@ export function WorldsScreen({ worlds, runningSlot, busy, error, onPlay, onDelet
                           >
                             {running ? "Resume" : "Play"}
                           </button>
+                          {!running && (
+                            <button
+                              className="launcher-btn launcher-btn-secondary"
+                              onClick={() => onHost(world.slot)}
+                              disabled={busy}
+                              title="Let other players join this world over your network"
+                            >
+                              Host
+                            </button>
+                          )}
                           <button
                             className="launcher-btn launcher-btn-secondary"
                             onClick={() => setConfirming(world.slot)}

@@ -132,9 +132,10 @@ vi.mock("./screens/WorldsimScreen.js", () => ({
 
 import { App } from "./App.js";
 
-const idle = { running: false, port: null, slot: null, url: null };
+const idle = { running: false, hosted: false, port: null, slot: null, url: null };
 const running = {
   running: true,
+  hosted: false,
   port: 3000,
   slot: "test-world",
   url: "http://127.0.0.1:3000",

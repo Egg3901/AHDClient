@@ -51,7 +51,7 @@ type Screen =
   | "briefing"
   | "worldsim";
 
-const IDLE: GameInfo = { running: false, port: null, slot: null, url: null };
+const IDLE: GameInfo = { running: false, hosted: false, port: null, slot: null, url: null };
 const LOG_LINES = 14;
 function accountNoticeSeen(): boolean {
   try {
@@ -304,6 +304,7 @@ export function App(): JSX.Element {
   const boot = async (
     slot: string,
     fresh: { preset: string; displayName?: string; setup: SetupOptions } | null,
+    hosted = false,
   ) => {
     const generation = ++bootId.current;
     cancelled.current = false;
@@ -314,7 +315,7 @@ export function App(): JSX.Element {
     setBootTitle(fresh ? "Building the world" : "Starting the world");
     setScreen("booting");
     try {
-      const started = await game.start(slot);
+      const started = await game.start(slot, hosted);
       if (cancelled.current || generation !== bootId.current) return;
       setInfo(started);
       if (fresh) {
@@ -511,6 +512,18 @@ export function App(): JSX.Element {
         return;
       }
       void boot(slot, null);
+    })();
+  };
+
+  const handleHost = (slot: string) => {
+    void (async () => {
+      const entitled = await checkSingleplayerEntitlement();
+      if (!entitled.ok) {
+        setError(entitlementError(entitled));
+        setScreen("launcher");
+        return;
+      }
+      void boot(slot, null, true);
     })();
   };
 
@@ -809,6 +822,7 @@ export function App(): JSX.Element {
         busy={busy}
         error={error}
         onPlay={handleContinue}
+        onHost={handleHost}
         onDelete={handleDelete}
         onBack={() => setScreen("launcher")}
       />,
@@ -832,6 +846,8 @@ export function App(): JSX.Element {
     return withSettings(
       <PlayingScreen
         world={world}
+        hosted={info.hosted}
+        port={info.port}
         lines={log}
         onResume={() => handleContinue(info.slot!)}
         onStop={handleStop}
