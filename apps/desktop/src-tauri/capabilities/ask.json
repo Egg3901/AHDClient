@@ -1,13 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2/capability",
   "identifier": "ask",
-  "description": "Desktop Ask panel, deliberately empty. The ask window loads https://ask.lakesidegames.net and the sign-in hosts its login bounce touches but must never get Tauri IPC, fs, dialog, or shell. This explicit zero-grant makes any future boundary change reviewable.",
+  "description": "Native Ask panel. The ask window shows local UI only and may call the Ask backend commands, which carry the player's Ask session server-side of the webview boundary. It gets no filesystem, shell, dialog, or updater access.",
   "platforms": [
     "linux",
     "macOS",
     "windows"
   ],
-  "permissions": [],
+  "permissions": [
+    "core:default",
+    "allow-ask-api",
+    "allow-ask-send",
+    "allow-ask-stop"
+  ],
   "webviews": [
     "ask"
   ]
