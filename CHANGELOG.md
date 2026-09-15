@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Restore the native desktop Ask panel on current main: local `index.html?view=ask` UI mounted from the launcher, Rust `ask_api`/`ask_send`/`ask_stop` proxy commands behind the exact route allowlist, and the `ask`/`ask-auth` capabilities. No version change: the 2.3.17 Ask entry reverted by #81 stays out.
+
 ## [2.3.18] - 2026-09-14
 
 - Rebuild the bundled game from the post-2.3.17 Head of State repair source.
