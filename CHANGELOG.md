@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.19] - 2026-09-15
+
+- Restored the authenticated native Ask surface.
+- Open Ask immediately from an account-scoped cache while access refreshes in the background.
+- Display current Ask usage quota and keep it synchronized after requests, limits, authentication changes, and account switches.
+- Repaired Android mobile CI after removal of the legacy SDK tools package.
+
 ## [Unreleased]
 
 - Restore the native desktop Ask panel on current main: local `index.html?view=ask` UI mounted from the launcher, Rust `ask_api`/`ask_send`/`ask_stop` proxy commands behind the exact route allowlist, and the `ask`/`ask-auth` capabilities. No version change: the 2.3.17 Ask entry reverted by #81 stays out.
