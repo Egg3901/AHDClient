@@ -14,6 +14,10 @@ import {
   AskError,
   askApi,
   askApiJson,
+  askConversation,
+  askConversations,
+  askMe,
+  askRenderMap,
   isSignedOutError,
   usageFromError,
   usageIn,
@@ -104,6 +108,56 @@ describe("usage extraction", () => {
     });
     expect(usageFromError(quota)).toMatchObject({ remaining: 0 });
     expect(usageFromError(new Error("down"))).toBeNull();
+  });
+});
+
+describe("rust proxy parity", () => {
+  // Mirror of ask_api_allowed in src-tauri/src/ask.rs: every route the
+  // client sends through the ask_api command must stay inside the exact
+  // (method, route) pairs the Rust proxy accepts, or the restored native
+  // panel silently breaks.
+  const allowed = new Set([
+    "GET /api/me",
+    "GET /api/conversations",
+    "GET /api/conversation",
+    "POST /api/ask/stop",
+    "POST /api/map/render",
+  ]);
+
+  async function invokedRoutes(run: () => Promise<unknown>): Promise<string[]> {
+    invoke.mockReset();
+    invoke.mockResolvedValue({ status: 200, body: "{}" });
+    await run().catch(() => undefined);
+    return invoke.mock.calls
+      .filter((call) => call[0] === "ask_api")
+      .map((call) => {
+        const args = call[1] as { method: string; path: string };
+        return `${args.method} ${args.path.split(/[?#]/)[0]}`;
+      });
+  }
+
+  it("keeps every client call inside the proxy allowlist", async () => {
+    const routes = [
+      ...(await invokedRoutes(() => askMe())),
+      ...(await invokedRoutes(() => askConversations())),
+      ...(await invokedRoutes(() => askConversation("abc123"))),
+      ...(await invokedRoutes(() => askRenderMap({}))),
+    ];
+    expect(routes.length).toBeGreaterThan(0);
+    for (const route of routes) {
+      expect(allowed.has(route)).toBe(true);
+    }
+  });
+
+  it("encodes the conversation id so it cannot smuggle a route", async () => {
+    invoke.mockReset();
+    invoke.mockResolvedValue({ status: 200, body: "{\"turns\":[]}" });
+    await askConversation("a&x=/api/me#frag");
+    expect(invoke).toHaveBeenCalledWith("ask_api", {
+      method: "GET",
+      path: "/api/conversation?id=a%26x%3D%2Fapi%2Fme%23frag",
+      body: null,
+    });
   });
 });
 
