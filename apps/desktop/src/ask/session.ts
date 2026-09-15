@@ -47,40 +47,43 @@ export function usernameOf(me: AskMe | null | undefined): string | null {
 }
 
 export function loadCachedAskSession(now: number = Date.now()): AskSessionSnapshot | null {
+  // Any rejection evicts the entry so a corrupt or smuggled payload can
+  // never linger for the next open.
+  const bad = (): null => {
+    try {
+      localStorage.removeItem(ASK_SESSION_CACHE_KEY);
+    } catch {
+      // Ignore.
+    }
+    return null;
+  };
   try {
     const raw = localStorage.getItem(ASK_SESSION_CACHE_KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed || typeof parsed !== "object") return bad();
     const record = parsed as Record<string, unknown>;
-    if (hasSecretKey(record)) {
-      localStorage.removeItem(ASK_SESSION_CACHE_KEY);
-      return null;
-    }
+    if (hasSecretKey(record)) return bad();
     const username = record.username === null || record.username === undefined ? null : str(record.username);
-    if (record.username !== null && record.username !== undefined && username === null) return null;
+    if (record.username !== null && record.username !== undefined && username === null) return bad();
     if (
       record.usage !== null &&
       record.usage !== undefined &&
       typeof record.usage === "object" &&
       hasSecretKey(record.usage as Record<string, unknown>)
     ) {
-      localStorage.removeItem(ASK_SESSION_CACHE_KEY);
-      return null;
+      return bad();
     }
     const usage = record.usage === null || record.usage === undefined ? null : sanitizeAskUsage(record.usage);
-    if (record.usage !== null && record.usage !== undefined && usage === null) {
-      localStorage.removeItem(ASK_SESSION_CACHE_KEY);
-      return null;
-    }
+    if (record.usage !== null && record.usage !== undefined && usage === null) return bad();
     const tier = record.tier === null || record.tier === undefined ? null : str(record.tier);
-    if (record.tier !== null && record.tier !== undefined && tier === null) return null;
+    if (record.tier !== null && record.tier !== undefined && tier === null) return bad();
     const updatedAt = num(record.updatedAt);
-    if (updatedAt === null) return null;
+    if (updatedAt === null) return bad();
     void now;
     return { username, usage, tier, updatedAt };
   } catch {
-    return null;
+    return bad();
   }
 }
 

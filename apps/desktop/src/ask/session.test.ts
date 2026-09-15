@@ -75,6 +75,26 @@ describe("ask session cache", () => {
     expect(loadCachedAskSession()).toBeNull();
   });
 
+  it("evicts corrupt entries instead of leaving them for the next open", () => {
+    localStorage.setItem(ASK_SESSION_CACHE_KEY, "not-json");
+    expect(loadCachedAskSession()).toBeNull();
+    expect(localStorage.getItem(ASK_SESSION_CACHE_KEY)).toBeNull();
+
+    localStorage.setItem(
+      ASK_SESSION_CACHE_KEY,
+      JSON.stringify({ username: "marshall", usage, tier: 42, updatedAt: Date.now() }),
+    );
+    expect(loadCachedAskSession()).toBeNull();
+    expect(localStorage.getItem(ASK_SESSION_CACHE_KEY)).toBeNull();
+
+    localStorage.setItem(
+      ASK_SESSION_CACHE_KEY,
+      JSON.stringify({ username: "marshall", usage, tier: "Player", updatedAt: "yesterday" }),
+    );
+    expect(loadCachedAskSession()).toBeNull();
+    expect(localStorage.getItem(ASK_SESSION_CACHE_KEY)).toBeNull();
+  });
+
   it("scopes cached quota to its account", () => {
     saveCachedAskSession({ username: "marshall", usage, tier: null });
     expect(isSameAskAccount(loadCachedAskSession(), "marshall")).toBe(true);

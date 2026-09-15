@@ -144,6 +144,24 @@ describe("ask startup", () => {
     expect(screen.queryByText("7 of 10 left", { exact: false })).toBeNull();
     expect(JSON.parse(localStorage.getItem(ASK_SESSION_CACHE_KEY) ?? "{}").username).toBe("delegate");
   });
+
+  it("drops the previous account's open thread when the account changes", async () => {
+    saveCachedAskSession({ username: "marshall", usage: baseUsage, tier: "Player" });
+    localStorage.setItem("ahdclient.ask.conv", "c1");
+    mocks.askConversations.mockResolvedValue({ conversations: [{ id: "c1", title: "Harvest" }], usage: null });
+    mocks.askConversation.mockResolvedValue([{ question: "Why did the harvest fail?", answer: "Blight." }]);
+
+    render(<AskApp />);
+    await waitFor(() => expect(screen.getByText("Why did the harvest fail?")).toBeTruthy());
+
+    const other = { ...baseUsage, used: 9, remaining: 1 };
+    mocks.askMe.mockResolvedValue(me("delegate", other));
+    window.dispatchEvent(new Event("focus"));
+
+    await waitFor(() => expect(screen.getByText("1 of 10 left", { exact: false })).toBeTruthy());
+    expect(screen.queryByText("Why did the harvest fail?")).toBeNull();
+    expect(localStorage.getItem("ahdclient.ask.conv")).toBeNull();
+  });
 });
 
 describe("ask quota updates", () => {

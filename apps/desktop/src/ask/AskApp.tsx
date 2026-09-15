@@ -144,10 +144,18 @@ export function AskApp(): JSX.Element {
 
   // Display the authoritative snapshot and keep its non-sensitive summary
   // cached for the next instant open. A new username means the account
-  // changed, so the previous account's conversations go first.
+  // changed, so the previous account's thread and history go first: nothing
+  // from the old account may stay visible while the refresh is in flight.
   const remember = useCallback((nextUsage: AskUsage | null, nextTier: string | null, username: string | null) => {
     if (accountRef.current !== username) {
       setConvs([]);
+      setConvId(null);
+      setMsgs([]);
+      try {
+        localStorage.removeItem(CONV_KEY);
+      } catch {
+        // Private browsing: the in-memory thread is still cleared above.
+      }
       accountRef.current = username;
     }
     setUsage(nextUsage);
