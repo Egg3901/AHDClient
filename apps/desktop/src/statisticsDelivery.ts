@@ -72,18 +72,29 @@ export async function captureStatistics(
   collecting = true;
   try {
     const status = await game.singleplayerStatus();
+    if (!consent || status.turn === null) return;
+    const previous = recorded.get(slot);
+    // First sample for this world always goes up. After that, keep a
+    // 12-turn cadence unless the caller forces a flush (stop / leave).
     if (
-      !consent ||
-      status.turn === null ||
-      recorded.get(slot) === status.turn ||
-      (!force && status.turn % 12 !== 0)
+      previous === status.turn ||
+      (!force && previous !== undefined && status.turn % 12 !== 0)
     )
       return;
-    const input: unknown = await game.request(
+    const raw: unknown = await game.request(
       "GET",
       "/api/singleplayer/statistics",
     );
     if (!consent) return;
+    // The local exporter may stamp extra provenance the reporter itself
+    // owns. Copy only the allowlisted input keys so unknown fields fail
+    // closed instead of being uploaded.
+    const record = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    const input = {
+      setup: record.setup,
+      metrics: record.metrics,
+      turn: record.turn,
+    };
     const queued = maybeBuildAndQueue(load(), consent, input, Date.now(), {
       appVersion: desktopPackage.version,
     });

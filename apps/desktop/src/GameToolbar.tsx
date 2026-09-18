@@ -66,17 +66,25 @@ export function GameToolbar({
   const [turnError, setTurnError] = useState<string | null>(null);
   /** Guards the interval against overlapping reads on a slow local server. */
   const refreshing = useRef(false);
+  const lastTurn = useRef<number | null>(null);
 
   const refreshTurn = useCallback(async () => {
     if (refreshing.current) return;
     refreshing.current = true;
     try {
       const next = await readTurnState();
+      const previous = lastTurn.current;
       setTurnState(next);
+      if (next?.turn != null) {
+        // In-game End turn never hits the client button. Detect an
+        // increased turn from the status poll so anonymous stats still upload.
+        if (previous != null && next.turn > previous) onTurnAdvanced?.(next.turn);
+        if (previous == null || next.turn >= previous) lastTurn.current = next.turn;
+      }
     } finally {
       refreshing.current = false;
     }
-  }, []);
+  }, [onTurnAdvanced]);
 
   const refreshAvailability = useCallback(async () => {
     try {
@@ -117,9 +125,10 @@ export function GameToolbar({
       setTurnBriefing(briefing
         ? `Turn ${result.turn}: funds ${signed(briefing.fundsDelta)}, actions ${signed(briefing.actionsDelta)}`
         : `Turn ${result.turn} complete`);
+      onTurnAdvanced?.(result.turn);
+      lastTurn.current = result.turn;
       await refreshTurn();
       await refreshAvailability();
-      onTurnAdvanced?.(result.turn);
     } catch (error) {
       setTurnError(error instanceof Error ? error.message : String(error));
     } finally {

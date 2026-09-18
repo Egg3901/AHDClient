@@ -111,6 +111,28 @@ describe("GameToolbar", () => {
     expect(onViewStats).toHaveBeenCalledTimes(1);
   });
 
+  it("reports a turn advance when the in-game End turn changes the polled turn", async () => {
+    vi.useFakeTimers();
+    try {
+      const onTurnAdvanced = vi.fn();
+      prepare({ hasWorld: true, turn: 5, hasCharacter: true, characterName: "Ada", mode: "normal" });
+      render(<GameToolbar {...base} worldsim={false} onTurnAdvanced={onTurnAdvanced} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      mocks.singleplayerStatus.mockResolvedValue(
+        { hasWorld: true, turn: 6, hasCharacter: true, characterName: "Ada", mode: "normal" },
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(onTurnAdvanced).toHaveBeenCalledWith(6);
+      expect(mocks.advanceTurn).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("refreshes turn state on a timer when a character appears", async () => {
     // findBy* deadlocks under fake timers (its polling never advances), so
     // drive the clock by hand and use synchronous queries throughout.

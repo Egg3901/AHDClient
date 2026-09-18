@@ -1,15 +1,16 @@
 # Changelog
 
-## [2.3.19] - 2026-09-15
+## [2.3.19] - 2026-09-18
 
 - Restored the authenticated native Ask surface.
 - Open Ask immediately from an account-scoped cache while access refreshes in the background.
 - Display current Ask usage quota and keep it synchronized after requests, limits, authentication changes, and account switches.
+- Always open the native Ask panel. Sign-in is a broker bounce that reuses the existing game login, not the Ask website.
+- Detect both `ask_session` and `__Host-ask_session`, and refresh the panel as soon as that cookie lands.
+- Send opted-in simulation statistics after the first sample, each End turn cadence, returning to the launcher, and Save and stop. Unknown newer feature flags are dropped instead of blocking the upload.
+- Upload richer anonymous single-player aggregates (GDP, population, approval, elections) when the local game provides them.
+- Drop source maps and package markdown from the bundled game payload.
 - Repaired Android mobile CI after removal of the legacy SDK tools package.
-
-## [Unreleased]
-
-- Restore the native desktop Ask panel on current main: local `index.html?view=ask` UI mounted from the launcher, Rust `ask_api`/`ask_send`/`ask_stop` proxy commands behind the exact route allowlist, and the `ask`/`ask-auth` capabilities. No version change: the 2.3.17 Ask entry reverted by #81 stays out.
 
 ## [2.3.18] - 2026-09-14
 

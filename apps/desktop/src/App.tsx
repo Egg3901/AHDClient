@@ -385,6 +385,7 @@ export function App(): JSX.Element {
         await refreshWorlds();
         setEmbedded(false);
         setScreen("worldsim");
+        void captureStatistics(slot, true);
         return;
       }
       await game.openWindow(
@@ -394,6 +395,7 @@ export function App(): JSX.Element {
       setEmbedded(!settings.separateWindow);
       await refreshWorlds();
       setScreen("playing");
+      void captureStatistics(slot, true);
     } catch (e) {
       if (!cancelled.current && generation === bootId.current) {
         try {
@@ -588,6 +590,7 @@ export function App(): JSX.Element {
       .catch(fail);
   };
   const returnToLauncher = async () => {
+    if (info.slot) await captureStatistics(info.slot, true);
     await game.closeEmbedded();
     setEmbedded(false);
     await recordProgress();
@@ -713,6 +716,7 @@ export function App(): JSX.Element {
               onTurnAdvanced={() =>
                 void (async () => {
                   await recordProgress().catch(() => {});
+                  if (info.slot) await captureStatistics(info.slot);
                   // Refresh the child webview on its current path so funds,
                   // map, country and briefing pages show the turn that just
                   // advanced instead of the pre-turn snapshot.

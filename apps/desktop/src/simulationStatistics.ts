@@ -40,6 +40,15 @@ import { FEATURE_OPTIONS } from "./screens/featureOptions.js";
 /** Schema version stamped on every report built by this module. */
 export const REPORT_VERSION = 1 as const;
 
+/**
+ * Metric-definition version. Bump when the allowlisted metric set or units
+ * change. Legacy reports omit this field and are treated as 1.
+ */
+export const METRIC_DEFINITION_VERSION = 2 as const;
+
+/** Bounded client release, for example 2.3.19. Not a git revision. */
+const APP_RELEASE_PATTERN = /^\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+
 /** How long a queued report stays eligible for delivery. Short on purpose. */
 export const REPORT_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -125,13 +134,24 @@ const NUMERIC_SPECS: Record<string, NumericSpec> = {
   totalCorporationRevenue: { min: 0, max: 1e15, integer: false },
   gdpTotal: { min: 0, max: 1e15, integer: false },
   gdpPerCapita: { min: 0, max: 1e9, integer: false },
+  gdpGrowthPercent: { min: -100, max: 1000, integer: false },
   tradeVolume: { min: 0, max: 1e15, integer: false },
   unemploymentRatePercent: { min: 0, max: 100, integer: false },
   inflationRatePercent: { min: -100, max: 1000, integer: false },
   totalPopulation: { min: 0, max: 2e10, integer: true },
+  populationGrowthPercent: { min: -100, max: 1000, integer: false },
   averageStability: { min: 0, max: 100, integer: false },
   minStability: { min: 0, max: 100, integer: false },
   maxStability: { min: 0, max: 100, integer: false },
+  governmentApprovalPercent: { min: 0, max: 100, integer: false },
+  electionCountUpcoming: { min: 0, max: 1_000_000, integer: true },
+  electionCountActive: { min: 0, max: 1_000_000, integer: true },
+  electionCountCompleted: { min: 0, max: 1_000_000, integer: true },
+  electionCountResolved: { min: 0, max: 1_000_000, integer: true },
+  electionCountCancelled: { min: 0, max: 1_000_000, integer: true },
+  governmentFormationCount: { min: 0, max: 1_000_000, integer: true },
+  legislativeSeatTotal: { min: 0, max: 1_000_000, integer: true },
+  executiveControlSharePercent: { min: 0, max: 100, integer: false },
   lastTurnDurationMs: { min: 0, max: 3_600_000, integer: true },
   lastTurnWarningCount: { min: 0, max: 100_000, integer: true },
 };
@@ -160,13 +180,24 @@ export interface ValidatedMetrics {
   readonly revenueBySector?: Record<string, number>;
   readonly gdpTotal?: number;
   readonly gdpPerCapita?: number;
+  readonly gdpGrowthPercent?: number;
   readonly tradeVolume?: number;
   readonly unemploymentRatePercent?: number;
   readonly inflationRatePercent?: number;
   readonly totalPopulation?: number;
+  readonly populationGrowthPercent?: number;
   readonly averageStability?: number;
   readonly minStability?: number;
   readonly maxStability?: number;
+  readonly governmentApprovalPercent?: number;
+  readonly electionCountUpcoming?: number;
+  readonly electionCountActive?: number;
+  readonly electionCountCompleted?: number;
+  readonly electionCountResolved?: number;
+  readonly electionCountCancelled?: number;
+  readonly governmentFormationCount?: number;
+  readonly legislativeSeatTotal?: number;
+  readonly executiveControlSharePercent?: number;
   readonly lastTurnDurationMs?: number;
   readonly lastTurnWarningCount?: number;
 }
@@ -176,6 +207,9 @@ export interface StatisticsReport {
   readonly createdAt: string;
   /** Major version only (for example 2 from "2.0.1"). Null when unknown. */
   readonly appMajorVersion: number | null;
+  /** Bounded x.y.z release. Omitted when the version string is not that shape. */
+  readonly appRelease?: string;
+  readonly metricDefinitionVersion?: number;
   readonly setup: ValidatedWorldSetup;
   readonly metrics: ValidatedMetrics;
   readonly turn: number | null;
@@ -246,6 +280,13 @@ export function parseAppMajorVersion(version: unknown): number | null {
   return Number.isInteger(major) && major >= 0 && major <= 999 ? major : null;
 }
 
+/** Bounded x.y.z release. Git SHAs, suffixes, and free text are rejected. */
+export function parseAppRelease(version: unknown): string | undefined {
+  if (typeof version !== "string") return undefined;
+  const trimmed = version.trim();
+  return APP_RELEASE_PATTERN.test(trimmed) ? trimmed : undefined;
+}
+
 /** Random per report id. Not derived from any machine or install state. */
 export function createReportId(nowMs: number): string {
   const time = Number.isFinite(nowMs) ? Math.floor(nowMs) : 0;
@@ -260,6 +301,8 @@ const TOP_LEVEL_KEYS = new Set([
   "version",
   "createdAt",
   "appMajorVersion",
+  "appRelease",
+  "metricDefinitionVersion",
 ]);
 const SETUP_KEYS = new Set([
   "era",
@@ -358,7 +401,9 @@ function checkFeatureFlags(
   const out: Record<string, boolean> = {};
   for (const key of keys) {
     if (!ALLOWED_FLAGS.has(key)) {
-      errors.push(`rejected feature flag "${key}": not an allowlisted token`);
+      // Drop unknown names instead of failing the report. The game exporter
+      // sends every allowlisted engine flag; a newer bundled game would
+      // otherwise silently never upload.
       continue;
     }
     const flag = value[key];
@@ -421,6 +466,27 @@ export function validateReport(input: unknown): BuildResult {
       errors.push(
         "report appMajorVersion must be an integer in [0, 999] or null",
       );
+    }
+  }
+
+  let appRelease: string | undefined;
+  if (input["appRelease"] !== undefined) {
+    appRelease = parseAppRelease(input["appRelease"]);
+    if (!appRelease) errors.push("report appRelease must be a bounded x.y.z version");
+  }
+
+  let metricDefinitionVersion: number | undefined;
+  if (input["metricDefinitionVersion"] !== undefined) {
+    const rawVersion = input["metricDefinitionVersion"];
+    if (
+      typeof rawVersion !== "number" ||
+      !Number.isInteger(rawVersion) ||
+      rawVersion < 1 ||
+      rawVersion > 999
+    ) {
+      errors.push("report metricDefinitionVersion must be an integer in [1, 999]");
+    } else {
+      metricDefinitionVersion = rawVersion;
     }
   }
 
@@ -501,6 +567,8 @@ export function validateReport(input: unknown): BuildResult {
     version: REPORT_VERSION,
     createdAt: createdAt as string,
     appMajorVersion: major === undefined ? null : (major as number | null),
+    ...(appRelease ? { appRelease } : {}),
+    ...(metricDefinitionVersion !== undefined ? { metricDefinitionVersion } : {}),
     setup,
     metrics,
     turn,
@@ -540,12 +608,15 @@ export function buildStatisticsReport(
   if (!Number.isFinite(nowMs))
     return { ok: false, errors: ["nowMs must be finite"] };
 
+  const appRelease = parseAppRelease(options?.appVersion ?? null);
   const candidate = {
     version: REPORT_VERSION,
     createdAt: new Date(
       Math.floor(nowMs / 86_400_000) * 86_400_000,
     ).toISOString(),
     appMajorVersion: parseAppMajorVersion(options?.appVersion ?? null),
+    ...(appRelease ? { appRelease } : {}),
+    metricDefinitionVersion: METRIC_DEFINITION_VERSION,
     setup: input["setup"] ?? null,
     metrics: input["metrics"] ?? {},
     turn: input["turn"] ?? null,

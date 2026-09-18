@@ -26,38 +26,69 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_opener::OpenerExt;
 
-/// ask.lakesidegames.net session cookie. Mirrors `COOKIE` in the Ask
-/// service's auth module.
+/// Ask session cookie names. Production has used both the historic
+/// `ask_session` name and the host-prefixed `__Host-ask_session` name.
+const ASK_SESSION_COOKIES: &[&str] = &["ask_session", "__Host-ask_session"];
 const ASK_SESSION_COOKIE: &str = "ask_session";
+const ASK_LOGIN_PATH: &str = "auth/login?next=%2F";
 
 /// Ask panel size in logical pixels: a narrow panel that sits beside the
 /// game rather than covering it.
 const ASK_WINDOW_WIDTH: f64 = 440.0;
 const ASK_WINDOW_HEIGHT: f64 = 800.0;
 
-/// How long the sign-in watcher waits for the session cookie before giving
-/// up and leaving the auth window alone: 150 polls, two seconds apart.
-const AUTH_WATCH_POLLS: u32 = 150;
-const AUTH_WATCH_INTERVAL: Duration = Duration::from_secs(2);
+/// How long the sign-in watcher waits for the session cookie. Fast at first
+/// so an already-signed-in game account is picked up without a retry click.
+const AUTH_WATCH_FAST_POLLS: u32 = 40;
+const AUTH_WATCH_FAST_INTERVAL: Duration = Duration::from_millis(250);
+const AUTH_WATCH_SLOW_POLLS: u32 = 120;
+const AUTH_WATCH_SLOW_INTERVAL: Duration = Duration::from_secs(1);
+
+fn is_ask_session_cookie_name(name: &str) -> bool {
+  ASK_SESSION_COOKIES.contains(&name)
+}
+
+fn ask_login_url() -> Result<Url, String> {
+  format!("{}{ASK_LOGIN_PATH}", crate::ASK_URL)
+    .parse()
+    .map_err(|e| format!("bad ASK login URL: {e}"))
+}
 
 /// Read the Ask session out of the shared platform cookie jar. Any webview
 /// will do — they all share the one jar — so try the freshest first.
 fn ask_session_cookie(app: &AppHandle) -> Option<String> {
   let url: Url = crate::ASK_URL.parse().ok()?;
-  for label in ["ask-auth", "main", "online", "online-embedded"] {
+  for label in ["ask-auth", "main", "online", "online-embedded", "ask"] {
     let Some(view) = app.get_webview(label) else {
       continue;
     };
     let Ok(cookies) = view.cookies_for_url(url.clone()) else {
       continue;
     };
+    let mut host_prefixed = None;
+    let mut legacy = None;
     for cookie in cookies {
-      if cookie.name() == ASK_SESSION_COOKIE && !cookie.value().is_empty() {
-        return Some(cookie.value().to_string());
+      if cookie.value().is_empty() || !is_ask_session_cookie_name(cookie.name()) {
+        continue;
       }
+      if cookie.name() == "__Host-ask_session" {
+        host_prefixed = Some(cookie.value().to_string());
+      } else {
+        legacy = Some(cookie.value().to_string());
+      }
+    }
+    if host_prefixed.is_some() {
+      return host_prefixed;
+    }
+    if legacy.is_some() {
+      return legacy;
     }
   }
   None
+}
+
+fn emit_ask_session(app: &AppHandle, ready: bool) {
+  let _ = app.emit("ask-session", serde_json::json!({ "ready": ready }));
 }
 
 /// Exact routes the native UI may call, with their methods. Everything else
@@ -106,7 +137,7 @@ pub(crate) async fn ask_api(
       _ => return Err("unsupported Ask request".to_string()),
     };
     request = request
-      .set("Cookie", &format!("{ASK_SESSION_COOKIE}={session}"))
+      .set("Cookie", &format!("{ASK_SESSION_COOKIE}={session}; __Host-ask_session={session}"))
       .set("Content-Type", "application/json")
       .set("User-Agent", "AHDClient/2");
     let response = match body {
@@ -216,7 +247,7 @@ pub(crate) async fn ask_stop(
         .build();
       let _ = agent
         .post(&url)
-        .set("Cookie", &format!("{ASK_SESSION_COOKIE}={session}"))
+        .set("Cookie", &format!("{ASK_SESSION_COOKIE}={session}; __Host-ask_session={session}"))
         .set("Content-Type", "application/json")
         .send_string(&payload);
     });
@@ -253,7 +284,7 @@ fn pump_ask_stream(
     .build();
   let response = agent
     .post(&url)
-    .set("Cookie", &format!("{ASK_SESSION_COOKIE}={session}"))
+    .set("Cookie", &format!("{ASK_SESSION_COOKIE}={session}; __Host-ask_session={session}"))
     .set("Content-Type", "application/json")
     .set("User-Agent", "AHDClient/2")
     .send_string(&payload);
@@ -353,39 +384,41 @@ fn focus_ask_ui(app: &AppHandle) -> Result<(), String> {
   open_ask_ui(app)
 }
 
-/// Open the native Ask panel, or resume it in place. A signed-in player
-/// goes straight to the chat UI; anyone else gets the one-time sign-in
-/// window, which closes itself the moment the session lands. The UI window
-/// re-probes its session whenever it regains focus, so it picks the login
-/// up without any action on the player's part.
-#[tauri::command]
-pub(crate) async fn open_ask_window(app: AppHandle) -> Result<(), String> {
-  if ask_session_cookie(&app).is_some() {
-    return focus_ask_ui(&app);
-  }
-  // No session: the UI (if open) stays where it is and will re-probe on
-  // focus; the auth window does the sign-in work.
-  open_ask_auth(&app)?;
-  let watch_app = app.clone();
-  // A blocking sleeper, not an async task: the watch is rare (once per
-  // install, effectively) and this avoids depending on the async runtime's
-  // timer facilities from a desktop-only module.
+fn watch_ask_login(app: AppHandle) {
   std::thread::spawn(move || {
-    for _ in 0..AUTH_WATCH_POLLS {
-      std::thread::sleep(AUTH_WATCH_INTERVAL);
-      let auth_open = watch_app.get_webview_window("ask-auth").is_some();
-      if !auth_open {
-        break;
-      }
-      if ask_session_cookie(&watch_app).is_some() {
-        if let Some(auth) = watch_app.get_webview_window("ask-auth") {
+    let intervals = std::iter::repeat(AUTH_WATCH_FAST_INTERVAL)
+      .take(AUTH_WATCH_FAST_POLLS as usize)
+      .chain(std::iter::repeat(AUTH_WATCH_SLOW_INTERVAL).take(AUTH_WATCH_SLOW_POLLS as usize));
+    for interval in intervals {
+      std::thread::sleep(interval);
+      let auth_open = app.get_webview_window("ask-auth").is_some();
+      if ask_session_cookie(&app).is_some() {
+        if let Some(auth) = app.get_webview_window("ask-auth") {
           let _ = auth.close();
         }
-        let _ = focus_ask_ui(&watch_app);
+        let _ = focus_ask_ui(&app);
+        emit_ask_session(&app, true);
+        break;
+      }
+      if !auth_open {
         break;
       }
     }
   });
+}
+
+/// Open the native Ask panel first. A signed-in player stays there. Anyone
+/// else still sees the native shell; a small broker bounce reuses the
+/// existing game login instead of loading the Ask website.
+#[tauri::command]
+pub(crate) async fn open_ask_window(app: AppHandle) -> Result<(), String> {
+  focus_ask_ui(&app)?;
+  if ask_session_cookie(&app).is_some() {
+    emit_ask_session(&app, true);
+    return Ok(());
+  }
+  open_ask_auth(&app)?;
+  watch_ask_login(app);
   Ok(())
 }
 
@@ -442,7 +475,7 @@ fn open_ask_auth(app: &AppHandle) -> Result<(), String> {
     existing.set_focus().map_err(|e| e.to_string())?;
     return Ok(());
   }
-  let url: Url = crate::ASK_URL.parse().map_err(|e| format!("bad ASK_URL: {e}"))?;
+  let url = ask_login_url()?;
   let nav_app = app.clone();
   let new_window_app = app.clone();
   let close_app = app.clone();
@@ -524,7 +557,7 @@ impl SseParser {
 
 #[cfg(test)]
 mod tests {
-  use super::{ask_api_allowed, ask_dock_origin, SseParser};
+  use super::{ask_api_allowed, ask_dock_origin, ask_login_url, is_ask_session_cookie_name, SseParser};
 
   #[test]
   fn ask_panel_docks_against_the_right_edge() {
@@ -589,6 +622,22 @@ mod tests {
     assert!(parser.push_line("data: 7").is_none());
     let event = parser.push_line("");
     assert_eq!(event, Some(("message".to_string(), serde_json::json!(7))));
+  }
+
+  #[test]
+  fn ask_session_cookie_names_cover_host_prefixed_and_legacy() {
+    assert!(is_ask_session_cookie_name("ask_session"));
+    assert!(is_ask_session_cookie_name("__Host-ask_session"));
+    assert!(!is_ask_session_cookie_name("__Host-lakeside_session"));
+    assert!(!is_ask_session_cookie_name("auth-token"));
+  }
+
+  #[test]
+  fn ask_sign_in_uses_the_login_bounce_not_the_website() {
+    let url = ask_login_url().expect("login url");
+    assert_eq!(url.host_str(), Some("ask.lakesidegames.net"));
+    assert_eq!(url.path(), "/auth/login");
+    assert!(url.query().unwrap_or("").contains("next="));
   }
 
   #[test]

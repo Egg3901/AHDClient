@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_QUEUE_LENGTH,
   MAX_REPORT_JSON_BYTES,
+  METRIC_DEFINITION_VERSION,
   REPORT_TTL_MS,
   REPORT_VERSION,
   buildStatisticsReport,
@@ -12,6 +13,7 @@ import {
   enqueueValidatedReport,
   maybeBuildAndQueue,
   parseAppMajorVersion,
+  parseAppRelease,
   pruneExpiredReports,
   serializeQueue,
   setConsentEnabled,
@@ -79,10 +81,12 @@ describe("buildStatisticsReport", () => {
     expect(built.report.version).toBe(REPORT_VERSION);
     expect(built.report.createdAt).toBe("2023-11-14T00:00:00.000Z");
     expect(built.report.appMajorVersion).toBe(2);
+    expect(built.report.appRelease).toBe("2.0.1");
+    expect(built.report.metricDefinitionVersion).toBe(METRIC_DEFINITION_VERSION);
     expect(built.report.setup.mode).toBe("worldsim");
     expect(built.report.metrics.partyCount).toBe(120);
     const json = JSON.stringify(built.report);
-    expect(json).not.toContain("2.0.1");
+    expect(json).not.toContain("deadbeef");
     expect(json.length).toBeLessThanOrEqual(MAX_REPORT_JSON_BYTES);
   });
 
@@ -97,6 +101,34 @@ describe("buildStatisticsReport", () => {
     expect(parseAppMajorVersion("v10.3")).toBe(10);
     expect(parseAppMajorVersion(null)).toBeNull();
     expect(parseAppMajorVersion("next")).toBeNull();
+    expect(parseAppRelease("2.3.19")).toBe("2.3.19");
+    expect(parseAppRelease("2.3.19-deadbeef")).toBeUndefined();
+    expect(parseAppRelease("c4510c3f")).toBeUndefined();
+  });
+
+  it("stamps new aggregate metrics and rejects names or free text", () => {
+    const input = validInput();
+    input.metrics.gdpGrowthPercent = 2.4;
+    input.metrics.populationGrowthPercent = 0.7;
+    input.metrics.governmentApprovalPercent = 51;
+    input.metrics.electionCountActive = 3;
+    input.metrics.governmentFormationCount = 2;
+    input.metrics.legislativeSeatTotal = 435;
+    input.metrics.executiveControlSharePercent = 80;
+    const built = buildStatisticsReport(input, { nowMs: NOW, appVersion: "2.3.19" });
+    if (!built.ok) throw new Error(built.errors.join("; "));
+    expect(built.report.metrics.gdpGrowthPercent).toBe(2.4);
+    expect(built.report.metrics.electionCountActive).toBe(3);
+    expect(built.report.appRelease).toBe("2.3.19");
+    const named = validInput();
+    (named.metrics as Record<string, unknown>).partyName = "Labour";
+    expect(buildStatisticsReport(named, { nowMs: NOW }).ok).toBe(false);
+    expect(
+      buildStatisticsReport(
+        { ...validInput(), notes: "hello" },
+        { nowMs: NOW },
+      ).ok,
+    ).toBe(false);
   });
 
   it("rejects names, account ids, save data, identifiers, and nested extras", () => {
@@ -145,8 +177,17 @@ describe("buildStatisticsReport", () => {
     }
 
     const badFlag = validInput();
-    badFlag.setup.featureFlags = { corporations: "yes" } as unknown as Record<string, boolean>;
+    badFlag.setup.featureFlags = { forexEnabled: "yes" } as unknown as Record<string, boolean>;
     expect(buildStatisticsReport(badFlag, { nowMs: NOW }).ok).toBe(false);
+
+    const extraFlag = validInput();
+    extraFlag.setup.featureFlags = { forexEnabled: true, futureEngineFlag: true };
+    const extraBuilt = buildStatisticsReport(extraFlag, { nowMs: NOW });
+    expect(extraBuilt.ok).toBe(true);
+    if (extraBuilt.ok) {
+      expect(extraBuilt.report.setup.featureFlags.forexEnabled).toBe(true);
+      expect(extraBuilt.report.setup.featureFlags).not.toHaveProperty("futureEngineFlag");
+    }
 
     const badSectors: Record<string, number> = {};
     for (let i = 0; i < 40; i++) badSectors[`sector-${i}`] = 1;
