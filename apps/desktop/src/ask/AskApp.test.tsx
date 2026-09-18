@@ -41,6 +41,9 @@ vi.mock("./api.js", () => ({
 }));
 
 vi.mock("../worlds.js", () => ({ ask: { open: mocks.askOpen } }));
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(async () => () => {}),
+}));
 
 import { AskApp } from "./AskApp.js";
 import { ASK_SESSION_CACHE_KEY } from "./session.js";
@@ -129,7 +132,8 @@ describe("ask startup", () => {
 
     render(<AskApp />);
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Continue with game login" })).toBeTruthy());
+    expect(screen.getByText(/existing game login/i)).toBeTruthy();
     expect(localStorage.getItem(ASK_SESSION_CACHE_KEY)).toBeNull();
   });
 

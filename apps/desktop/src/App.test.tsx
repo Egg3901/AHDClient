@@ -330,6 +330,9 @@ describe("App singleplayer integration", () => {
     await waitFor(() => expect(mocks.game.advanceTurn).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.worlds.touch).toHaveBeenCalled());
     await waitFor(() => expect(mocks.game.refreshView).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(mocks.stats.captureStatistics).toHaveBeenCalledWith("test-world"),
+    );
   });
 
   it("hides the embedded game while launcher dialogs are open and restores it after", async () => {

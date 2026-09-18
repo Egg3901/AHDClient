@@ -23,6 +23,7 @@ import {
   saveCachedAskSession,
   usernameOf,
 } from "./session.js";
+import { listen } from "@tauri-apps/api/event";
 import { ask } from "../worlds.js";
 import { Md } from "./markdown.js";
 import "./ask.css";
@@ -266,7 +267,7 @@ export function AskApp(): JSX.Element {
     void probe();
   }, [probe]);
 
-  // The sign-in window closes itself on login and focuses this panel, so
+  // The sign-in bounce closes itself on login and focuses this panel, so
   // re-probe while signed out and refresh the allowance otherwise. Sign-in,
   // sign-out, and account switches land without reopening the panel.
   useEffect(() => {
@@ -278,8 +279,29 @@ export function AskApp(): JSX.Element {
       });
     };
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   }, [probe, refreshQuota]);
+
+  useEffect(() => {
+    let alive = true;
+    let stop: (() => void) | undefined;
+    void listen<{ ready?: boolean }>("ask-session", () => {
+      if (alive) void probe();
+    }).then((unlisten) => {
+      if (!alive) unlisten();
+      else stop = unlisten;
+    }).catch(() => {
+      // Tests and non-Tauri previews still work without the native event.
+    });
+    return () => {
+      alive = false;
+      stop?.();
+    };
+  }, [probe]);
 
   // Answer stream routing. One question at a time: the composer locks while
   // a stream is live, so the ref always names the visible placeholder.
@@ -488,12 +510,12 @@ export function AskApp(): JSX.Element {
       <div className="askview">
         <div className="av-center">
           <div className="av-brand">Ask</div>
-          <p className="av-muted">Sign in with your game account to ask questions. Players already signed in skip the password prompt.</p>
+          <p className="av-muted">Ask uses your existing game login. If you are already signed in, this panel picks that up without another password.</p>
           <button type="button" className="av-primary" onClick={() => void ask.open().catch(() => undefined)}>
-            Sign in
+            Continue with game login
           </button>
           <button type="button" className="av-quiet" onClick={() => void probe()}>
-            I signed in — retry
+            Check again
           </button>
           {notice ? <p className="av-error">{notice}</p> : null}
         </div>

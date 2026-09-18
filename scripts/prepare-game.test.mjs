@@ -31,6 +31,8 @@ describe("prepare-game payload allowlist", () => {
     expect(shouldKeepStagedGamePath(".next/static/app.js")).toBe(true);
     expect(shouldKeepStagedGamePath("node_modules/mongodb-438b504308ffa4be/index.js")).toBe(true);
     expect(shouldKeepStagedGamePath("src/data/npp-images.json")).toBe(true);
+    expect(shouldKeepStagedGamePath(".next/static/app.js.map")).toBe(false);
+    expect(shouldKeepStagedGamePath("node_modules/mongodb/README.md")).toBe(false);
     expect(shouldKeepStagedGamePath("AGENTS.md")).toBe(false);
     expect(shouldKeepStagedGamePath("src/app/route.ts")).toBe(false);
     expect(shouldKeepStagedGamePath("src/app/route.test.ts")).toBe(false);

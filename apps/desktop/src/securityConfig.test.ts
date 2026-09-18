@@ -81,6 +81,9 @@ describe("desktop security configuration", () => {
     // Ask origin, under the same navigation guard as before.
     expect(ask).toMatch(/WebviewUrl::App\("index.html\?view=ask"/);
     expect(ask).toMatch(/fn open_ask_auth[\s\S]*?WebviewUrl::External/);
+    expect(ask).toMatch(/auth\/login\?next=/);
+    expect(ask).toMatch(/__Host-ask_session/);
+    expect(ask).toMatch(/focus_ask_ui\(&app\)\?;/);
     expect(ask).toMatch(/fn ask_api_allowed/);
     expect(read("../src-tauri/src/mobile.rs")).toMatch(
       /fn open_ask_window[\s\S]*?navigate_main\(&app, url\)/,

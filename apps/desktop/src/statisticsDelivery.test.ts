@@ -62,6 +62,29 @@ describe("statistics delivery privacy races", () => {
     expect(localStorage.getItem(QUEUE_KEY)).toBeNull();
   });
 
+  it("captures the first sample even when the turn is not a 12-turn multiple", async () => {
+    invoke.mockResolvedValue(undefined);
+    singleplayerStatus.mockResolvedValue({ turn: 3 });
+    gameRequest.mockResolvedValue({
+      setup: { era: "2019", mode: "normal", difficulty: "normal", autonomy: "v4", featureFlags: {} },
+      metrics: { partyCount: 4 },
+      turn: 3,
+    });
+    const delivery = await loadDelivery();
+    await delivery.setStatisticsConsent(true);
+    await delivery.captureStatistics("slot");
+    expect(gameRequest).toHaveBeenCalledWith("GET", "/api/singleplayer/statistics");
+    expect(invoke).toHaveBeenCalledWith("submit_statistics", expect.anything());
+    gameRequest.mockClear();
+    invoke.mockClear();
+    singleplayerStatus.mockResolvedValue({ turn: 4 });
+    await delivery.captureStatistics("slot");
+    expect(gameRequest).not.toHaveBeenCalled();
+    singleplayerStatus.mockResolvedValue({ turn: 12 });
+    await delivery.captureStatistics("slot");
+    expect(gameRequest).toHaveBeenCalled();
+  });
+
   it("retains a bounded queue when delivery fails offline", async () => {
     invoke.mockImplementation((command: string) => command === "submit_statistics"
       ? Promise.reject(new Error("offline"))

@@ -212,6 +212,8 @@ const STAGED_TOP_DIRS = new Set([".next", "public", "node_modules"]);
 
 export function shouldKeepStagedGamePath(relPosix) {
   if (!relPosix || relPosix === ".") return true;
+  if (relPosix.endsWith(".map") || relPosix.endsWith(".tsbuildinfo")) return false;
+  if (/\.(md|markdown)$/i.test(relPosix) && !/(?:^|\/)LICENSE(?:\.[A-Za-z0-9]+)?$/i.test(relPosix) && relPosix !== "README.txt") return false;
   if (STAGED_TOP_FILES.has(relPosix)) return true;
   // Dynamic URL tracing can copy dependency documentation and test sources
   // into hashed server assets. Neither is read by the packaged game; keep
