@@ -44,6 +44,7 @@ const AUXILIARY_ONLINE_HOSTS: &[&str] = &[
   "discord.com",
   "accounts.google.com",
   "www.google.com",
+  "appleid.apple.com",
 ];
 
 /// Player Q&A service. Desktop opens it in its own dedicated zero-capability
@@ -66,6 +67,7 @@ const ASK_NAVIGATION_HOSTS: &[&str] = &[
   "discord.com",
   "accounts.google.com",
   "www.google.com",
+  "appleid.apple.com",
 ];
 
 // ---------------------------------------------------------------------------
@@ -349,7 +351,11 @@ mod tests {
     let insecure_auth: Url = "http://discord.com/oauth2/authorize".parse().unwrap();
     let fake_auth: Url = "https://login.discord.com/".parse().unwrap();
     let custom_port: Url = "https://accounts.google.com:444/".parse().unwrap();
+    let apple: Url = "https://appleid.apple.com/auth/authorize".parse().unwrap();
+    let fake_apple: Url = "https://apple.com.evil.example/auth/authorize".parse().unwrap();
 
+    assert!(is_online_navigation_allowed(&apple));
+    assert!(!is_online_navigation_allowed(&fake_apple));
     assert!(is_online_navigation_allowed(&callback_redirector));
     assert!(is_online_navigation_allowed(&discord));
     assert!(is_online_navigation_allowed(&google_accounts));
