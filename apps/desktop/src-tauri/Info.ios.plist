@@ -9,6 +9,9 @@
     <key>CFBundleURLSchemes</key><array><string>ahdclient</string></array>
   </dict></array>
   <!-- Merged into the generated iOS Info.plist by the Tauri CLI. -->
+  <!-- Home screen name. productName stays AHDClient for binaries and release tooling. -->
+  <key>CFBundleDisplayName</key>
+  <string>A House Divided</string>
   <!-- The launcher and the game are dark; keep the status bar text light. -->
   <key>UIUserInterfaceStyle</key>
   <string>Dark</string>
