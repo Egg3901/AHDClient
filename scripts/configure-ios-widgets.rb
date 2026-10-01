@@ -24,6 +24,9 @@ app['entitlements']['properties']['aps-environment'] = '$(AHD_PUSH_ENVIRONMENT)'
 app['settings'] ||= {}
 app['settings']['base'] ||= {}
 app['settings']['base']['AHD_WIDGET_KEYCHAIN_GROUP'] = keychain
+# iPhone only for the first App Store release. iPad can be added later; an app
+# that has shipped with iPad support cannot drop it again.
+app['settings']['base']['TARGETED_DEVICE_FAMILY'] = '1'
 app['settings']['configs'] ||= {}
 app['settings']['configs']['debug'] ||= {}
 app['settings']['configs']['release'] ||= {}
@@ -49,6 +52,7 @@ spec['targets']['AHDWidgets'] = {
       'PRODUCT_NAME' => 'AHDWidgets',
       'PRODUCT_BUNDLE_IDENTIFIER' => 'net.lakesidegames.ahdclient.widgets',
       'SWIFT_VERSION' => '5.0', 'SKIP_INSTALL' => 'YES',
+      'TARGETED_DEVICE_FAMILY' => '1',
       'APPLICATION_EXTENSION_API_ONLY' => 'YES',
       'CODE_SIGN_STYLE' => 'Automatic'
     }

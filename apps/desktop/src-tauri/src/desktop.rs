@@ -19,7 +19,7 @@ use tauri_plugin_shell::ShellExt;
 use fs2::FileExt;
 
 use crate::{game_versions, node_path};
-use crate::{help_destination, is_online_navigation_allowed, linked_account, HelpDestination, ONLINE_URL, SANDBOX_HOST, SANDBOX_URL};
+use crate::{help_destination, is_frame_resource, is_online_navigation_allowed, linked_account, HelpDestination, ONLINE_URL, SANDBOX_HOST, SANDBOX_URL};
 
 const SETTINGS_SHORTCUT_SCRIPT: &str = r#"
 document.addEventListener('keydown', function (event) {
@@ -681,6 +681,7 @@ fn open_embedded(app: &AppHandle, url: Url, local_port: Option<u16>) -> Result<(
     .initialization_script(SETTINGS_SHORTCUT_SCRIPT)
     .on_navigation(move |url| {
       if handle_settings_shortcut(&nav_app, url) { return false; }
+      if is_frame_resource(url) { return true; }
       let allowed = match local_port {
         Some(port) => is_local_game_url(url, port),
         None => is_online_navigation_allowed(url),
@@ -743,6 +744,7 @@ pub(crate) async fn open_game_window(app: AppHandle, game: State<'_, Game>, path
     .resizable(true)
     .on_navigation(move |url| {
       if handle_settings_shortcut(&nav_app, url) { return false; }
+      if is_frame_resource(url) { return true; }
       if is_local_game_url(url, port) {
         true
       } else {
@@ -816,6 +818,7 @@ async fn open_online_url(app: AppHandle, url: Url) -> Result<(), String> {
     .resizable(true)
     .on_navigation(move |url| {
       if handle_settings_shortcut(&nav_app, url) { return false; }
+      if is_frame_resource(url) { return true; }
       if is_online_navigation_allowed(url) {
         true
       } else {
