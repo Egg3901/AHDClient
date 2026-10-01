@@ -39,6 +39,8 @@ const ONLINE_HOST: &str = "ahousedividedgame.com";
 const SANDBOX_HOST: &str = "sandbox.ahousedividedgame.com";
 const AUXILIARY_ONLINE_HOSTS: &[&str] = &[
   "www.ahousedividedgame.com",
+  // Cloudflare Turnstile on sign-up and password reset runs in an iframe.
+  "challenges.cloudflare.com",
   "auth.ahousedividedgame.com",
   "auth.lakesidegames.net",
   "discord.com",
@@ -112,6 +114,39 @@ fn is_online_origin(url: &Url) -> bool {
   url.scheme() == "https"
     && matches!(url.host_str(), Some(ONLINE_HOST) | Some(SANDBOX_HOST))
     && url.port_or_known_default() == Some(443)
+}
+
+/// Hosts that only ever appear as embedded frames: video players, ad and
+/// consent frames. WKWebView (iOS and macOS) reports iframe loads to the
+/// navigation policy with no main-frame flag (wry 0.55), so these must never
+/// be treated as a page the player asked to open elsewhere.
+const EMBED_ONLY_HOSTS: &[&str] = &[
+  "www.youtube-nocookie.com",
+  "youtube-nocookie.com",
+  "googleads.g.doubleclick.net",
+  "td.doubleclick.net",
+  "pagead2.googlesyndication.com",
+  "tpc.googlesyndication.com",
+  "fundingchoicesmessages.google.com",
+  "www.googletagmanager.com",
+];
+
+fn is_embed_only(url: &Url) -> bool {
+  let Some(host) = url.host_str() else { return false };
+  EMBED_ONLY_HOSTS.contains(&host)
+    || (matches!(host, "www.youtube.com" | "youtube.com" | "m.youtube.com") && url.path().starts_with("/embed/"))
+}
+
+/// Schemes that only back frames and in-page resources, never a page to open.
+fn is_frame_scheme(url: &Url) -> bool {
+  matches!(url.scheme(), "about" | "blob" | "data")
+}
+
+/// Desktop keeps frame resources inside the webview: a campaign song embed
+/// plays in place and a blank frame is not bounced to the browser.
+#[cfg_attr(mobile, allow(dead_code))]
+fn is_frame_resource(url: &Url) -> bool {
+  is_frame_scheme(url) || is_embed_only(url)
 }
 
 fn is_online_navigation_allowed(url: &Url) -> bool {
@@ -231,7 +266,7 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
   use super::{
-    help_destination, is_account_session_cookie, is_ask_navigation_allowed, is_online_navigation_allowed,
+    help_destination, is_account_session_cookie, is_ask_navigation_allowed, is_frame_resource, is_online_navigation_allowed,
     is_online_origin, HelpDestination, LinkedAccount, ASK_URL,
   };
   use tauri::Url;
@@ -340,6 +375,25 @@ mod tests {
     assert!(!is_online_origin(&redirector));
     assert!(!is_online_origin(&subdomain));
     assert!(!is_online_origin(&unrelated));
+  }
+
+  #[test]
+  fn frame_resources_are_recognised_without_swallowing_real_links() {
+    let blank: Url = "about:blank".parse().unwrap();
+    let nocookie: Url = "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ".parse().unwrap();
+    let embed: Url = "https://www.youtube.com/embed/dQw4w9WgXcQ".parse().unwrap();
+    let ad: Url = "https://googleads.g.doubleclick.net/pagead/ads".parse().unwrap();
+    let watch: Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ".parse().unwrap();
+    let lookalike: Url = "https://www.youtube-nocookie.com.evil.example/embed/x".parse().unwrap();
+    let turnstile: Url = "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/turnstile/".parse().unwrap();
+
+    assert!(is_frame_resource(&blank));
+    assert!(is_frame_resource(&nocookie));
+    assert!(is_frame_resource(&embed));
+    assert!(is_frame_resource(&ad));
+    assert!(!is_frame_resource(&watch));
+    assert!(!is_frame_resource(&lookalike));
+    assert!(is_online_navigation_allowed(&turnstile));
   }
 
   #[test]

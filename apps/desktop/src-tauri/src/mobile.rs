@@ -16,7 +16,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::{help_destination, is_ask_navigation_allowed, is_online_navigation_allowed, linked_account, HelpDestination, ONLINE_URL, SANDBOX_URL};
+use crate::{help_destination, is_ask_navigation_allowed, is_embed_only, is_frame_scheme, is_online_navigation_allowed, linked_account, HelpDestination, ONLINE_URL, SANDBOX_URL};
 
 /// Appended to the platform WebView user agent (Android, in MainActivity.kt)
 /// or used as the WebKit-shaped custom agent (iOS). The site keys ad slots,
@@ -175,14 +175,25 @@ enum MobileNavigationAction {
   PresentAsk,
   InApp,
   External,
+  /// Cancel without handing the URL to another app.
+  Ignore,
 }
 
+/// WKWebView reports every navigation to this policy, iframes included, with
+/// no main-frame flag (wry 0.55 `navigation_policy`). Frame-only schemes stay
+/// in the webview; embed hosts are dropped; only real page links leave the app.
 fn classify_navigation(url: &Url) -> MobileNavigationAction {
   if is_launcher_request(url) {
     return MobileNavigationAction::ReturnHome;
   }
+  if is_frame_scheme(url) {
+    return MobileNavigationAction::InApp;
+  }
   if is_app_navigation_allowed(url) {
     return MobileNavigationAction::InApp;
+  }
+  if is_embed_only(url) {
+    return MobileNavigationAction::Ignore;
   }
   if is_native_ask_request(url) {
     return MobileNavigationAction::PresentAsk;
@@ -216,6 +227,7 @@ fn navigation_policy(app: &AppHandle, url: &Url) -> bool {
       open_externally(app, url);
       false
     }
+    MobileNavigationAction::Ignore => false,
   }
 }
 
@@ -250,6 +262,7 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
           let _ = navigate_main(&popup_app, url.clone());
         }
         MobileNavigationAction::External => open_externally(&popup_app, &url),
+        MobileNavigationAction::Ignore => {}
       }
       tauri::webview::NewWindowResponse::Deny
     });
@@ -421,6 +434,28 @@ mod tests {
     assert_eq!(classify_navigation(&multiplayer), MobileNavigationAction::InApp);
     assert_eq!(classify_navigation(&sandbox), MobileNavigationAction::InApp);
     assert_eq!(classify_navigation(&ask), MobileNavigationAction::PresentAsk);
+  }
+
+  #[test]
+  fn embedded_frames_never_leave_the_app() {
+    let turnstile: Url = "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/turnstile/if/ov2/av0/rcv/abc/0x4AAA/auto/fbE/normal/auto/".parse().unwrap();
+    let blank: Url = "about:blank".parse().unwrap();
+    let srcdoc: Url = "about:srcdoc".parse().unwrap();
+    let nocookie: Url = "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1".parse().unwrap();
+    let embed: Url = "https://www.youtube.com/embed/dQw4w9WgXcQ".parse().unwrap();
+    let ad: Url = "https://googleads.g.doubleclick.net/pagead/ads?client=x".parse().unwrap();
+    let watch: Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ".parse().unwrap();
+    let outside: Url = "https://example.com/".parse().unwrap();
+
+    assert_eq!(classify_navigation(&turnstile), MobileNavigationAction::InApp);
+    assert_eq!(classify_navigation(&blank), MobileNavigationAction::InApp);
+    assert_eq!(classify_navigation(&srcdoc), MobileNavigationAction::InApp);
+    assert_eq!(classify_navigation(&nocookie), MobileNavigationAction::Ignore);
+    assert_eq!(classify_navigation(&embed), MobileNavigationAction::Ignore);
+    assert_eq!(classify_navigation(&ad), MobileNavigationAction::Ignore);
+    // A player tapping a real link still leaves the app as before.
+    assert_eq!(classify_navigation(&watch), MobileNavigationAction::External);
+    assert_eq!(classify_navigation(&outside), MobileNavigationAction::External);
   }
 
   #[test]
