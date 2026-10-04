@@ -439,5 +439,10 @@ describe("desktop platform configuration", () => {
     }
     expect(workflow).toContain("Remove signed iOS material");
     expect(workflow).not.toContain("name: ahdclient-ios\n");
+    // Signed builds only for an explicit TestFlight dispatch, each with a new
+    // build number, and Apple tool output never reaches the public log.
+    expect(workflow).toContain('[ "$UPLOAD_TESTFLIGHT" = "true" ]');
+    expect(workflow).toContain('"bundleVersion":"${{ github.run_number }}"');
+    expect(workflow).toContain("python3 scripts/private-apple-command.py xcrun altool --upload-app");
   });
 });

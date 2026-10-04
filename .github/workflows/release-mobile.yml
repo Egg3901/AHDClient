@@ -111,6 +111,12 @@ jobs:
 
   ios:
     runs-on: macos-latest
+    env:
+      # App Store Connect needs a new CFBundleVersion for every upload of the
+      # same app version. Set before `ios init` so the widget extension, which
+      # copies the app's value, matches it. At most three integers, so the run
+      # number stands alone rather than being appended to the version.
+      TAURI_CONFIG: '{"bundle":{"iOS":{"bundleVersion":"${{ github.run_number }}"}}}'
     steps:
       - uses: actions/checkout@v4
 
@@ -181,7 +187,11 @@ jobs:
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
         run: |
-          if [ "${{ github.event.repository.private }}" = "true" ] && [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$UPLOAD_TESTFLIGHT" = "true" ] && [ -n "$APPLE_API_ISSUER" ] && [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_KEY_CONTENT" ] && [ -n "$APPLE_DEVELOPMENT_TEAM" ]; then
+          # Signing runs only for an explicit TestFlight dispatch. The team is the
+          # Lakeside organization account, so the signing identity is no longer
+          # personal; signed IPAs are still never kept as artifacts and Apple
+          # tool output is still discarded by private-apple-command.py.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$UPLOAD_TESTFLIGHT" = "true" ] && [ -n "$APPLE_API_ISSUER" ] && [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_KEY_CONTENT" ] && [ -n "$APPLE_DEVELOPMENT_TEAM" ]; then
             mkdir -p "$RUNNER_TEMP/private_keys"
             echo "$APPLE_API_KEY_CONTENT" | base64 -d > "$RUNNER_TEMP/private_keys/AuthKey_$APPLE_API_KEY.p8"
             echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/private_keys/AuthKey_$APPLE_API_KEY.p8" >> "$GITHUB_ENV"
