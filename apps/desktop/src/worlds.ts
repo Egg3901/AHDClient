@@ -328,5 +328,7 @@ export const online = {
   link: (separateWindow = false) =>
     invoke<void>("link_account", { separateWindow }),
   account: () => invoke<LinkedAccount | null>("linked_account"),
+  /** Revoke the game session and clear every identity cookie in the app. */
+  signOut: () => invoke<void>("sign_out"),
   help: (routeId: string) => invoke<void>("open_help_destination", { routeId }),
 };

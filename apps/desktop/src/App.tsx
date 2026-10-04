@@ -30,6 +30,7 @@ import {
 } from "./entitlement.js";
 import { UpdateNotice } from "./UpdateNotice.js";
 import { AccountControl } from "./AccountControl.js";
+import { clearCachedAskSession } from "./ask/session.js";
 import { GameToolbar } from "./GameToolbar.js";
 import { GameVersionBar } from "./GameVersionBar.js";
 import { DiagnosticPrompt } from "./DiagnosticPrompt.js";
@@ -91,6 +92,7 @@ export function App(): JSX.Element {
   const creating = useRef(false);
   const [settings, setSettings] = useState(readSettings);
   const [account, setAccount] = useState<LinkedAccount | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [accountChecked, setAccountChecked] = useState(false);
   const [embedded, setEmbedded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -589,6 +591,20 @@ export function App(): JSX.Element {
       })
       .catch(fail);
   };
+  const signOut = () => {
+    if (signingOut) return;
+    setError(null);
+    setSigningOut(true);
+    void online
+      .signOut()
+      .then(() => {
+        setAccount(null);
+        clearCachedAskSession();
+        cacheSingleplayerEntitlement({ entitled: false, expiresAt: null });
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setSigningOut(false));
+  };
   const returnToLauncher = async () => {
     if (info.slot) await captureStatistics(info.slot, true);
     await game.closeEmbedded();
@@ -628,6 +644,8 @@ export function App(): JSX.Element {
       onLink={linkAccount}
       onProfile={() => void online.help("help.profile").catch(fail)}
       onManage={() => void online.help("help.account").catch(fail)}
+      onSignOut={signOut}
+      signingOut={signingOut}
     />
   );
   const settingsMenu = (
@@ -903,10 +921,16 @@ export function App(): JSX.Element {
         runningSlot={info.running ? info.slot : null}
         continueBusy={busy}
         sandboxGate={sandboxGate}
+        sandboxAvailable={!mobile || Boolean(account?.supporter)}
         onLinkAccount={linkAccount}
-        onUpgradeSupporter={() => {
-          void online.help("help.patreon").catch(fail);
-        }}
+        // Store builds may not point players at an outside purchase.
+        onUpgradeSupporter={
+          mobile
+            ? undefined
+            : () => {
+                void online.help("help.patreon").catch(fail);
+              }
+        }
       />
       {settingsMenu}
       {diagnosticPanel}

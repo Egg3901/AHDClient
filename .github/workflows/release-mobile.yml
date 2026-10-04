@@ -247,6 +247,8 @@ jobs:
           npm run tauri --workspace apps/desktop -- ios build --help
           npm run tauri --workspace apps/desktop -- ios build --ci --target aarch64-sim --no-sign
           find apps/desktop/src-tauri/gen/apple/build -maxdepth 3 -name '*.app' -print
+          app=$(find apps/desktop/src-tauri/gen/apple/build -maxdepth 3 -name '*.app' -print -quit)
+          plutil -lint "$app/PrivacyInfo.xcprivacy"
 
       # Best effort: an unsigned device build that Sideloadly or AltStore can
       # sign with a free Apple ID for on-device testing before the developer

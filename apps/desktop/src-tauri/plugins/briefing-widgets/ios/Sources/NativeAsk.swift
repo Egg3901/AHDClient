@@ -28,7 +28,6 @@ struct NativeAskTurn: Identifiable {
   var citations: [String] = []
   var usedMcp = false
   var liveSources: [String] = []
-  var liveToolCalled = false
   var local = false
 }
 
@@ -39,7 +38,6 @@ struct NativeAskResult {
   let citations: [String]
   let usedMcp: Bool
   let liveSources: [String]
-  let liveToolCalled: Bool
 }
 
 private enum NativeAskError: LocalizedError {
@@ -127,7 +125,10 @@ final class NativeAskAPI: @unchecked Sendable {
     configuration.httpShouldSetCookies = true
     configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
     configuration.timeoutIntervalForRequest = 30
-    configuration.timeoutIntervalForResource = 120
+    // A live-data answer can stream for several minutes. The service sends a
+    // keepalive every 5s, so the per-request idle timeout still catches a dead
+    // connection; the resource cap only bounds a runaway stream.
+    configuration.timeoutIntervalForResource = 600
     configuration.urlCache = nil
     transport = URLSession(configuration: configuration, delegate: NativeAskRedirectDelegate(), delegateQueue: nil)
     for cookie in gameCookies where Self.isRelevant(cookie) {
@@ -212,7 +213,7 @@ final class NativeAskAPI: @unchecked Sendable {
   private func request(_ path: String, body: [String: Any]? = nil) throws -> URLRequest {
     guard path.hasPrefix("/") else { throw NativeAskError.server("Invalid Ask request.") }
     var request = URLRequest(url: nativeAskOrigin.appendingPathComponent(String(path.dropFirst())))
-    request.timeoutInterval = path == "/api/ask" ? 120 : 30
+    request.timeoutInterval = path == "/api/ask" ? 60 : 30
     request.setValue("application/json", forHTTPHeaderField: "Accept")
     request.setValue(nativeAskOrigin.absoluteString, forHTTPHeaderField: "Origin")
     request.setValue(nativeAskOrigin.absoluteString + "/", forHTTPHeaderField: "Referer")
@@ -291,7 +292,8 @@ final class NativeAskAPI: @unchecked Sendable {
   }
 
   func ask(question: String, conversationID: String, length: String, style: String, mode: String,
-           onDelta: @escaping (String) -> Void = { _ in }, onStatus: @escaping (String) -> Void = { _ in }) async throws -> NativeAskResult {
+           onDelta: @escaping (String) -> Void = { _ in }, onStatus: @escaping (String) -> Void = { _ in },
+           onRequestID: @escaping (String) -> Void = { _ in }) async throws -> NativeAskResult {
     try await ensureSession()
     let body: [String: Any] = [
       "question": question,
@@ -336,6 +338,7 @@ final class NativeAskAPI: @unchecked Sendable {
       switch name {
       case "meta":
         returnedConversationID = object?["convId"] as? String ?? returnedConversationID
+        if let reqID = object?["reqId"] as? String, !reqID.isEmpty { onRequestID(reqID) }
       case "status", "action":
         if let label = object?["label"] as? String, !label.isEmpty { onStatus(label) }
       case "delta":
@@ -353,14 +356,17 @@ final class NativeAskAPI: @unchecked Sendable {
             item["label"] as? String ?? item["path"] as? String
           }
         }
+        return true
       case "error":
-        throw NativeAskError.server(object?["message"] as? String ?? value as? String ?? "Ask could not complete the answer.")
+        // The service names the field `error`; older builds used `message`.
+        throw NativeAskError.server(object?["error"] as? String ?? object?["message"] as? String ?? value as? String ?? "Ask could not complete the answer.")
       default:
         break
       }
+      return false
     }
     guard !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw NativeAskError.emptyAnswer }
-    return NativeAskResult(answer: answer, conversationID: returnedConversationID, model: model, citations: citations, usedMcp: usedMcp, liveSources: liveSources, liveToolCalled: false)
+    return NativeAskResult(answer: answer, conversationID: returnedConversationID, model: model, citations: citations, usedMcp: usedMcp, liveSources: liveSources)
   }
 
   private func result(from object: [String: Any], fallbackConversationID: String) throws -> NativeAskResult {
@@ -375,7 +381,6 @@ final class NativeAskAPI: @unchecked Sendable {
       },
       usedMcp: object["usedMcp"] as? Bool ?? false,
       liveSources: object["liveSources"] as? [String] ?? [],
-      liveToolCalled: false,
     )
   }
 
@@ -387,35 +392,50 @@ final class NativeAskAPI: @unchecked Sendable {
     return (payload["context"] as? String ?? "", payload["files"] as? [String] ?? [])
   }
 
-  private func readEvents(_ bytes: URLSession.AsyncBytes, handler: (String, Any) throws -> Void) async throws {
+  /// Server-Sent Events framing. The handler returns true on a terminal
+  /// event so the stream is released at `done` instead of waiting for EOF.
+  private func readEvents(_ bytes: URLSession.AsyncBytes, handler: (String, Any) throws -> Bool) async throws {
     var lineBytes: [UInt8] = []
     var event = "message"
-    var payload = ""
-    func emit() throws {
-      guard !payload.isEmpty else { return }
-      guard let data = payload.data(using: .utf8), let value = try? JSONSerialization.jsonObject(with: data) else {
+    var dataLines: [String] = []
+    func emit() throws -> Bool {
+      defer { dataLines.removeAll(); event = "message" }
+      guard !dataLines.isEmpty else { return false }
+      let payload = dataLines.joined(separator: "\n")
+      guard let data = payload.data(using: .utf8),
+            let value = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) else {
         throw NativeAskError.server("Ask sent an invalid event.")
       }
-      try handler(event, value)
-      payload = ""
+      return try handler(event, value)
     }
     for try await byte in bytes {
+      try Task.checkCancellation()
       if byte == 10 {
         let line = String(bytes: lineBytes, encoding: .utf8) ?? ""
         lineBytes.removeAll(keepingCapacity: true)
         if line.isEmpty {
-          try emit()
-          event = "message"
+          if try emit() { return }
+        } else if line.hasPrefix(":") {
+          continue
         } else if line.hasPrefix("event:") {
           event = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
         } else if line.hasPrefix("data:") {
-          payload += String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
+          var chunk = String(line.dropFirst(5))
+          if chunk.hasPrefix(" ") { chunk.removeFirst() }
+          dataLines.append(chunk)
         }
       } else if byte != 13 {
         lineBytes.append(byte)
       }
     }
-    try emit()
+    if try emit() { return }
+    throw NativeAskError.server("The answer stream ended before completion. Check your history in a moment, or try again.")
+  }
+
+  /// Abort a server generation. Records nothing and costs no quota.
+  func stop(requestID: String) async {
+    guard let request = try? self.request("/api/ask/stop", body: ["reqId": requestID]) else { return }
+    _ = try? await transport.data(for: request)
   }
 }
 
@@ -435,18 +455,37 @@ final class NativeAskAPI: @unchecked Sendable {
   private let webView: WKWebView
   private var api: NativeAskAPI?
   private var conversationID = ""
-  private var task: Task<Void, Never>?
+  private var connectTask: Task<Void, Never>?
+  private var sendTask: Task<Void, Never>?
+  private var requestID: String?
+  /// The turn whose answer is streaming; late deltas for any other turn drop.
+  private var streamingTurnID: String?
 
   init(webView: WKWebView) {
     self.webView = webView
     refreshAppleStatus()
   }
 
-  deinit { task?.cancel() }
+  deinit {
+    connectTask?.cancel()
+    sendTask?.cancel()
+  }
 
   func start() {
     refreshAppleStatus()
-    task = Task { [weak self] in await self?.connect() }
+    // onAppear can fire again when the sheet is re-presented; one connect is enough.
+    guard connectTask == nil else { return }
+    connectTask = Task { [weak self] in await self?.connect() }
+  }
+
+  /// Stop the answer in flight. A server generation is aborted too, so a
+  /// stopped question records nothing and costs no quota.
+  func stop() {
+    guard sending else { return }
+    if let requestID, let api {
+      Task { await api.stop(requestID: requestID) }
+    }
+    sendTask?.cancel()
   }
 
   func refreshAppleStatus() {
@@ -482,12 +521,18 @@ final class NativeAskAPI: @unchecked Sendable {
     status = provider == .appleOnDevice ? "Generating on device..." : "Thinking..."
     turns.append(NativeAskTurn(id: turnID, question: question, answer: ""))
     sending = true
+    requestID = nil
+    streamingTurnID = turnID
     let selectedProvider = provider
     let history = turns.dropLast().suffix(8).map { "User: \($0.question)\nAssistant: \(String($0.answer.prefix(1200)))" }
     let oldConversationID = conversationID
-    task = Task { [weak self] in
+    sendTask = Task { [weak self] in
       guard let self else { return }
-      defer { sending = false }
+      defer {
+        sending = false
+        requestID = nil
+        streamingTurnID = nil
+      }
       do {
         let result: NativeAskResult
         if selectedProvider == .appleOnDevice {
@@ -503,36 +548,19 @@ final class NativeAskAPI: @unchecked Sendable {
               status = "Live game evidence unavailable. Answering on device."
             }
           } else {
-            // Account linking enables evidence and the optional live tool; it
-            // must not prevent a private on-device answer from being generated.
+            // Account linking enables retrieved evidence; it must not prevent
+            // a private on-device answer from being generated.
             evidence = (text: "", files: [])
           }
           let options = FoundationModelOptions(question: question, history: history, length: "standard", style: "standard", mode: "ask", gameContext: evidence.text)
-          #if canImport(FoundationModels)
-          let liveTool: Any?
-          if signedIn, let api {
-            if #available(iOS 26.0, *) {
-              liveTool = NativeAskLiveTool(api: api)
-            } else {
-              liveTool = nil
-            }
-          } else {
-            liveTool = nil
-          }
-          let payload = try await AppleFoundationModelBridge.respond(options, liveTool: liveTool)
-          #else
           let payload = try await AppleFoundationModelBridge.respond(options)
-          #endif
-          // The evidence endpoint provides documentation citations; the optional
-          // live tool adds current state citations returned by Ask.
           result = NativeAskResult(
             answer: payload["text"] as? String ?? "",
             conversationID: "",
             model: payload["model"] as? String ?? "Apple Foundation Models",
             citations: evidence.files,
-            usedMcp: payload["usedMcp"] as? Bool ?? false,
-            liveSources: payload["liveSources"] as? [String] ?? [],
-            liveToolCalled: payload["liveToolCalled"] as? Bool ?? false,
+            usedMcp: false,
+            liveSources: [],
           )
         } else {
           guard let api else { throw NativeAskError.signedOut }
@@ -543,8 +571,14 @@ final class NativeAskAPI: @unchecked Sendable {
             length: "standard",
             style: "standard",
             mode: "auto",
+            onDelta: { [weak self] delta in
+              Task { @MainActor in self?.appendDelta(delta, to: turnID) }
+            },
             onStatus: { [weak self] label in
               Task { @MainActor in self?.status = label }
+            },
+            onRequestID: { [weak self] reqID in
+              Task { @MainActor in self?.requestID = reqID }
             },
           )
         }
@@ -554,17 +588,20 @@ final class NativeAskAPI: @unchecked Sendable {
         turns[index].citations = result.citations
         turns[index].usedMcp = result.usedMcp
         turns[index].liveSources = result.liveSources
-        turns[index].liveToolCalled = result.liveToolCalled
         turns[index].local = selectedProvider == .appleOnDevice
         if !result.conversationID.isEmpty { conversationID = result.conversationID }
-      } catch is CancellationError {
-        if Task.isCancelled {
-          turns.removeAll { $0.id == turnID }
+      } catch _ where Task.isCancelled {
+        // Stopped by the player. Keep any text that already streamed.
+        if let index = turns.firstIndex(where: { $0.id == turnID }), !turns[index].answer.isEmpty {
+          turns[index].answer += "\n\n(Stopped)"
         } else {
-          self.error = "Apple Foundation Models cancelled the answer. Try again or choose Ask server."
           turns.removeAll { $0.id == turnID }
           draft = question
         }
+      } catch is CancellationError {
+        self.error = "Apple Foundation Models cancelled the answer. Try again or choose Ask server."
+        turns.removeAll { $0.id == turnID }
+        draft = question
       } catch {
         self.error = error.localizedDescription
         turns.removeAll { $0.id == turnID }
@@ -572,6 +609,11 @@ final class NativeAskAPI: @unchecked Sendable {
       }
       status = ""
     }
+  }
+
+  private func appendDelta(_ delta: String, to turnID: String) {
+    guard streamingTurnID == turnID, let index = turns.firstIndex(where: { $0.id == turnID }) else { return }
+    turns[index].answer += delta
   }
 
   private func allCookies() async -> [HTTPCookie] {
@@ -619,7 +661,7 @@ struct NativeAskView: View {
               if model.turns.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                   Label("Lakeside Ask", systemImage: "bubble.left.and.text.bubble.right.fill").font(.title2.bold())
-                  Text("Ask about A House Divided. Ask server uses live game evidence and tools. Apple Foundation Models uses retrieved game evidence, can make one read-only live lookup, and generates the answer on this device.")
+                  Text("Ask about A House Divided. Ask server uses live game evidence and tools. Apple Foundation Models writes the answer on this device from retrieved game documentation, without live game state.")
                     .font(.callout).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 24)
               }
@@ -628,20 +670,17 @@ struct NativeAskView: View {
                   Text(turn.question).font(.headline).padding(12).frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
                   HStack {
-                    Label(turn.local ? (turn.usedMcp ? "Apple + live Ask tools" : "Apple Foundation Models") : (turn.usedMcp ? "ASK + live tools" : "ASK"), systemImage: turn.local ? "iphone" : "bubble.left")
+                    Label(turn.local ? "Apple Foundation Models" : (turn.usedMcp ? "ASK + live tools" : "ASK"), systemImage: turn.local ? "iphone" : "bubble.left")
                     Spacer()
                     if !turn.model.isEmpty { Text(turn.model).font(.caption2).foregroundStyle(.secondary) }
                   }.font(.caption.bold()).foregroundStyle(.secondary)
                   if turn.answer.isEmpty && model.sending { ProgressView("Thinking...").font(.callout) }
                   else { Text(turn.answer).font(.body).textSelection(.enabled) }
                   if turn.local {
-                    if turn.usedMcp {
-                      Text("Written on device after a read-only live Ask lookup. This question and the live result were sent to Ask server.").font(.caption).foregroundStyle(.secondary)
-                    } else if turn.liveToolCalled {
-                      Text("Written on device after a live Ask lookup attempt. This question was sent to Ask server, but no live source was returned.").font(.caption).foregroundStyle(.secondary)
-                    } else {
-                      Text("Written on device from Ask's retrieved game evidence. This question was sent to Ask server for evidence.").font(.caption).foregroundStyle(.secondary)
-                    }
+                    Text(turn.citations.isEmpty
+                      ? "Written on device without game documentation. Check current facts with Ask server."
+                      : "Written on device from Ask's retrieved game documentation. This question was sent to Ask server for that evidence.")
+                      .font(.caption).foregroundStyle(.secondary)
                   }
                   if !turn.liveSources.isEmpty { Text("Live sources: " + turn.liveSources.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary) }
                   if !turn.citations.isEmpty { Text("Sources: " + turn.citations.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary) }
@@ -651,6 +690,7 @@ struct NativeAskView: View {
             }.padding()
           }
           .onChange(of: model.turns.count) { _ in withAnimation { proxy.scrollTo("native-ask-bottom", anchor: .bottom) } }
+          .onChange(of: model.turns.last?.answer.count ?? 0) { _ in proxy.scrollTo("native-ask-bottom", anchor: .bottom) }
         }
         composer
       }
@@ -660,6 +700,7 @@ struct NativeAskView: View {
     }
     .navigationViewStyle(.stack)
     .onAppear { model.start() }
+    .onDisappear { model.stop() }
   }
 
   private var provider: NativeAskProvider { model.provider }
@@ -672,7 +713,7 @@ struct NativeAskView: View {
       }.pickerStyle(.segmented)
       if model.provider == .appleOnDevice {
         Text(model.appleAvailable
-          ? (model.signedIn ? "Available. One read-only live Ask lookup can ground current game questions." : "Available privately. Link the game account to enable live lookup.")
+          ? (model.signedIn ? "Available. Answers use game documentation, not live game state." : "Available privately. Link the game account to add game documentation.")
           : model.appleMessage)
           .font(.caption).foregroundStyle(model.appleAvailable ? .green : .secondary)
       }
@@ -690,11 +731,11 @@ struct NativeAskView: View {
   private var appleStatusBanner: some View {
     VStack(alignment: .leading, spacing: 6) {
       if model.signedIn {
-        Label("Private on-device answer with one optional read-only live Ask lookup. Live lookup sends this question and its result to Ask server.", systemImage: "lock.shield")
+        Label("Written on device. The question is sent to Ask server only to fetch game documentation.", systemImage: "lock.shield")
       } else if model.connecting {
-        Label("Private on-device answers. Checking whether live lookup is available...", systemImage: "lock.shield")
+        Label("Private on-device answers. Checking the linked game account...", systemImage: "lock.shield")
       } else {
-        Label("Private on-device answers. Link your game account to enable live lookup.", systemImage: "lock.shield")
+        Label("Private on-device answers. Link your game account to add game documentation.", systemImage: "lock.shield")
         Button("Link game account", action: onLinkAccount).buttonStyle(.borderedProminent)
       }
       if let error = model.error { Text(error).font(.caption).foregroundStyle(.secondary) }
@@ -706,9 +747,14 @@ struct NativeAskView: View {
       TextField("Ask a question...", text: $model.draft)
         .textFieldStyle(.roundedBorder)
         .disabled(model.sending)
-      Button { model.send() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
-        .disabled(model.sending || model.draft.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count < 5 || (provider == .server && !model.signedIn))
-        .accessibilityLabel("Send question")
+      if model.sending {
+        Button { model.stop() } label: { Image(systemName: "stop.circle.fill").font(.title2) }
+          .accessibilityLabel("Stop answer")
+      } else {
+        Button { model.send() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
+          .disabled(model.draft.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count < 5 || (provider == .server && !model.signedIn))
+          .accessibilityLabel("Send question")
+      }
     }.padding(.horizontal).padding(.vertical, 10).background(.thinMaterial)
   }
 }

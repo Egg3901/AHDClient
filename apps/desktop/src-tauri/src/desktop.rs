@@ -913,6 +913,7 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
       submit_statistics,
       crate::submit_diagnostics,
       crate::linked_account,
+      crate::sign_out,
       link_account,
       close_embedded_game,
       set_embedded_visible,
