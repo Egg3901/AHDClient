@@ -34,6 +34,13 @@ app['settings']['configs']['debug']['AHD_PUSH_ENVIRONMENT'] = 'development'
 app['settings']['configs']['release']['AHD_PUSH_ENVIRONMENT'] = 'production'
 app.fetch('info').fetch('properties')['AHDPushEnvironment'] = '$(AHD_PUSH_ENVIRONMENT)'
 app.fetch('info').fetch('properties')['AHDWidgetKeychainGroup'] = keychain
+# Privacy manifest (required-reason APIs and collected data) ships as an app
+# resource; App Store Connect rejects uploads that use those APIs without it.
+FileUtils.cp(File.join(tauri, 'PrivacyInfo.xcprivacy'), project)
+app['sources'] ||= []
+unless app['sources'].any? { |s| (s.is_a?(Hash) ? s['path'] : s) == 'PrivacyInfo.xcprivacy' }
+  app['sources'] << { 'path' => 'PrivacyInfo.xcprivacy', 'buildPhase' => 'resources' }
+end
 app['dependencies'] ||= []
 app['dependencies'] << { 'target' => 'AHDWidgets', 'embed' => true } unless app['dependencies'].any? { |d| d['target'] == 'AHDWidgets' }
 

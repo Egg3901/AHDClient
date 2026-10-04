@@ -139,4 +139,13 @@ describe("Launcher", () => {
     expect(props.onPlayOnline).toHaveBeenCalledWith("sandbox");
     localStorage.removeItem("ahdclient.launcher.mode");
   });
+
+  it("hides the sandbox on mobile unless the account already has it", async () => {
+    localStorage.setItem("ahdclient.launcher.mode", "sandbox");
+    renderLauncher({ mobile: true, sandboxAvailable: false });
+    expect(screen.queryByRole("button", { name: "Sandbox" })).toBeNull();
+    expect(screen.queryByText(/Supporter/)).toBeNull();
+    expect(screen.getByRole("button", { name: /Enter multiplayer/ })).toBeTruthy();
+    expect(localStorage.getItem("ahdclient.launcher.mode")).toBe("mp");
+  });
 });

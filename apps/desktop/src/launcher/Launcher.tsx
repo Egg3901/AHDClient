@@ -14,6 +14,11 @@ type Mode = "sp" | "mp" | "sandbox" | "worldsim";
 const DESKTOP_MODES: readonly Mode[] = ["sp", "mp", "sandbox", "worldsim"];
 /** Phones and tablets run no local game: the live site and the sandbox only. */
 const MOBILE_MODES: readonly Mode[] = ["mp", "sandbox"];
+/**
+ * Store builds sell nothing in-app, so a mode unlocked by an outside purchase
+ * is shown only to accounts that already have it (App Store 3.1.3(b)).
+ */
+const MOBILE_MODES_WITHOUT_SANDBOX: readonly Mode[] = ["mp"];
 
 export type OnlineTarget = "live" | "sandbox";
 
@@ -36,6 +41,8 @@ interface Props {
   runningSlot: string | null;
   continueBusy: boolean;
   sandboxGate?: "unlinked" | "upgrade" | null;
+  /** Mobile only: false hides the sandbox mode entirely. */
+  sandboxAvailable?: boolean;
   onLinkAccount?: () => void;
   onUpgradeSupporter?: (() => void) | undefined;
   /** Entry-gate refusal: the error box offers Link account next to Dismiss. */
@@ -82,13 +89,16 @@ export function Launcher({
   // arrives as undefined, which is not null, which disabled the Enter button
   // permanently — the prop's own optionality turned the sandbox off.
   sandboxGate = null,
+  sandboxAvailable = true,
   onLinkAccount,
   onUpgradeSupporter,
   errorOffersLink = false,
 }: Props): JSX.Element {
   const de = language === "de";
   const eras = useMemo(() => ERAS, []);
-  const modes = mobile ? MOBILE_MODES : DESKTOP_MODES;
+  const modes = mobile
+    ? sandboxAvailable ? MOBILE_MODES : MOBILE_MODES_WITHOUT_SANDBOX
+    : DESKTOP_MODES;
   const [mode, setMode] = useState<Mode>(() => {
     const saved = readPreference(MODE_STORAGE_KEY);
     const known = modes.find((candidate) => candidate === saved);
@@ -107,6 +117,11 @@ export function Launcher({
       setEraId(eras[0]!.id);
     }
   }, [eras, eraId]);
+
+  // Losing a mode (a supporter account signed out) falls back to the first.
+  useEffect(() => {
+    if (!modes.includes(mode)) setMode(modes[0]!);
+  }, [modes, mode]);
 
   useEffect(() => writePreference(MODE_STORAGE_KEY, mode), [mode]);
   useEffect(() => writePreference(ERA_STORAGE_KEY, eraId), [eraId]);
@@ -153,6 +168,7 @@ export function Launcher({
         </header>
 
         <div className="launcher-console">
+          {modes.length > 1 && (
           <div
             className="launcher-toggle"
             data-mode={mode}
@@ -176,13 +192,15 @@ export function Launcher({
             >
               {de ? "Mehrspieler" : "Multiplayer"}
             </button>
-            <button
-              className={mode === "sandbox" ? "active" : ""}
-              onClick={() => setMode("sandbox")}
-              aria-pressed={mode === "sandbox"}
-            >
-              Sandbox
-            </button>
+            {modes.includes("sandbox") && (
+              <button
+                className={mode === "sandbox" ? "active" : ""}
+                onClick={() => setMode("sandbox")}
+                aria-pressed={mode === "sandbox"}
+              >
+                Sandbox
+              </button>
+            )}
             {!mobile && (
               <button
                 className={mode === "worldsim" ? "active" : ""}
@@ -196,6 +214,7 @@ export function Launcher({
               </button>
             )}
           </div>
+          )}
 
           {error && (
             <div className="launcher-error" role="alert">

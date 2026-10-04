@@ -134,6 +134,9 @@ describe("desktop security configuration", () => {
     expect(mobile).toContain("ahdclient://ask");
     expect(mobile).toContain("https://ahousedividedgame.com/");
     expect(mobile).toContain("https://sandbox.ahousedividedgame.com/");
+    // The in-game menu offers the sandbox only to a supporter, never as an upsell.
+    expect(mobile).toContain("if (a && a.linked && a.supporter) offerSandbox();");
+    expect(mobile).not.toContain("patreon.com");
   });
 
   it("keeps native Ask sign-in transactions intact and AFM on device", () => {

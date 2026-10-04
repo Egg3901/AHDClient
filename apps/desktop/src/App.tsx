@@ -921,6 +921,7 @@ export function App(): JSX.Element {
         runningSlot={info.running ? info.slot : null}
         continueBusy={busy}
         sandboxGate={sandboxGate}
+        sandboxAvailable={!mobile || Boolean(account?.supporter)}
         onLinkAccount={linkAccount}
         // Store builds may not point players at an outside purchase.
         onUpgradeSupporter={

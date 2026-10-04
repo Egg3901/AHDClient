@@ -60,12 +60,24 @@ const LAUNCHER_CONTROL_SCRIPT: &str = r#"
         button.setAttribute('aria-expanded', 'false');
         location.href = destination;
       });
-      menu.appendChild(item);
+      return item;
     }
-    action('Ask', 'ahdclient://ask');
-    action('Multiplayer', 'https://ahousedividedgame.com/');
-    action('Sandbox', 'https://sandbox.ahousedividedgame.com/');
-    action('Launcher', 'ahdclient://launcher');
+    menu.appendChild(action('Ask', 'ahdclient://ask'));
+    menu.appendChild(action('Multiplayer', 'https://ahousedividedgame.com/'));
+    var home = action('Launcher', 'ahdclient://launcher');
+    menu.appendChild(home);
+    // Store builds sell nothing in-app, so the sandbox (a supporter perk) is
+    // offered only to an account that already has it, or while already in it.
+    function offerSandbox() {
+      menu.insertBefore(action('Sandbox', 'https://sandbox.ahousedividedgame.com/'), home);
+    }
+    if (location.hostname === 'sandbox.ahousedividedgame.com') offerSandbox();
+    else if (location.hostname === 'ahousedividedgame.com') {
+      fetch('/api/client/account', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (a) { if (a && a.linked && a.supporter) offerSandbox(); })
+        .catch(function () {});
+    }
     document.body.appendChild(menu);
     button = document.createElement('button');
     button.id = 'ahdclient-launcher';
