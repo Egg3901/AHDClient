@@ -41,6 +41,17 @@
       <key>NSPrivacyCollectedDataTypePurposes</key>
       <array><string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string></array>
     </dict>
+    <!-- Characters, actions, and other in-game state the account creates. -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeGameplayContent</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array><string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string></array>
+    </dict>
     <!-- First-party, anonymous page counts (self-hosted analytics). The
          store app loads no Google or other third-party analytics. -->
     <dict>
