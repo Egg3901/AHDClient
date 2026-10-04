@@ -235,6 +235,124 @@ async fn linked_account(app: AppHandle) -> Result<Option<LinkedAccount>, String>
   }).await.map_err(|_| "account check failed")?
 }
 
+/// Hosts whose cookies make up a signed-in identity inside the app: the game
+/// origins, both auth brokers (including the Lakeside issuer's SSO cookies,
+/// which would otherwise sign the player straight back in), and Ask.
+const SIGN_OUT_HOSTS: &[&str] = &[
+  ONLINE_HOST,
+  "www.ahousedividedgame.com",
+  SANDBOX_HOST,
+  "auth.ahousedividedgame.com",
+  "auth.lakesidegames.net",
+  "ask.lakesidegames.net",
+];
+
+/// URLs probed for cookies when the platform cannot list the whole jar
+/// (Android). The issuer keeps its SSO cookies under the realm path.
+const SIGN_OUT_PROBE_URLS: &[&str] = &[
+  "https://ahousedividedgame.com/",
+  "https://www.ahousedividedgame.com/",
+  "https://sandbox.ahousedividedgame.com/",
+  "https://auth.ahousedividedgame.com/",
+  "https://auth.lakesidegames.net/",
+  "https://auth.lakesidegames.net/realms/accounts/",
+  "https://ask.lakesidegames.net/",
+];
+
+fn is_sign_out_cookie_domain(domain: &str) -> bool {
+  let domain = domain.trim_start_matches('.').to_ascii_lowercase();
+  SIGN_OUT_HOSTS.contains(&domain.as_str()) || domain == "lakesidegames.net"
+}
+
+/// Identity cookies only. Display preferences and consent choices survive a
+/// sign-out; every session, SSO, and login-flow cookie does not.
+fn is_sign_out_cookie(name: &str, domain: &str) -> bool {
+  let domain = domain.trim_start_matches('.').to_ascii_lowercase();
+  if domain == "auth.lakesidegames.net" || domain == "auth.ahousedividedgame.com" {
+    // Broker and issuer hosts hold nothing but auth state.
+    return true;
+  }
+  is_account_session_cookie(name)
+    || matches!(
+      name,
+      "ask_session" | "__Host-ask_session" | "__Host-ask_login" | "__Host-lakeside_session" | "__Host-lakeside_login"
+    )
+}
+
+/// Sign the player out everywhere in the app: revoke the game session on the
+/// server, then drop every identity cookie from the shared webview jar so
+/// neither the site, the issuer's SSO, nor Ask can resume it silently.
+#[tauri::command]
+async fn sign_out(app: AppHandle) -> Result<(), String> {
+  let views: Vec<tauri::Webview> = ["main", "online", "online-embedded", "ask", "ask-auth"]
+    .iter()
+    .filter_map(|label| app.get_webview(label))
+    .collect();
+  let Some(primary) = views.first().cloned() else { return Err("launcher is missing".into()) };
+
+  // Server-side revocation first, with the cookies the site would send.
+  for base in [ONLINE_URL, SANDBOX_URL] {
+    let Ok(url) = format!("{base}/").parse::<Url>() else { continue };
+    let header = primary
+      .cookies_for_url(url)
+      .unwrap_or_default()
+      .iter()
+      .filter(|cookie| is_account_session_cookie(cookie.name()))
+      .map(|cookie| format!("{}={}", cookie.name(), cookie.value()))
+      .collect::<Vec<_>>()
+      .join("; ");
+    if header.is_empty() { continue; }
+    let endpoint = format!("{base}/api/auth/logout");
+    let origin = base.to_string();
+    // Best effort: a failed revocation must not leave the player stuck signed
+    // in on this device, so local cookies are cleared regardless.
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+      let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(15)).redirects(0).build();
+      agent.post(&endpoint)
+        .set("Cookie", &header)
+        .set("Origin", &origin)
+        .set("User-Agent", "AHDClient/2")
+        .call()
+    }).await;
+  }
+
+  // The full jar where the platform can list it, plus per-URL probes for
+  // Android. A probed cookie with no reported domain belongs to the probe host.
+  let mut cookies: Vec<(tauri::webview::Cookie<'static>, String)> = primary
+    .cookies()
+    .unwrap_or_default()
+    .into_iter()
+    .filter_map(|cookie| {
+      let domain = cookie.domain()?.to_string();
+      Some((cookie, domain))
+    })
+    .collect();
+  for probe in SIGN_OUT_PROBE_URLS {
+    let Ok(url) = probe.parse::<Url>() else { continue };
+    let host = url.host_str().unwrap_or_default().to_string();
+    for cookie in primary.cookies_for_url(url).unwrap_or_default() {
+      let domain = cookie.domain().map(str::to_string).unwrap_or_else(|| host.clone());
+      cookies.push((cookie, domain));
+    }
+  }
+  let mut seen = std::collections::HashSet::new();
+  for (cookie, domain) in cookies {
+    if !is_sign_out_cookie_domain(&domain) || !is_sign_out_cookie(cookie.name(), &domain) {
+      continue;
+    }
+    let key = (cookie.name().to_string(), domain.clone(), cookie.path().unwrap_or("/").to_string());
+    if !seen.insert(key) { continue; }
+    for view in &views {
+      let _ = view.delete_cookie(cookie.clone());
+    }
+  }
+
+  match linked_account(app).await {
+    Ok(Some(account)) if account.linked => Err("Sign out did not finish. Try again.".into()),
+    _ => Ok(()),
+  }
+}
+
 
 // ---------------------------------------------------------------------------
 
@@ -266,10 +384,27 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
   use super::{
-    help_destination, is_account_session_cookie, is_ask_navigation_allowed, is_frame_resource, is_online_navigation_allowed,
+    help_destination, is_account_session_cookie, is_sign_out_cookie, is_sign_out_cookie_domain, is_ask_navigation_allowed, is_frame_resource, is_online_navigation_allowed,
     is_online_origin, HelpDestination, LinkedAccount, ASK_URL,
   };
   use tauri::Url;
+
+  #[test]
+  fn sign_out_drops_identity_cookies_and_keeps_preferences() {
+    assert!(is_sign_out_cookie("auth-token", "ahousedividedgame.com"));
+    assert!(is_sign_out_cookie("__Secure-authjs.session-token.0", ".ahousedividedgame.com"));
+    assert!(is_sign_out_cookie("__Host-ask_session", "ask.lakesidegames.net"));
+    assert!(is_sign_out_cookie("KEYCLOAK_IDENTITY", "auth.lakesidegames.net"));
+    assert!(is_sign_out_cookie("AUTH_SESSION_ID", ".auth.lakesidegames.net"));
+    assert!(is_sign_out_cookie("anything", "auth.ahousedividedgame.com"));
+    assert!(!is_sign_out_cookie("ahd-display-mode", "ahousedividedgame.com"));
+    assert!(!is_sign_out_cookie("NEXT_LOCALE", "ahousedividedgame.com"));
+    assert!(is_sign_out_cookie_domain(".ahousedividedgame.com"));
+    assert!(is_sign_out_cookie_domain("SANDBOX.ahousedividedgame.com"));
+    assert!(is_sign_out_cookie_domain("lakesidegames.net"));
+    assert!(!is_sign_out_cookie_domain("appleid.apple.com"));
+    assert!(!is_sign_out_cookie_domain("ahousedividedgame.com.evil.example"));
+  }
 
   #[test]
   fn ask_target_is_the_https_service_root() {

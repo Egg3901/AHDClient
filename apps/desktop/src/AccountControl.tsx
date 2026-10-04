@@ -9,9 +9,11 @@ interface Props {
   onLink: () => void;
   onProfile: () => void;
   onManage: () => void;
+  onSignOut: () => void;
+  signingOut?: boolean;
 }
 
-export function AccountControl({ checked, linked, displayName, avatarUrl, supporter, onLink, onProfile, onManage }: Props): JSX.Element {
+export function AccountControl({ checked, linked, displayName, avatarUrl, supporter, onLink, onProfile, onManage, onSignOut, signingOut = false }: Props): JSX.Element {
   if (checked && linked) {
     const avatar = allowedAvatarUrl(avatarUrl);
     return (
@@ -29,6 +31,9 @@ export function AccountControl({ checked, linked, displayName, avatarUrl, suppor
           <p><strong>{displayName || "Game account"}</strong><small>{supporter ? "Supporter" : "Player"}</small></p>
           <button role="menuitem" type="button" onClick={onProfile}>View profile</button>
           <button role="menuitem" type="button" onClick={onManage}>Manage game account</button>
+          <button role="menuitem" type="button" onClick={onSignOut} disabled={signingOut}>
+            {signingOut ? "Signing out..." : "Sign out"}
+          </button>
         </div>
       </details>
     );

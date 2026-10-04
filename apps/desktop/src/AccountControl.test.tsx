@@ -1,9 +1,9 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { AccountControl } from "./AccountControl.js";
 
-const handlers = { onLink: vi.fn(), onProfile: vi.fn(), onManage: vi.fn() };
+const handlers = { onLink: vi.fn(), onProfile: vi.fn(), onManage: vi.fn(), onSignOut: vi.fn() };
 
 describe("AccountControl", () => {
   afterEach(cleanup);
@@ -34,5 +34,24 @@ describe("AccountControl", () => {
       <AccountControl checked linked displayName="Ada Lovelace" supporter={false} {...handlers} />,
     );
     expect(document.querySelector("img.client-account-avatar")).toBeNull();
+  });
+
+  it("offers sign out to a linked player and reports progress", () => {
+    const onSignOut = vi.fn();
+    const { rerender } = render(
+      <AccountControl checked linked displayName="Ada Lovelace" supporter={false} {...handlers} onSignOut={onSignOut} />,
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
+    expect(onSignOut).toHaveBeenCalledTimes(1);
+    rerender(
+      <AccountControl checked linked displayName="Ada Lovelace" supporter={false} {...handlers} onSignOut={onSignOut} signingOut />,
+    );
+    expect(screen.getByRole("menuitem", { name: "Signing out..." })).toHaveProperty("disabled", true);
+  });
+
+  it("shows no sign out before an account is linked", () => {
+    render(<AccountControl checked linked={false} displayName={undefined} supporter={false} {...handlers} />);
+    expect(screen.queryByRole("menuitem", { name: "Sign out" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Link account" })).toBeTruthy();
   });
 });

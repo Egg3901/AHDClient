@@ -136,7 +136,7 @@ describe("desktop security configuration", () => {
     expect(mobile).toContain("https://sandbox.ahousedividedgame.com/");
   });
 
-  it("keeps native Ask sign-in transactions and live-tool evidence intact", () => {
+  it("keeps native Ask sign-in transactions intact and AFM on device", () => {
     const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
     const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
     const androidAsk = read(
@@ -148,9 +148,11 @@ describe("desktop security configuration", () => {
     expect(androidAsk).toContain("__Host-ask_login");
     expect(androidAsk).toContain("merge(auth, game, sandbox, wwwGame)");
     expect(androidAsk).toContain("text/event-stream");
-    expect(iosFoundationModels).toContain("NativeAskLiveTool");
-    expect(iosFoundationModels).toContain("LanguageModelSession(tools:");
-    expect(iosFoundationModels).toContain("ask_live_game_state");
+    // The on-device path never runs a server Ask generation: that took
+    // minutes, spent quota, and could not finish inside the AFM timeout.
+    expect(iosFoundationModels).not.toContain("NativeAskLiveTool");
+    expect(iosFoundationModels).not.toContain("LanguageModelSession(tools:");
+    expect(iosFoundationModels).not.toContain("api.ask(");
   });
 
   it("forwards an existing unified session to Ask without sending it to the game broker", () => {
@@ -184,28 +186,44 @@ describe("desktop security configuration", () => {
     expect(iosAsk).toContain("if let error = model.error");
     expect(iosAsk).toContain("Apple Foundation Models cancelled the answer");
     expect(iosFoundationModels).toContain("NativeAskToolProtocolSanitizer");
-    expect(iosFoundationModels).toContain("Do not output XML, JSON, function names, arguments, or tool-call syntax");
+    expect(iosFoundationModels).toContain("Never output JSON, XML, or tool-call syntax");
+    expect(iosFoundationModels).toContain("Answer in ordinary sentences only.");
   });
 
-  it("bounds native AFM retrieval, live lookup, and model work", () => {
+  it("bounds native AFM retrieval and model work", () => {
     const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
     const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
     expect(iosAsk).toContain("NativeAskTimeoutError");
     expect(iosAsk).toContain("let payload = try await withNativeAskTimeout(seconds: 30)");
     expect(iosAsk).toContain('request("/api/ask/context"');
-    expect(iosFoundationModels).toContain("let result = try await withNativeAskTimeout(seconds: 60)");
-    expect(iosFoundationModels).toContain("var response: LanguageModelSession.Response<String>");
-    expect(iosFoundationModels).toContain("response = try await withNativeAskTimeout(seconds: 45)");
-    expect(iosFoundationModels).toContain("responseSession.respond(to: prompt)");
-    expect(iosFoundationModels).not.toContain("let response = try await session.respond(to: prompt)\n    let answer = response.content");
+    expect(iosFoundationModels).toContain("withNativeAskTimeout(seconds: OnDeviceBudget.responseSeconds)");
+    expect(iosFoundationModels).toContain("static let responseSeconds: UInt64 = 60");
+    // Each attempt gets a fresh session so a failed one cannot fill the next
+    // attempt's context window.
+    expect(iosFoundationModels).toContain("let session = LanguageModelSession(instructions: instructions)");
+  });
+
+  it("streams iOS Ask answers as they arrive and lets the player stop them", () => {
+    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    // Deltas reach the visible turn instead of a spinner until `done`.
+    expect(iosAsk).toContain("self?.appendDelta(delta, to: turnID)");
+    // `done` and `error` end the read; a cut stream is reported, not hung on.
+    expect(iosAsk).toMatch(/case "done":[\s\S]*?return true/);
+    expect(iosAsk).toContain('object?["error"] as? String');
+    expect(iosAsk).toContain("The answer stream ended before completion");
+    // Live-data answers outlast two minutes; keepalives cover dead links.
+    expect(iosAsk).toContain("configuration.timeoutIntervalForResource = 600");
+    // Stop aborts the server generation, so it costs no quota.
+    expect(iosAsk).toContain('request("/api/ask/stop", body: ["reqId": requestID])');
+    expect(iosAsk).toContain('accessibilityLabel("Stop answer")');
   });
 
   it("keeps AFM prompts below the on-device context budget", () => {
     const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
-    expect(iosFoundationModels).toContain("options.history.suffix(4)");
-    expect(iosFoundationModels).toContain("String($0.prefix(600))");
-    expect(iosFoundationModels).toContain("String(options.gameContext.prefix(6000))");
-    expect(iosFoundationModels).toContain("compactPrompt");
+    expect(iosFoundationModels).toContain("options.history.suffix(OnDeviceBudget.historyTurns)");
+    expect(iosFoundationModels).toContain("static let evidenceChars = 3_200");
+    expect(iosFoundationModels).toContain("static let compactEvidenceChars = 1_400");
+    expect(iosFoundationModels).toContain("case .exceededContextWindowSize");
   });
 
   it("retains the unified Ask login transaction and session cookies on mobile", () => {
@@ -282,6 +300,7 @@ describe("desktop security configuration", () => {
         "allow-open-help-destination",
         "allow-open-ask-window",
         "allow-linked-account",
+        "allow-sign-out",
         "allow-link-account",
         "allow-submit-diagnostics",
         "allow-get-push-status",

@@ -286,9 +286,9 @@ pub(crate) async fn open_online_window(app: AppHandle, target: Option<String>) -
     None | Some("live") => ONLINE_URL,
     Some("sandbox") => {
       let account = linked_account(app.clone()).await?;
+      // No outside purchase link from a store build: just say what is needed.
       if !account.is_some_and(|account| account.linked && account.supporter) {
-        app.opener().open_url("https://www.patreon.com/cw/AHouseDividedGame/membership", None::<&str>).map_err(|e| e.to_string())?;
-        return Err("Sandbox requires supporter access. Link your supporter game account in Settings.".into());
+        return Err("Sandbox is open to supporter accounts. Link a supporter game account to enter.".into());
       }
       SANDBOX_URL
     }
@@ -374,6 +374,7 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
       crate::briefing::open_briefing_page,
       crate::submit_diagnostics,
       crate::linked_account,
+      crate::sign_out,
       link_account,
       open_online_window,
       open_help_destination,

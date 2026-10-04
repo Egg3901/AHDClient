@@ -15,6 +15,7 @@ fn main() {
       "submit_statistics",
       "submit_diagnostics",
       "linked_account",
+      "sign_out",
       "link_account",
       "close_embedded_game",
       "set_embedded_visible",

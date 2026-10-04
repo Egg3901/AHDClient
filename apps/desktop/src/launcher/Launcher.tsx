@@ -37,7 +37,7 @@ interface Props {
   continueBusy: boolean;
   sandboxGate?: "unlinked" | "upgrade" | null;
   onLinkAccount?: () => void;
-  onUpgradeSupporter?: () => void;
+  onUpgradeSupporter?: (() => void) | undefined;
   /** Entry-gate refusal: the error box offers Link account next to Dismiss. */
   errorOffersLink?: boolean;
 }
@@ -235,9 +235,11 @@ export function Launcher({
                   <strong>
                     Sandbox access requires an active Supporter tier.
                   </strong>
-                  <button onClick={onUpgradeSupporter}>
-                    View Supporter tiers
-                  </button>
+                  {onUpgradeSupporter && (
+                    <button onClick={onUpgradeSupporter}>
+                      View Supporter tiers
+                    </button>
+                  )}
                 </span>
               )}
             </div>

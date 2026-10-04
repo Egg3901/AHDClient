@@ -36,6 +36,7 @@
     "allow-set-embedded-visible",
     "allow-refresh-game-view",
     "allow-linked-account",
+    "allow-sign-out",
     "allow-link-account",
     "allow-set-statistics-consent",
     "allow-submit-statistics",
