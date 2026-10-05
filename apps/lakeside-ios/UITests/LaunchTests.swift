@@ -296,10 +296,18 @@ final class LaunchTests: XCTestCase {
         guard app.tabBars.buttons["Work"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops board conflict") }
         app.tabBars.buttons["Work"].tap()
         let job = app.buttons["ops-kanban-card-job-1"]
-        XCTAssertTrue(job.waitForExistence(timeout: 10)); job.press(forDuration: 1)
+        XCTAssertTrue(job.waitForExistence(timeout: 10))
         let destination = app.buttons.matching(NSPredicate(format: "label == %@", "Move to In progress")).firstMatch
-        XCTAssertTrue(destination.waitForExistence(timeout: 5)); destination.tap()
         let pending = app.descendants(matching: .any)["ops-work-outbox"].firstMatch
+        // The context menu can still be animating when it first reports the
+        // item, and a tap then lands nowhere. Reopen it until the move is sent.
+        for _ in 0..<3 where !pending.exists {
+            job.press(forDuration: 1)
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true AND hittable == true"), object: destination)
+            guard XCTWaiter.wait(for: [ready], timeout: 5) == .completed else { continue }
+            destination.tap()
+            _ = pending.waitForExistence(timeout: 5)
+        }
         XCTAssertTrue(pending.waitForExistence(timeout: 10)); pending.tap()
         XCTAssertTrue(app.staticTexts["Conflict: Another device moved this card to Needs review."].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Dismiss intent"].exists)
