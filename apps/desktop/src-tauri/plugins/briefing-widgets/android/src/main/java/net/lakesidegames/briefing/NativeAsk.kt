@@ -204,7 +204,7 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
           "done" -> if (value is JSONObject) {
             returnedConversationID = value.optString("convId", returnedConversationID)
             answer = value.optString("answer", answer)
-            model = value.optString("modelName", value.optString("modelId", value.optString("model", model)))
+            model = modelLabel(value, model)
             usedMcp = value.optBoolean("usedMcp", false)
             value.optJSONArray("liveSources")?.let { list ->
               for (index in 0 until list.length()) {
@@ -276,7 +276,7 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
     return NativeAskResult(
       answer = answer,
       conversationID = value.optString("convId", fallbackConversationID),
-      model = value.optString("modelName", value.optString("modelId", value.optString("model"))),
+      model = modelLabel(value, ""),
       citations = citations,
       usedMcp = value.optBoolean("usedMcp", false),
       liveSources = liveSources.distinct(),
@@ -388,6 +388,60 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
   }
 }
 
+/** "Model · Service" so every answer names who wrote it. */
+private fun modelLabel(value: JSONObject, fallback: String): String {
+  val model = value.optString("modelName", value.optString("modelId", value.optString("model", fallback)))
+  val provider = value.optString("providerName")
+  return if (provider.isNotBlank() && provider != model && model.isNotBlank()) "$model · $provider" else model
+}
+
+/**
+ * App Store 5.1.2(i) and Play's AI disclosure: name the outside AI services
+ * and get permission before an Ask server question reaches them. Same key and
+ * signature as the iOS sheet and the webview panel, so a provider added on
+ * the server asks again.
+ */
+private object NativeAskConsent {
+  private const val PREFS = "ahdclient.ask"
+  private const val KEY = "ahdclient.ask.aiConsent"
+  const val PRIVACY_URL = "https://ask.lakesidegames.net/privacy"
+
+  /** Used only when the Ask server predates the aiProviders field. */
+  val fallback = listOf(
+    "Meta" to "Muse Spark models. On Meta's contributor tier, Meta may use the question and answer to train its models",
+    "Ollama" to "Ollama Cloud hosted models",
+    "DeepSeek" to "DeepSeek models, operated from China",
+    "Command Code" to "MiniMax models",
+    "OpenRouter" to "relays to the vendor of the chosen model",
+    "Google" to "Gemini models",
+  )
+
+  fun recipients(profile: JSONObject): List<Pair<String, String>> {
+    val list = profile.optJSONArray("aiProviders") ?: return fallback
+    val out = mutableListOf<Pair<String, String>>()
+    for (index in 0 until list.length()) {
+      val item = list.optJSONObject(index) ?: continue
+      val name = item.optString("name").trim()
+      if (name.isNotEmpty()) out += name to item.optString("detail")
+    }
+    return out.ifEmpty { fallback }
+  }
+
+  fun signature(recipients: List<Pair<String, String>>): String =
+    recipients.map { "${it.first}|${it.second}" }.sorted().joinToString("\n")
+
+  fun granted(context: Context, recipients: List<Pair<String, String>>): Boolean =
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null) == signature(recipients)
+
+  fun grant(context: Context, recipients: List<Pair<String, String>>) {
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, signature(recipients)).apply()
+  }
+
+  fun withdraw(context: Context) {
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply()
+  }
+}
+
 private class NativeAskPanel(
   context: Context,
   initialCookies: Map<String, String>,
@@ -404,6 +458,10 @@ private class NativeAskPanel(
   private val scroll = ScrollView(context)
   private val draft = EditText(context)
   private val sendButton = Button(context)
+  private val providersButton = Button(context)
+  private val consentPanel = LinearLayout(context)
+  private var recipients: List<Pair<String, String>> = emptyList()
+  private var consented = false
   private val turns = mutableListOf<NativeAskTurn>()
   private var conversationID = ""
   private var signedIn = false
@@ -416,6 +474,11 @@ private class NativeAskPanel(
     buildHeader()
     buildAccountStatus()
     buildProviderStatus()
+    consentPanel.orientation = VERTICAL
+    consentPanel.visibility = View.GONE
+    consentPanel.setPadding(14, 12, 14, 12)
+    consentPanel.background = rounded(Color.rgb(32, 32, 44), 14f)
+    addView(consentPanel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = 8 })
     messages.orientation = VERTICAL
     messages.setPadding(0, 12, 0, 24)
     scroll.addView(messages, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
@@ -465,6 +528,75 @@ private class NativeAskPanel(
     linkButton.visibility = View.GONE
     linkButton.setOnClickListener { onLinkAccount() }
     addView(linkButton, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    providersButton.text = "AI providers"
+    providersButton.visibility = View.GONE
+    providersButton.setOnClickListener { NativeSafety.run("Ask providers") { showConsent(review = true) } }
+    addView(providersButton, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+  }
+
+  /** The consent screen. Nothing is sent to the Ask server until Allow. */
+  private fun showConsent(review: Boolean) {
+    consentPanel.removeAllViews()
+    fun line(text: String, size: Float, color: Int, bold: Boolean = false) = TextView(context).apply {
+      this.text = text
+      textSize = size
+      setTextColor(color)
+      if (bold) setTypeface(typeface, Typeface.BOLD)
+      setPadding(0, 4, 0, 4)
+    }
+    consentPanel.addView(line("Ask uses outside AI services", 16f, Color.WHITE, bold = true))
+    consentPanel.addView(line(
+      "Ask answers with AI models run by other companies. When you send a question, it goes to one of the " +
+        "services below. What they receive: the text you type, earlier messages in the same chat, and, if you " +
+        "ask about your own character, your own game records. Your username, email and account IDs are not sent.",
+      13f, Color.LTGRAY))
+    for ((name, detail) in recipients) {
+      consentPanel.addView(line(name, 14f, Color.WHITE, bold = true))
+      if (detail.isNotBlank()) consentPanel.addView(line(detail, 12f, Color.GRAY))
+    }
+    consentPanel.addView(line(
+      "Each service has its own terms and data handling. Every answer shows which model and service wrote it. " +
+        "Privacy notice: ${NativeAskConsent.PRIVACY_URL}",
+      12f, Color.LTGRAY))
+    val primary = Button(context)
+    if (review) {
+      primary.text = "Keep using Ask"
+      primary.setOnClickListener { NativeSafety.run("Ask consent keep") { hideConsent() } }
+      val withdraw = Button(context).apply {
+        text = "Withdraw permission"
+        setOnClickListener {
+          NativeSafety.run("Ask consent withdraw") {
+            NativeAskConsent.withdraw(context)
+            consented = false
+            showConsent(review = false)
+          }
+        }
+      }
+      consentPanel.addView(primary)
+      consentPanel.addView(withdraw)
+    } else {
+      primary.text = "Allow and continue"
+      primary.setOnClickListener {
+        NativeSafety.run("Ask consent allow") {
+          NativeAskConsent.grant(context, recipients)
+          consented = true
+          hideConsent()
+        }
+      }
+      consentPanel.addView(primary)
+      consentPanel.addView(line("Ask sends nothing until you allow it.", 12f, Color.GRAY))
+    }
+    consentPanel.visibility = View.VISIBLE
+    scroll.visibility = View.GONE
+    providersButton.visibility = View.GONE
+    sendButton.isEnabled = false
+  }
+
+  private fun hideConsent() {
+    consentPanel.visibility = View.GONE
+    scroll.visibility = View.VISIBLE
+    providersButton.visibility = if (consented) View.VISIBLE else View.GONE
+    sendButton.isEnabled = signedIn && consented && !sending
   }
 
   private fun buildProviderStatus() {
@@ -506,12 +638,15 @@ private class NativeAskPanel(
       try {
         val profile = api.connect()
         val name = profileName(profile)
+        val listed = NativeAskConsent.recipients(profile)
         mainHandler.post {
           NativeSafety.run("Ask session success UI") {
             signedIn = true
+            recipients = listed
+            consented = NativeAskConsent.granted(context, listed)
             accountLabel.text = "Signed in as ${name.ifBlank { "linked game account" }}"
             accountLabel.setTextColor(Color.rgb(168, 220, 205))
-            sendButton.isEnabled = true
+            if (consented) hideConsent() else showConsent(review = false)
           }
         }
       } catch (failure: Exception) {
@@ -531,7 +666,7 @@ private class NativeAskPanel(
 
   private fun send() {
     val question = draft.text.toString().trim()
-    if (!signedIn || sending || question.length !in 5..500) return
+    if (!signedIn || !consented || sending || question.length !in 5..500) return
     val turn = NativeAskTurn(question, "")
     turns += turn
     val answerView = addTurn(question)
@@ -568,7 +703,7 @@ private class NativeAskPanel(
             answerView.text = formatAnswer(result)
             if (result.conversationID.isNotBlank()) conversationID = result.conversationID
             sending = false
-            sendButton.isEnabled = true
+            sendButton.isEnabled = consented
             statusLabel.text = evidenceStatus(result)
             statusLabel.visibility = View.VISIBLE
             scrollToBottom()
