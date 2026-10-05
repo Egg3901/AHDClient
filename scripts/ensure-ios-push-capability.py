@@ -64,7 +64,7 @@ def main() -> int:
         print(f"FAIL: expected one App ID {BUNDLE_ID}, found {len(bundles)}")
         return 1
     bundle = bundles[0]["id"]
-    capabilities = call("GET", f"/bundleIds/{bundle}/bundleIdCapabilities?limit=200", auth)["data"]
+    capabilities = call("GET", f"/bundleIds/{bundle}/bundleIdCapabilities", auth)["data"]
     kinds = sorted(item["attributes"]["capabilityType"] for item in capabilities)
     print(f"{BUNDLE_ID} capabilities: {', '.join(kinds) or 'none'}")
     if "PUSH_NOTIFICATIONS" in kinds:
