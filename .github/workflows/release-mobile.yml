@@ -13,6 +13,12 @@ on:
         required: false
         default: false
         type: boolean
+      ios_runner:
+        description: macOS image for the iOS job (Intel when arm64 capacity is short)
+        required: false
+        default: macos-latest
+        type: choice
+        options: [macos-latest, macos-15-intel]
   push:
     tags:
       - "v*"
@@ -110,7 +116,9 @@ jobs:
           if-no-files-found: error
 
   ios:
-    runs-on: macos-latest
+    # Hosted arm64 macOS can run out of capacity ("not acquired by Runner");
+    # a manual dispatch can pick the Intel image instead.
+    runs-on: ${{ inputs.ios_runner || 'macos-latest' }}
     env:
       # App Store Connect needs a new CFBundleVersion for every upload of the
       # same app version. Set before `ios init` so the widget extension, which
