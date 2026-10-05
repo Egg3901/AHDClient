@@ -1,0 +1,36 @@
+name: App Review demo account
+
+# Sets the demo sign-in on the editable App Store version. The password comes
+# from the ASC_DEMO_PASSWORD repository secret; workflow inputs are visible in
+# public run logs, so only the username is an input.
+on:
+  workflow_dispatch:
+    inputs:
+      demo_user:
+        description: Demo account username or email
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  set:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set the App Review demo account
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          DEMO_USER: ${{ inputs.demo_user }}
+          DEMO_PASSWORD: ${{ secrets.ASC_DEMO_PASSWORD }}
+        run: |
+          key="$RUNNER_TEMP/AuthKey.p8"
+          echo "$APPLE_API_KEY_CONTENT" | base64 -d > "$key"
+          export APPLE_API_KEY_PATH="$key"
+          python3 -m venv "$RUNNER_TEMP/asc"
+          "$RUNNER_TEMP/asc/bin/pip" install --quiet --disable-pip-version-check 'pyjwt[crypto]'
+          "$RUNNER_TEMP/asc/bin/python" scripts/asc-review-demo.py
+          rm -f "$key"
