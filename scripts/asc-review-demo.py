@@ -66,6 +66,15 @@ def list_versions(auth: str) -> int:
             print(f"  version id={version['id']} platform={v.get('platform')} versionString={v.get('versionString')!r} "
                   f"appStoreState={v.get('appStoreState')} appVersionState={v.get('appVersionState')} "
                   f"created={v.get('createdDate')} build={build_text} demoAccount={demo!r}")
+        builds = call("GET", "/builds?" + urllib.parse.urlencode({
+            "filter[app]": app["id"], "sort": "-uploadedDate", "limit": 5, "include": "preReleaseVersion"}), auth)
+        trains = {item["id"]: item["attributes"].get("version")
+                  for item in builds.get("included", []) if item["type"] == "preReleaseVersions"}
+        for build in builds["data"]:
+            b = build["attributes"]
+            train = (build.get("relationships", {}).get("preReleaseVersion", {}).get("data") or {}).get("id")
+            print(f"  build {b.get('version')} of {trains.get(train)!r} processingState={b.get('processingState')} "
+                  f"uploaded={b.get('uploadedDate')}")
     return 0
 
 
