@@ -3,6 +3,12 @@ import Foundation
 public struct SSEEvent: Equatable, Sendable {
     public let name: String
     public let data: String
+    /// Public so a JSON answer (cached or short-circuited by the server) can
+    /// flow through the same handler as a streamed one.
+    public init(name: String, data: String) {
+        self.name = name
+        self.data = data
+    }
 }
 
 /// Byte-oriented framing preserves blank lines and UTF-8 across network chunks.

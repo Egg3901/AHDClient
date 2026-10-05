@@ -7,7 +7,12 @@ enum Surface {
     case ask, ops, hub
     var title: String { self == .ask ? "Lakeside Ask" : "Lakeside Ops" }
     var host: String { self == .ask ? "ask.lakesidegames.net" : self == .hub ? "hub.lakesidegames.net" : "ops.lakesidegames.net" }
-    var base: URL { URL(string: "https://\(host)")! }
+    /// Endpoint.url rejects anything that is not https, so the unreachable
+    /// fallback fails closed instead of crashing.
+    var base: URL {
+        var components = URLComponents(); components.scheme = "https"; components.host = host
+        return components.url ?? URL(fileURLWithPath: "/")
+    }
     var cookie: String { self == .ask ? "__Host-ask_session" : self == .hub ? "agency_session" : "ops_session" }
     var cookies: [String] { self == .ask ? ["__Host-lakeside_session", cookie] : [cookie] }
     var login: String { self == .ask ? "/auth/login" : self == .hub ? "/auth/game" : "/" }
@@ -17,7 +22,31 @@ enum Surface {
 struct AppFailure: LocalizedError {
     let message: String
     var statusCode: Int? = nil
+    var kind: FailureKind? = nil
     var errorDescription: String? { message }
+}
+
+extension Error {
+    /// What went wrong, including transport failures that stay URLError so
+    /// callers can keep their own retry rules.
+    var failureKind: FailureKind? {
+        if let failure = self as? AppFailure { return failure.kind ?? failure.statusCode.map { FailureKind.classify(status: $0, payload: .null) } }
+        guard let url = self as? URLError else { return nil }
+        switch url.code {
+        case .cancelled: return nil
+        case .badServerResponse, .cannotParseResponse, .cannotDecodeContentData, .cannotDecodeRawData: return .unexpectedResponse
+        case .userAuthenticationRequired: return .signedOut
+        default: return .network
+        }
+    }
+    /// A truthful message: transport failures read as connection problems,
+    /// not as a sign-in or server fault.
+    var displayMessage: String {
+        if let failure = self as? AppFailure { return failure.message }
+        if self is DecodingError { return FailureKind.unexpectedResponse.defaultMessage }
+        if let kind = failureKind { return kind.defaultMessage }
+        return localizedDescription
+    }
 }
 
 private struct Credential: Codable {
@@ -99,7 +128,8 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         do {
             let me = try await get("/api/me")
             try Task.checkCancellation()
-            try Vault.write(JSONEncoder().encode(credential!), surface: surface)
+            guard let credential else { throw AppFailure(message: "Sign-in did not return a valid session.", kind: .signedOut) }
+            try Vault.write(JSONEncoder().encode(credential), surface: surface)
             profile = me; error = nil; signedIn = true
         } catch { credential = nil; throw error }
     }
@@ -135,12 +165,14 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if http.statusCode == 401 {
             credential = nil; Vault.clear(surface); signedIn = false; profile = .null
-            throw AppFailure(message: "Your session expired. Sign in again.", statusCode: 401)
+            throw AppFailure(message: FailureKind.signedOut.defaultMessage, statusCode: 401, kind: .signedOut)
         }
         guard (200..<300).contains(http.statusCode) else {
-            if let data, let payload = try? JSONDecoder().decode(JSONValue.self, from: data) { updateUsage(payload["usage"]) }
-            let message = data.flatMap { try? JSONDecoder().decode(JSONValue.self, from: $0)["error"].string }
-            throw AppFailure(message: message.flatMap { $0.isEmpty ? nil : $0 } ?? "The server returned HTTP \(http.statusCode).", statusCode: http.statusCode)
+            let payload = data.flatMap { try? JSONDecoder().decode(JSONValue.self, from: $0) } ?? .null
+            updateUsage(payload["usage"])
+            let kind = FailureKind.classify(status: http.statusCode, payload: payload)
+            let message = payload["error"].string.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw AppFailure(message: message.isEmpty ? kind.defaultMessage : message, statusCode: http.statusCode, kind: kind)
         }
     }
     func get(_ path: String, query: [String: String] = [:]) async throws -> JSONValue {
@@ -162,8 +194,18 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
     private func json(_ request: URLRequest) async throws -> JSONValue {
         let (data, response) = try await transport.data(for: request)
         try validate(response, data: data)
-        guard response.mimeType == "application/json" else { throw AppFailure(message: "The server returned a login page instead of data. Please sign in again.") }
-        return try JSONDecoder().decode(JSONValue.self, from: data)
+        return try decodeJSON(data, response: response)
+    }
+    private func decodeJSON(_ data: Data, response: URLResponse) throws -> JSONValue {
+        let type = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? response.mimeType
+        guard MediaType.isJSON(type) || MediaType.isJSON(response.mimeType) else {
+            let message = MediaType.isHTML(type)
+                ? "The server returned a web page instead of data. Try again; if it continues, sign out and sign in again."
+                : FailureKind.unexpectedResponse.defaultMessage
+            throw AppFailure(message: message, kind: .unexpectedResponse)
+        }
+        do { return try JSONDecoder().decode(JSONValue.self, from: data) }
+        catch { throw AppFailure(message: FailureKind.unexpectedResponse.defaultMessage, kind: .unexpectedResponse) }
     }
     func renderMap(_ specification: JSONValue) async throws -> Data {
         var r = try request("/api/map/render", body: specification.object)
@@ -193,11 +235,20 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         var r = try request("/api/ask", body: body); r.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         let (bytes, response) = try await transport.bytes(for: r)
         defer { bytes.task.cancel() }
-        if (response as? HTTPURLResponse)?.statusCode != 200 || response.mimeType != "text/event-stream" {
+        let type = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? response.mimeType
+        if (response as? HTTPURLResponse)?.statusCode != 200 || !MediaType.isEventStream(type) {
             var data = Data()
-            for try await byte in bytes { data.append(byte); if data.count > 65536 { break } }
+            for try await byte in bytes { data.append(byte); if data.count > 4 * 1024 * 1024 { break } }
             try validate(response, data: data)
-            throw AppFailure(message: "The server did not start an answer stream.")
+            // Cached answers arrive as one JSON object with the `done` fields. A
+            // Stop that reached the server before generation began returns
+            // `{ "stopped": true }`.
+            let answer = try decodeJSON(data, response: response)
+            let text = String(decoding: data, as: UTF8.self)
+            if answer["stopped"].bool { try onEvent(SSEEvent(name: "stopped", data: text)); return }
+            guard !answer["answer"].string.isEmpty else { throw AppFailure(message: "The server did not start an answer.", kind: .unexpectedResponse) }
+            try onEvent(SSEEvent(name: "done", data: text))
+            return
         }
         var parser = SSEParser()
         for try await byte in bytes {
@@ -207,6 +258,6 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
                 if event.name == "done" { return }
             }
         }
-        throw AppFailure(message: "The connection ended before the answer finished. Reload the conversation to check whether it was saved.")
+        throw AppFailure(message: "The connection ended before the answer finished. Reload the conversation to check whether it was saved.", kind: .network)
     }
 }

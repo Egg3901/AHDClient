@@ -22,6 +22,7 @@ final class LaunchTests: XCTestCase {
             let composer = app.textFields["ask-composer"].exists ? app.textFields["ask-composer"] : app.textViews["ask-composer"]
             XCTAssertTrue(composer.waitForExistence(timeout: 5)); composer.tap(); composer.typeText("What changes prices?")
             app.buttons["Send question"].tap()
+            allowOutsideAI(app)
             XCTAssertTrue(app.staticTexts["Verified final answer from the server."].waitForExistence(timeout: 10))
             XCTAssertFalse(app.staticTexts["A partial draft"].exists)
             capture(app, "Completed streamed answer")
@@ -38,19 +39,30 @@ final class LaunchTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["153.5 left"].exists)
         capture(app, "Ask allowance bars")
         app.buttons["Done"].tap()
-        app.buttons["Explore questions"].tap()
+        let explore = app.buttons["Explore questions"]
+        reveal(explore, in: app)
+        explore.tap()
         XCTAssertTrue(app.navigationBars["Explore questions"].waitForExistence(timeout: 5))
         capture(app, "Ask starter browser")
         app.buttons["Done"].tap()
-        app.staticTexts["How does inflation work?"].tap()
+        let conversation = app.staticTexts["How does inflation work?"]
+        reveal(conversation, in: app, upward: false)
+        conversation.tap()
         app.buttons["Answer options"].tap()
         XCTAssertTrue(app.staticTexts["Charts, diagrams, and maps"].waitForExistence(timeout: 5))
         capture(app, "Ask response options")
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["Verify"].exists)
+        let mode = app.buttons["Answer mode"]
+        XCTAssertTrue(mode.waitForExistence(timeout: 5)); mode.tap()
+        XCTAssertTrue(app.buttons["Verify"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Autopsy"].exists)
         XCTAssertTrue(app.buttons["Scenario"].exists)
+        XCTAssertTrue(app.buttons["Report"].exists)
+        capture(app, "Ask answer modes")
+        app.buttons["Report"].tap()
+        XCTAssertEqual(mode.value as? String, "Report")
         app.buttons["Share conversation"].tap()
+        XCTAssertTrue(app.buttons["Export as Markdown file"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Create public link"].waitForExistence(timeout: 5))
         app.buttons["Create public link"].tap()
         XCTAssertTrue(app.staticTexts["Your link is ready."].waitForExistence(timeout: 5))
@@ -284,10 +296,18 @@ final class LaunchTests: XCTestCase {
         guard app.tabBars.buttons["Work"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops board conflict") }
         app.tabBars.buttons["Work"].tap()
         let job = app.buttons["ops-kanban-card-job-1"]
-        XCTAssertTrue(job.waitForExistence(timeout: 10)); job.press(forDuration: 1)
+        XCTAssertTrue(job.waitForExistence(timeout: 10))
         let destination = app.buttons.matching(NSPredicate(format: "label == %@", "Move to In progress")).firstMatch
-        XCTAssertTrue(destination.waitForExistence(timeout: 5)); destination.tap()
         let pending = app.descendants(matching: .any)["ops-work-outbox"].firstMatch
+        // The context menu can still be animating when it first reports the
+        // item, and a tap then lands nowhere. Reopen it until the move is sent.
+        for _ in 0..<3 where !pending.exists {
+            job.press(forDuration: 1)
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true AND hittable == true"), object: destination)
+            guard XCTWaiter.wait(for: [ready], timeout: 5) == .completed else { continue }
+            destination.tap()
+            _ = pending.waitForExistence(timeout: 5)
+        }
         XCTAssertTrue(pending.waitForExistence(timeout: 10)); pending.tap()
         XCTAssertTrue(app.staticTexts["Conflict: Another device moved this card to Needs review."].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Dismiss intent"].exists)
@@ -350,6 +370,106 @@ final class LaunchTests: XCTestCase {
         }
         XCTAssertTrue(app.descendants(matching: .any)["ops-provider-freerouter"].firstMatch.isHittable)
         capture(app, "Ops route capacity large text")
+    }
+    // MARK: Lakeside Ask
+
+    /// Opens the fixture conversation. Returns false in the Ops app.
+    private func openAskConversation(_ app: XCUIApplication) -> Bool {
+        if app.tabBars.buttons["Team"].waitForExistence(timeout: 3) { return false }
+        let conversation = app.staticTexts["How does inflation work?"]
+        XCTAssertTrue(conversation.waitForExistence(timeout: 10)); conversation.tap()
+        XCTAssertTrue(app.staticTexts["Prices respond to supply and demand."].waitForExistence(timeout: 10))
+        return true
+    }
+    private func ask(_ text: String, in app: XCUIApplication) {
+        let composer = app.textFields["ask-composer"].exists ? app.textFields["ask-composer"] : app.textViews["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5)); composer.tap(); composer.typeText(text)
+        app.buttons["Send question"].tap()
+    }
+    private func allowOutsideAI(_ app: XCUIApplication) {
+        let allow = app.buttons["ask-consent-allow"]
+        if allow.waitForExistence(timeout: 5) { allow.tap() }
+    }
+    private func text(containing value: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", value)).firstMatch
+    }
+    func testAskConsentGateHoldsQuestionsUntilAllowed() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
+        guard openAskConversation(app) else { throw XCTSkip("Ask consent") }
+        ask("What changes prices?", in: app)
+        let allow = app.buttons["ask-consent-allow"]
+        XCTAssertTrue(allow.waitForExistence(timeout: 5), "A server question must wait for permission")
+        XCTAssertTrue(text(containing: "DeepSeek", in: app).exists, "Every outside service from /api/me must be listed")
+        capture(app, "Ask outside AI consent")
+        app.buttons["ask-consent-decline"].tap()
+        XCTAssertFalse(app.staticTexts["Verified final answer from the server."].waitForExistence(timeout: 2), "Declining must not send the question")
+        app.buttons["Send question"].tap()
+        XCTAssertTrue(allow.waitForExistence(timeout: 5)); allow.tap()
+        XCTAssertTrue(app.staticTexts["Verified final answer from the server."].waitForExistence(timeout: 10))
+        XCTAssertTrue(text(containing: "Verified source", in: app).exists)
+        capture(app, "Ask answer with sources")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10)); settings.tap()
+        let status = app.staticTexts["ask-consent-status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 10))
+        XCTAssertEqual(status.label, "Allowed")
+        capture(app, "Ask settings")
+        app.buttons["ask-settings-ai-providers"].tap()
+        let withdraw = app.buttons["ask-consent-withdraw"]
+        XCTAssertTrue(withdraw.waitForExistence(timeout: 5)); withdraw.tap()
+        app.buttons["Close"].tap()
+        let withdrawn = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Not allowed"), object: status)
+        XCTAssertEqual(XCTWaiter.wait(for: [withdrawn], timeout: 5), .completed)
+    }
+    func testAskWatchesListAndDelete() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
+        if app.tabBars.buttons["Team"].waitForExistence(timeout: 3) { throw XCTSkip("Ask watches") }
+        let watches = app.buttons["ask-watches"]
+        XCTAssertTrue(watches.waitForExistence(timeout: 10))
+        capture(app, "Ask home")
+        reveal(watches, in: app)
+        watches.tap()
+        let watch = app.staticTexts["USD/GBP crosses above 1.30"]
+        XCTAssertTrue(watch.waitForExistence(timeout: 10))
+        XCTAssertTrue(text(containing: "Watch USD/GBP and tell me", in: app).exists)
+        capture(app, "Ask watches")
+        app.buttons["ask-watch-delete-7"].tap()
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: watch)
+        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 10), .completed)
+        XCTAssertTrue(app.staticTexts["new war activity involving FR"].exists)
+    }
+    func testAskStopsAStreamingAnswer() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures", "--uitest-slow-stream"]; app.launch()
+        guard openAskConversation(app) else { throw XCTSkip("Ask stop") }
+        ask("What changes prices?", in: app)
+        allowOutsideAI(app)
+        let stop = app.buttons["Stop answer"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["A partial draft"].waitForExistence(timeout: 10))
+        capture(app, "Ask streaming answer")
+        stop.tap()
+        XCTAssertTrue(text(containing: "This answer was not saved and used no credits", in: app).waitForExistence(timeout: 10),
+                      "The server must confirm the stop before the app says no credits were used")
+        XCTAssertTrue(app.buttons["Send question"].waitForExistence(timeout: 5))
+        capture(app, "Ask stopped answer")
+    }
+    func testAskShowsQuotaErrorTruthfully() throws {
+        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures", "--uitest-quota"]; app.launch()
+        guard openAskConversation(app) else { throw XCTSkip("Ask errors") }
+        ask("What changes prices?", in: app)
+        allowOutsideAI(app)
+        XCTAssertTrue(app.staticTexts["Daily limit reached"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["You've used all 200 questions for today."].exists)
+        XCTAssertFalse(text(containing: "sign in again", in: app).exists, "A quota error is not a sign-in problem")
+        capture(app, "Ask quota error")
+    }
+    /// Scrolls until a list row is on screen. Lists create rows lazily.
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication, upward: Bool = true) {
+        for _ in 0..<6 {
+            if element.exists && element.isHittable { return }
+            if upward { app.swipeUp() } else { app.swipeDown() }
+        }
     }
     private func capture(_ app: XCUIApplication, _ name: String) {
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = name; screenshot.lifetime = .keepAlways; add(screenshot)

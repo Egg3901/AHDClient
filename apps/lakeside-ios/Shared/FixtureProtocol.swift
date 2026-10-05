@@ -59,6 +59,26 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         }
     }
     private static let company = CompanyState()
+    private final class WatchState: @unchecked Sendable {
+        let lock = NSLock()
+        var watches: [[String: Any]] = [
+            ["id": 7, "kind": "fx", "label": "USD/GBP crosses above 1.30", "createdAt": 1788825600000, "lastFiredAt": NSNull()],
+            ["id": 8, "kind": "war", "label": "new war activity involving FR", "createdAt": 1788825600000, "lastFiredAt": 1788912000000],
+        ]
+        func list() -> [String: Any] { lock.lock(); defer { lock.unlock() }; return ["watches": watches, "limit": 5] }
+        func delete(_ id: Any?) -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            func normalized(_ value: Any?) -> String {
+                if let number = value as? NSNumber { return String(number.int64Value) }
+                return value.map { "\($0)" } ?? ""
+            }
+            let key = normalized(id)
+            let before = watches.count
+            watches.removeAll { normalized($0["id"]) == key }
+            return watches.count < before
+        }
+    }
+    private static let watchState = WatchState()
     private static let work = WorkFixture()
 
     private func bodyObject() -> [String: Any]? {
@@ -100,7 +120,17 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
             }) else {
                 deliver(Data("{\"error\":\"Fixture requires session cookie\"}".utf8), url: url, status: 401, type: "application/json"); return
             }
-            value = isAsk ? ["identity": ["username": "Test operator"], "entitlement": ["allowed": true, "label": "Staff"], "usage": ["used": 46.5, "limit": 200, "remaining": 153.5, "mcpLimit": 40, "mcpRemaining": 12, "vizLimit": 10, "vizRemaining": 8, "resetAt": 1788912000000, "tier": "Staff"]] : ["email": "operator@example.test", "role": "admin"]
+            if isAsk {
+                let usage: [String: Any] = ["used": 46.5, "limit": 200, "remaining": 153.5, "mcpLimit": 40, "mcpRemaining": 12, "vizLimit": 10, "vizRemaining": 8, "resetAt": 1788912000000, "tier": "Staff"]
+                let providers: [[String: Any]] = [
+                    ["id": "google", "name": "Google", "detail": "Gemini models"],
+                    ["id": "deepseek", "name": "DeepSeek", "detail": "DeepSeek models, operated from China"],
+                ]
+                let profile: [String: Any] = ["identity": ["username": "Test operator"], "entitlement": ["allowed": true, "label": "Staff"], "usage": usage, "aiProviders": providers]
+                value = profile
+            } else {
+                value = ["email": "operator@example.test", "role": "admin"]
+            }
         case "/api/ops/bootstrap": value = ["cursor": 0, "conversation": ["id": 1], "conversations": [["id": 1, "title": "Build the studio hub"]], "staff": [["id": "staff-1", "name": "Release engineer", "role": "Maintain release quality", "provider": "auto"]], "workers": [["id": "worker-1", "name": "Export repair", "brief": "Repair and verify the export flow.", "job_status": "completed", "runtime_provider": "codex", "permissions": [], "result": "Export fixed. All checks passed."]]]
         case "/api/chat/turns": value = ["turns": [["id": 1, "role": "owner", "body": "Help me build the studio hub.", "status": "done"], ["id": 2, "role": "assistant", "body": "The export worker has finished. I am checking the changes before accepting them.", "status": "done", "route": ["label": "Muse"], "actions": [["name": "bash", "label": "Run export checks", "command": "npm test", "output": "All 12 checks passed", "state": "completed", "exitCode": 0]]]]]
             if ProcessInfo.processInfo.arguments.contains("--uitest-live-activity") {
@@ -144,7 +174,12 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
         case "/api/nextcost": value = ["cost": 0.5, "followup": 1, "followupsLeft": 2]
         case "/api/conversation/share": value = ["ok": true, "url": "https://example.test/shared-conversation"]
         case "/api/conversations":
-            if isAsk { value = ["conversations": [["id": "fixture-conversation", "title": "How does inflation work?", "updated": 1788825600000]]] }
+            if isAsk {
+                let rows: [[String: Any]] = [["id": "fixture-conversation", "title": "How does inflation work?", "updated": 1788825600000, "pinned": false]]
+                if let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "q" })?.value {
+                    value = ["conversations": rows.filter { ($0["title"] as? String ?? "").localizedCaseInsensitiveContains(query) || query.localizedCaseInsensitiveContains("prices") }, "query": query]
+                } else { value = ["conversations": rows] }
+            }
             else { value = ["conversations": [["id": 1, "title": "Build the studio hub"]], "conversation": ["id": 1]] }
         case "/api/ops/workspaces": value = ["workspaces": [["workspaceId": "w1", "title": "Studio hub", "isolation": "worktree"]]]
         case "/api/ops/files": value = ["entries": [["name": "app.swift", "path": "app.swift", "directory": false]]]
@@ -187,6 +222,20 @@ xychart-beta
 """#
                 value = ["turns": [["id": 42, "question": "Show the economy", "answer": answer]]]
             }
+        case "/api/watches" where isAsk: value = Self.watchState.list()
+        case "/api/watches/delete" where isAsk:
+            value = ["ok": Self.watchState.delete(bodyObject()?["id"])]
+        case "/api/reports" where isAsk:
+            value = ["reports": [["token": "fixture-report", "title": "Fixture economy report", "createdAt": 1788825600000, "url": "/r/fixture-report"]]]
+        case "/api/ask/stop":
+            let body = bodyObject() ?? [:]
+            value = ["ok": (body["reqId"] as? String)?.isEmpty == false]
+        case "/api/ask" where ProcessInfo.processInfo.arguments.contains("--uitest-quota"):
+            status = 429
+            value = ["error": "You've used all 200 questions for today.", "quota": true, "usage": ["used": 200, "limit": 200, "remaining": 0]]
+        case "/api/ask" where ProcessInfo.processInfo.arguments.contains("--uitest-slow-stream"):
+            let partial = "event: meta\ndata: {\"convId\":\"fixture-conversation\",\"reqId\":\"fixture-request\",\"status\":\"Reading sources\"}\n\nevent: delta\ndata: \"A partial draft\"\n\n"
+            deliver(Data(partial.utf8), url: url, status: 200, type: "text/event-stream", finish: false); return
         case "/api/ask":
             let body = #"""
 event: meta
@@ -206,13 +255,16 @@ data: {"convId":"fixture-conversation","answerId":43,"answer":"Verified final an
         case "/api/code/tmux/test-agent/capture": value = ["transcript": ["turns": [["user": "Check the deployment", "blocks": [["type": "text", "text": "Deployment checks passed."]]]]]]
         case "/api/code/tmux/test-agent/message": value = ["ok": true, "queued": true]
         case "/api/tickets": value = ["items": [["_id": "ticket-1", "ticketNumber": 123, "title": "Example ticket", "description": "A reproducible issue", "status": "open"]], "page": 1, "totalPages": 1]
-        case "/api/logout", "/auth/logout", "/api/answer/feedback", "/api/ask/stop": value = ["ok": true]
+        case "/api/logout", "/auth/logout", "/api/answer/feedback": value = ["ok": true]
         default: status = 404
         }
         deliver((try? JSONSerialization.data(withJSONObject: value)) ?? Data(), url: url, status: status, type: "application/json")
     }
     private func deliver(_ data: Data, url: URL, status: Int, type: String, finish: Bool = true) {
-        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": type])!, cacheStoragePolicy: .notAllowed)
+        guard let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": type]) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse)); return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: data); if finish { client?.urlProtocolDidFinishLoading(self) }
     }
     override func stopLoading() {}
