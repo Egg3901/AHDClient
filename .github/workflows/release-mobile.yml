@@ -154,6 +154,9 @@ jobs:
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM || 'XXXXXXXXXX' }}
         run: ruby scripts/configure-ios-widgets.rb
 
+      - name: Check the push entitlement in the Xcode project
+        run: python3 scripts/check-ios-push-project.py
+
       - name: Check widget Swift sources
         run: |
           swift package --package-path apps/desktop/src-tauri/plugins/briefing-widgets/ios dump-package > /dev/null
@@ -201,6 +204,19 @@ jobs:
             echo "mode=simulator" >> "$GITHUB_OUTPUT"
           fi
 
+      # Automatic signing only adds aps-environment to the App Store profile
+      # when the App ID has the capability; without it every device fails
+      # registerForRemoteNotifications. Prints capability names only.
+      - name: Enable Push Notifications on the App ID
+        if: steps.signing.outputs.mode == 'store'
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/asc"
+          "$RUNNER_TEMP/asc/bin/pip" install --quiet --disable-pip-version-check 'pyjwt[crypto]'
+          "$RUNNER_TEMP/asc/bin/python" scripts/ensure-ios-push-capability.py
+
       - name: Build the App Store archive
         if: steps.signing.outputs.mode == 'store'
         env:
@@ -215,6 +231,12 @@ jobs:
           ipa=$(find apps/desktop/src-tauri/gen/apple/build/arm64 -type f -name '*.ipa' -print -quit)
           test -n "$ipa"
           python3 scripts/verify-ios-widget-bundle.py "$ipa"
+
+      - name: Verify the push entitlement in the signed IPA
+        if: steps.signing.outputs.mode == 'store'
+        run: |
+          ipa=$(find apps/desktop/src-tauri/gen/apple/build/arm64 -type f -name '*.ipa' -print -quit)
+          python3 scripts/verify-ios-push-entitlement.py "$ipa"
 
       # Signed builds exist only for an explicit TestFlight upload. They are
       # never retained as GitHub artifacts because Apple embeds the account

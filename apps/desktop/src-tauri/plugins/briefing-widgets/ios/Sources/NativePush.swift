@@ -92,14 +92,27 @@ final class NativePush: NSObject, UNUserNotificationCenterDelegate, URLSessionTa
     let success: @convention(block) (AnyObject, UIApplication, NSData) -> Void = { _, _, data in
       DispatchQueue.main.async { NativePush.shared.receivedToken(data as Data) }
     }
-    let failure: @convention(block) (AnyObject, UIApplication, NSError) -> Void = { _, _, _ in
+    let failure: @convention(block) (AnyObject, UIApplication, NSError) -> Void = { _, _, error in
       DispatchQueue.main.async {
         NativePush.shared.registering = false
-        NativePush.shared.message = "Could not register with Apple. Try again when online."
+        NativePush.shared.message = NativePush.describe(error)
       }
     }
     installed = class_addMethod(cls, registered, imp_implementationWithBlock(success), "v@:@@") &&
       class_addMethod(cls, failed, imp_implementationWithBlock(failure), "v@:@@")
+  }
+  /// Apple's own reason, so a build or entitlement fault is not mistaken for
+  /// being offline. Codes are from NSCocoaErrorDomain (3000 = the signed app
+  /// has no aps-environment entitlement, 3010 = simulator).
+  static func describe(_ error: NSError) -> String {
+    let reason = "\(error.localizedDescription) (\(error.domain) \(error.code))"
+    if error.domain == NSCocoaErrorDomain && error.code == 3000 {
+      return "This build is not set up for push alerts. Update the app, then try again. " + reason
+    }
+    let offline = error.domain == NSURLErrorDomain
+      || (error.userInfo[NSUnderlyingErrorKey] as? NSError)?.domain == NSURLErrorDomain
+    return offline ? "Could not reach Apple. Try again when online. " + reason
+      : "Apple declined push registration: " + reason
   }
   func status() -> [String: Any] {
     let session = (BriefingStore.session() ?? "")
