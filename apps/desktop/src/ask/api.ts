@@ -18,10 +18,19 @@ export interface AskUsage {
   followupCost?: number;
 }
 
+/** An outside company that may receive a question, from /api/me. */
+export interface AskProvider {
+  id?: string;
+  name: string;
+  detail?: string;
+  url?: string | null;
+}
+
 export interface AskMe {
   identity?: { username?: string | null } | null;
   entitlement?: { allowed?: boolean; label?: string | null } | null;
   usage: AskUsage | null;
+  aiProviders?: AskProvider[];
 }
 
 export interface AskConversation {
@@ -50,6 +59,7 @@ export interface AskAnswer {
   followupsLeft?: number;
   model?: string;
   modelName?: string;
+  providerName?: string;
   cached?: boolean;
   usedMcp?: boolean;
   liveSources?: AskLiveSource[];
@@ -256,4 +266,26 @@ export function resetIn(resetAt: number, now: number = Date.now()): string {
 export function quotaLabel(usage: AskUsage | null): string {
   if (!usage) return "";
   return `${usage.remaining} of ${usage.limit} left`;
+}
+
+/**
+ * Sanitized provider list off /api/me. Anything without a name is dropped, so
+ * a malformed entry can never render as a blank row on the consent screen.
+ */
+export function providersIn(value: unknown): AskProvider[] | null {
+  if (!value || typeof value !== "object" || !("aiProviders" in value)) return null;
+  const list = (value as { aiProviders?: unknown }).aiProviders;
+  if (!Array.isArray(list)) return null;
+  const out: AskProvider[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    if (typeof record.name !== "string" || !record.name.trim()) continue;
+    const provider: AskProvider = { name: record.name };
+    if (typeof record.id === "string") provider.id = record.id;
+    if (typeof record.detail === "string" && record.detail) provider.detail = record.detail;
+    if (typeof record.url === "string" && /^https:\/\//.test(record.url)) provider.url = record.url;
+    out.push(provider);
+  }
+  return out.length ? out : null;
 }

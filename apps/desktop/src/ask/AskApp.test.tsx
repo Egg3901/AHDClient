@@ -37,6 +37,10 @@ vi.mock("./api.js", () => ({
     ),
   usageFromError: (error: unknown) =>
     error && typeof error === "object" && "usage" in error ? (error as { usage?: unknown }).usage ?? null : null,
+  providersIn: (value: unknown) => {
+    const list = value && typeof value === "object" ? (value as { aiProviders?: unknown }).aiProviders : undefined;
+    return Array.isArray(list) && list.length ? list : null;
+  },
   AskError: class AskError extends Error {},
 }));
 
@@ -48,6 +52,7 @@ vi.mock("@tauri-apps/api/event", () => ({
 import { AskApp } from "./AskApp.js";
 import { ASK_SESSION_CACHE_KEY } from "./session.js";
 import { saveCachedAskSession } from "./session.js";
+import { FALLBACK_PROVIDERS, saveAskConsent } from "./consent.js";
 
 const baseUsage = {
   used: 3,
@@ -77,6 +82,8 @@ function deferred<T>() {
 
 beforeEach(() => {
   localStorage.clear();
+  // Most tests are about the panel after permission; consent has its own block.
+  saveAskConsent(FALLBACK_PROVIDERS);
   mocks.streamHandler = null;
   mocks.askMe.mockReset().mockResolvedValue(me("marshall", baseUsage));
   mocks.askConversations.mockReset().mockResolvedValue({ conversations: [], usage: null });
@@ -216,5 +223,72 @@ describe("ask quota updates", () => {
     await waitFor(() => expect(screen.getByText("0 of 10 left", { exact: false })).toBeTruthy());
 
     refresh.resolve(me("marshall", spent));
+  });
+});
+
+describe("ask AI provider consent", () => {
+  const providers = [
+    { id: "muse", name: "Meta", detail: "Muse Spark models" },
+    { id: "deepseek", name: "DeepSeek", detail: "DeepSeek models, operated from China" },
+  ];
+
+  it("names the providers and sends nothing until the player allows it", async () => {
+    localStorage.clear();
+    mocks.askMe.mockResolvedValue({ ...me("marshall", baseUsage), aiProviders: providers });
+
+    render(<AskApp />);
+
+    await waitFor(() => expect(screen.getByText("Ask uses outside AI services")).toBeTruthy());
+    expect(screen.getByText("Meta")).toBeTruthy();
+    expect(screen.getByText("DeepSeek models, operated from China")).toBeTruthy();
+    expect(screen.queryByLabelText("Ask a question")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Allow and continue" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Ask a question")).toBeTruthy());
+    expect(mocks.askSend).not.toHaveBeenCalled();
+  });
+
+  it("asks again when the provider list changes", async () => {
+    localStorage.clear();
+    saveAskConsent(providers);
+    mocks.askMe.mockResolvedValue({
+      ...me("marshall", baseUsage),
+      aiProviders: [...providers, { id: "google", name: "Google", detail: "Gemini models" }],
+    });
+
+    render(<AskApp />);
+
+    await waitFor(() => expect(screen.getByText("Ask uses outside AI services")).toBeTruthy());
+    expect(screen.getByText("Google")).toBeTruthy();
+  });
+
+  it("lets the player review and withdraw permission", async () => {
+    render(<AskApp />);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "AI providers" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "AI providers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw permission" }));
+
+    expect(screen.getByRole("button", { name: "Allow and continue" })).toBeTruthy();
+    expect(screen.queryByLabelText("Ask a question")).toBeNull();
+  });
+
+  it("shows which model and service wrote each answer", async () => {
+    render(<AskApp />);
+
+    await waitFor(() => expect((screen.getByLabelText("Ask a question") as HTMLTextAreaElement).disabled).toBe(false));
+    fireEvent.change(screen.getByLabelText("Ask a question"), { target: { value: "How do elections work?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(mocks.askSend).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.streamHandler).not.toBeNull());
+
+    mocks.streamHandler!({
+      reqId: "req-1",
+      kind: "done",
+      data: { answer: "They run on a calendar.", modelName: "DeepSeek V4 Flash", providerName: "Ollama Cloud" },
+    });
+
+    await waitFor(() => expect(screen.getByText("DeepSeek V4 Flash · Ollama Cloud")).toBeTruthy());
   });
 });

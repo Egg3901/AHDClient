@@ -921,7 +921,8 @@ export function App(): JSX.Element {
         runningSlot={info.running ? info.slot : null}
         continueBusy={busy}
         sandboxGate={sandboxGate}
-        sandboxAvailable={!mobile || Boolean(account?.supporter)}
+        // Supporter perk bought outside the App Store: desktop only (3.1.1).
+        sandboxAvailable={!mobile}
         onLinkAccount={linkAccount}
         // Store builds may not point players at an outside purchase.
         onUpgradeSupporter={
