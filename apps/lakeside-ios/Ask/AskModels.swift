@@ -32,9 +32,8 @@ enum AskConsentStore {
     @Published var reportItems: [JSONValue] = []
 
     func refresh(_ session: AppSession) async {
-        async let watchResult = load(session, "/api/watches")
-        async let reportResult = load(session, "/api/reports")
-        let (watchList, reportList) = await (watchResult, reportResult)
+        let watchList = await load(session, "/api/watches")
+        let reportList = await load(session, "/api/reports")
         apply(watchList, state: \.watches) { value in applyWatches(value) }
         apply(reportList, state: \.reports) { value in reportItems = value["reports"].array }
     }

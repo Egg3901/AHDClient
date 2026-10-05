@@ -150,9 +150,8 @@ struct AskConversation: View {
             conversationID = initialID
             if draft.isEmpty { draft = initialQuestion }
             if let initialLive { live = initialLive }
-            async let gameList = try? session.get("/api/games")
             await loadTurns()
-            games = (await gameList)?["games"].array ?? []
+            if let list = try? await session.get("/api/games") { games = list["games"].array }
             await refreshCost()
         }
         .onDisappear { leave() }

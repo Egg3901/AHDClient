@@ -179,16 +179,14 @@ struct AskHome: View {
 
     private func refresh() async {
         loading = true; defer { loading = false }
-        async let gameList = try? session.get("/api/games")
-        async let library: Void = features.refresh(session)
         do {
             let result = try await session.get("/api/conversations")
             conversations = result["conversations"].array
             session.updateUsage(result["usage"])
             problem = nil
         } catch { if !Task.isCancelled { problem = AskProblem(error) } }
-        _ = await library
-        if let list = await gameList?["games"].array, !list.isEmpty { games = list }
+        await features.refresh(session)
+        if let list = (try? await session.get("/api/games"))?["games"].array, !list.isEmpty { games = list }
     }
 
     /// Server full-text search when the server supports it; otherwise the
