@@ -14,7 +14,7 @@ on:
         default: false
         type: boolean
       ios_runner:
-        description: macOS image for the iOS job (Intel when arm64 capacity is short)
+        description: macOS image for the iOS job (Intel only if it has Xcode 26)
         required: false
         default: macos-latest
         type: choice
@@ -127,6 +127,20 @@ jobs:
       TAURI_CONFIG: '{"bundle":{"iOS":{"bundleVersion":"${{ github.run_number }}"}}}'
     steps:
       - uses: actions/checkout@v4
+
+      # App Store Connect rejects uploads built with an SDK older than iOS 26
+      # (Xcode 26). Pick the newest installed Xcode 26 and stop early when the
+      # image has none, instead of failing at upload after a full build.
+      - name: Select Xcode 26
+        run: |
+          xcode=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
+          if [ -z "$xcode" ]; then
+            echo "No Xcode 26 on this runner image; App Store uploads need the iOS 26 SDK."
+            ls -d /Applications/Xcode*.app || true
+            exit 1
+          fi
+          sudo xcode-select -s "$xcode/Contents/Developer"
+          xcrun --sdk iphoneos --show-sdk-version
 
       - uses: actions/setup-node@v4
         with:
