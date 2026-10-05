@@ -1,6 +1,7 @@
 import Foundation
 import Security
 import CryptoKit
+import ImageIO
 
 // Compiled into both the app plugin and the WidgetKit extension. Only these
 // fields can be saved; neither the raw API response nor session cookies are
@@ -70,6 +71,12 @@ struct SavedBriefing: Codable {
   var updatedAt: Date
   var sessionId: String
   var data: BriefingStatus
+  /// Small re-encoded thumbnails keyed by role ("avatar", "corporation",
+  /// "stocks"). WidgetKit renders synchronously, so AsyncImage never loads;
+  /// the refresh downloads them once and the widget draws the stored bytes.
+  var images: [String: Data]?
+  /// The URL each thumbnail came from, so an unchanged image is not refetched.
+  var imageSources: [String: String]?
 }
 
 enum BriefingStore {
@@ -188,12 +195,77 @@ enum BriefingStore {
             safe.tickerSymbol = safe.tickerSymbol.map { String($0.prefix(8)) }
             return safe
           }
-          let saved = SavedBriefing(updatedAt: Date(), sessionId: fingerprint(cookie), data: data)
-          save(saved)
-          finish(saved)
+          let wanted = [("avatar", data.avatarUrl), ("corporation", data.corpNav?.logoUrl),
+            ("stocks", data.marketWatch?.first?.logoUrl)]
+          fetchImages(wanted.compactMap { key, url in url.map { (key, $0) } }, previous: read()) { images, sources in
+            let saved = SavedBriefing(updatedAt: Date(), sessionId: fingerprint(cookie), data: data,
+              images: images, imageSources: sources)
+            save(saved)
+            finish(saved)
+          }
         }
       }.resume()
     }
+  }
+
+  /// Thumbnails for the widget, reusing the previous bytes when the URL has
+  /// not changed. Bounded: 6 seconds, 4 MB per download, 24 KB per thumbnail,
+  /// so the whole record stays inside the 128 KB keychain cap.
+  private static func fetchImages(_ wanted: [(String, String)], previous: SavedBriefing?,
+    completion: @escaping ([String: Data], [String: String]) -> Void) {
+    var images = [String: Data]()
+    var sources = [String: String]()
+    var downloads = [(String, URL)]()
+    for (key, value) in wanted {
+      if previous?.imageSources?[key] == value, let bytes = previous?.images?[key] {
+        images[key] = bytes
+        sources[key] = value
+      } else if let url = URL(string: value) {
+        downloads.append((key, url))
+      }
+    }
+    guard !downloads.isEmpty else { completion(images, sources); return }
+    let config = URLSessionConfiguration.ephemeral
+    config.timeoutIntervalForRequest = 6
+    config.timeoutIntervalForResource = 6
+    config.httpCookieStorage = nil
+    config.urlCache = nil
+    let client = URLSession(configuration: config, delegate: NoBriefingRedirect(), delegateQueue: nil)
+    let group = DispatchGroup()
+    for (key, url) in downloads {
+      group.enter()
+      client.dataTask(with: url) { bytes, response, _ in
+        defer { group.leave() }
+        guard (response as? HTTPURLResponse)?.statusCode == 200, let bytes = bytes, bytes.count <= 4_000_000,
+          let thumb = thumbnail(bytes) else { return }
+        queue.async(group: group) {
+          images[key] = thumb
+          sources[key] = url.absoluteString
+        }
+      }.resume()
+    }
+    group.notify(queue: queue) {
+      client.finishTasksAndInvalidate()
+      completion(images, sources)
+    }
+  }
+
+  private static func thumbnail(_ bytes: Data) -> Data? {
+    guard let source = CGImageSourceCreateWithData(bytes as CFData, nil) else { return nil }
+    let options: [CFString: Any] = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceCreateThumbnailWithTransform: true,
+      kCGImageSourceThumbnailMaxPixelSize: 132,
+    ]
+    guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+    // PNG keeps logo transparency; a photo that encodes too large falls back to JPEG.
+    for (type, quality) in [("public.png", 1.0), ("public.jpeg", 0.8)] {
+      let out = NSMutableData()
+      guard let destination = CGImageDestinationCreateWithData(out, type as CFString, 1, nil) else { continue }
+      CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
+      if CGImageDestinationFinalize(destination), out.length <= 24_000 { return out as Data }
+    }
+    return nil
   }
 
   private static func trustedImageURL(_ value: String?) -> String? {

@@ -776,12 +776,14 @@
     min-height: 100%;
   }
 
+  /* Phones: the backdrop runs edge to edge under the rounded display corners
+     and the home indicator; only content respects the safe areas. */
   .launcher-stage {
     width: 100%;
-    min-height: calc(100dvh - 38px);
+    min-height: calc(100dvh - 30px - env(safe-area-inset-bottom));
     gap: 13px;
-    padding: max(16px, env(safe-area-inset-top)) 14px
-      max(52px, calc(env(safe-area-inset-bottom) + 44px));
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 12px
+      max(16px, env(safe-area-inset-left));
   }
 
   .launcher-mast {
@@ -792,8 +794,8 @@
   }
 
   .launcher-settings {
-    top: -4px;
-    right: -4px;
+    top: 0;
+    right: 0;
   }
 
   .launcher-logo {
@@ -916,9 +918,16 @@
     min-height: 40px;
   }
 
+  /* No fixed bar on phones: it cut the globe off with a hard edge above the
+     home indicator. The version line scrolls with the page instead. */
   .launcher-footer {
-    min-height: 38px;
-    padding: 0 14px max(0px, env(safe-area-inset-bottom));
+    position: static;
+    min-height: 30px;
+    padding: 0 max(16px, env(safe-area-inset-right)) env(safe-area-inset-bottom)
+      max(16px, env(safe-area-inset-left));
+    border-top: 0;
+    background: transparent;
+    backdrop-filter: none;
   }
 
   .launcher-footer span:last-child {

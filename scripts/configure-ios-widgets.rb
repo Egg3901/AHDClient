@@ -47,6 +47,8 @@ app['dependencies'] << { 'target' => 'AHDWidgets', 'embed' => true } unless app[
 extension = File.join(project, 'AHDWidgets')
 FileUtils.mkdir_p(extension)
 FileUtils.cp(File.join(tauri, 'ios-widgets/AHDWidgets.swift'), extension)
+# The Liberty Bell mark; XcodeGen bundles loose PNGs in the sources path as resources.
+Dir.glob(File.join(tauri, 'ios-widgets/*.png')).each { |image| FileUtils.cp(image, extension) }
 FileUtils.cp(File.join(tauri, 'plugins/briefing-widgets/ios/Sources/BriefingStore.swift'), extension)
 version = JSON.parse(File.read(File.join(root, 'package.json'))).fetch('version')
 app_info = app.fetch('info').fetch('properties')

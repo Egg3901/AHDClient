@@ -9,4 +9,12 @@ describe("mobile launcher layout", () => {
       /@media \(max-width: 700px\)[\s\S]*?\.launcher-mast\s*\{[^}]*padding-top:\s*58px;/,
     );
   });
+
+  it("lets the backdrop reach the screen edges and keeps content in the safe areas", () => {
+    const phone = css.slice(css.indexOf("@media (max-width: 700px)"));
+    expect(phone).toMatch(/\.launcher-footer\s*\{[^}]*position:\s*static;[^}]*background:\s*transparent;/);
+    expect(phone).toMatch(/\.launcher-footer\s*\{[^}]*env\(safe-area-inset-bottom\)/);
+    expect(phone).toMatch(/\.launcher-stage\s*\{[^}]*env\(safe-area-inset-left\)[^}]*\}/);
+    expect(phone).toMatch(/\.launcher-settings\s*\{\s*top:\s*0;\s*right:\s*0;/);
+  });
 });
