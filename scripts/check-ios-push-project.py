@@ -48,7 +48,7 @@ def main() -> int:
         entitlements = plistlib.loads((ROOT / entitlements_path).read_bytes())
         aps = entitlements.get("aps-environment")
         print(f"entitlements aps-environment: {aps!r}")
-        if aps not in ("$(AHD_PUSH_ENVIRONMENT)", "production"):
+        if aps != "production":
             errors.append("the entitlements file does not request aps-environment")
     for error in errors:
         print(f"FAIL: {error}")

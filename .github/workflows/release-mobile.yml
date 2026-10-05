@@ -235,6 +235,13 @@ jobs:
       - name: Verify the push entitlement in the signed IPA
         if: steps.signing.outputs.mode == 'store'
         run: |
+          # The archive's own signature, before export re-signs it. Key only.
+          archive=$(find apps/desktop/src-tauri/gen/apple/build -type d -name '*.xcarchive' -print -quit)
+          if [ -n "$archive" ]; then
+            app=$(find "$archive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)
+            printf 'archive aps-environment: '
+            codesign -d --entitlements - --xml "$app" 2>/dev/null | plutil -extract aps-environment raw -o - - 2>/dev/null || echo None
+          fi
           ipa=$(find apps/desktop/src-tauri/gen/apple/build/arm64 -type f -name '*.ipa' -print -quit)
           python3 scripts/verify-ios-push-entitlement.py "$ipa"
 

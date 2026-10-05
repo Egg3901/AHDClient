@@ -20,7 +20,10 @@ app['entitlements']['properties'] ||= {}
 entitlements.each do |key, values|
   app['entitlements']['properties'][key] = (Array(app['entitlements']['properties'][key]) + values).uniq
 end
-app['entitlements']['properties']['aps-environment'] = '$(AHD_PUSH_ENVIRONMENT)'
+# Literal, not $(AHD_PUSH_ENVIRONMENT): the placeholder resolved in Info.plist
+# but came out empty in the signed entitlements, so iOS refused APNs
+# registration on every device. Every signed build here is App Store/TestFlight.
+app['entitlements']['properties']['aps-environment'] = 'production'
 app['settings'] ||= {}
 app['settings']['base'] ||= {}
 app['settings']['base']['AHD_WIDGET_KEYCHAIN_GROUP'] = keychain
