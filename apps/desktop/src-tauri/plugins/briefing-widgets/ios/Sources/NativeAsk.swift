@@ -20,6 +20,55 @@ enum NativeAskProvider: String, Hashable {
   }
 }
 
+/// An outside company that may receive an Ask server question, from /api/me.
+struct NativeAskRecipient: Hashable {
+  let name: String
+  let detail: String
+}
+
+/// App Store guideline 5.1.2(i): name the outside AI services and get the
+/// player's permission before an Ask server question reaches them. Permission
+/// is tied to the exact list, so a provider added on the server asks again.
+/// Same key and signature as the webview Ask panel (consent.ts).
+enum NativeAskConsent {
+  static let key = "ahdclient.ask.aiConsent"
+  static let privacyURL = URL(string: "https://ask.lakesidegames.net/privacy")!
+
+  /// Used only when the Ask server predates the aiProviders field.
+  static let fallback: [NativeAskRecipient] = [
+    NativeAskRecipient(name: "Meta", detail: "Muse Spark models. On Meta's contributor tier, Meta may use the question and answer to train its models"),
+    NativeAskRecipient(name: "Ollama", detail: "Ollama Cloud hosted models"),
+    NativeAskRecipient(name: "DeepSeek", detail: "DeepSeek models, operated from China"),
+    NativeAskRecipient(name: "Command Code", detail: "MiniMax models"),
+    NativeAskRecipient(name: "OpenRouter", detail: "relays to the vendor of the chosen model"),
+    NativeAskRecipient(name: "Google", detail: "Gemini models"),
+  ]
+
+  static func recipients(from profile: [String: Any]) -> [NativeAskRecipient] {
+    let list = (profile["aiProviders"] as? [[String: Any]] ?? []).compactMap { item -> NativeAskRecipient? in
+      guard let name = item["name"] as? String, !name.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+      return NativeAskRecipient(name: name, detail: item["detail"] as? String ?? "")
+    }
+    return list.isEmpty ? fallback : list
+  }
+
+  static func signature(_ recipients: [NativeAskRecipient]) -> String {
+    recipients.map { "\($0.name)|\($0.detail)" }.sorted().joined(separator: "\n")
+  }
+
+  static func granted(_ recipients: [NativeAskRecipient]) -> Bool {
+    UserDefaults.standard.string(forKey: key) == signature(recipients)
+  }
+
+  static func grant(_ recipients: [NativeAskRecipient]) {
+    UserDefaults.standard.set(signature(recipients), forKey: key)
+  }
+
+  static func withdraw() {
+    UserDefaults.standard.removeObject(forKey: key)
+  }
+}
+
 struct NativeAskTurn: Identifiable {
   let id: String
   var question: String
@@ -349,7 +398,7 @@ final class NativeAskAPI: @unchecked Sendable {
         if let object {
           returnedConversationID = object["convId"] as? String ?? returnedConversationID
           answer = object["answer"] as? String ?? answer
-          model = object["modelName"] as? String ?? object["modelId"] as? String ?? object["model"] as? String ?? model
+          model = Self.modelLabel(object) ?? model
           usedMcp = object["usedMcp"] as? Bool ?? false
           liveSources = object["liveSources"] as? [String] ?? []
           citations = (object["citations"] as? [[String: Any]] ?? []).compactMap { item in
@@ -369,13 +418,20 @@ final class NativeAskAPI: @unchecked Sendable {
     return NativeAskResult(answer: answer, conversationID: returnedConversationID, model: model, citations: citations, usedMcp: usedMcp, liveSources: liveSources)
   }
 
+  /// "Model · Service" so every answer names who wrote it.
+  private static func modelLabel(_ object: [String: Any]) -> String? {
+    guard let model = object["modelName"] as? String ?? object["modelId"] as? String ?? object["model"] as? String else { return nil }
+    if let provider = object["providerName"] as? String, !provider.isEmpty, provider != model { return "\(model) · \(provider)" }
+    return model
+  }
+
   private func result(from object: [String: Any], fallbackConversationID: String) throws -> NativeAskResult {
     let answer = object["answer"] as? String ?? ""
     guard !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw NativeAskError.emptyAnswer }
     return NativeAskResult(
       answer: answer,
       conversationID: object["convId"] as? String ?? fallbackConversationID,
-      model: object["modelName"] as? String ?? object["modelId"] as? String ?? object["model"] as? String ?? "",
+      model: Self.modelLabel(object) ?? "",
       citations: (object["citations"] as? [[String: Any]] ?? []).compactMap { item in
         item["label"] as? String ?? item["path"] as? String
       },
@@ -451,6 +507,9 @@ final class NativeAskAPI: @unchecked Sendable {
   @Published var error: String?
   @Published var appleAvailable = false
   @Published var appleMessage = "Checking Apple Foundation Models..."
+  @Published var recipients: [NativeAskRecipient] = []
+  @Published var consented = false
+  @Published var reviewingConsent = false
 
   private let webView: WKWebView
   private var api: NativeAskAPI?
@@ -488,6 +547,23 @@ final class NativeAskAPI: @unchecked Sendable {
     sendTask?.cancel()
   }
 
+  func grantConsent() {
+    NativeAskConsent.grant(recipients)
+    consented = true
+    reviewingConsent = false
+  }
+
+  func withdrawConsent() {
+    NativeAskConsent.withdraw()
+    consented = false
+    reviewingConsent = false
+  }
+
+  /// The server path is waiting on the player's permission.
+  var needsConsent: Bool {
+    provider == .server && signedIn && (!consented || reviewingConsent)
+  }
+
   func refreshAppleStatus() {
     let status = AppleFoundationModelBridge.status()
     appleAvailable = status["available"] as? Bool ?? false
@@ -502,6 +578,8 @@ final class NativeAskAPI: @unchecked Sendable {
     do {
       let profile = try await client.connect()
       api = client
+      recipients = NativeAskConsent.recipients(from: profile)
+      consented = NativeAskConsent.granted(recipients)
       signedIn = true
       accountName = Self.name(from: profile) ?? "linked game account"
       error = nil
@@ -515,6 +593,8 @@ final class NativeAskAPI: @unchecked Sendable {
   func send() {
     let question = draft.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !sending, question.utf16.count >= 5, question.utf16.count <= 500 else { return }
+    // Nothing reaches an outside AI service before the player allows it.
+    if provider == .server && !consented { return }
     let turnID = UUID().uuidString
     draft = ""
     error = nil
@@ -646,9 +726,14 @@ struct NativeAskView: View {
           appleStatusBanner
         } else if model.connecting {
           ProgressView("Checking linked game account...").frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
+        } else if model.needsConsent {
+          consentPanel
         } else if model.signedIn {
-          Label("Signed in as \(model.accountName)", systemImage: "checkmark.circle.fill")
-            .font(.caption).foregroundStyle(.green).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
+          HStack {
+            Label("Signed in as \(model.accountName)", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            Spacer()
+            Button("AI providers") { model.reviewingConsent = true }
+          }.font(.caption).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
         } else {
           signInBanner
         }
@@ -720,6 +805,34 @@ struct NativeAskView: View {
     }.padding(.horizontal).padding(.top, 10).padding(.bottom, 8)
   }
 
+  private var consentPanel: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Ask uses outside AI services").font(.headline)
+        Text("Ask server answers with AI models run by other companies. When you send a question, it goes to one of the services below. What they receive: the text you type, earlier messages in the same chat, and, if you ask about your own character, your own game records. Your username, email and account IDs are not sent.")
+          .font(.callout)
+        ForEach(model.recipients, id: \.self) { recipient in
+          VStack(alignment: .leading, spacing: 2) {
+            Text(recipient.name).font(.callout.bold())
+            if !recipient.detail.isEmpty { Text(recipient.detail).font(.caption).foregroundStyle(.secondary) }
+          }
+        }
+        Text("Each service has its own terms and data handling. Every answer shows which model and service wrote it. Apple Foundation Models answers stay on this device.")
+          .font(.caption).foregroundStyle(.secondary)
+        Link("Ask privacy notice", destination: NativeAskConsent.privacyURL).font(.callout)
+        if model.consented {
+          HStack {
+            Button("Keep using Ask") { model.reviewingConsent = false }.buttonStyle(.borderedProminent)
+            Button("Withdraw permission", role: .destructive) { model.withdrawConsent() }
+          }
+        } else {
+          Button("Allow and continue") { model.grantConsent() }.buttonStyle(.borderedProminent)
+          Text("Ask server sends nothing until you allow it.").font(.caption).foregroundStyle(.secondary)
+        }
+      }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
+    }.frame(maxHeight: 420)
+  }
+
   private var signInBanner: some View {
     VStack(alignment: .leading, spacing: 8) {
       Label("Ask server needs your linked game account.", systemImage: "person.crop.circle.badge.exclamationmark").font(.callout.bold())
@@ -752,7 +865,7 @@ struct NativeAskView: View {
           .accessibilityLabel("Stop answer")
       } else {
         Button { model.send() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
-          .disabled(model.draft.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count < 5 || (provider == .server && !model.signedIn))
+          .disabled(model.draft.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count < 5 || (provider == .server && (!model.signedIn || !model.consented)))
           .accessibilityLabel("Send question")
       }
     }.padding(.horizontal).padding(.vertical, 10).background(.thinMaterial)

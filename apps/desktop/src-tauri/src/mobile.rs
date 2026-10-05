@@ -16,7 +16,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::{help_destination, is_ask_navigation_allowed, is_embed_only, is_frame_scheme, is_online_navigation_allowed, linked_account, HelpDestination, ONLINE_URL, SANDBOX_URL};
+use crate::{help_destination, is_ask_navigation_allowed, is_embed_only, is_frame_scheme, is_online_navigation_allowed, linked_account, HelpDestination, ONLINE_URL, SANDBOX_HOST};
 
 /// Appended to the platform WebView user agent (Android, in MainActivity.kt)
 /// or used as the WebKit-shaped custom agent (iOS). The site keys ad slots,
@@ -66,18 +66,6 @@ const LAUNCHER_CONTROL_SCRIPT: &str = r#"
     menu.appendChild(action('Multiplayer', 'https://ahousedividedgame.com/'));
     var home = action('Launcher', 'ahdclient://launcher');
     menu.appendChild(home);
-    // Store builds sell nothing in-app, so the sandbox (a supporter perk) is
-    // offered only to an account that already has it, or while already in it.
-    function offerSandbox() {
-      menu.insertBefore(action('Sandbox', 'https://sandbox.ahousedividedgame.com/'), home);
-    }
-    if (location.hostname === 'sandbox.ahousedividedgame.com') offerSandbox();
-    else if (location.hostname === 'ahousedividedgame.com') {
-      fetch('/api/client/account', { credentials: 'same-origin' })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (a) { if (a && a.linked && a.supporter) offerSandbox(); })
-        .catch(function () {});
-    }
     document.body.appendChild(menu);
     button = document.createElement('button');
     button.id = 'ahdclient-launcher';
@@ -173,8 +161,10 @@ fn open_externally(app: &AppHandle, url: &Url) {
   }
 }
 
+/// The sandbox is a supporter perk bought outside the App Store, so the phone
+/// app never shows it (guideline 3.1.1). A sandbox link opens in the browser.
 fn is_app_navigation_allowed(url: &Url) -> bool {
-  is_app_origin(url) || is_online_navigation_allowed(url)
+  (is_app_origin(url) || is_online_navigation_allowed(url)) && url.host_str() != Some(SANDBOX_HOST)
 }
 
 fn is_native_ask_request(url: &Url) -> bool {
@@ -290,20 +280,13 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
   Ok(())
 }
 
-/// `target` is "live" or "sandbox"; the sandbox needs a linked supporter
-/// account, checked against the site with the webview's own session.
+/// `target` is "live". The sandbox is desktop-only: it is a supporter perk
+/// bought outside the App Store, so the phone app does not unlock it.
 #[tauri::command]
 pub(crate) async fn open_online_window(app: AppHandle, target: Option<String>) -> Result<(), String> {
   let base = match target.as_deref() {
     None | Some("live") => ONLINE_URL,
-    Some("sandbox") => {
-      let account = linked_account(app.clone()).await?;
-      // No outside purchase link from a store build: just say what is needed.
-      if !account.is_some_and(|account| account.linked && account.supporter) {
-        return Err("Sandbox is open to supporter accounts. Link a supporter game account to enter.".into());
-      }
-      SANDBOX_URL
-    }
+    Some("sandbox") => return Err("The sandbox is available in the desktop app.".into()),
     Some(other) => return Err(format!("unknown online target {other:?}")),
   };
   let url: Url = base.parse().map_err(|e| format!("bad online URL: {e}"))?;
@@ -445,7 +428,7 @@ mod tests {
     let ask: Url = "https://ask.lakesidegames.net/".parse().unwrap();
 
     assert_eq!(classify_navigation(&multiplayer), MobileNavigationAction::InApp);
-    assert_eq!(classify_navigation(&sandbox), MobileNavigationAction::InApp);
+    assert_eq!(classify_navigation(&sandbox), MobileNavigationAction::External);
     assert_eq!(classify_navigation(&ask), MobileNavigationAction::PresentAsk);
   }
 

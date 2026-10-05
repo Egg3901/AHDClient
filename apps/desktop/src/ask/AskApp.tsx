@@ -7,12 +7,15 @@ import {
   askStop,
   isSignedOutError,
   onAskStream,
+  providersIn,
   quotaLabel,
   resetIn,
   usageFromError,
   usageIn,
   type AskAnswer,
   type AskConversation,
+  type AskMe,
+  type AskProvider,
   type AskStreamEvent,
   type AskTurn,
   type AskUsage,
@@ -23,6 +26,14 @@ import {
   saveCachedAskSession,
   usernameOf,
 } from "./session.js";
+import {
+  ASK_PRIVACY_URL,
+  FALLBACK_PROVIDERS,
+  clearAskConsent,
+  consentSignature,
+  hasAskConsent,
+  saveAskConsent,
+} from "./consent.js";
 import { listen } from "@tauri-apps/api/event";
 import { ask } from "../worlds.js";
 import { Md } from "./markdown.js";
@@ -79,6 +90,8 @@ function answerOf(data: unknown): AskAnswer | null {
   if (model !== undefined) answer.model = model;
   const modelName = str(record.modelName);
   if (modelName !== undefined) answer.modelName = modelName;
+  const providerName = str(record.providerName);
+  if (providerName !== undefined) answer.providerName = providerName;
   const convId = str(record.convId);
   if (convId !== undefined) answer.convId = convId;
   return answer;
@@ -124,6 +137,12 @@ export function AskApp(): JSX.Element {
   });
   const [showHistory, setShowHistory] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Outside AI services named by the server, and whether the player agreed
+  // to that exact list. Nothing is sent until they have.
+  const [providers, setProviders] = useState<AskProvider[] | null>(null);
+  const [consented, setConsented] = useState(false);
+  const [reviewingConsent, setReviewingConsent] = useState(false);
+  const agreedRef = useRef<string | null>(null);
   const activeReqRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
@@ -132,6 +151,12 @@ export function AskApp(): JSX.Element {
 
   const patchAssistant = useCallback((reqId: string, patch: (msg: Msg) => Msg) => {
     setMsgs((prev) => prev.map((msg) => (msg.id === `a-${reqId}` ? patch(msg) : msg)));
+  }, []);
+
+  const applyProviders = useCallback((me: AskMe) => {
+    const list = providersIn(me) ?? FALLBACK_PROVIDERS;
+    setProviders(list);
+    setConsented(agreedRef.current === consentSignature(list) || hasAskConsent(list));
   }, []);
 
   const signOut = useCallback(() => {
@@ -179,6 +204,7 @@ export function AskApp(): JSX.Element {
     try {
       const me = await askMe();
       remember(me.usage ?? null, me.entitlement?.label ?? null, usernameOf(me));
+      applyProviders(me);
     } catch (error) {
       if (isSignedOutError(error)) {
         signOut();
@@ -193,7 +219,7 @@ export function AskApp(): JSX.Element {
       // flag it stale so the panel never implies current access.
       setQuotaStale(true);
     }
-  }, [noteUsage, remember, signOut]);
+  }, [applyProviders, noteUsage, remember, signOut]);
 
   const refreshConvs = useCallback(async () => {
     try {
@@ -238,6 +264,7 @@ export function AskApp(): JSX.Element {
     try {
       const me = await askMe();
       remember(me.usage ?? null, me.entitlement?.label ?? null, usernameOf(me));
+      applyProviders(me);
       const { conversations, usage: listUsage } = await askConversations();
       setConvs(conversations);
       if (listUsage) noteUsage({ usage: listUsage });
@@ -261,7 +288,7 @@ export function AskApp(): JSX.Element {
     } finally {
       setRefreshing(false);
     }
-  }, [noteUsage, openThread, remember, signOut]);
+  }, [applyProviders, noteUsage, openThread, remember, signOut]);
 
   useEffect(() => {
     void probe();
@@ -461,7 +488,7 @@ export function AskApp(): JSX.Element {
   const send = useCallback(
     async (raw: string) => {
       const question = raw.trim();
-      if (!question || activeReqRef.current) return;
+      if (!question || activeReqRef.current || !consented) return;
       setNotice(null);
       const userMsg: Msg = { id: nextId("q"), role: "user", text: question };
       const reqKey = nextId("rid");
@@ -490,7 +517,7 @@ export function AskApp(): JSX.Element {
         }
       }
     },
-    [convId, noteUsage, signOut, useMcp],
+    [consented, convId, noteUsage, signOut, useMcp],
   );
 
   const stop = useCallback(async () => {
@@ -520,6 +547,28 @@ export function AskApp(): JSX.Element {
           {notice ? <p className="av-error">{notice}</p> : null}
         </div>
       </div>
+    );
+  }
+
+  if (providers && (!consented || reviewingConsent)) {
+    return (
+      <AskConsent
+        providers={providers}
+        agreed={consented}
+        onAgree={() => {
+          agreedRef.current = consentSignature(providers);
+          saveAskConsent(providers);
+          setConsented(true);
+          setReviewingConsent(false);
+        }}
+        onWithdraw={() => {
+          agreedRef.current = null;
+          clearAskConsent();
+          setConsented(false);
+          setReviewingConsent(false);
+        }}
+        onClose={() => setReviewingConsent(false)}
+      />
     );
   }
 
@@ -666,12 +715,19 @@ export function AskApp(): JSX.Element {
               ■
             </button>
           ) : (
-            <button type="button" className="av-send" disabled={checking || !input.trim()} onClick={() => void send(input)}>
+            <button type="button" className="av-send" disabled={checking || !consented || !input.trim()} onClick={() => void send(input)}>
               Ask
             </button>
           )}
         </div>
-        <div className="av-cost">{costLabel}</div>
+        <div className="av-cost">
+          {costLabel}
+          {consented ? (
+            <button type="button" className="av-link" onClick={() => setReviewingConsent(true)}>
+              AI providers
+            </button>
+          ) : null}
+        </div>
       </footer>
     </div>
   );
@@ -686,7 +742,13 @@ function AssistantMsg({ msg, onFollowup }: { msg: Msg; onFollowup: (text: string
     <div className="av-turn">
       <div className="av-ans-head">
         <span className="av-ans-label">Answer</span>
-        {result?.modelName ? <span className="av-flag">{result.modelName}</span> : null}
+        {result?.modelName ? (
+          <span className="av-flag">
+            {result.providerName && result.providerName !== result.modelName
+              ? `${result.modelName} · ${result.providerName}`
+              : result.modelName}
+          </span>
+        ) : null}
         {result?.cached ? <span className="av-flag">cached</span> : null}
         {msg.stopped ? <span className="av-flag">stopped</span> : null}
       </div>
@@ -731,6 +793,67 @@ function AssistantMsg({ msg, onFollowup }: { msg: Msg; onFollowup: (text: string
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function AskConsent({
+  providers,
+  agreed,
+  onAgree,
+  onWithdraw,
+  onClose,
+}: {
+  providers: AskProvider[];
+  agreed: boolean;
+  onAgree: () => void;
+  onWithdraw: () => void;
+  onClose: () => void;
+}): JSX.Element {
+  return (
+    <div className="askview">
+      <div className="av-consent" role="dialog" aria-labelledby="av-consent-title">
+        <h2 id="av-consent-title">Ask uses outside AI services</h2>
+        <p>
+          Ask answers with AI models run by other companies. When you send a question, it goes to one of the services
+          below. What they receive: the text you type, earlier messages in the same chat, any file you attach, and, if
+          you ask about your own character, your own game records. Your username, email and account IDs are not sent.
+        </p>
+        <ul className="av-providers">
+          {providers.map((provider) => (
+            <li key={`${provider.name}|${provider.detail ?? ""}`}>
+              <strong>{provider.name}</strong>
+              {provider.detail ? <span>{provider.detail}</span> : null}
+            </li>
+          ))}
+        </ul>
+        <p>
+          Each service has its own terms and data handling. Every answer shows which model and service wrote it. Lakeside
+          keeps your conversations so they appear in your history.
+        </p>
+        <p>
+          <a href={ASK_PRIVACY_URL} target="_blank" rel="noopener">
+            Ask privacy notice
+          </a>
+        </p>
+        {agreed ? (
+          <div className="av-consent-actions">
+            <button type="button" className="av-primary" onClick={onClose}>
+              Keep using Ask
+            </button>
+            <button type="button" className="av-quiet" onClick={onWithdraw}>
+              Withdraw permission
+            </button>
+          </div>
+        ) : (
+          <div className="av-consent-actions">
+            <button type="button" className="av-primary" onClick={onAgree}>
+              Allow and continue
+            </button>
+            <p className="av-muted">Ask does not send anything until you allow it.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

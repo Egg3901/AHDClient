@@ -123,7 +123,7 @@ describe("desktop security configuration", () => {
     expect(androidAsk).toContain("%2Fauth%2Fnative%2Fcallback");
   });
 
-  it("keeps multiplayer and sandbox navigation ahead of Ask interception", () => {
+  it("keeps multiplayer navigation ahead of Ask interception and the sandbox out of the phone app", () => {
     const mobile = read("../src-tauri/src/mobile.rs");
     const classifier = mobile.match(/fn classify_navigation\([\s\S]*?\n}\n/)?.[0] ?? "";
     expect(classifier).not.toBe("");
@@ -133,9 +133,11 @@ describe("desktop security configuration", () => {
     expect(mobile).toContain("|| is_ask_navigation_allowed(url)");
     expect(mobile).toContain("ahdclient://ask");
     expect(mobile).toContain("https://ahousedividedgame.com/");
-    expect(mobile).toContain("https://sandbox.ahousedividedgame.com/");
-    // The in-game menu offers the sandbox only to a supporter, never as an upsell.
-    expect(mobile).toContain("if (a && a.linked && a.supporter) offerSandbox();");
+    // The sandbox is a supporter perk bought outside the App Store, so the
+    // phone app neither offers it nor keeps it in the webview (3.1.1).
+    expect(mobile).not.toContain("action('Sandbox'");
+    expect(mobile).toContain("&& url.host_str() != Some(SANDBOX_HOST)");
+    expect(mobile).toContain('Some("sandbox") => return Err(');
     expect(mobile).not.toContain("patreon.com");
   });
 
