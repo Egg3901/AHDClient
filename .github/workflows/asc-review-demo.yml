@@ -8,8 +8,13 @@ on:
     inputs:
       demo_user:
         description: Demo account username or email
-        required: true
+        required: false
         type: string
+      list_only:
+        description: Only list the app's iOS versions and their state; change nothing
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -25,6 +30,7 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
           DEMO_USER: ${{ inputs.demo_user }}
+          LIST_ONLY: ${{ inputs.list_only }}
           DEMO_PASSWORD: ${{ secrets.ASC_DEMO_PASSWORD }}
         run: |
           key="$RUNNER_TEMP/AuthKey.p8"

@@ -46,7 +46,32 @@ def call(method: str, path: str, auth: str, body: dict | None = None) -> dict:
     return json.loads(raw) if raw else {}
 
 
+def list_versions(auth: str) -> int:
+    """Read-only: every app on the key's team with this bundle id, and its iOS versions."""
+    apps = call("GET", "/apps?" + urllib.parse.urlencode({"filter[bundleId]": BUNDLE_ID, "limit": 20}), auth)["data"]
+    for app in apps:
+        attrs = app["attributes"]
+        print(f"app {app['id']} name={attrs.get('name')!r} bundleId={attrs.get('bundleId')!r}")
+        versions = call("GET", f"/apps/{app['id']}/appStoreVersions?"
+                        + urllib.parse.urlencode({"limit": 50}), auth)["data"]
+        for version in versions:
+            v = version["attributes"]
+            build = call("GET", f"/appStoreVersions/{version['id']}/build", auth).get("data")
+            build_text = "none"
+            if build:
+                b = build["attributes"]
+                build_text = f"{b.get('version')} ({b.get('processingState')})"
+            detail = call("GET", f"/appStoreVersions/{version['id']}/appStoreReviewDetail", auth).get("data")
+            demo = (detail or {}).get("attributes", {}).get("demoAccountName")
+            print(f"  version id={version['id']} platform={v.get('platform')} versionString={v.get('versionString')!r} "
+                  f"appStoreState={v.get('appStoreState')} appVersionState={v.get('appVersionState')} "
+                  f"created={v.get('createdDate')} build={build_text} demoAccount={demo!r}")
+    return 0
+
+
 def main() -> int:
+    if os.environ.get("LIST_ONLY") == "true":
+        return list_versions(token())
     user, password = os.environ["DEMO_USER"].strip(), os.environ["DEMO_PASSWORD"]
     if not user or not password:
         print("FAIL: DEMO_USER and the ASC_DEMO_PASSWORD secret are required")
