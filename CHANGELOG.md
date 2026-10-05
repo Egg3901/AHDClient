@@ -1,14 +1,5 @@
 # Changelog
 
-## [2.3.20] - 2026-10-05
-
-- iPhone and Android: Ask names the outside AI services that may receive a question and asks for permission before the first one. Permission can be reviewed or withdrawn from "AI providers", and each answer shows which model and service wrote it.
-- iPhone and Android: the sandbox is no longer offered in the phone app; it stays available on desktop.
-- iPhone widgets fill their rounded frame, show your portrait and corporation or stock logos, and follow the profile and corporation page layout.
-- Phone launcher: no bar above the home indicator, and the controls stay inside the screen's safe areas.
-- iPhone push alerts: Settings now shows Apple's actual reason when registration fails, and the App Store build is checked for the push entitlement before upload.
-- The iPhone privacy manifest declares the device key used for sign-in checks and push, and that Ask questions may be used by an AI provider to train its models.
-
 ## [2.3.19] - 2026-09-18
 
 - Restored the authenticated native Ask surface.
@@ -20,6 +11,15 @@
 - Upload richer anonymous single-player aggregates (GDP, population, approval, elections) when the local game provides them.
 - Drop source maps and package markdown from the bundled game payload.
 - Repaired Android mobile CI after removal of the legacy SDK tools package.
+
+Phone builds of 2.3.19, 2026-10-05 (iPhone and Android):
+
+- iPhone and Android: Ask names the outside AI services that may receive a question and asks for permission before the first one. Permission can be reviewed or withdrawn from "AI providers", and each answer shows which model and service wrote it.
+- iPhone and Android: the sandbox is no longer offered in the phone app; it stays available on desktop.
+- iPhone widgets fill their rounded frame, show your portrait and corporation or stock logos, and follow the profile and corporation page layout.
+- Phone launcher: no bar above the home indicator, and the controls stay inside the screen's safe areas.
+- iPhone push alerts: Settings now shows Apple's actual reason when registration fails, and the App Store build is checked for the push entitlement before upload.
+- The iPhone privacy manifest declares the device key used for sign-in checks and push, and that Ask questions may be used by an AI provider to train its models.
 
 ## [2.3.18] - 2026-09-14
 
