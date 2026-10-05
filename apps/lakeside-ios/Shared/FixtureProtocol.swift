@@ -261,7 +261,10 @@ data: {"convId":"fixture-conversation","answerId":43,"answer":"Verified final an
         deliver((try? JSONSerialization.data(withJSONObject: value)) ?? Data(), url: url, status: status, type: "application/json")
     }
     private func deliver(_ data: Data, url: URL, status: Int, type: String, finish: Bool = true) {
-        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": type])!, cacheStoragePolicy: .notAllowed)
+        guard let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": type]) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse)); return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: data); if finish { client?.urlProtocolDidFinishLoading(self) }
     }
     override func stopLoading() {}
