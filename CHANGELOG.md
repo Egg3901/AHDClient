@@ -1,8 +1,12 @@
 # Changelog
 
+## [2.3.22] - 2026-10-06
+
+- Android: the app no longer closes as soon as it opens. Release builds stripped a method the app needs to read its sign-in cookies, which crashed it on every Android phone; debug builds were unaffected. Every release build is now launched on Android 14 and 16 emulators before it can ship.
+
 ## [2.3.21] - 2026-10-06
 
-- Android: the app no longer closes on launch on phones that use 16 KB memory pages, such as recent Pixels on Android 16 and later. Builds are now checked for this before release.
+- Android: the native library is aligned for 16 KB memory pages, and builds are checked for this before release.
 
 ## [2.3.20] - 2026-10-06
 

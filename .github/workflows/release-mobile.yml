@@ -120,6 +120,38 @@ jobs:
             apps/desktop/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
           if-no-files-found: error
 
+  # The release APK must survive launch on stock Android. Minified release
+  # builds once shipped without a JNI method (R8) and crashed on every device
+  # (ticket 1387) while debug builds were fine.
+  android-launch:
+    needs: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [34, 36]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: actions/download-artifact@v4
+        with:
+          name: ahdclient-android
+          path: android-artifact
+      - run: cp "$(find android-artifact -name '*.apk' -print -quit)" app.apk && ls -l app.apk
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: bash .github/scripts/android-launch-check.sh
+
   ios:
     # Hosted arm64 macOS can run out of capacity ("not acquired by Runner");
     # a manual dispatch can pick the Intel image instead.
