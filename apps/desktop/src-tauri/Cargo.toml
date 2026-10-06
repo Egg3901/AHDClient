@@ -30,6 +30,9 @@ sha2 = "0.10"
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-briefing-widgets = { path = "plugins/briefing-widgets" }
 
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+
 # Desktop only: the local game process, its dialogs and file access, and the
 # signed updater. Android and iOS build the launcher plus the live site alone.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]

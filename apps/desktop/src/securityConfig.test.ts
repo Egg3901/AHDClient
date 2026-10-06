@@ -141,6 +141,15 @@ describe("desktop security configuration", () => {
     expect(mobile).not.toContain("patreon.com");
   });
 
+  it("lets iOS swipe back and keeps the AHD button off the game's bottom bar", () => {
+    const mobile = read("../src-tauri/src/mobile.rs");
+    expect(mobile).toContain("setAllowsBackForwardNavigationGestures: true");
+    expect(mobile).toContain("function lift()");
+    expect(mobile).toContain("document.elementsFromPoint(32, window.innerHeight - 24)");
+    const settings = read("./settings.css");
+    expect(settings).toMatch(/@media \(max-width: 600px\)[\s\S]*\.client-account-menu > div \{ left: 0; right: auto;/);
+  });
+
   it("keeps native Ask sign-in transactions intact and AFM on device", () => {
     const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
     const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
