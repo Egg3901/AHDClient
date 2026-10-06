@@ -151,7 +151,10 @@ jobs:
         with:
           targets: aarch64-apple-ios,aarch64-apple-ios-sim
 
+      # TestFlight builds compile from scratch: a restored cache once shipped a
+      # stale compiled Swift plugin (2.3.19 build 8).
       - uses: Swatinem/rust-cache@v2
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.upload_testflight) }}
         with:
           workspaces: apps/desktop/src-tauri -> target
 
@@ -266,6 +269,7 @@ jobs:
           fi
           ipa=$(find apps/desktop/src-tauri/gen/apple/build/arm64 -type f -name '*.ipa' -print -quit)
           python3 scripts/verify-ios-push-entitlement.py "$ipa"
+          python3 scripts/verify-ios-source-markers.py "$ipa"
 
       # Signed builds exist only for an explicit TestFlight upload. They are
       # never retained as GitHub artifacts because Apple embeds the account
@@ -327,6 +331,7 @@ jobs:
           cp -R "$app" "$RUNNER_TEMP/ipa/Payload/"
           (cd "$RUNNER_TEMP/ipa" && zip -qr "$GITHUB_WORKSPACE/AHDClient-unsigned.ipa" Payload)
           ls -la "$GITHUB_WORKSPACE/AHDClient-unsigned.ipa"
+          python3 scripts/verify-ios-source-markers.py "$GITHUB_WORKSPACE/AHDClient-unsigned.ipa"
 
       - name: Upload the unsigned device IPA
         if: steps.signing.outputs.mode == 'simulator'
