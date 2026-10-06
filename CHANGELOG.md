@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.3.21] - 2026-10-06
+
+- Android: the app no longer closes on launch on phones that use 16 KB memory pages, such as recent Pixels on Android 16 and later. Builds are now checked for this before release.
+
 ## [2.3.20] - 2026-10-06
 
 - iPhone: swipe in from the left edge to go back a page.
