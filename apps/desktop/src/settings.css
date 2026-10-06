@@ -94,6 +94,9 @@ html[data-animations="off"] .launcher-nebula { animation: none; }
   .launcher-settings .client-settings-trigger,
   .launcher-settings .client-account-control { min-width: 0; min-height: 44px; padding: 8px 10px; font-size: 12px; }
   .client-account-name { max-width: 92px; }
+  /* The account button is the leftmost control on phones: open the menu
+     rightward from it so it never runs off the left edge of the screen. */
+  .client-account-menu > div { left: 0; right: auto; width: min(220px, calc(100vw - 24px)); }
   .client-settings-backdrop { padding: 10px; place-items: end center; }
   .client-settings-dialog { max-height: calc(100vh - 20px); border-radius: 16px; }
   .client-settings-dialog > header,

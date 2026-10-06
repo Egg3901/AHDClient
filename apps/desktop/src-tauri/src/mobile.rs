@@ -89,9 +89,37 @@ const LAUNCHER_CONTROL_SCRIPT: &str = r#"
     });
     document.body.appendChild(button);
   }
-  if (document.readyState === 'complete') mount();
-  else window.addEventListener('load', mount);
-  setInterval(mount, 2000);
+  // Sit above any fixed or sticky bar at the bottom-left (the game's status
+  // bar), instead of covering it. Re-checked as pages change.
+  function lift() {
+    var button = document.getElementById('ahdclient-launcher');
+    var menu = document.getElementById('ahdclient-game-menu');
+    if (!button || !menu) return;
+    var top = window.innerHeight;
+    var probe = document.elementsFromPoint(32, window.innerHeight - 24);
+    for (var i = 0; i < probe.length; i++) {
+      for (var node = probe[i]; node && node !== document.body; node = node.parentElement) {
+        if (node === button || node === menu) break;
+        var position = getComputedStyle(node).position;
+        if (position === 'fixed' || position === 'sticky') {
+          var rect = node.getBoundingClientRect();
+          if (rect.bottom >= window.innerHeight - 2 && rect.height < window.innerHeight / 3) top = Math.min(top, rect.top);
+          break;
+        }
+      }
+    }
+    var gap = window.innerHeight - top;
+    var bottom = gap > 0 ? (gap + 10) + 'px' : 'max(14px,env(safe-area-inset-bottom))';
+    if (button.style.bottom !== bottom) {
+      button.style.bottom = bottom;
+      menu.style.bottom = 'calc(' + bottom + ' + 58px)';
+    }
+  }
+  function tick() { mount(); lift(); }
+  if (document.readyState === 'complete') tick();
+  else window.addEventListener('load', tick);
+  window.addEventListener('resize', lift);
+  setInterval(tick, 2000);
 })();
 "#;
 
@@ -272,6 +300,13 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
     builder = builder.user_agent(&agent);
   }
   let window = builder.build()?;
+  // Swipe in from the left edge to go back a page, as in Safari. Tauri does
+  // not expose wry's setting, so set it on the WKWebView directly.
+  #[cfg(target_os = "ios")]
+  let _ = window.with_webview(|webview| unsafe {
+    let view = &*(webview.inner() as *mut objc2::runtime::AnyObject);
+    let _: () = objc2::msg_send![view, setAllowsBackForwardNavigationGestures: true];
+  });
   if let (Ok(url), Some(home)) = (window.url(), app.try_state::<LauncherHome>()) {
     if let Ok(mut slot) = home.0.lock() {
       *slot = Some(url);

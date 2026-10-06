@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.20] - 2026-10-06
+
+- iPhone: swipe in from the left edge to go back a page.
+- Phones: the AHD button moves above the game's bottom status bar instead of covering it.
+- Phones: the account menu opens on screen; it ran off the left edge.
+- iPad (iPhone app in a window): the launcher keeps clear of the window controls.
+- iPhone push alerts: the signed app now carries the production push entitlement, Settings shows Apple's actual reason if registration fails, and builds are checked against the current source before upload.
+
 ## [2.3.19] - 2026-09-18
 
 - Restored the authenticated native Ask surface.
