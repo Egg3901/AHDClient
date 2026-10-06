@@ -97,3 +97,22 @@ dependencies {
 }
 
 apply(from = "tauri.build.gradle.kts")
+// wry 0.55's generated RustWebView.getCookies returns CookieManager.getCookie(url)
+// as a non-null String, but getCookie returns null when the URL has no
+// cookies (a fresh install or a signed-out player). Kotlin then throws
+// NullPointerException inside the JNI call and the app dies on launch
+// (ticket 1387). tauri rewrites generated/ before every build, so patch it
+// here, after generation and before compilation.
+val patchWryGetCookies by tasks.registering {
+    doLast {
+        fileTree("src/main/java").matching { include("**/generated/RustWebView.kt") }.forEach { file ->
+            val text = file.readText()
+            val fixed = text.replace("return cookieManager.getCookie(url)\n", "return cookieManager.getCookie(url) ?: \"\"\n")
+            if (fixed != text) {
+                file.writeText(fixed)
+                logger.lifecycle("Patched null-safe getCookies in ${file.name}")
+            }
+        }
+    }
+}
+tasks.named("preBuild") { dependsOn(patchWryGetCookies) }
