@@ -101,18 +101,19 @@ apply(from = "tauri.build.gradle.kts")
 // as a non-null String, but getCookie returns null when the URL has no
 // cookies (a fresh install or a signed-out player). Kotlin then throws
 // NullPointerException inside the JNI call and the app dies on launch
-// (ticket 1387). tauri rewrites generated/ before every build, so patch it
-// here, after generation and before compilation.
-val patchWryGetCookies by tasks.registering {
-    doLast {
-        fileTree("src/main/java").matching { include("**/generated/RustWebView.kt") }.forEach { file ->
-            val text = file.readText()
-            val fixed = text.replace("return cookieManager.getCookie(url)\n", "return cookieManager.getCookie(url) ?: \"\"\n")
-            if (fixed != text) {
-                file.writeText(fixed)
-                logger.lifecycle("Patched null-safe getCookies in ${file.name}")
-            }
+// (ticket 1387). wry writes generated/RustWebView.kt during the Rust build,
+// which runs after preBuild, so patch it as the first action of every Kotlin
+// compile instead.
+fun patchWryGetCookies(root: File) {
+    root.walkTopDown().filter { it.name == "RustWebView.kt" && it.parentFile.name == "generated" }.forEach { file ->
+        val text = file.readText()
+        val fixed = text.replace("return cookieManager.getCookie(url)\n", "return cookieManager.getCookie(url) ?: \"\"\n")
+        if (fixed != text) {
+            file.writeText(fixed)
+            println("Patched null-safe getCookies in ${file.path}")
         }
     }
 }
-tasks.named("preBuild") { dependsOn(patchWryGetCookies) }
+tasks.matching { it.name.startsWith("compile") && it.name.endsWith("Kotlin") }.configureEach {
+    doFirst { patchWryGetCookies(project.file("src/main/java")) }
+}
