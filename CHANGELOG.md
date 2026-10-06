@@ -2,7 +2,7 @@
 
 ## [2.3.22] - 2026-10-06
 
-- Android: the app no longer closes as soon as it opens. Release builds stripped a method the app needs to read its sign-in cookies, which crashed it on every Android phone; debug builds were unaffected. Every release build is now launched on Android 14 and 16 emulators before it can ship.
+- Android: the app no longer closes as soon as it opens. Release builds stripped a method the app needs to read its sign-in cookies, and that method also crashed when there were no cookies yet, so every Android phone was affected. Every release build is now launched on Android 14 and 16 emulators before it can ship.
 
 ## [2.3.21] - 2026-10-06
 
