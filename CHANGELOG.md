@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.3.24] - 2026-10-07
+
+- Android: signing in with Discord opens the Discord app, where you are already signed in, to approve, then returns to AHDClient signed in. Without the Discord app it uses the browser and still returns to AHDClient.
+
 ## [2.3.23] - 2026-10-06
 
 - iPhone and iPad: confirmation, alert, and text prompts from the game now appear. They were silently skipped, so buttons that ask "are you sure?" first (entering a race, withdrawing, and many others) did nothing.

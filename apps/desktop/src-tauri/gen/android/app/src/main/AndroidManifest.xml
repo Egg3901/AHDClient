@@ -23,6 +23,18 @@
                 <!-- AndroidTV support -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
+            <!-- Discord sign-in returns here, not to a browser, when it ran in the
+                 Discord app (ticket 1387). Verified against the site's
+                 /.well-known/assetlinks.json. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="ahousedividedgame.com" />
+                <data android:host="www.ahousedividedgame.com" />
+                <data android:path="/api/auth/discord/callback" />
+            </intent-filter>
         </activity>
 
         <receiver android:name=".ProfileWidget" android:label="AHD Profile" android:exported="false">

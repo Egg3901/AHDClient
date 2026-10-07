@@ -212,9 +212,23 @@ enum MobileNavigationAction {
 /// WKWebView reports every navigation to this policy, iframes included, with
 /// no main-frame flag (wry 0.55 `navigation_policy`). Frame-only schemes stay
 /// in the webview; embed hosts are dropped; only real page links leave the app.
+/// Discord's OAuth consent page. On Android it is handed to the system so the
+/// Discord app (where the player is already signed in) can take it; the
+/// callback returns to this app through a verified App Link (see
+/// AndroidManifest.xml and the site's /.well-known/assetlinks.json). Inside
+/// the WebView the player would have to log in to Discord from scratch.
+fn is_discord_authorize(url: &Url) -> bool {
+  url.scheme() == "https"
+    && matches!(url.host_str(), Some("discord.com") | Some("www.discord.com") | Some("ptb.discord.com") | Some("canary.discord.com"))
+    && (url.path().starts_with("/oauth2/authorize") || url.path().starts_with("/api/oauth2/authorize"))
+}
+
 fn classify_navigation(url: &Url) -> MobileNavigationAction {
   if is_launcher_request(url) {
     return MobileNavigationAction::ReturnHome;
+  }
+  if cfg!(target_os = "android") && is_discord_authorize(url) {
+    return MobileNavigationAction::External;
   }
   if is_frame_scheme(url) {
     return MobileNavigationAction::InApp;
@@ -454,6 +468,16 @@ mod tests {
     assert!(is_app_navigation_allowed(&broker));
     assert!(is_app_navigation_allowed(&game));
     assert!(!is_app_navigation_allowed(&outside));
+  }
+
+  #[test]
+  fn discord_consent_is_recognised_but_other_discord_pages_are_not() {
+    let consent: Url = "https://discord.com/oauth2/authorize?client_id=1&response_type=code".parse().unwrap();
+    let api_consent: Url = "https://discord.com/api/oauth2/authorize?client_id=1".parse().unwrap();
+    let login: Url = "https://discord.com/login".parse().unwrap();
+    assert!(is_discord_authorize(&consent));
+    assert!(is_discord_authorize(&api_consent));
+    assert!(!is_discord_authorize(&login));
   }
 
   #[test]
