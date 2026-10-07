@@ -44,6 +44,10 @@ class MainActivity : TauriActivity() {
 
   private fun openWidgetPage() {
     val uri = intent?.data ?: return
+    if (isDiscordCallback(uri)) {
+      loadWhenReady(uri.toString())
+      return
+    }
     if (uri.scheme != "ahdclient") return
     val path = CompanionSafety.get("widget deep link lookup", null as String?) {
       when (uri.host) {
@@ -63,6 +67,35 @@ class MainActivity : TauriActivity() {
           if (view != null && !view.url.isNullOrBlank() && view.url != "about:blank") {
             intent.data = null
             view.loadUrl(BriefingWidgets.ORIGIN + path)
+            widgetNavigation = null
+          } else if (--remaining > 0) widgetHandler.postDelayed(this, 100)
+        }
+      }
+    }
+    widgetNavigation = navigate
+    widgetHandler.post(navigate)
+  }
+
+  /**
+   * The Discord sign-in callback, delivered by the verified App Link after the
+   * player authorized in the Discord app. Loading it in our WebView finishes
+   * sign-in here: the WebView holds the state cookie the login request set.
+   */
+  private fun isDiscordCallback(uri: android.net.Uri): Boolean =
+    uri.scheme == "https" &&
+      (uri.host == "ahousedividedgame.com" || uri.host == "www.ahousedividedgame.com") &&
+      uri.path == "/api/auth/discord/callback"
+
+  private fun loadWhenReady(url: String) {
+    widgetNavigation?.let { widgetHandler.removeCallbacks(it) }
+    var remaining = 100
+    val navigate = object : Runnable {
+      override fun run() {
+        CompanionSafety.run("Discord sign-in return") {
+          val view = gameView
+          if (view != null && !view.url.isNullOrBlank() && view.url != "about:blank") {
+            intent.data = null
+            view.loadUrl(url)
             widgetNavigation = null
           } else if (--remaining > 0) widgetHandler.postDelayed(this, 100)
         }
