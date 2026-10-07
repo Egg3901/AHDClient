@@ -8,7 +8,8 @@ pkg=net.lakesidegames.ahdclient
 mkdir -p probe
 adb install -r -g app.apk
 adb logcat -c
-adb shell wm size
+read -r W H < <(adb shell wm size | tail -1 | grep -o "[0-9]*x[0-9]*" | tr x " ")
+echo "screen ${W}x${H}"
 adb shell am start -W -n "$pkg/.MainActivity"
 sleep 15
 # The verified App Link for the Discord callback loads it in the app WebView;
@@ -49,7 +50,10 @@ adb shell input keyevent KEYCODE_BACK
 sleep 2
 
 xy=$(center 'Discord')
-if [ -z "$xy" ]; then adb shell input swipe 540 1600 540 600 400; sleep 3; xy=$(center 'Discord'); fi
+# Scroll the button clear of the gesture bar before tapping it.
+adb shell input swipe $((W / 2)) $((H * 3 / 4)) $((W / 2)) $((H / 4)) 400
+sleep 3
+xy=$(center 'Discord')
 echo "Discord button at: ${xy:-not found}"
 snap before-discord
 [ -n "$xy" ] && adb shell input tap $xy
