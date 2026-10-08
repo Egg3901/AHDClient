@@ -381,8 +381,17 @@ pub(crate) async fn open_ask_window(app: AppHandle) -> Result<(), String> {
   present_native_ask(app).await
 }
 
+/// Supporter purchase pages are outside purchases (guideline 3.1.1), so the
+/// phone app refuses them even though the shared Help table knows them.
+fn is_store_blocked_help(route_id: &str) -> bool {
+  matches!(route_id, "help.patreon" | "help.supporter-wall")
+}
+
 #[tauri::command]
 pub(crate) async fn open_help_destination(app: AppHandle, route_id: String) -> Result<(), String> {
+  if is_store_blocked_help(&route_id) {
+    return Err("This link is available in the desktop app.".into());
+  }
   match help_destination(&route_id) {
     Some(HelpDestination::Online(path)) => {
       let url: Url = format!("{ONLINE_URL}{path}").parse().map_err(|e| format!("bad Help URL: {e}"))?;
@@ -468,6 +477,14 @@ mod tests {
     assert!(is_app_navigation_allowed(&broker));
     assert!(is_app_navigation_allowed(&game));
     assert!(!is_app_navigation_allowed(&outside));
+  }
+
+  #[test]
+  fn phone_app_refuses_supporter_purchase_pages() {
+    assert!(is_store_blocked_help("help.patreon"));
+    assert!(is_store_blocked_help("help.supporter-wall"));
+    assert!(!is_store_blocked_help("help.wiki"));
+    assert!(!is_store_blocked_help("help.privacy"));
   }
 
   #[test]

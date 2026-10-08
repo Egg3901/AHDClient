@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.3.25] - 2026-10-08
+
+- iPhone and Android: the app now refuses the supporter purchase and supporter wall links at the native layer, not only by hiding the buttons. No behavior change for players.
+- Version bump for the next App Store submission.
+
 ## [2.3.24] - 2026-10-07
 
 - Android: signing in with Discord opens the Discord app, where you are already signed in, to approve, then returns to AHDClient signed in. Without the Discord app it uses the browser and still returns to AHDClient.
