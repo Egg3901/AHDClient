@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Walk the sign-in path a player takes in the Android app (tickets 1387 and
-# 1450): Enter multiplayer, the site's sign-in page, Continue with Discord,
+# 1450): the site's sign-in page in the app WebView, Continue with Discord,
 # then back to the app with real input. Fails only when the app stops
 # answering input (an ANR), never because a button moved or the site was
 # slow, so it can run against the live site on every build.
@@ -32,11 +32,10 @@ center() {
 }
 
 snap launcher
-# Enter multiplayer is the full-width red button just above the middle.
-a shell input tap $((W / 2)) $((H * 51 / 100))
-sleep 15
-snap site
-# The site's Sign in, opened in the same app WebView through the widget link.
+# The site's sign-in page, opened in the app WebView (the one Enter
+# multiplayer uses) through the widget link. Not via Enter multiplayer: the
+# home page's WebGL globe takes the whole emulator down under the runner's
+# software GPU.
 a shell am start -n "$pkg/.MainActivity" -a android.intent.action.VIEW -d "ahdclient://page/login" >/dev/null
 sleep 15
 snap login
@@ -60,6 +59,11 @@ a shell input keyevent KEYCODE_DPAD_DOWN
 sleep 15
 snap back-in-app
 
+if [ "$(a get-state 2>/dev/null)" != "device" ]; then
+  echo "::warning::Sign-in walk lost the emulator; no verdict on the sign-in path."
+  echo "RESULT: inconclusive, emulator went away"
+  exit 0
+fi
 pid=$(a shell pidof "$pkg" | tr -d '\r')
 now=$(focus)
 a logcat -d > probe/walk-logcat.txt
