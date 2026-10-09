@@ -42,7 +42,10 @@ snap login
 # Bring the Discord button clear of the gesture bar before tapping it.
 a shell input swipe $((W / 2)) $((H * 3 / 4)) $((W / 2)) $((H / 4)) 400
 sleep 3
-xy=$(center 'Continue with Discord')
+# uiautomator rarely sees into the WebView, so find the button by its colour.
+a exec-out screencap -p > probe/walk-before-discord.png
+xy=$(python3 .github/scripts/find-discord-button.py probe/walk-before-discord.png 2>/dev/null)
+[ -n "$xy" ] || xy=$(center 'Continue with Discord')
 echo "\"Continue with Discord\" at: ${xy:-not found}"
 reached=0
 if [ -n "$xy" ]; then a shell input tap $xy; reached=1; fi
