@@ -243,7 +243,7 @@ enum BriefingStore {
             data.turn = nil
           }
           if let inbox = data.inbox, inbox.unread.isFinite, inbox.mail.isFinite {
-            data.inbox = InboxCounts(unread: min(max(inbox.unread, 0), 99_999), mail: min(max(inbox.mail, 0), 99_999))
+            data.inbox = BriefingStatus.InboxCounts(unread: min(max(inbox.unread, 0), 99_999), mail: min(max(inbox.mail, 0), 99_999))
           } else {
             data.inbox = nil
           }
