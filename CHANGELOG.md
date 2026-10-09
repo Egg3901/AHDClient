@@ -10,6 +10,7 @@
 - Android: each widget page shows more, plus the current turn, the next turn time and your inbox.
 - The in-game AHD menu adds Inbox and Briefing, and Multiplayer is now called Game home.
 - Briefing shows the current turn, a countdown to the next one and your inbox. Turn changes read in their own units with the current value, and they, and your stock holdings, open their page when tapped. Your corporation card has a share price chart.
+- Android: fixed a crash that could close the app a few seconds after opening it on slower phones, when reading your signed-in session took too long.
 - Fixed: tapping the Stocks widget did not open anything.
 - Fixed: the Profile widget showed empty figures instead of asking you to choose a character.
 

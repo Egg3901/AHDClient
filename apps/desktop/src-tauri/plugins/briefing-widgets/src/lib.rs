@@ -1,7 +1,11 @@
 use serde::Deserialize;
 use tauri::{plugin::PluginHandle, webview::Cookie, Manager, Runtime, Url};
 
+// Jar matching for iOS, which hands over the whole jar. Android's
+// CookieManager already answers per URL.
+#[cfg(not(target_os = "android"))]
 mod cookies;
+#[cfg(not(target_os = "android"))]
 use cookies::{sent_to, JarCookie};
 
 #[cfg(target_os = "ios")]
@@ -42,7 +46,18 @@ impl<R: Runtime> NativeCompanion<R> {
     let wire: Vec<WireCookie> = serde_json::from_str(&reply.cookies).map_err(|_| "Could not read the app session".to_string())?;
     Ok(wire.into_iter().map(|c| Cookie::build((c.name, c.value)).domain(c.domain).path(c.path).secure(c.secure).build()).collect())
   }
+  /// The cookies the WebView would send to `url`, from Android's
+  /// CookieManager. wry's Android reader gives up after ten seconds and then
+  /// panics when the main thread answers late; this waits instead, so it too
+  /// must never run on the main thread. Android reports names and values only.
+  #[cfg(target_os = "android")]
+  pub fn cookies_for_url(&self, url: &Url) -> Result<Vec<Cookie<'static>>, String> {
+    let reply: JarReply = self.0.run_mobile_plugin("cookiesForUrl", serde_json::json!({ "url": url.as_str() }))
+      .map_err(|_| "Could not read the app session".to_string())?;
+    Ok(reply.cookies.split("; ").filter_map(|pair| Cookie::parse(pair.to_string()).ok()).collect())
+  }
   /// The cookies the WebView would send to `url`.
+  #[cfg(not(target_os = "android"))]
   pub fn cookies_for_url(&self, url: &Url) -> Result<Vec<Cookie<'static>>, String> {
     let host = url.host_str().unwrap_or_default();
     let https = url.scheme() == "https";
