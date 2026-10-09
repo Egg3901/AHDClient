@@ -1,9 +1,11 @@
 # Changelog
 
-## [Unreleased]
+## [2.3.26] - 2026-10-09
 
 - iPhone: pull down from the top of a game page to reload it.
 - iPhone: fixed a crash that could close the app right after opening it. Reading your signed-in session from the web view could abort the app, most often on a cold start.
+- iPad: the app now runs as a native iPad app in every orientation, with Split View and Slide Over, instead of a scaled iPhone window.
+- Version bump for the next App Store submission.
 
 ## [2.3.25] - 2026-10-08
 
