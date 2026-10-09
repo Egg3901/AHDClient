@@ -709,17 +709,19 @@ struct BriefingWidgetView: View {
     }
   }
 
-  var body: some View {
-    if accessory != nil {
-      // Lock Screen widgets use the system's tinted material, not the card.
-      if #available(iOSApplicationExtension 17.0, *) {
-        lockScreen.widgetURL(link).containerBackground(for: .widget) { Color.clear }
-      } else {
-        lockScreen.widgetURL(link)
-      }
-    } else if #available(iOSApplicationExtension 17.0, *) {
-      // On iOS 17+ the backdrop is the container background, so it fills the
-      // whole rounded widget and the system margins inset only the content.
+  /// Lock Screen widgets use the system's tinted material, not the card.
+  @ViewBuilder private var lockScreenWidget: some View {
+    if #available(iOSApplicationExtension 17.0, *) {
+      lockScreen.widgetURL(link).containerBackground(for: .widget) { Color.clear }
+    } else {
+      lockScreen.widgetURL(link)
+    }
+  }
+
+  @ViewBuilder private var homeScreenWidget: some View {
+    // On iOS 17+ the backdrop is the container background, so it fills the
+    // whole rounded widget and the system margins inset only the content.
+    if #available(iOSApplicationExtension 17.0, *) {
       homeScreen
         .privacySensitive()
         .widgetURL(link)
@@ -731,6 +733,14 @@ struct BriefingWidgetView: View {
         .background(backdrop)
         .privacySensitive()
         .widgetURL(link)
+    }
+  }
+
+  var body: some View {
+    if accessory != nil {
+      lockScreenWidget
+    } else {
+      homeScreenWidget
     }
   }
 }
