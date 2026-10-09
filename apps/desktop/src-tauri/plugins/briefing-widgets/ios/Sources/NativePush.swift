@@ -26,7 +26,8 @@ final class NativePush: NSObject, UNUserNotificationCenterDelegate, URLSessionTa
   private var registering = false
   private var nextAttempt = Date.distantPast
   private var message = "Turn on alerts for new inbox activity."
-  private var pendingInbox = false
+  /// The game page a tapped alert asked for, opened once the webview is ready.
+  private var pendingPath: String?
   private var navigationAttempts = 0
   private let origin = "https://ahousedividedgame.com"
   private lazy var client: URLSession = {
@@ -77,7 +78,7 @@ final class NativePush: NSObject, UNUserNotificationCenterDelegate, URLSessionTa
     UNUserNotificationCenter.current().delegate = self
     installCallbacks()
     refreshPermission()
-    openPendingInbox()
+    openPendingPage()
   }
   private func installCallbacks() {
     guard !installed, let delegate = UIApplication.shared.delegate else { return }
@@ -208,7 +209,7 @@ final class NativePush: NSObject, UNUserNotificationCenterDelegate, URLSessionTa
           self.state.needsRevoke = false
           if register {
             self.nextAttempt = Date().addingTimeInterval(12 * 60 * 60)
-            self.message = "Push alerts are on. Inbox mutes and snoozes apply."
+            self.message = "Push alerts are on. Tap one to open what it is about."
           }
           self.save()
           if !register { self.nextAttempt = .distantPast; self.sync() }
@@ -234,20 +235,25 @@ final class NativePush: NSObject, UNUserNotificationCenterDelegate, URLSessionTa
   func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
     withCompletionHandler completionHandler: @escaping () -> Void) {
     DispatchQueue.main.async {
-      if response.notification.request.content.userInfo["path"] as? String == "/notifications" {
-        self.pendingInbox = true; self.navigationAttempts = 0; self.openPendingInbox()
+      let info = response.notification.request.content.userInfo
+      // Servers since AHDGame #3764 name the alert's own page in `href`.
+      // Older pushes carry only the inbox `path`.
+      let page = (info["href"] as? String).flatMap(BriefingStore.gamePath)
+        ?? (info["path"] as? String == "/notifications" ? "/notifications" : nil)
+      if let page = page {
+        self.pendingPath = page; self.navigationAttempts = 0; self.openPendingPage()
       }
       completionHandler()
     }
   }
-  private func openPendingInbox() {
-    guard pendingInbox else { return }
+  private func openPendingPage() {
+    guard let path = pendingPath, let destination = URL(string: origin + path) else { pendingPath = nil; return }
     if let view = webview, let url = view.url, url.absoluteString != "about:blank" {
-      pendingInbox = false
-      view.load(URLRequest(url: URL(string: origin + "/notifications")!))
+      pendingPath = nil
+      view.load(URLRequest(url: destination))
     } else if navigationAttempts < 100 {
       navigationAttempts += 1
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.openPendingInbox() }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.openPendingPage() }
     }
   }
 }

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Briefing } from "./Briefing.js";
-import { briefing, freshness, money, number, readSection } from "./briefingApi.js";
+import { briefing, changeDelta, changeValue, freshness, money, nextTurn, number, readSection } from "./briefingApi.js";
 import type { Snapshot } from "./briefingApi.js";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -19,6 +19,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.spyOn(briefing, "read").mockResolvedValue(ready);
   vi.spyOn(briefing, "open").mockResolvedValue();
+  vi.spyOn(briefing, "openPage").mockResolvedValue();
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
@@ -100,5 +101,48 @@ describe("briefing", () => {
     await screen.findByText(/saved briefing has expired/);
     expect(screen.queryByText("Example character")).toBeNull();
     expect(freshness(0, 121000)).toBe("Updated 2m ago");
+  });
+
+  it("shows the turn clock and inbox counts, and opens the inbox", async () => {
+    vi.mocked(briefing.read).mockResolvedValue({ ...ready,
+      turn: { current: 50, date: "March 1953, Week 2", nextAt: new Date(Date.now() + 23 * 60_000 - 1000).toISOString(), active: true },
+      inbox: { unread: 3, mail: 1 } });
+    render(<Briefing />);
+    await screen.findByText("Turn 50");
+    expect(screen.getByText("March 1953, Week 2")).toBeDefined();
+    expect(screen.getByText("Next turn in 23m")).toBeDefined();
+    await userEvent.click(screen.getByRole("button", { name: "Inbox: 3 unread, 1 mail" }));
+    expect(briefing.open).toHaveBeenCalledWith("inbox");
+    expect(nextTurn({ current: 1, nextAt: new Date(95 * 60_000).toISOString(), active: true }, 0)).toBe("Next turn in 1h 35m");
+    expect(nextTurn({ current: 1, nextAt: null, active: false }, 0)).toBe("Turns paused");
+    expect(nextTurn({ current: 1, nextAt: new Date(0).toISOString(), active: true }, 1)).toBe("Next turn running");
+    expect(nextTurn(null, 0)).toBeNull();
+  });
+
+  it("writes turn changes in their own units and opens their page", async () => {
+    const share = { category: "markets", label: "Share price", value: 12.5, delta: -0.5, unit: "currency" as const, href: "/corporation/7" };
+    const vote = { category: "election", label: "Vote share", value: 45.2, delta: 1.4, unit: "percent" as const, href: "/elections/x" };
+    vi.mocked(briefing.read).mockResolvedValue({ ...ready, turnBriefing: [share, vote],
+      corporation: { name: "Acme", sequentialId: 7, sharePrice: 12.5, priceChange1h: 1, liquidCapital: 1, liquidCurrencyCode: "USD", marketingStrength: 1 } });
+    localStorage.setItem("ahdclient.briefing.section", "turns");
+    render(<Briefing />);
+    await screen.findByText("Share price");
+    expect(screen.getByText("-0.5 USD")).toBeDefined();
+    expect(screen.getByText("Now 12.5 USD")).toBeDefined();
+    expect(screen.getByText("+1.4 pp")).toBeDefined();
+    expect(screen.queryByText(/currency|percent/)).toBeNull();
+    await userEvent.click(screen.getByText("Vote share"));
+    expect(briefing.openPage).toHaveBeenCalledWith("/elections/x");
+    expect(changeValue(vote, null)).toBe("45.2%");
+    expect(changeDelta({ ...share, unit: "points", delta: 3 }, null)).toBe("+3");
+  });
+
+  it("opens a watched stock's corporation", async () => {
+    vi.mocked(briefing.read).mockResolvedValue({ ...ready, marketWatch: [
+      { sequentialId: 9, name: "Example Steel", tickerSymbol: "EXS", sharePrice: 3, liquidCurrencyCode: "GBP", ownedShares: 200 }] });
+    localStorage.setItem("ahdclient.briefing.section", "stocks");
+    render(<Briefing />);
+    await userEvent.click(await screen.findByRole("button", { name: /\$EXS/ }));
+    expect(briefing.openPage).toHaveBeenCalledWith("/corporation/9");
   });
 });

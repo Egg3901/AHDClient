@@ -23,7 +23,7 @@ describe("desktop security configuration", () => {
     expect(briefingCapability.webviews).toEqual(["briefing"]);
     expect("remote" in briefingCapability).toBe(false);
     expect([...briefingCapability.permissions].sort()).toEqual([
-      "core:default", "allow-get-briefing", "allow-open-briefing-page", "allow-set-briefing-pinned",
+      "core:default", "allow-get-briefing", "allow-open-briefing-page", "allow-open-game-page", "allow-set-briefing-pinned",
     ].sort());
     expect(read("../src-tauri/src/briefing.rs")).toContain(".redirects(0)");
   });
@@ -321,6 +321,7 @@ describe("desktop security configuration", () => {
         "allow-configure-push",
         "allow-get-briefing",
         "allow-open-briefing-page",
+        "allow-open-game-page",
       ].sort(),
     );
     expect(defaultCapability.platforms).toEqual(["linux", "macOS", "windows"]);

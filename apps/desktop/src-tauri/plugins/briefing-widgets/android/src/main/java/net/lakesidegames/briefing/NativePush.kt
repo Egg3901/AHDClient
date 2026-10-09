@@ -25,7 +25,9 @@ import java.util.concurrent.Executors
 object NativePush {
   private const val ORIGIN = "https://ahousedividedgame.com"
   private const val CHANNEL = "ahd-inbox"
+  /** Used when a push names no alert id (servers before AHDGame #3764). */
   private const val NOTIFICATION_ID = 21002
+  private const val FALLBACK_BODY = "You have new activity. Open your inbox to catch up."
   private val lock = Any()
   private val worker = Executors.newSingleThreadExecutor()
   private var busy = false
@@ -74,7 +76,7 @@ object NativePush {
     }
     if (!enabled) {
       state.remove("registeredSession")
-      NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
+      NotificationManagerCompat.from(context).cancelAll()
     }
     save(context, state)
     if (!enabled && FirebaseApp.getApps(context).isNotEmpty()) {
@@ -100,13 +102,13 @@ object NativePush {
       if (state.optString("observedSession", state.optString("registeredSession")) != fingerprint) {
         state.put("observedSession", fingerprint); nextAttempt = 0
         state.remove("registeredSession"); state.put("needsRevoke", state.optBoolean("mayBeRegistered")); save(app, state)
-        NotificationManagerCompat.from(app).cancel(NOTIFICATION_ID)
+        NotificationManagerCompat.from(app).cancelAll()
       }
       val enabled = state.optBoolean("enabled") && permitted(app)
       if (!enabled || header.isEmpty()) {
         statusMessage = if (!state.optBoolean("enabled")) "Push alerts are off." else if (!permitted(app))
           "Allow notifications in Android Settings, then return here." else "Sign in to multiplayer to receive alerts."
-        NotificationManagerCompat.from(app).cancel(NOTIFICATION_ID)
+        NotificationManagerCompat.from(app).cancelAll()
       } else if (!available(app)) { statusMessage = "Push is unavailable in this build."; return }
       if (enabled && header.isNotEmpty() && state.optString("token").isEmpty() && !tokenPending) {
         tokenPending = true
@@ -147,7 +149,7 @@ object NativePush {
                   if (register) {
                     latest.put("registeredSession", fingerprint)
                     nextAttempt = System.currentTimeMillis() + 12 * 60 * 60_000
-                    statusMessage = "Push alerts are on. Inbox mutes and snoozes apply."
+                    statusMessage = "Push alerts are on. Tap one to open what it is about."
                   } else {
                     latest.remove("registeredSession"); latest.put("mayBeRegistered", false); latest.put("needsRevoke", false)
                     nextAttempt = 0
@@ -187,6 +189,15 @@ object NativePush {
     } finally { connection.disconnect() }
   }
 
+  private fun text(value: String?, limit: Int): String? =
+    value?.filterNot { it.isISOControl() }?.trim()?.take(limit)?.takeIf { it.isNotEmpty() }
+
+  /** A bounded path on the game site, or null for anything that could leave it. */
+  fun gamePath(value: String?): String? = value?.takeIf { path ->
+    path.length <= 300 && path.startsWith("/") && !path.startsWith("//") &&
+      path.none { it == '\\' || it.isWhitespace() || it.isISOControl() }
+  }
+
   fun show(context: Context, message: RemoteMessage) {
     NativeSafety.run("push notification") {
       synchronized(lock) {
@@ -196,16 +207,26 @@ object NativePush {
           state.optString("registeredSession") != digest(header) || message.data["path"] != "/notifications") return@run
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel(CHANNEL, "Inbox activity", NotificationManager.IMPORTANCE_DEFAULT))
+        val data = message.data
+        val title = text(data["title"], 120) ?: "A House Divided"
+        val body = text(data["body"], 400) ?: FALLBACK_BODY
+        val subtitle = text(data["subtitle"], 120)
+        // Each alert gets its own entry; a retried delivery of the same alert replaces itself.
+        val id = data["id"]?.takeIf { Regex("[0-9a-f]{24}").matches(it) }?.hashCode() ?: NOTIFICATION_ID
         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return@run
-        intent.data = Uri.parse("ahdclient://inbox")
+        intent.data = Uri.parse("ahdclient://page" + (gamePath(data["href"]) ?: "/notifications"))
         intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        val pending = PendingIntent.getActivity(context, NOTIFICATION_ID, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val pending = PendingIntent.getActivity(context, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val icon = context.resources.getIdentifier("ic_stat_ahd", "drawable", context.packageName)
+        // A locked phone set to hide sensitive content shows only this.
+        val hidden = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(icon).setContentTitle("A House Divided")
+          .setContentText(subtitle?.substringBefore(" \u00b7 ")?.let { "New $it alert" } ?: "New inbox activity").build()
         val notification = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(icon)
-          .setContentTitle("A House Divided").setContentText("You have new activity. Open your inbox to catch up.")
-          .setContentIntent(pending).setAutoCancel(true).setOnlyAlertOnce(true)
-          .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).build()
-        try { manager.notify(NOTIFICATION_ID, notification) } catch (_: SecurityException) { }
+          .setContentTitle(title).setContentText(body).setSubText(subtitle)
+          .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+          .setContentIntent(pending).setAutoCancel(true).setOnlyAlertOnce(true).setShowWhen(true)
+          .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).setPublicVersion(hidden).build()
+        try { manager.notify(id, notification) } catch (_: SecurityException) { }
       }
     }
   }

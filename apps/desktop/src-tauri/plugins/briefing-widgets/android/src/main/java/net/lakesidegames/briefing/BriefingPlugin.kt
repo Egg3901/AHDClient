@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.webkit.CookieManager
 import android.webkit.WebView
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -20,6 +21,9 @@ import org.json.JSONObject
 
 @InvokeArg
 class PushOptions { var enabled: Boolean = false }
+
+@InvokeArg
+class CookieOptions { var url: String = "" }
 
 @TauriPlugin(permissions = [Permission(strings = [Manifest.permission.POST_NOTIFICATIONS], alias = "notifications")])
 class BriefingPlugin(private val activity: Activity) : Plugin(activity), Application.ActivityLifecycleCallbacks {
@@ -43,6 +47,20 @@ class BriefingPlugin(private val activity: Activity) : Plugin(activity), Applica
   fun showAsk(invoke: Invoke) {
     NativeSafety.run("Ask presentation request") { NativeAskController.present() }
     invoke.resolve(JSObject("{\"ok\":true}"))
+  }
+  /**
+   * The cookie header the WebView would send to `url`. wry's own reader waits
+   * ten seconds for the main thread, then drops its reply channel; a late
+   * reply then panics in wry and aborts the app (API 36 launch test, 2.4.0).
+   * Tauri's plugin bridge waits without a deadline instead.
+   */
+  @Command
+  fun cookiesForUrl(invoke: Invoke) {
+    val url = NativeSafety.get("cookie argument parsing", "") { invoke.parseArgs(CookieOptions::class.java).url }
+    val header = NativeSafety.get("cookie read", "") {
+      if (url.startsWith("https://")) CookieManager.getInstance().getCookie(url) ?: "" else ""
+    }
+    invoke.resolve(JSObject().apply { put("cookies", header) })
   }
   @Command
   fun pushStatus(invoke: Invoke) {

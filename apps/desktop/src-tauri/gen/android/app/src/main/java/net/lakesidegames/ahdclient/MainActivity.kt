@@ -53,6 +53,8 @@ class MainActivity : TauriActivity() {
       when (uri.host) {
         "inbox" -> "/notifications"
         "briefing" -> BriefingWidgets.page(this, uri.path?.removePrefix("/") ?: "")
+        // Push alerts and widget rows: one page on the game site.
+        "page" -> BriefingWidgets.gamePath((uri.encodedPath ?: "") + (uri.encodedQuery?.let { "?$it" } ?: ""))
         else -> null
       }
     } ?: return

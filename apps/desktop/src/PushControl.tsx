@@ -43,6 +43,6 @@ export function PushControl(): JSX.Element {
         aria-pressed={status?.enabled ?? false}>{busy ? "Updating..." : status?.enabled ? "Turn off" : "Turn on"}</button>
     </div>
     <p role="status" className="client-push-status">{error || status?.message || "Checking notification settings..."}</p>
-    <p className="client-push-status">Inbox mutes and snoozes apply. Lock-screen previews keep account details private.</p>
+    <p className="client-push-status">Each alert shows its own title and message, and tapping it opens the page it is about. Inbox mutes and snoozes apply. To hide alert text while your phone is locked, change notification previews in your phone's settings.</p>
   </div>;
 }

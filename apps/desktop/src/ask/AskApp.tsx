@@ -662,7 +662,7 @@ export function AskApp(): JSX.Element {
       >
         {msgs.length === 0 ? (
           <div className="av-center">
-            <p className="av-muted">Ask about any part of the game — rules, strategy, your character, the wider world.</p>
+            <p className="av-muted">Ask about any part of the game: rules, strategy, your character, the wider world.</p>
           </div>
         ) : null}
         {msgs.map((msg) =>

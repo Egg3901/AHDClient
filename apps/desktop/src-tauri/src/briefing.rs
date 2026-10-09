@@ -7,7 +7,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url};
 
-const STATUS_PATH: &str = "/api/client-status?layout=full";
+// `widgets=1` adds the turn clock and inbox counts (AHDGame #3764). A server
+// without it ignores the flag and those fields stay empty.
+const STATUS_PATH: &str = "/api/client-status?layout=full&widgets=1";
 const MAX_BODY: u64 = 128 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +95,24 @@ pub(crate) struct MarketWatchItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct TurnClock {
+  pub current: f64,
+  pub date: Option<String>,
+  /// ISO time the next turn is scheduled for.
+  pub next_at: Option<String>,
+  #[serde(default)]
+  pub active: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Inbox {
+  pub unread: f64,
+  pub mail: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct Briefing {
   pub status: String,
   pub updated_at: u64,
@@ -103,6 +123,10 @@ pub(crate) struct Briefing {
   pub turn_briefing: Vec<TurnBriefingItem>,
   #[serde(default)]
   pub market_watch: Vec<MarketWatchItem>,
+  #[serde(default)]
+  pub turn: Option<TurnClock>,
+  #[serde(default)]
+  pub inbox: Option<Inbox>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,7 +142,8 @@ pub(crate) struct TurnBriefingItem {
 
 impl Briefing {
   fn empty(status: &str) -> Self {
-    Self { status: status.into(), updated_at: now_ms(), profile: None, election: None, corporation: None, turn_briefing: Vec::new(), market_watch: Vec::new() }
+    Self { status: status.into(), updated_at: now_ms(), profile: None, election: None, corporation: None,
+      turn_briefing: Vec::new(), market_watch: Vec::new(), turn: None, inbox: None }
   }
 }
 
@@ -177,7 +202,26 @@ pub(crate) fn parse_status(value: serde_json::Value) -> Result<Briefing, String>
     item.logo_url = bounded_https_url(item.logo_url.take());
     item.ticker_symbol = item.ticker_symbol.take().map(|value| value.chars().take(8).collect());
   }
-  Ok(Briefing { status: "ready".into(), updated_at: now_ms(), profile: Some(profile), election, corporation, turn_briefing, market_watch })
+  let turn = value.get("turn").cloned().and_then(|v| serde_json::from_value::<TurnClock>(v).ok())
+    .filter(|clock| clock.current.is_finite() && clock.current >= 0.0)
+    .map(|mut clock| {
+      clock.date = bounded_text(clock.date, 40);
+      clock.next_at = clock.next_at.filter(|at| at.len() <= 40 && at.chars().all(|c| c.is_ascii_alphanumeric() || "-:.+".contains(c)));
+      clock
+    });
+  let inbox = value.get("inbox").cloned().and_then(|v| serde_json::from_value::<Inbox>(v).ok())
+    .filter(|inbox| inbox.unread.is_finite() && inbox.mail.is_finite())
+    .map(|inbox| Inbox { unread: inbox.unread.clamp(0.0, 99_999.0), mail: inbox.mail.clamp(0.0, 99_999.0) });
+  Ok(Briefing { status: "ready".into(), updated_at: now_ms(), profile: Some(profile), election, corporation, turn_briefing, market_watch, turn, inbox })
+}
+
+/// A page on the game site, as a bounded same-origin path. Anything that
+/// could leave the site (absolute, protocol-relative, backslash, whitespace)
+/// is refused.
+pub(crate) fn game_page_path(path: &str) -> Option<&str> {
+  let safe = path.len() <= 300 && path.starts_with('/') && !path.starts_with("//")
+    && !path.chars().any(|c| c == '\\' || c.is_whitespace() || c.is_control());
+  safe.then_some(path)
 }
 
 fn bounded_https_url(value: Option<String>) -> Option<String> {
@@ -273,7 +317,7 @@ pub(crate) async fn get_briefing(app: AppHandle) -> Result<Briefing, String> {
 
 #[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub(crate) enum Section { Profile, Election, Corporation, Stocks, Turns }
+pub(crate) enum Section { Profile, Election, Corporation, Stocks, Turns, Inbox }
 
 fn section_path(section: Section, briefing: Option<&Briefing>) -> String {
   match section {
@@ -284,6 +328,22 @@ fn section_path(section: Section, briefing: Option<&Briefing>) -> String {
       .map(|c| format!("/corporation/{}", c.sequential_id)).unwrap_or("/corporation".into()),
     Section::Stocks => "/stockmarket/global".into(),
     Section::Turns => "/profile".into(),
+    Section::Inbox => "/notifications".into(),
+  }
+}
+
+impl Section {
+  /// The `ahdclient://briefing/<section>` widget links.
+  pub(crate) fn from_link(path: &str) -> Option<Self> {
+    Some(match path.trim_end_matches('/') {
+      "/profile" => Self::Profile,
+      "/election" => Self::Election,
+      "/corporation" => Self::Corporation,
+      "/stocks" => Self::Stocks,
+      "/turns" => Self::Turns,
+      "/inbox" => Self::Inbox,
+      _ => return None,
+    })
   }
 }
 
@@ -292,6 +352,18 @@ pub(crate) async fn open_briefing_page(app: AppHandle, section: Section) -> Resu
   let briefing = get_briefing(app.clone()).await.ok();
   let path = section_path(section, briefing.as_ref());
   let url: Url = format!("{}{path}", crate::ONLINE_URL).parse().map_err(|_| "Invalid briefing link.")?;
+  #[cfg(desktop)]
+  { crate::desktop::open_briefing_url(app, url).await }
+  #[cfg(mobile)]
+  { crate::mobile::navigate_main(&app, url) }
+}
+
+/// Open one game page from the briefing, such as a turn change's source.
+#[tauri::command]
+pub(crate) async fn open_game_page(app: AppHandle, path: String) -> Result<(), String> {
+  let path = game_page_path(&path).ok_or("Invalid game link.")?;
+  let url: Url = format!("{}{path}", crate::ONLINE_URL).parse().map_err(|_| "Invalid game link.")?;
+  if url.host_str() != Some(crate::ONLINE_HOST) { return Err("Invalid game link.".into()); }
   #[cfg(desktop)]
   { crate::desktop::open_briefing_url(app, url).await }
   #[cfg(mobile)]
@@ -339,6 +411,40 @@ mod tests {
     assert!(!output.contains("secret"));
     assert!(!output.contains("history"));
     assert_eq!(section_path(Section::Corporation, Some(&result)), "/corporation");
+  }
+
+  #[test]
+  fn turn_clock_and_inbox_are_bounded() {
+    let result = parse_status(json!({"name":"Example",
+      "turn":{"current":50,"date":"March 1953, Week 2","nextAt":"2026-10-09T22:00:00.000Z","active":true},
+      "inbox":{"unread":3,"mail":-4}})).unwrap();
+    let turn = result.turn.unwrap();
+    assert_eq!(turn.current, 50.0);
+    assert_eq!(turn.next_at.as_deref(), Some("2026-10-09T22:00:00.000Z"));
+    assert_eq!(result.inbox.as_ref().unwrap().unread, 3.0);
+    assert_eq!(result.inbox.unwrap().mail, 0.0);
+    let odd = parse_status(json!({"name":"Example","turn":{"current":1,"nextAt":"<script>"},"inbox":{"unread":"x"}})).unwrap();
+    assert_eq!(odd.turn.unwrap().next_at, None);
+    assert!(odd.inbox.is_none());
+    assert!(parse_status(json!({"name":"Example"})).unwrap().turn.is_none());
+  }
+
+  #[test]
+  fn game_page_links_stay_on_the_site() {
+    assert_eq!(game_page_path("/corporation/7"), Some("/corporation/7"));
+    assert_eq!(game_page_path("/elections/abc?tab=1#x"), Some("/elections/abc?tab=1#x"));
+    for bad in ["https://example.com", "//example.com", "/\\example.com", "/a b", "", "corporation/7"] {
+      assert_eq!(game_page_path(bad), None, "{bad}");
+    }
+  }
+
+  #[test]
+  fn every_widget_link_has_a_section() {
+    for link in ["/profile", "/election", "/corporation", "/stocks", "/turns", "/inbox"] {
+      assert!(Section::from_link(link).is_some(), "{link}");
+    }
+    assert!(Section::from_link("/settings").is_none());
+    assert_eq!(section_path(Section::Inbox, None), "/notifications");
   }
 
   #[test]

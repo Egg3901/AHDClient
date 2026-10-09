@@ -70,7 +70,13 @@ function rememberAccountNotice(): void {
 }
 
 export function App(): JSX.Element {
-  const [screen, setScreen] = useState<Screen>("launcher");
+  // The in-game menu's Briefing item returns to the launcher with
+  // ?screen=briefing (mobile.rs). Consumed once so a reload lands home.
+  const [screen, setScreen] = useState<Screen>(() => {
+    if (!mobile || new URLSearchParams(location.search).get("screen") !== "briefing") return "launcher";
+    history.replaceState(null, "", location.pathname);
+    return "briefing";
+  });
   const [allWorlds, setAllWorlds] = useState<WorldMeta[]>([]);
   const [info, setInfo] = useState<GameInfo>(IDLE);
   const [pendingWorldsim, setPendingWorldsim] = useState(false);

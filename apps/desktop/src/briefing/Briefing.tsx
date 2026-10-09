@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { briefing, freshness, money, nextSection, number, percent, readSection, saveSection, SECTIONS, SECTION_LABELS } from "./briefingApi.js";
+import { briefing, changeDelta, changeValue, freshness, money, nextSection, nextTurn, number, percent, readSection, saveSection, SECTIONS, SECTION_LABELS } from "./briefingApi.js";
 import type { Section, Snapshot } from "./briefingApi.js";
 import "./briefing.css";
 
@@ -9,10 +9,16 @@ function Stats({ items }: { items: [string, string][] }): JSX.Element {
   )}</dl>;
 }
 
-function Identity({ image, title, context }: { image?: string | null | undefined; title: string; context: string }): JSX.Element {
+function Identity({ image, title, context, row = false }: {
+  image?: string | null | undefined; title: string; context: string;
+  /** Inside a button: phrasing elements only, no heading. */
+  row?: boolean;
+}): JSX.Element {
   const initials = title.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "A";
+  const picture = image ? <img src={image} alt="" referrerPolicy="no-referrer" /> : <span aria-hidden="true">{initials}</span>;
+  if (row) return <span className="briefing-identity">{picture}<span><b>{title}</b><small>{context}</small></span></span>;
   return <div className="briefing-identity">
-    {image ? <img src={image} alt="" referrerPolicy="no-referrer" /> : <span aria-hidden="true">{initials}</span>}
+    {picture}
     <div><h2>{title}</h2><p>{context}</p></div>
   </div>;
 }
@@ -93,6 +99,11 @@ export function Briefing({ floating = false, mobile = false, onBack }: {
     try { await briefing.open(section); } catch { setError("Could not open the game page. Try again."); }
     finally { if (alive.current) setOpening(false); }
   };
+  const openPage = (path: string) => {
+    void briefing.openPage(path).catch(() => setError("Could not open the game page. Try again."));
+  };
+  const clock = ready ? nextTurn(snapshot.turn, now) : null;
+  const inbox = ready ? snapshot.inbox : null;
 
   return <main className={`briefing ${floating ? "briefing-floating" : "briefing-page"}`}>
     <header className="briefing-header">
@@ -106,6 +117,18 @@ export function Briefing({ floating = false, mobile = false, onBack }: {
       }}>{pinned ? "Pinned" : "Pin on top"}</button>}
       {!floating && !mobile && <button onClick={() => void briefing.popOut().catch(() => setError("Could not open picture-in-picture."))}>Picture-in-picture</button>}
     </header>
+    {ready && (snapshot.turn || inbox) && <div className="briefing-status">
+      {snapshot.turn && <p>
+        <strong>Turn {Math.round(snapshot.turn.current)}</strong>
+        {snapshot.turn.date && <span>{snapshot.turn.date}</span>}
+        {clock && <span>{clock}</span>}
+      </p>}
+      {inbox && <button onClick={() => void briefing.open("inbox").catch(() => setError("Could not open the game page. Try again."))}>
+        {inbox.unread || inbox.mail
+          ? `Inbox: ${[inbox.unread ? `${inbox.unread} unread` : "", inbox.mail ? `${inbox.mail} mail` : ""].filter(Boolean).join(", ")}`
+          : "Inbox: all read"}
+      </button>}
+    </div>}
     <div className="briefing-tabs" role="tablist" aria-label="Briefing cards" onKeyDown={(event) => {
       const next = event.key === "ArrowRight" ? nextSection(section, 1)
         : event.key === "ArrowLeft" ? nextSection(section, -1)
@@ -150,7 +173,7 @@ export function Briefing({ floating = false, mobile = false, onBack }: {
                 ]} />
               </> : section === "election" ? <>
                 {election ? <><Identity title={election.electionYear ? `${election.electionYear} election` : "Your election"}
-                  context={[election.state, election.countryId, election.status].filter(Boolean).join(" · ") || "Live race"} /><Stats items={[
+                  context={[election.electionType, election.state, election.countryId, election.status].filter(Boolean).join(" · ") || "Live race"} /><Stats items={[
                   ["Vote share", percent(election.myVotePct)],
                   ["Margin", percent(election.marginPct, true, " pp")],
                   ...(election.isMultiSeat ? [["Projected seats", `${number(election.seatsProjected, 0)} / ${number(election.totalSeats, 0)}`]] as [string, string][] : []),
@@ -161,19 +184,25 @@ export function Briefing({ floating = false, mobile = false, onBack }: {
                   ["Price change", percent(corp.priceChange1h, true)],
                   ["Liquid capital", money(corp.liquidCapital, corp.liquidCurrencyCode)],
                   ["Marketing", number(corp.marketingStrength)],
-                ]} /></> : <><h2>Your corporation</h2><p>Your active character does not lead a corporation.</p></>}
+                ]} /><Sparkline values={(corp.history ?? []).map((point) => point.sharePrice)} label="Share price over recent turns" /></> : <><h2>Your corporation</h2><p>Your active character does not lead a corporation.</p></>}
               </> : section === "stocks" ? <>
                 <h2>Market watch</h2>
                 {snapshot.marketWatch?.length ? <ul className="briefing-watchlist">{snapshot.marketWatch.map((item) =>
-                  <li key={item.sequentialId}><Identity image={item.logoUrl} title={item.tickerSymbol ? `$${item.tickerSymbol}` : item.name} context={item.name} />
-                    <strong>{money(item.sharePrice, item.liquidCurrencyCode)}</strong><span>{number(item.ownedShares, 0)} shares</span></li>
+                  <li key={item.sequentialId}><button onClick={() => openPage(`/corporation/${item.sequentialId}`)}>
+                    <Identity row image={item.logoUrl} title={item.tickerSymbol ? `$${item.tickerSymbol}` : item.name} context={item.name} />
+                    <strong>{money(item.sharePrice, item.liquidCurrencyCode)}</strong><span>{number(item.ownedShares, 0)} shares</span>
+                  </button></li>
                 )}</ul> : <p>Buy shares to populate your private market watch.</p>}
               </> : section === "turns" ? <>
                 <h2>Latest turn</h2>
-                {snapshot.turnBriefing?.length ? <ul className="briefing-events">{snapshot.turnBriefing.map((item) =>
-                  <li key={`${item.category}-${item.label}`}><span>{item.category}</span><strong>{item.label}</strong>
-                    <em className={item.delta >= 0 ? "briefing-gain" : "briefing-loss"}>{item.delta >= 0 ? "+" : ""}{number(item.delta)} {item.unit}</em></li>
-                )}</ul> : <p>No material player changes were recorded in the latest turn.</p>}
+                {snapshot.turnBriefing?.length ? <ul className="briefing-events">{snapshot.turnBriefing.map((item) => {
+                  const currency = item.category === "election" ? null : corp?.liquidCurrencyCode ?? null;
+                  return <li key={`${item.category}-${item.label}`}><button onClick={() => openPage(item.href)}>
+                    <span>{item.category}</span><strong>{item.label}</strong>
+                    <em className={item.delta >= 0 ? "briefing-gain" : "briefing-loss"}>{changeDelta(item, currency)}</em>
+                    <small>Now {changeValue(item, currency)}</small>
+                  </button></li>;
+                })}</ul> : <p>No material player changes were recorded in the latest turn.</p>}
               </> : null}
     </section>
     <div className="briefing-pagination" aria-label="Change card">
@@ -189,6 +218,6 @@ export function Briefing({ floating = false, mobile = false, onBack }: {
       <div><button disabled={busy} onClick={() => void refresh()}>{busy ? "Refreshing…" : "Refresh"}</button>
         <button className="briefing-open" disabled={opening} onClick={() => void open()}>{opening ? "Opening…" : `Open ${SECTION_LABELS[section].toLowerCase()}`}</button></div>
     </footer>
-    {mobile && <p className="briefing-widget-help">Add AHDClient widgets from your Home Screen widget picker. Widgets refresh when your device allows; the update time shows how recent the stats are.</p>}
+    {mobile && <p className="briefing-widget-help">Add A House Divided widgets from your Home Screen widget picker, including small lock screen widgets on iPhone. Widgets refresh when your device allows; the update time shows how recent the stats are.</p>}
   </main>;
 }
