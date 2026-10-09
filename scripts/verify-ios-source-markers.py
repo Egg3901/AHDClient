@@ -17,7 +17,8 @@ from pathlib import Path
 
 SOURCES = Path(__file__).resolve().parents[1] / "apps/desktop/src-tauri/plugins/briefing-widgets/ios/Sources"
 MARKERS = {
-    "NativePush.swift": ["Apple declined push registration: ", "This build is not set up for push alerts."],
+    "NativePush.swift": ["Apple declined push registration: ", "This build is not set up for push alerts.",
+        "Push alerts are on. Tap one to open what it is about."],
     "NativeAsk.swift": ["Ask uses outside AI services", "Ask server sends nothing until you allow it."],
 }
 

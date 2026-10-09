@@ -9,6 +9,7 @@
   "permissions": [
     "allow-get-briefing",
     "allow-open-briefing-page",
+    "allow-open-game-page",
     "core:default",
     "allow-open-online-window",
     "allow-open-help-destination",

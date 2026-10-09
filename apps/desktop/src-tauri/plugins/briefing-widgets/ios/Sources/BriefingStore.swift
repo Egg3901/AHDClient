@@ -21,6 +21,9 @@ struct BriefingStatus: Codable {
   var electionStats: ElectionStats?
   var corpNav: CorporationStats?
   var marketWatch: [MarketWatchItem]?
+  var turnBriefing: [TurnChange]?
+  var turn: TurnClock?
+  var inbox: InboxCounts?
 
   struct ElectionStats: Codable {
     var electionId: String
@@ -65,6 +68,33 @@ struct BriefingStatus: Codable {
     var liquidCurrencyCode: String?
     var ownedShares: Double
   }
+  /// One change the latest turn made, with the game page it is about.
+  struct TurnChange: Codable {
+    var category: String
+    var label: String
+    var value: Double
+    var delta: Double
+    var unit: String
+    var href: String
+  }
+  struct TurnClock: Codable {
+    var current: Double
+    var date: String?
+    var nextAt: String?
+    var active: Bool?
+  }
+  struct InboxCounts: Codable {
+    var unread: Double
+    var mail: Double
+  }
+
+  /// When the next turn is scheduled, if the server sent a valid time.
+  var nextTurn: Date? {
+    guard let text = turn?.nextAt else { return nil }
+    let precise = ISO8601DateFormatter()
+    precise.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return precise.date(from: text) ?? ISO8601DateFormatter().date(from: text)
+  }
 }
 
 struct SavedBriefing: Codable {
@@ -80,7 +110,8 @@ struct SavedBriefing: Codable {
 }
 
 enum BriefingStore {
-  static let endpoint = URL(string: "https://ahousedividedgame.com/api/client-status?layout=full")!
+  /// `widgets=1` adds the turn clock and inbox counts.
+  static let endpoint = URL(string: "https://ahousedividedgame.com/api/client-status?layout=full&widgets=1")!
   private static let queue = DispatchQueue(label: "net.lakesidegames.ahdclient.widget-refresh")
   private static var pending = [(SavedBriefing?) -> Void]()
 
@@ -195,6 +226,27 @@ enum BriefingStore {
             safe.tickerSymbol = safe.tickerSymbol.map { String($0.prefix(8)) }
             return safe
           }
+          data.turnBriefing = data.turnBriefing?.prefix(5).filter { item in
+            item.value.isFinite && item.delta.isFinite && gamePath(item.href) != nil
+          }.map { item in
+            var safe = item
+            safe.category = String(safe.category.prefix(20))
+            safe.label = String(safe.label.prefix(80))
+            safe.unit = String(safe.unit.prefix(16))
+            return safe
+          }
+          if var turn = data.turn, turn.current.isFinite {
+            turn.date = turn.date.map { String($0.prefix(40)) }
+            turn.nextAt = turn.nextAt.flatMap { $0.utf8.count <= 40 ? $0 : nil }
+            data.turn = turn
+          } else {
+            data.turn = nil
+          }
+          if let inbox = data.inbox, inbox.unread.isFinite, inbox.mail.isFinite {
+            data.inbox = InboxCounts(unread: min(max(inbox.unread, 0), 99_999), mail: min(max(inbox.mail, 0), 99_999))
+          } else {
+            data.inbox = nil
+          }
           let wanted = [("avatar", data.avatarUrl), ("corporation", data.corpNav?.logoUrl),
             ("stocks", data.marketWatch?.first?.logoUrl)]
           fetchImages(wanted.compactMap { key, url in url.map { (key, $0) } }, previous: read()) { images, sources in
@@ -266,6 +318,14 @@ enum BriefingStore {
       if CGImageDestinationFinalize(destination), out.length <= 24_000 { return out as Data }
     }
     return nil
+  }
+
+  /// A bounded path on the game site, or nil for anything that could leave it.
+  static func gamePath(_ value: String) -> String? {
+    guard value.utf8.count <= 300, value.hasPrefix("/"), !value.hasPrefix("//"),
+      !value.contains("\\"), value.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+      value.rangeOfCharacter(from: .controlCharacters) == nil else { return nil }
+    return value
   }
 
   private static func trustedImageURL(_ value: String?) -> String? {

@@ -26,6 +26,7 @@ mod mobile;
 #[cfg(desktop)]
 mod node_path;
 mod briefing;
+mod links;
 mod native_auth;
 mod webview_cookies;
 

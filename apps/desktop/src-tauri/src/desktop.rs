@@ -907,6 +907,7 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
     .invoke_handler(tauri::generate_handler![
       crate::briefing::get_briefing,
       crate::briefing::open_briefing_page,
+      crate::briefing::open_game_page,
       crate::briefing::open_briefing_window,
       crate::briefing::set_briefing_pinned,
       set_statistics_consent,

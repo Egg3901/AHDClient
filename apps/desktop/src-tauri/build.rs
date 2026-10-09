@@ -18,6 +18,7 @@ fn main() {
     tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
       "get_push_status", "configure_push", "get_briefing",
       "open_briefing_page",
+      "open_game_page",
       "open_briefing_window",
       "set_briefing_pinned",
       "set_statistics_consent",

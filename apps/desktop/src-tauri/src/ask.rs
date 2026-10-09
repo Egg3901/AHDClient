@@ -346,7 +346,7 @@ fn pump_ask_stream(
   if !terminal && !stop.load(Ordering::SeqCst) {
     finish(
       "error",
-      serde_json::json!({ "error": "The answer stream ended before completion. It may still be saved — check your history in a moment, or try again." }),
+      serde_json::json!({ "error": "The answer stream ended before completion. It may still be saved. Check your history in a moment, or try again." }),
     );
   }
   forget_stream(app, req_id);

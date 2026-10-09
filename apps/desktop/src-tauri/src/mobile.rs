@@ -62,10 +62,11 @@ const LAUNCHER_CONTROL_SCRIPT: &str = r#"
       });
       return item;
     }
+    menu.appendChild(action('Game home', 'https://ahousedividedgame.com/'));
+    menu.appendChild(action('Inbox', 'https://ahousedividedgame.com/notifications'));
+    menu.appendChild(action('Briefing', 'ahdclient://launcher/briefing'));
     menu.appendChild(action('Ask', 'ahdclient://ask'));
-    menu.appendChild(action('Multiplayer', 'https://ahousedividedgame.com/'));
-    var home = action('Launcher', 'ahdclient://launcher');
-    menu.appendChild(home);
+    menu.appendChild(action('Launcher', 'ahdclient://launcher'));
     document.body.appendChild(menu);
     button = document.createElement('button');
     button.id = 'ahdclient-launcher';
@@ -157,19 +158,20 @@ pub(crate) fn navigate_main(app: &AppHandle, url: Url) -> Result<(), String> {
 }
 
 pub(crate) fn open_widget_link(app: &AppHandle, url: &Url) {
-  if url.scheme() != "ahdclient" || url.host_str() != Some("briefing") { return; }
-  let section = match url.path() {
-    "/profile" => crate::briefing::Section::Profile,
-    "/election" => crate::briefing::Section::Election,
-    "/corporation" => crate::briefing::Section::Corporation,
-    _ => return,
-  };
+  if url.scheme() != "ahdclient" { return; }
+  let page = crate::links::widget_page(url);
+  let section = if url.host_str() == Some("briefing") { crate::briefing::Section::from_link(url.path()) } else { None };
+  if page.is_none() && section.is_none() { return; }
   let app = app.clone();
   tauri::async_runtime::spawn(async move {
     // A cold launch may deliver the URL just before the main view is ready.
     for _ in 0..50 {
       if app.get_webview("main").is_some() {
-        let _ = crate::briefing::open_briefing_page(app, section).await;
+        let _ = match (page, section) {
+          (Some(path), _) => crate::briefing::open_game_page(app, path).await,
+          (None, Some(section)) => crate::briefing::open_briefing_page(app, section).await,
+          (None, None) => Ok(()),
+        };
         return;
       }
       tokio::time::sleep(Duration::from_millis(100)).await;
@@ -180,11 +182,12 @@ pub(crate) fn open_widget_link(app: &AppHandle, url: &Url) {
 /// Leave the remote page for the launcher. Deferred off the navigation
 /// callback so the platform webview finishes cancelling the current request
 /// before it is asked to load another.
-fn go_home_soon(app: &AppHandle) {
+fn go_home_soon(app: &AppHandle, request: &Url) {
   let app = app.clone();
+  let target = crate::links::launcher_target(&launcher_home(&app), request);
   tauri::async_runtime::spawn(async move {
     tokio::time::sleep(Duration::from_millis(30)).await;
-    let _ = navigate_main(&app, launcher_home(&app));
+    let _ = navigate_main(&app, target);
   });
 }
 
@@ -263,7 +266,7 @@ async fn present_native_ask(app: AppHandle) -> Result<(), String> {
 fn navigation_policy(app: &AppHandle, url: &Url) -> bool {
   match classify_navigation(url) {
     MobileNavigationAction::ReturnHome => {
-      go_home_soon(app);
+      go_home_soon(app, url);
       false
     }
     MobileNavigationAction::PresentAsk => {
@@ -302,7 +305,7 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
     .on_navigation(move |url| navigation_policy(&nav_app, url))
     .on_new_window(move |url, _features| {
       match classify_navigation(&url) {
-        MobileNavigationAction::ReturnHome => go_home_soon(&popup_app),
+        MobileNavigationAction::ReturnHome => go_home_soon(&popup_app, &url),
         MobileNavigationAction::PresentAsk => {
           let app = popup_app.clone();
           tauri::async_runtime::spawn(async move { let _ = present_native_ask(app).await; });
@@ -434,6 +437,7 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
       configure_push,
       crate::briefing::get_briefing,
       crate::briefing::open_briefing_page,
+      crate::briefing::open_game_page,
       crate::submit_diagnostics,
       crate::linked_account,
       crate::sign_out,

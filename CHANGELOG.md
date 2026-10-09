@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.4.0] - 2026-10-09
+
+- Notifications show what happened: the alert's own title and message, its category, and how many more are waiting, instead of "You have new activity". Tapping one opens the page it is about, such as the election, bill or crisis.
+- iPhone: new Overview widget with a live countdown to the next turn, your actions, unread inbox and mail, and the latest turn's changes.
+- iPhone: every widget now comes in a large size. Election and Corporation widgets draw vote share and share price over recent turns, and Election shows when polls close.
+- iPhone: the Stocks widget lists every company you own shares in, with quote and holding value. Tap a row to open that company.
+- iPhone: Lock Screen widgets for the next turn, actions, vote share and your corporation.
+- Android: each widget page shows more, plus the current turn, the next turn time and your inbox.
+- The in-game AHD menu adds Inbox and Briefing, and Multiplayer is now called Game home.
+- Briefing shows the current turn, a countdown to the next one and your inbox. Turn changes read in their own units with the current value, and they, and your stock holdings, open their page when tapped. Your corporation card has a share price chart.
+- Fixed: tapping the Stocks widget did not open anything.
+- Fixed: the Profile widget showed empty figures instead of asking you to choose a character.
+
 ## [2.3.26] - 2026-10-09
 
 - iPhone: pull down from the top of a game page to reload it.
