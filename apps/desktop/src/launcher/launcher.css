@@ -1200,3 +1200,28 @@
 :root[data-animations="off"] .launcher-globe-wrap {
   transition: none;
 }
+
+/*
+ * Tablets and wide windows (above the phone layout). env() is 0 on desktop,
+ * so these only add room where iPadOS reports insets: the status bar in
+ * full screen and the rounded corners in landscape. Slide Over and narrow
+ * Split View widths fall under the phone rules above.
+ */
+@media (min-width: 701px) {
+  .launcher-stage {
+    padding-top: max(44px, calc(env(safe-area-inset-top) + 20px));
+    padding-right: max(24px, env(safe-area-inset-right));
+    padding-left: max(24px, env(safe-area-inset-left));
+  }
+
+  .launcher-settings {
+    top: max(18px, calc(env(safe-area-inset-top) + 8px));
+    right: max(24px, env(safe-area-inset-right));
+  }
+
+  .launcher-footer {
+    padding-right: max(26px, env(safe-area-inset-right));
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: max(26px, env(safe-area-inset-left));
+  }
+}

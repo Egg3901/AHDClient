@@ -27,9 +27,10 @@ app['entitlements']['properties']['aps-environment'] = 'production'
 app['settings'] ||= {}
 app['settings']['base'] ||= {}
 app['settings']['base']['AHD_WIDGET_KEYCHAIN_GROUP'] = keychain
-# iPhone only for the first App Store release. iPad can be added later; an app
-# that has shipped with iPad support cannot drop it again.
-app['settings']['base']['TARGETED_DEVICE_FAMILY'] = '1'
+# iPhone and iPad (1,2). Shipping the iPad family is irreversible: a version that
+# has shipped with it can never drop it. The widget extension below stays
+# iPhone only ('1'); an iPad app may embed an iPhone-only extension.
+app['settings']['base']['TARGETED_DEVICE_FAMILY'] = '1,2'
 app['settings']['configs'] ||= {}
 app['settings']['configs']['debug'] ||= {}
 app['settings']['configs']['release'] ||= {}
