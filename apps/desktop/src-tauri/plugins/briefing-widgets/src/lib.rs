@@ -1,8 +1,27 @@
 use serde::Deserialize;
-use tauri::{plugin::PluginHandle, Manager, Runtime};
+use tauri::{plugin::PluginHandle, webview::Cookie, Manager, Runtime, Url};
+
+mod cookies;
+use cookies::{sent_to, JarCookie};
 
 #[cfg(target_os = "ios")]
 tauri::ios_plugin_binding!(init_plugin_briefing_widgets);
+
+#[derive(Deserialize)]
+struct JarReply {
+  cookies: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WireCookie {
+  name: String,
+  value: String,
+  domain: String,
+  path: String,
+  #[serde(default)]
+  secure: bool,
+}
 
 pub struct NativeCompanion<R: Runtime>(PluginHandle<R>);
 impl<R: Runtime> NativeCompanion<R> {
@@ -12,6 +31,38 @@ impl<R: Runtime> NativeCompanion<R> {
   pub fn configure<T: for<'de> Deserialize<'de>>(&self, enabled: bool) -> Result<T, String> {
     self.0.run_mobile_plugin("configurePush", serde_json::json!({ "enabled": enabled }))
       .map_err(|_| "Could not update push settings".to_string())
+  }
+  /// Every cookie in the WebView jar, read by native code. wry's own cookie
+  /// reader spins the main run loop from inside tao's event handler, which
+  /// aborts the app on iOS ("panic in a function that cannot unwind"). The
+  /// native read waits on the calling thread instead, so this must never be
+  /// called from the main thread.
+  pub fn all_cookies(&self) -> Result<Vec<Cookie<'static>>, String> {
+    let reply: JarReply = self.0.run_mobile_plugin("cookies", ()).map_err(|_| "Could not read the app session".to_string())?;
+    let wire: Vec<WireCookie> = serde_json::from_str(&reply.cookies).map_err(|_| "Could not read the app session".to_string())?;
+    Ok(wire.into_iter().map(|c| Cookie::build((c.name, c.value)).domain(c.domain).path(c.path).secure(c.secure).build()).collect())
+  }
+  /// The cookies the WebView would send to `url`.
+  pub fn cookies_for_url(&self, url: &Url) -> Result<Vec<Cookie<'static>>, String> {
+    let host = url.host_str().unwrap_or_default();
+    let https = url.scheme() == "https";
+    Ok(self.all_cookies()?.into_iter().filter(|cookie| {
+      let jar = JarCookie {
+        name: cookie.name().to_string(),
+        value: cookie.value().to_string(),
+        domain: cookie.domain().unwrap_or_default().to_string(),
+        path: cookie.path().unwrap_or("/").to_string(),
+        secure: cookie.secure().unwrap_or(false),
+      };
+      sent_to(&jar, https, host, url.path())
+    }).collect())
+  }
+  pub fn delete_cookie(&self, cookie: &Cookie<'_>) -> Result<(), String> {
+    self.0.run_mobile_plugin::<serde_json::Value>("deleteCookie", serde_json::json!({
+      "name": cookie.name(),
+      "domain": cookie.domain().unwrap_or_default(),
+      "path": cookie.path().unwrap_or("/"),
+    })).map(|_| ()).map_err(|_| "Could not clear the app session".to_string())
   }
   pub fn show_ask(&self) -> Result<serde_json::Value, String> {
     self.0.run_mobile_plugin("showAsk", ())

@@ -62,7 +62,7 @@ fn ask_session_cookie(app: &AppHandle) -> Option<String> {
     let Some(view) = app.get_webview(label) else {
       continue;
     };
-    let Ok(cookies) = view.cookies_for_url(url.clone()) else {
+    let Ok(cookies) = crate::webview_cookies::cookies_for_url(app, &view, url.clone()) else {
       continue;
     };
     let mut host_prefixed = None;

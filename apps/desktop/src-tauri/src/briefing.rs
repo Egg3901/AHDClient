@@ -215,7 +215,7 @@ fn session_header(app: &AppHandle) -> Result<String, String> {
     .or_else(|| app.get_webview("main"))
     .ok_or("The app session is unavailable.")?;
   let url: Url = format!("{}{STATUS_PATH}", crate::ONLINE_URL).parse().map_err(|_| "Invalid briefing URL.")?;
-  let mut cookies = view.cookies_for_url(url).map_err(|_| "Cannot read the app session.")?
+  let mut cookies = crate::webview_cookies::cookies_for_url(app, &view, url).map_err(|_| "Cannot read the app session.")?
     .into_iter().filter(|c| crate::is_account_session_cookie(c.name())).collect::<Vec<_>>();
   cookies.sort_by(|a, b| a.name().cmp(b.name()));
   Ok(cookies.iter().map(|c| format!("{}={}", c.name(), c.value())).collect::<Vec<_>>().join("; "))

@@ -27,6 +27,7 @@ mod mobile;
 mod node_path;
 mod briefing;
 mod native_auth;
+mod webview_cookies;
 
 use std::time::Duration;
 
@@ -219,7 +220,7 @@ async fn linked_account(app: AppHandle) -> Result<Option<LinkedAccount>, String>
     .or_else(|| app.get_webview("main"))
     .ok_or("launcher is missing")?;
   let url: Url = format!("{ONLINE_URL}/api/client/account").parse().map_err(|_| "invalid account URL")?;
-  let cookies = view.cookies_for_url(url).map_err(|_| "cannot access the app session")?;
+  let cookies = webview_cookies::cookies_for_url(&app, &view, url).map_err(|_| "cannot access the app session")?;
   let header = cookies.iter()
     .filter(|cookie| is_account_session_cookie(cookie.name()))
     .map(|cookie| format!("{}={}", cookie.name(), cookie.value()))
@@ -293,8 +294,7 @@ async fn sign_out(app: AppHandle) -> Result<(), String> {
   // Server-side revocation first, with the cookies the site would send.
   for base in [ONLINE_URL, SANDBOX_URL] {
     let Ok(url) = format!("{base}/").parse::<Url>() else { continue };
-    let header = primary
-      .cookies_for_url(url)
+    let header = webview_cookies::cookies_for_url(&app, &primary, url)
       .unwrap_or_default()
       .iter()
       .filter(|cookie| is_account_session_cookie(cookie.name()))
@@ -318,8 +318,7 @@ async fn sign_out(app: AppHandle) -> Result<(), String> {
 
   // The full jar where the platform can list it, plus per-URL probes for
   // Android. A probed cookie with no reported domain belongs to the probe host.
-  let mut cookies: Vec<(tauri::webview::Cookie<'static>, String)> = primary
-    .cookies()
+  let mut cookies: Vec<(tauri::webview::Cookie<'static>, String)> = webview_cookies::all_cookies(&app, &primary)
     .unwrap_or_default()
     .into_iter()
     .filter_map(|cookie| {
@@ -330,7 +329,7 @@ async fn sign_out(app: AppHandle) -> Result<(), String> {
   for probe in SIGN_OUT_PROBE_URLS {
     let Ok(url) = probe.parse::<Url>() else { continue };
     let host = url.host_str().unwrap_or_default().to_string();
-    for cookie in primary.cookies_for_url(url).unwrap_or_default() {
+    for cookie in webview_cookies::cookies_for_url(&app, &primary, url).unwrap_or_default() {
       let domain = cookie.domain().map(str::to_string).unwrap_or_else(|| host.clone());
       cookies.push((cookie, domain));
     }
@@ -343,7 +342,7 @@ async fn sign_out(app: AppHandle) -> Result<(), String> {
     let key = (cookie.name().to_string(), domain.clone(), cookie.path().unwrap_or("/").to_string());
     if !seen.insert(key) { continue; }
     for view in &views {
-      let _ = view.delete_cookie(cookie.clone());
+      let _ = webview_cookies::delete_cookie(&app, view, cookie.clone());
     }
   }
 
