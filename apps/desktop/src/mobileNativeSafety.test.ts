@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,5 +39,30 @@ describe("mobile native companion safety", () => {
     expect(ask).toContain('NativeSafety.run("Ask answer success UI")');
     expect(plugin).toContain('NativeSafety.run("push sync")');
     expect(plugin).toContain('NativeSafety.run("push poll")');
+  });
+
+  it("keeps wry cookie calls, which abort iOS, behind one native bridge", () => {
+    const srcDir = join(here, "../src-tauri/src");
+    const offenders = readdirSync(srcDir)
+      .filter((file) => file.endsWith(".rs") && file !== "webview_cookies.rs")
+      .filter((file) =>
+        /\.(cookies_for_url|cookies|delete_cookie|set_cookie)\(/.test(
+          read(`../src-tauri/src/${file}`),
+        ),
+      );
+    expect(offenders).toEqual([]);
+
+    const bridge = read("../src-tauri/src/webview_cookies.rs");
+    expect(bridge).toContain('#[cfg(target_os = "ios")]');
+    expect(bridge).toContain("companion(app).cookies_for_url");
+
+    const plugin = read(
+      "../src-tauri/plugins/briefing-widgets/ios/Sources/BriefingWidgetsPlugin.swift",
+    );
+    expect(plugin).toContain("@objc public func cookies(_ invoke: Invoke)");
+    expect(plugin).toContain(
+      "@objc public func deleteCookie(_ invoke: Invoke)",
+    );
+    expect(plugin).toContain("DispatchQueue.main.async");
   });
 });

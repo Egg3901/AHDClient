@@ -58,6 +58,50 @@ final class BriefingWidgetsPlugin: Plugin, WKHTTPCookieStoreObserver {
     NativePush.shared.configure(options.enabled) { invoke.resolve($0) }
   }
 
+  /// The Rust side reads cookies here instead of through wry, whose reader
+  /// re-enters the main run loop inside tao's event handler and aborts the
+  /// app. IPC handlers run off the main thread; the cookie store needs main.
+  @objc public func cookies(_ invoke: Invoke) {
+    DispatchQueue.main.async { [weak self] in
+      guard let store = self?.gameView?.configuration.websiteDataStore.httpCookieStore else {
+        invoke.reject("The app session is unavailable.")
+        return
+      }
+      store.getAllCookies { cookies in
+        let rows: [[String: Any]] = cookies.map {
+          ["name": $0.name, "value": $0.value, "domain": $0.domain, "path": $0.path, "secure": $0.isSecure]
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: rows),
+          let json = String(data: data, encoding: .utf8) else {
+          invoke.reject("The app session could not be read.")
+          return
+        }
+        invoke.resolve(["cookies": json])
+      }
+    }
+  }
+
+  @objc public func deleteCookie(_ invoke: Invoke) throws {
+    struct Options: Decodable { let name: String; let domain: String; let path: String }
+    let options = try invoke.parseArgs(Options.self)
+    DispatchQueue.main.async { [weak self] in
+      guard let store = self?.gameView?.configuration.websiteDataStore.httpCookieStore else {
+        invoke.reject("The app session is unavailable.")
+        return
+      }
+      store.getAllCookies { cookies in
+        let doomed = cookies.filter { $0.name == options.name && $0.domain == options.domain && $0.path == options.path }
+        guard !doomed.isEmpty else { invoke.resolve(["deleted": 0]); return }
+        let group = DispatchGroup()
+        doomed.forEach { cookie in
+          group.enter()
+          store.delete(cookie) { group.leave() }
+        }
+        group.notify(queue: .main) { invoke.resolve(["deleted": doomed.count]) }
+      }
+    }
+  }
+
   @objc public func showAsk(_ invoke: Invoke) {
     NativeAskController.shared.present()
     invoke.resolve(["ok": true])
