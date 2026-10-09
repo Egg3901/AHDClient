@@ -123,6 +123,11 @@ const LAUNCHER_CONTROL_SCRIPT: &str = r#"
 })();
 "#;
 
+/// Pull down from the top of a remote page to reload it. iOS only: Safari has
+/// this natively and WKWebView does not. Android's WebView is left as it was.
+#[cfg(target_os = "ios")]
+const PULL_REFRESH_SCRIPT: &str = include_str!("pull_refresh.js");
+
 /// The app's own origin: `tauri://localhost` on iOS, `http://tauri.localhost`
 /// on Android. Anything else is remote.
 fn is_app_origin(url: &Url) -> bool {
@@ -310,6 +315,10 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
       }
       tauri::webview::NewWindowResponse::Deny
     });
+  #[cfg(target_os = "ios")]
+  {
+    builder = builder.initialization_script(PULL_REFRESH_SCRIPT);
+  }
   if let Some(agent) = user_agent() {
     builder = builder.user_agent(&agent);
   }

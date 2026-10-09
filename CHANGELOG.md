@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- iPhone: pull down from the top of a game page to reload it.
+
 ## [2.3.25] - 2026-10-08
 
 - iPhone and Android: the app now refuses the supporter purchase and supporter wall links at the native layer, not only by hiding the buttons. No behavior change for players.
