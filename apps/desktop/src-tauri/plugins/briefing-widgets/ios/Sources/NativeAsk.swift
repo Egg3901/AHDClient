@@ -662,6 +662,41 @@ final class NativeAskHostingController: UIHostingController<NativeAskView> {
     if isBeingDismissed || presentingViewController == nil { onClosed?() }
   }
 
+  /// False only when screenshot mode forces an appearance.
+  var followsSystemAppearance = true
+  private var activeObserver: NSObjectProtocol?
+  private var traitRegistration: Any?
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    activeObserver = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+      self?.applySystemAppearance()
+    }
+  }
+
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    applySystemAppearance()
+    if #available(iOS 17.0, *), traitRegistration == nil, let scene = view.window?.windowScene {
+      traitRegistration = scene.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { [weak self] (_: UIWindowScene, _: UITraitCollection) in
+        self?.applySystemAppearance()
+      }
+    }
+  }
+
+  deinit {
+    if let activeObserver { NotificationCenter.default.removeObserver(activeObserver) }
+  }
+
+  /// The launcher window is pinned dark, so the sheet would inherit dark.
+  /// Follow the device's own light or dark setting instead.
+  func applySystemAppearance() {
+    guard followsSystemAppearance else { return }
+    let system = view.window?.windowScene?.traitCollection.userInterfaceStyle ?? UIScreen.main.traitCollection.userInterfaceStyle
+    let style: UIUserInterfaceStyle = system == .unspecified ? .dark : system
+    if overrideUserInterfaceStyle != style { overrideUserInterfaceStyle = style }
+  }
+
   override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
     super.viewWillTransition(to: size, with: coordinator)
     coordinator.animate(alongsideTransition: nil) { [weak self] _ in self?.fitToPresenter() }
@@ -733,10 +768,14 @@ final class NativeAskController: NSObject {
     host.onClosed = { [weak model] in model?.sheetClosed() }
     host.view.backgroundColor = .systemBackground
     host.view.tintColor = NativeAskTint.uiColor
-    // Ask is built on system colors and follows the app's appearance
-    // (Info.ios.plist currently pins Dark). Screenshot mode can force either.
+    // Ask follows the device appearance even though the launcher window is
+    // pinned dark. Screenshot mode can force either for review.
+    NativeLauncherAppearance.apply(to: webView)
     if preview != nil, let style = NativeAskPreview.requestedAppearance() {
+      host.followsSystemAppearance = false
       host.overrideUserInterfaceStyle = style == "light" ? .light : .dark
+    } else {
+      host.applySystemAppearance()
     }
     if UIDevice.current.userInterfaceIdiom == .pad {
       host.modalPresentationStyle = .formSheet
@@ -822,5 +861,35 @@ final class NativeAskController: NSObject {
     if let navigation = root as? UINavigationController, let visible = navigation.visibleViewController { return topController(visible) }
     if let tab = root as? UITabBarController, let selected = tab.selectedViewController { return topController(selected) }
     return root
+  }
+}
+
+/// The launcher and the game webview are designed dark. The app itself
+/// follows the system appearance (Info.ios.plist sets no style), so only the
+/// window that hosts the game is pinned dark; native sheets such as Ask set
+/// their own style from the device setting.
+enum NativeLauncherAppearance {
+  private static var observers: [NSObjectProtocol] = []
+
+  static func pinDark(_ webView: WKWebView) {
+    apply(to: webView)
+    if observers.isEmpty {
+      for name in [UIWindow.didBecomeVisibleNotification, UIWindow.didBecomeKeyNotification, UIApplication.didBecomeActiveNotification] {
+        observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak webView] _ in
+          if let webView { apply(to: webView) }
+        })
+      }
+    }
+    // The webview can join its window after the plugin loads.
+    for delay in [0.05, 0.3, 1.0, 3.0] {
+      DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak webView] in
+        if let webView { apply(to: webView) }
+      }
+    }
+  }
+
+  static func apply(to webView: WKWebView) {
+    guard let window = webView.window, window.overrideUserInterfaceStyle != .dark else { return }
+    window.overrideUserInterfaceStyle = .dark
   }
 }

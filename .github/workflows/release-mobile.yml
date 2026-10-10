@@ -366,7 +366,7 @@ jobs:
       - name: Screenshot Ask on iPhone and iPad
         if: steps.signing.outputs.mode == 'simulator'
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 30
         run: |
           app=$(find apps/desktop/src-tauri/gen/apple/build -maxdepth 3 -name '*.app' -print -quit)
           bash .github/scripts/ios-ask-screens.sh "$app"
