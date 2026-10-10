@@ -15,7 +15,7 @@ enum NativeAskProvider: String, Hashable {
   var title: String {
     switch self {
     case .server: return "Online, with live game data"
-    case .appleOnDevice: return "On this iPhone"
+    case .appleOnDevice: return "On this device"
     }
   }
 }
@@ -727,6 +727,14 @@ private enum AskStyle {
   static let warning = Color(red: 240 / 255, green: 180 / 255, blue: 120 / 255)
 }
 
+/// "iPad" or "iPhone", for copy about where an on-device answer is written.
+@MainActor private var nativeAskDeviceName: String {
+  UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
+}
+
+/// Readable line length when the sheet is wide (iPad page sheets, landscape).
+private let nativeAskMaxContentWidth: CGFloat = 680
+
 /// Starter questions for an empty chat. Tapping one fills the box.
 private let nativeAskStarters = [
   "What did I miss while I was away?",
@@ -784,6 +792,8 @@ struct NativeAskView: View {
     .padding(.horizontal, 18)
     .padding(.top, 18)
     .padding(.bottom, 10)
+    .frame(maxWidth: nativeAskMaxContentWidth)
+    .frame(maxWidth: .infinity)
     .background(AskStyle.background.ignoresSafeArea())
     .preferredColorScheme(.dark)
     .onAppear { model.start() }
@@ -794,7 +804,7 @@ struct NativeAskView: View {
 
   private var accountLine: String {
     if provider == .appleOnDevice {
-      return model.appleAvailable ? "Answers written on this iPhone" : model.appleMessage
+      return model.appleAvailable ? "Answers written on this \(nativeAskDeviceName)" : model.appleMessage
     }
     if model.connecting { return "Checking your game account..." }
     if model.signedIn { return "Signed in as \(model.accountName)" }
@@ -811,7 +821,7 @@ struct NativeAskView: View {
       Menu {
         Picker("Answers from", selection: $model.provider) {
           Text("Online, with live game data").tag(NativeAskProvider.server)
-          Text("On this iPhone").tag(NativeAskProvider.appleOnDevice)
+          Text("On this \(nativeAskDeviceName)").tag(NativeAskProvider.appleOnDevice)
         }
         if model.signedIn && model.consented {
           Button("AI providers") { model.reviewingConsent = true }
@@ -862,7 +872,7 @@ struct NativeAskView: View {
       Text("Ask anything about A House Divided").font(.headline).foregroundColor(AskStyle.text)
       Text(provider == .server
         ? "Rules, your character, elections, markets. Answers can use live game data."
-        : "Answers are written on this iPhone from the game's guides. They do not see live game data.")
+        : "Answers are written on this \(nativeAskDeviceName) from the game's guides. They do not see live game data.")
         .font(.subheadline).foregroundColor(AskStyle.muted).padding(.bottom, 6)
         .fixedSize(horizontal: false, vertical: true)
       ForEach(nativeAskStarters, id: \.self) { starter in
@@ -901,7 +911,7 @@ struct NativeAskView: View {
   private func footerText(_ turn: NativeAskTurn) -> String {
     var lines: [String] = []
     if turn.local {
-      lines.append(turn.citations.isEmpty ? "Written on this iPhone" : "Written on this iPhone from the game's guides")
+      lines.append(turn.citations.isEmpty ? "Written on this \(nativeAskDeviceName)" : "Written on this \(nativeAskDeviceName) from the game's guides")
     } else if !turn.model.isEmpty {
       lines.append(turn.model)
     }
@@ -932,7 +942,7 @@ struct NativeAskView: View {
         .padding(14)
         .background(AskStyle.surface, in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(AskStyle.border, lineWidth: 1))
-        Text("Each service has its own terms and data handling. Every answer names the model and service that wrote it. On-device answers stay on this iPhone.")
+        Text("Each service has its own terms and data handling. Every answer names the model and service that wrote it. On-device answers stay on this \(nativeAskDeviceName).")
           .font(.caption).foregroundColor(AskStyle.faint).fixedSize(horizontal: false, vertical: true)
         Link("Ask privacy notice", destination: NativeAskConsent.privacyURL).font(.footnote).foregroundColor(AskStyle.muted)
         if model.consented {
@@ -1008,6 +1018,7 @@ final class NativeAskController: NSObject {
       host.view.backgroundColor = UIColor(red: 20 / 255, green: 20 / 255, blue: 28 / 255, alpha: 1)
       host.overrideUserInterfaceStyle = .dark
       host.modalPresentationStyle = .pageSheet
+      // iPad shows a centred page sheet; the content caps its own line length.
       if #available(iOS 16.0, *), let sheet = host.sheetPresentationController {
         sheet.detents = [.medium(), .large()]
         sheet.prefersGrabberVisible = true

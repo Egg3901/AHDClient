@@ -159,6 +159,21 @@ pub(crate) fn navigate_main(app: &AppHandle, url: Url) -> Result<(), String> {
 
 pub(crate) fn open_widget_link(app: &AppHandle, url: &Url) {
   if url.scheme() != "ahdclient" { return; }
+  // `ahdclient://ask` opens the native Ask sheet (iOS delivers it here;
+  // Android handles it in MainActivity).
+  if url.host_str() == Some("ask") {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+      for _ in 0..50 {
+        if app.get_webview("main").is_some() {
+          let _ = present_native_ask(app).await;
+          return;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+      }
+    });
+    return;
+  }
   let page = crate::links::widget_page(url);
   let section = if url.host_str() == Some("briefing") { crate::briefing::Section::from_link(url.path()) } else { None };
   if page.is_none() && section.is_none() { return; }
