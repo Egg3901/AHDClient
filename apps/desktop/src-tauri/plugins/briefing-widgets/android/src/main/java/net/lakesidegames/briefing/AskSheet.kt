@@ -328,6 +328,9 @@ internal class AskSheet(
     chatScroll.isFillViewport = true
     chatScroll.setBackgroundColor(ui.containerLow)
     chatScroll.overScrollMode = View.OVER_SCROLL_NEVER
+    // A scroll container is not a control: no gray focus wash over the whole
+    // thread when a keyboard or D-pad moves focus into it.
+    if (Build.VERSION.SDK_INT >= 26) listOf<View>(chatScroll, stateScroll, historyList).forEach { it.defaultFocusHighlightEnabled = false }
     chatScroll.clipToPadding = false
     chatScroll.setOnScrollChangeListener(NestedScrollView.OnScrollChangeListener { view, _, scrollY, _, _ ->
       val child = view.getChildAt(0) ?: return@OnScrollChangeListener
