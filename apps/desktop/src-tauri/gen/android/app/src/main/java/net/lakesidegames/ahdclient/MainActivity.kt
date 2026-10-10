@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
@@ -131,17 +132,29 @@ class MainActivity : TauriActivity() {
       webView.settings.userAgentString =
         webView.settings.userAgentString + " AHDClient-Mobile/" + BuildConfig.VERSION_NAME
       // Keep the page out from under the system bars and the keyboard. Both the
-      // launcher and the site draw their own headers, so nothing should sit
-      // behind the status bar.
+      // launcher and the site draw their own headers and the site pins its
+      // character bar to the bottom, so nothing may sit behind either bar.
+      // Margins, not padding: a WebView keeps drawing its content under its
+      // own padding, which put the bottom bar under the three-button
+      // navigation (ticket 1462).
       ViewCompat.setOnApplyWindowInsetsListener(webView) { view, insets ->
         val bars = insets.getInsets(
           WindowInsetsCompat.Type.systemBars() or
             WindowInsetsCompat.Type.displayCutout() or
             WindowInsetsCompat.Type.ime()
         )
-        view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+        (view.layoutParams as? ViewGroup.MarginLayoutParams)?.let { params ->
+          if (params.leftMargin != bars.left || params.topMargin != bars.top ||
+            params.rightMargin != bars.right || params.bottomMargin != bars.bottom) {
+            params.setMargins(bars.left, bars.top, bars.right, bars.bottom)
+            view.layoutParams = params
+          }
+          view.setPadding(0, 0, 0, 0)
+        } ?: view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
         WindowInsetsCompat.CONSUMED
       }
+      // The WebView can attach after the window dispatched its first insets.
+      ViewCompat.requestApplyInsets(webView)
     }
   }
 
