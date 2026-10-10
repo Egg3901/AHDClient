@@ -14,8 +14,8 @@ enum NativeAskProvider: String, Hashable {
 
   var title: String {
     switch self {
-    case .server: return "Ask server"
-    case .appleOnDevice: return "Apple Foundation Models"
+    case .server: return "Online, with live game data"
+    case .appleOnDevice: return "On this iPhone"
     }
   }
 }
@@ -713,162 +713,281 @@ final class NativeAskAPI: @unchecked Sendable {
   }
 }
 
+/// The Ask sheet's palette: the launcher's dark surfaces and its red accent,
+/// the same on iPhone and Android.
+private enum AskStyle {
+  static let background = Color(red: 20 / 255, green: 20 / 255, blue: 28 / 255)
+  static let surface = Color(red: 30 / 255, green: 30 / 255, blue: 42 / 255)
+  static let raised = Color(red: 38 / 255, green: 38 / 255, blue: 52 / 255)
+  static let border = Color(red: 48 / 255, green: 48 / 255, blue: 64 / 255)
+  static let text = Color(red: 236 / 255, green: 236 / 255, blue: 241 / 255)
+  static let muted = Color(red: 154 / 255, green: 154 / 255, blue: 171 / 255)
+  static let faint = Color(red: 112 / 255, green: 112 / 255, blue: 128 / 255)
+  static let accent = Color(red: 200 / 255, green: 32 / 255, blue: 47 / 255)
+  static let warning = Color(red: 240 / 255, green: 180 / 255, blue: 120 / 255)
+}
+
+/// Starter questions for an empty chat. Tapping one fills the box.
+private let nativeAskStarters = [
+  "What did I miss while I was away?",
+  "How do actions and action points work?",
+  "What happens during a game turn, and in what order?",
+]
+
+private struct AskPrimaryButton: View {
+  let title: String
+  let action: () -> Void
+  var body: some View {
+    Button(action: action) {
+      Text(title).font(.body.weight(.semibold)).foregroundColor(.white)
+        .frame(maxWidth: .infinity, minHeight: 48)
+        .background(AskStyle.accent, in: RoundedRectangle(cornerRadius: 12))
+    }.buttonStyle(.plain)
+  }
+}
+
+private struct AskSecondaryButton: View {
+  let title: String
+  let action: () -> Void
+  var body: some View {
+    Button(action: action) {
+      Text(title).font(.body).foregroundColor(AskStyle.text)
+        .frame(maxWidth: .infinity, minHeight: 48)
+        .background(AskStyle.surface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(AskStyle.border, lineWidth: 1))
+    }.buttonStyle(.plain)
+  }
+}
+
 struct NativeAskView: View {
   @ObservedObject var model: NativeAskModel
   let onLinkAccount: () -> Void
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
-    NavigationView {
-      VStack(spacing: 0) {
-        providerBar
-        if provider == .appleOnDevice {
-          appleStatusBanner
-        } else if model.connecting {
-          ProgressView("Checking linked game account...").frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
-        } else if model.needsConsent {
-          consentPanel
-        } else if model.signedIn {
-          HStack {
-            Label("Signed in as \(model.accountName)", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-            Spacer()
-            Button("AI providers") { model.reviewingConsent = true }
-          }.font(.caption).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
-        } else {
-          signInBanner
-        }
+    VStack(spacing: 0) {
+      header
+      if model.provider == .server && !model.connecting && !model.signedIn {
+        linkCard.padding(.top, 14)
+        Spacer(minLength: 0)
+      } else if model.needsConsent {
+        consentPanel.padding(.top, 12)
+      } else {
+        conversation
         if model.sending && !model.status.isEmpty {
-          Text(model.status).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
-        }
-        ScrollViewReader { proxy in
-          ScrollView {
-            LazyVStack(alignment: .leading, spacing: 18) {
-              if model.turns.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                  Label("Lakeside Ask", systemImage: "bubble.left.and.text.bubble.right.fill").font(.title2.bold())
-                  Text("Ask about A House Divided. Ask server uses live game evidence and tools. Apple Foundation Models writes the answer on this device from retrieved game documentation, without live game state.")
-                    .font(.callout).foregroundStyle(.secondary)
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 24)
-              }
-              ForEach(model.turns) { turn in
-                VStack(alignment: .leading, spacing: 9) {
-                  Text(turn.question).font(.headline).padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
-                  HStack {
-                    Label(turn.local ? "Apple Foundation Models" : (turn.usedMcp ? "ASK + live tools" : "ASK"), systemImage: turn.local ? "iphone" : "bubble.left")
-                    Spacer()
-                    if !turn.model.isEmpty { Text(turn.model).font(.caption2).foregroundStyle(.secondary) }
-                  }.font(.caption.bold()).foregroundStyle(.secondary)
-                  if turn.answer.isEmpty && model.sending { ProgressView("Thinking...").font(.callout) }
-                  else { Text(turn.answer).font(.body).textSelection(.enabled) }
-                  if turn.local {
-                    Text(turn.citations.isEmpty
-                      ? "Written on device without game documentation. Check current facts with Ask server."
-                      : "Written on device from Ask's retrieved game documentation. This question was sent to Ask server for that evidence.")
-                      .font(.caption).foregroundStyle(.secondary)
-                  }
-                  if !turn.liveSources.isEmpty { Text("Live sources: " + turn.liveSources.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary) }
-                  if !turn.citations.isEmpty { Text("Sources: " + turn.citations.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary) }
-                }.id(turn.id)
-              }
-              Color.clear.frame(height: 1).id("native-ask-bottom")
-            }.padding()
-          }
-          .onChange(of: model.turns.count) { _ in withAnimation { proxy.scrollTo("native-ask-bottom", anchor: .bottom) } }
-          .onChange(of: model.turns.last?.answer.count ?? 0) { _ in proxy.scrollTo("native-ask-bottom", anchor: .bottom) }
+          Text(model.status).font(.caption).foregroundColor(AskStyle.muted)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 6)
         }
         composer
       }
-      .navigationTitle("Ask")
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("Done") { dismiss() } } }
     }
-    .navigationViewStyle(.stack)
+    .padding(.horizontal, 18)
+    .padding(.top, 18)
+    .padding(.bottom, 10)
+    .background(AskStyle.background.ignoresSafeArea())
+    .preferredColorScheme(.dark)
     .onAppear { model.start() }
     .onDisappear { model.stop() }
   }
 
   private var provider: NativeAskProvider { model.provider }
 
-  private var providerBar: some View {
-    VStack(alignment: .leading, spacing: 7) {
-      Picker("Provider", selection: $model.provider) {
-        Text(NativeAskProvider.server.title).tag(NativeAskProvider.server)
-        Text(NativeAskProvider.appleOnDevice.title).tag(NativeAskProvider.appleOnDevice)
-      }.pickerStyle(.segmented)
-      if model.provider == .appleOnDevice {
-        Text(model.appleAvailable
-          ? (model.signedIn ? "Available. Answers use game documentation, not live game state." : "Available privately. Link the game account to add game documentation.")
-          : model.appleMessage)
-          .font(.caption).foregroundStyle(model.appleAvailable ? .green : .secondary)
+  private var accountLine: String {
+    if provider == .appleOnDevice {
+      return model.appleAvailable ? "Answers written on this iPhone" : model.appleMessage
+    }
+    if model.connecting { return "Checking your game account..." }
+    if model.signedIn { return "Signed in as \(model.accountName)" }
+    return "Not linked yet"
+  }
+
+  private var header: some View {
+    HStack(alignment: .center, spacing: 8) {
+      VStack(alignment: .leading, spacing: 2) {
+        Text("Ask").font(.title2.bold()).foregroundColor(AskStyle.text)
+        Text(accountLine).font(.footnote).foregroundColor(AskStyle.muted).lineLimit(2)
       }
-    }.padding(.horizontal).padding(.top, 10).padding(.bottom, 8)
+      Spacer(minLength: 8)
+      Menu {
+        Picker("Answers from", selection: $model.provider) {
+          Text("Online, with live game data").tag(NativeAskProvider.server)
+          Text("On this iPhone").tag(NativeAskProvider.appleOnDevice)
+        }
+        if model.signedIn && model.consented {
+          Button("AI providers") { model.reviewingConsent = true }
+        }
+      } label: {
+        Image(systemName: "ellipsis").font(.body.weight(.semibold)).foregroundColor(AskStyle.text)
+          .frame(width: 40, height: 40).background(AskStyle.surface, in: Circle())
+      }.accessibilityLabel("Ask options")
+      Button { dismiss() } label: {
+        Image(systemName: "xmark").font(.body.weight(.semibold)).foregroundColor(AskStyle.text)
+          .frame(width: 40, height: 40).background(AskStyle.surface, in: Circle())
+      }.buttonStyle(.plain).accessibilityLabel("Close Ask")
+    }
+  }
+
+  private var linkCard: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Text("Link your game account").font(.headline).foregroundColor(AskStyle.text)
+      Text("Ask answers from your own game: your character, party, offices and companies. Link the account you play with to start.")
+        .font(.subheadline).foregroundColor(AskStyle.muted).padding(.top, 6).padding(.bottom, 14)
+        .fixedSize(horizontal: false, vertical: true)
+      AskPrimaryButton(title: "Link game account", action: onLinkAccount)
+      if let error = model.error, !error.contains("linked game account") {
+        Text(error).font(.caption).foregroundColor(AskStyle.warning).padding(.top, 10)
+      }
+    }
+    .padding(16)
+    .background(AskStyle.surface, in: RoundedRectangle(cornerRadius: 14))
+    .overlay(RoundedRectangle(cornerRadius: 14).stroke(AskStyle.border, lineWidth: 1))
+  }
+
+  private var conversation: some View {
+    ScrollViewReader { proxy in
+      ScrollView(showsIndicators: false) {
+        LazyVStack(alignment: .leading, spacing: 0) {
+          if model.turns.isEmpty { emptyState }
+          ForEach(model.turns) { turn in turnView(turn).id(turn.id) }
+          Color.clear.frame(height: 1).id("native-ask-bottom")
+        }.padding(.vertical, 8)
+      }
+      .onChange(of: model.turns.count) { _ in withAnimation { proxy.scrollTo("native-ask-bottom", anchor: .bottom) } }
+      .onChange(of: model.turns.last?.answer.count ?? 0) { _ in proxy.scrollTo("native-ask-bottom", anchor: .bottom) }
+    }
+  }
+
+  private var emptyState: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Ask anything about A House Divided").font(.headline).foregroundColor(AskStyle.text)
+      Text(provider == .server
+        ? "Rules, your character, elections, markets. Answers can use live game data."
+        : "Answers are written on this iPhone from the game's guides. They do not see live game data.")
+        .font(.subheadline).foregroundColor(AskStyle.muted).padding(.bottom, 6)
+        .fixedSize(horizontal: false, vertical: true)
+      ForEach(nativeAskStarters, id: \.self) { starter in
+        Button { model.draft = starter } label: {
+          Text(starter).font(.subheadline).foregroundColor(AskStyle.text).multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 12)
+            .background(AskStyle.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(AskStyle.border, lineWidth: 1))
+        }.buttonStyle(.plain)
+      }
+    }.padding(.top, 12)
+  }
+
+  private func turnView(_ turn: NativeAskTurn) -> some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack {
+        Spacer(minLength: 40)
+        Text(turn.question).font(.subheadline).foregroundColor(AskStyle.text)
+          .padding(.horizontal, 14).padding(.vertical, 10)
+          .background(AskStyle.raised, in: RoundedRectangle(cornerRadius: 14))
+      }
+      if turn.answer.isEmpty && model.sending {
+        Text("Thinking...").font(.body).foregroundColor(AskStyle.muted)
+      } else {
+        Text(turn.answer).font(.body).foregroundColor(AskStyle.text).textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      let footer = footerText(turn)
+      if !footer.isEmpty {
+        Text(footer).font(.caption).foregroundColor(AskStyle.faint).fixedSize(horizontal: false, vertical: true)
+      }
+    }.padding(.top, 14)
+  }
+
+  /// Who wrote the answer, the live data it used and its sources, quietly under it.
+  private func footerText(_ turn: NativeAskTurn) -> String {
+    var lines: [String] = []
+    if turn.local {
+      lines.append(turn.citations.isEmpty ? "Written on this iPhone" : "Written on this iPhone from the game's guides")
+    } else if !turn.model.isEmpty {
+      lines.append(turn.model)
+    }
+    if turn.usedMcp {
+      lines.append(turn.liveSources.isEmpty ? "Used live game data" : "Used live game data: " + turn.liveSources.joined(separator: ", "))
+    }
+    if !turn.citations.isEmpty { lines.append("Sources: " + turn.citations.joined(separator: ", ")) }
+    return lines.joined(separator: "\n")
   }
 
   private var consentPanel: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 10) {
-        Text("Ask uses outside AI services").font(.headline)
-        Text("Ask server answers with AI models run by other companies. When you send a question, it goes to one of the services below. What they receive: the text you type, earlier messages in the same chat, and, if you ask about your own character, your own game records. Your username, email and account IDs are not sent.")
-          .font(.callout)
-        ForEach(model.recipients, id: \.self) { recipient in
-          VStack(alignment: .leading, spacing: 2) {
-            Text(recipient.name).font(.callout.bold())
-            if !recipient.detail.isEmpty { Text(recipient.detail).font(.caption).foregroundStyle(.secondary) }
+    ScrollView(showsIndicators: false) {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Ask uses outside AI services").font(.title3.bold()).foregroundColor(AskStyle.text)
+        Text("Ask answers with AI models run by other companies. When you send a question, it goes to one of the services below. They receive the text you type, earlier messages in the same chat, and, if you ask about your own character, your own game records. Your username, email and account IDs are not sent.")
+          .font(.subheadline).foregroundColor(AskStyle.muted).fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 10) {
+          ForEach(model.recipients, id: \.self) { recipient in
+            VStack(alignment: .leading, spacing: 2) {
+              Text(recipient.name).font(.subheadline.bold()).foregroundColor(AskStyle.text)
+              if !recipient.detail.isEmpty {
+                Text(recipient.detail).font(.caption).foregroundColor(AskStyle.muted).fixedSize(horizontal: false, vertical: true)
+              }
+            }
           }
         }
-        Text("Each service has its own terms and data handling. Every answer shows which model and service wrote it. Apple Foundation Models answers stay on this device.")
-          .font(.caption).foregroundStyle(.secondary)
-        Link("Ask privacy notice", destination: NativeAskConsent.privacyURL).font(.callout)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(AskStyle.surface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(AskStyle.border, lineWidth: 1))
+        Text("Each service has its own terms and data handling. Every answer names the model and service that wrote it. On-device answers stay on this iPhone.")
+          .font(.caption).foregroundColor(AskStyle.faint).fixedSize(horizontal: false, vertical: true)
+        Link("Ask privacy notice", destination: NativeAskConsent.privacyURL).font(.footnote).foregroundColor(AskStyle.muted)
         if model.consented {
-          HStack {
-            Button("Keep using Ask") { model.reviewingConsent = false }.buttonStyle(.borderedProminent)
-            Button("Withdraw permission", role: .destructive) { model.withdrawConsent() }
-          }
+          AskPrimaryButton(title: "Keep using Ask") { model.reviewingConsent = false }
+          AskSecondaryButton(title: "Withdraw permission") { model.withdrawConsent() }
         } else {
-          Button("Allow and continue") { model.grantConsent() }.buttonStyle(.borderedProminent)
-          Text("Ask server sends nothing until you allow it.").font(.caption).foregroundStyle(.secondary)
+          AskPrimaryButton(title: "Allow and continue") { model.grantConsent() }
+          Text("Ask sends nothing until you allow it.").font(.caption).foregroundColor(AskStyle.faint)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
-      }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
-    }.frame(maxHeight: 420)
+      }.padding(.bottom, 8)
+    }
   }
 
-  private var signInBanner: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Label("Ask server needs your linked game account.", systemImage: "person.crop.circle.badge.exclamationmark").font(.callout.bold())
-      if let error = model.error { Text(error).font(.caption).foregroundStyle(.secondary) }
-      Button("Link game account", action: onLinkAccount).buttonStyle(.borderedProminent)
-    }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
-  }
-
-  private var appleStatusBanner: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      if model.signedIn {
-        Label("Written on device. The question is sent to Ask server only to fetch game documentation.", systemImage: "lock.shield")
-      } else if model.connecting {
-        Label("Private on-device answers. Checking the linked game account...", systemImage: "lock.shield")
-      } else {
-        Label("Private on-device answers. Link your game account to add game documentation.", systemImage: "lock.shield")
-        Button("Link game account", action: onLinkAccount).buttonStyle(.borderedProminent)
-      }
-      if let error = model.error { Text(error).font(.caption).foregroundStyle(.secondary) }
-    }.font(.caption).foregroundStyle(.secondary).padding(.horizontal).padding(.vertical, 9)
+  private var canSend: Bool {
+    let length = model.draft.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count
+    return length >= 5 && length <= 500 && (provider == .appleOnDevice || (model.signedIn && model.consented))
   }
 
   private var composer: some View {
-    HStack(alignment: .bottom, spacing: 10) {
-      TextField("Ask a question...", text: $model.draft)
-        .textFieldStyle(.roundedBorder)
+    HStack(alignment: .center, spacing: 6) {
+      TextField("", text: $model.draft)
+        .placeholder(when: model.draft.isEmpty) { Text("Ask about the game").foregroundColor(AskStyle.faint) }
+        .foregroundColor(AskStyle.text)
         .disabled(model.sending)
+        .submitLabel(.send)
+        .onSubmit { if canSend { model.send() } }
+        .padding(.horizontal, 10).padding(.vertical, 12)
       if model.sending {
-        Button { model.stop() } label: { Image(systemName: "stop.circle.fill").font(.title2) }
-          .accessibilityLabel("Stop answer")
+        Button { model.stop() } label: {
+          Text("Stop").font(.subheadline.weight(.semibold)).foregroundColor(AskStyle.text)
+            .padding(.horizontal, 16).frame(height: 44)
+            .background(AskStyle.raised, in: RoundedRectangle(cornerRadius: 12))
+        }.buttonStyle(.plain).accessibilityLabel("Stop answer")
       } else {
-        Button { model.send() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
-          .disabled(model.draft.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count < 5 || (provider == .server && (!model.signedIn || !model.consented)))
-          .accessibilityLabel("Send question")
+        Button { model.send() } label: {
+          Text("Send").font(.subheadline.weight(.semibold)).foregroundColor(canSend ? .white : AskStyle.faint)
+            .padding(.horizontal, 16).frame(height: 44)
+            .background(canSend ? AskStyle.accent : AskStyle.raised, in: RoundedRectangle(cornerRadius: 12))
+        }.buttonStyle(.plain).disabled(!canSend).accessibilityLabel("Send question")
       }
-    }.padding(.horizontal).padding(.vertical, 10).background(.thinMaterial)
+    }
+    .padding(6)
+    .background(AskStyle.surface, in: RoundedRectangle(cornerRadius: 16))
+    .overlay(RoundedRectangle(cornerRadius: 16).stroke(AskStyle.border, lineWidth: 1))
+  }
+}
+
+private extension View {
+  /// A placeholder in the sheet's own colours; TextField's built-in one is too faint on dark.
+  func placeholder<Content: View>(when shown: Bool, @ViewBuilder _ content: () -> Content) -> some View {
+    ZStack(alignment: .leading) {
+      content().opacity(shown ? 1 : 0)
+      self
+    }
   }
 }
 
@@ -886,7 +1005,8 @@ final class NativeAskController: NSObject {
       if self.presented != nil { return }
       let model = NativeAskModel(webView: webView)
       let host = UIHostingController(rootView: NativeAskView(model: model) { [weak self] in self?.linkAccount() })
-      host.view.backgroundColor = .systemBackground
+      host.view.backgroundColor = UIColor(red: 20 / 255, green: 20 / 255, blue: 28 / 255, alpha: 1)
+      host.overrideUserInterfaceStyle = .dark
       host.modalPresentationStyle = .pageSheet
       if #available(iOS 16.0, *), let sheet = host.sheetPresentationController {
         sheet.detents = [.medium(), .large()]

@@ -8,7 +8,7 @@
 - Android: signing in with Discord no longer stops on "Session expired" when your phone's browser, rather than the Discord app, opens the Discord approval page. The browser now sends you back to the app to finish.
 - Android: the game's bottom character bar no longer sits under the Back, Home and Recents buttons on phones that use three-button navigation.
 - Android: Ask works after you link your game account. It used to say the account was not linked every time, even right after linking succeeded.
-- Android: Ask has a cleaner screen: properly sized controls, a clear link step when needed, starter questions in an empty chat, and the model and sources shown quietly under each answer.
+- iPhone and Android: Ask has a cleaner screen in the app's own dark style: a clear link step when needed, starter questions in an empty chat, a proper Send button, and the model and sources shown quietly under each answer. On iPhone, the choice between online and on-device answers moved into the options menu.
 - Android: the sandbox is back for linked supporters. iPhone keeps it off.
 - Settings on every platform has an Alert types button that opens the game settings, where you can mute the kinds of alerts you do not want. Mutes and snoozes apply to phone and desktop alerts alike.
 
