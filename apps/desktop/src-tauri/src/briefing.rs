@@ -7,8 +7,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Url};
 
-// `widgets=1` adds the turn clock and inbox counts (AHDGame #3764). A server
-// without it ignores the flag and those fields stay empty.
+// `widgets=1` adds the turn clock and inbox counts (AHDGame #3764), then
+// market cap, national influence and per-turn changes (AHDGame #3812). A server
+// without them ignores the flag and those fields stay empty.
 const STATUS_PATH: &str = "/api/client-status?layout=full&widgets=1";
 const MAX_BODY: u64 = 128 * 1024;
 
@@ -23,6 +24,8 @@ pub(crate) struct Profile {
   pub personal_home_liquid: Option<f64>,
   pub home_currency: Option<String>,
   pub political_influence: Option<f64>,
+  #[serde(default)]
+  pub national_influence: Option<f64>,
   pub favorability: Option<f64>,
   #[serde(default)]
   pub is_imperial: bool,
@@ -69,6 +72,8 @@ pub(crate) struct Corporation {
   pub liquid_currency_code: Option<String>,
   pub marketing_strength: Option<f64>,
   #[serde(default)]
+  pub market_cap: Option<f64>,
+  #[serde(default)]
   pub history: Vec<CorporationPoint>,
 }
 
@@ -79,6 +84,8 @@ pub(crate) struct CorporationPoint {
   pub share_price: f64,
   pub marketing_strength: f64,
   pub liquid_capital: f64,
+  #[serde(default)]
+  pub market_cap: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,6 +118,38 @@ pub(crate) struct Inbox {
   pub mail: f64,
 }
 
+/// How much each figure changes per turn. Influence, favorability and funds
+/// are the profile page's per-turn rates; the rest are the latest turn's
+/// recorded change. None means unknown, not zero.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub(crate) struct PerTurn {
+  pub funds: Option<f64>,
+  pub political_influence: Option<f64>,
+  pub national_influence: Option<f64>,
+  pub favorability: Option<f64>,
+  pub vote_share: Option<f64>,
+  pub share_price: Option<f64>,
+  pub market_cap: Option<f64>,
+  pub liquid_capital: Option<f64>,
+}
+
+impl PerTurn {
+  fn bounded(self) -> Self {
+    let keep = |value: Option<f64>| value.filter(|v| v.is_finite() && v.abs() < 1e18);
+    Self {
+      funds: keep(self.funds),
+      political_influence: keep(self.political_influence),
+      national_influence: keep(self.national_influence),
+      favorability: keep(self.favorability),
+      vote_share: keep(self.vote_share),
+      share_price: keep(self.share_price),
+      market_cap: keep(self.market_cap),
+      liquid_capital: keep(self.liquid_capital),
+    }
+  }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Briefing {
@@ -127,6 +166,8 @@ pub(crate) struct Briefing {
   pub turn: Option<TurnClock>,
   #[serde(default)]
   pub inbox: Option<Inbox>,
+  #[serde(default)]
+  pub per_turn: Option<PerTurn>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,7 +184,7 @@ pub(crate) struct TurnBriefingItem {
 impl Briefing {
   fn empty(status: &str) -> Self {
     Self { status: status.into(), updated_at: now_ms(), profile: None, election: None, corporation: None,
-      turn_briefing: Vec::new(), market_watch: Vec::new(), turn: None, inbox: None }
+      turn_briefing: Vec::new(), market_watch: Vec::new(), turn: None, inbox: None, per_turn: None }
   }
 }
 
@@ -158,6 +199,7 @@ pub(crate) fn parse_status(value: serde_json::Value) -> Result<Briefing, String>
   let mut profile: Profile = serde_json::from_value(value.clone()).map_err(|_| "Invalid briefing response.")?;
   profile.name = profile.name.chars().take(120).collect();
   profile.avatar_url = bounded_https_url(profile.avatar_url);
+  profile.national_influence = profile.national_influence.filter(|v| v.is_finite());
   let election = value.get("electionStats").filter(|v| !v.is_null()).map(|v| {
     let mut election: Election = serde_json::from_value(v.clone()).map_err(|_| "Invalid election response.")?;
     if election.election_id.len() != 24 || !election.election_id.chars().all(|c| c.is_ascii_hexdigit()) {
@@ -177,9 +219,13 @@ pub(crate) fn parse_status(value: serde_json::Value) -> Result<Briefing, String>
     corp.name = corp.name.chars().take(120).collect();
     corp.logo_url = bounded_https_url(corp.logo_url);
     corp.ticker_symbol = corp.ticker_symbol.map(|value| value.chars().take(8).collect());
+    corp.market_cap = corp.market_cap.filter(|v| v.is_finite() && *v >= 0.0);
     corp.history.truncate(12);
     corp.history.retain(|point| point.turn.is_finite() && point.share_price.is_finite()
       && point.marketing_strength.is_finite() && point.liquid_capital.is_finite());
+    for point in &mut corp.history {
+      point.market_cap = point.market_cap.filter(|v| v.is_finite());
+    }
     Ok::<_, &str>(corp)
   }).transpose()?;
   let mut turn_briefing = value.get("turnBriefing").cloned()
@@ -212,7 +258,10 @@ pub(crate) fn parse_status(value: serde_json::Value) -> Result<Briefing, String>
   let inbox = value.get("inbox").cloned().and_then(|v| serde_json::from_value::<Inbox>(v).ok())
     .filter(|inbox| inbox.unread.is_finite() && inbox.mail.is_finite())
     .map(|inbox| Inbox { unread: inbox.unread.clamp(0.0, 99_999.0), mail: inbox.mail.clamp(0.0, 99_999.0) });
-  Ok(Briefing { status: "ready".into(), updated_at: now_ms(), profile: Some(profile), election, corporation, turn_briefing, market_watch, turn, inbox })
+  // A malformed change object drops only the changes, never the briefing.
+  let per_turn = value.get("perTurn").cloned().and_then(|v| serde_json::from_value::<PerTurn>(v).ok())
+    .map(PerTurn::bounded);
+  Ok(Briefing { status: "ready".into(), updated_at: now_ms(), profile: Some(profile), election, corporation, turn_briefing, market_watch, turn, inbox, per_turn })
 }
 
 /// A page on the game site, as a bounded same-origin path. Anything that
@@ -427,6 +476,39 @@ mod tests {
     assert_eq!(odd.turn.unwrap().next_at, None);
     assert!(odd.inbox.is_none());
     assert!(parse_status(json!({"name":"Example"})).unwrap().turn.is_none());
+  }
+
+  #[test]
+  fn widget_figures_parse_and_older_servers_still_parse() {
+    let result = parse_status(json!({"name":"Example","politicalInfluence":40,"nationalInfluence":12.5,
+      "corpNav":{"sequentialId":7,"name":"Example Corp","sharePrice":20,"marketCap":20000,
+        "history":[{"turn":49,"sharePrice":18,"marketingStrength":3,"liquidCapital":600,"marketCap":18000},
+          {"turn":50,"sharePrice":20,"marketingStrength":3,"liquidCapital":500}]},
+      "perTurn":{"funds":1200,"politicalInfluence":-0.4,"nationalInfluence":2.4,"favorability":0,
+        "voteShare":null,"sharePrice":2,"marketCap":2000,"liquidCapital":-100,"extra":"ignored"}})).unwrap();
+    assert_eq!(result.profile.as_ref().unwrap().national_influence, Some(12.5));
+    let corp = result.corporation.as_ref().unwrap();
+    assert_eq!(corp.market_cap, Some(20000.0));
+    assert_eq!(corp.history[0].market_cap, Some(18000.0));
+    assert_eq!(corp.history[1].market_cap, None);
+    let changes = result.per_turn.as_ref().unwrap();
+    assert_eq!(changes.national_influence, Some(2.4));
+    assert_eq!(changes.vote_share, None);
+    assert_eq!(changes.liquid_capital, Some(-100.0));
+    assert!(!serde_json::to_string(&result).unwrap().contains("ignored"));
+
+    let old = parse_status(json!({"name":"Example","corpNav":{"sequentialId":7,"name":"Example Corp",
+      "history":[{"turn":1,"sharePrice":1,"marketingStrength":1,"liquidCapital":1}]}})).unwrap();
+    assert!(old.per_turn.is_none());
+    assert_eq!(old.profile.unwrap().national_influence, None);
+    assert_eq!(old.corporation.unwrap().market_cap, None);
+
+    let odd = parse_status(json!({"name":"Example","perTurn":{"funds":"lots"},
+      "corpNav":{"sequentialId":7,"name":"Example Corp","marketCap":-5}})).unwrap();
+    assert!(odd.per_turn.is_none());
+    assert_eq!(odd.corporation.unwrap().market_cap, None);
+    let huge = parse_status(json!({"name":"Example","perTurn":{"funds":1e300}})).unwrap();
+    assert_eq!(huge.per_turn.unwrap().funds, None);
   }
 
   #[test]

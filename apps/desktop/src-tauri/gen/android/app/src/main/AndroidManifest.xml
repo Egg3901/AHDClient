@@ -38,6 +38,10 @@
             </intent-filter>
         </activity>
 
+        <receiver android:name=".OverviewWidget" android:label="AHD Overview" android:exported="false">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/briefing_widget" />
+        </receiver>
         <receiver android:name=".ProfileWidget" android:label="AHD Profile" android:exported="false">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/briefing_widget" />

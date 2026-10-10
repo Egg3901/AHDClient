@@ -167,7 +167,8 @@ export function Briefing({ floating = false, mobile = false, onBack }: {
                   ] as [string, string][]),
                   ["Personal cash", money(profile.personalHomeLiquid, profile.homeCurrency)],
                   ...(profile.isImperial ? [] : [
-                    ["Influence", number(profile.politicalInfluence)],
+                    ["State influence", percent(profile.politicalInfluence)],
+                    ...(profile.nationalInfluence == null ? [] : [["National influence", number(profile.nationalInfluence)]] as [string, string][]),
                     ["Favorability", percent(profile.favorability)],
                   ] as [string, string][]),
                 ]} />
@@ -182,6 +183,7 @@ export function Briefing({ floating = false, mobile = false, onBack }: {
                 {corp ? <><Identity image={corp.logoUrl} title={corp.name} context={corp.tickerSymbol ? `$${corp.tickerSymbol}` : "Corporation"} /><Stats items={[
                   ["Share price", money(corp.sharePrice, corp.liquidCurrencyCode)],
                   ["Price change", percent(corp.priceChange1h, true)],
+                  ...(corp.marketCap == null ? [] : [["Market cap", money(corp.marketCap, corp.liquidCurrencyCode)]] as [string, string][]),
                   ["Liquid capital", money(corp.liquidCapital, corp.liquidCurrencyCode)],
                   ["Marketing", number(corp.marketingStrength)],
                 ]} /><Sparkline values={(corp.history ?? []).map((point) => point.sharePrice)} label="Share price over recent turns" /></> : <><h2>Your corporation</h2><p>Your active character does not lead a corporation.</p></>}

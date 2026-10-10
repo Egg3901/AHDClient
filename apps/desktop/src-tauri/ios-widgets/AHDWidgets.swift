@@ -44,6 +44,7 @@ extension SavedBriefing {
     data.personalHomeLiquid = 1_250_000
     data.homeCurrency = "USD"
     data.politicalInfluence = 64
+    data.nationalInfluence = 18.6
     data.favorability = 52
     data.electionStats = BriefingStatus.ElectionStats(electionId: "000000000000000000000000",
       electionType: "Senate", countryId: "US", state: "Ohio", myVotePct: 47.8, marginPct: 2.4,
@@ -52,10 +53,10 @@ extension SavedBriefing {
       })
     data.corpNav = BriefingStatus.CorporationStats(sequentialId: 1, name: "Example Industries",
       tickerSymbol: "EXI", sharePrice: 18.4, priceChange1h: 3.2, liquidCapital: 2_400_000,
-      liquidCurrencyCode: "USD", marketingStrength: 41,
+      liquidCurrencyCode: "USD", marketingStrength: 41, marketCap: 18_400_000,
       history: [15.1, 15.8, 16.4, 16.1, 17.2, 18.4].enumerated().map {
         BriefingStatus.CorporationPoint(turn: Double($0.offset), sharePrice: $0.element,
-          marketingStrength: 41, liquidCapital: 2_400_000)
+          marketingStrength: 41, liquidCapital: 2_400_000, marketCap: $0.element * 1_000_000)
       })
     data.marketWatch = [
       BriefingStatus.MarketWatchItem(sequentialId: 1, name: "Example Industries", logoUrl: nil,
@@ -76,6 +77,8 @@ extension SavedBriefing {
     data.turn = BriefingStatus.TurnClock(current: 50, date: "March 1953, Week 2",
       nextAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(23 * 60)), active: true)
     data.inbox = BriefingStatus.InboxCounts(unread: 3, mail: 1)
+    data.perTurn = BriefingStatus.PerTurn(funds: 1_850, politicalInfluence: -0.32, nationalInfluence: 0.64,
+      favorability: -0.1, voteShare: 1.9, sharePrice: 1.2, marketCap: 1_200_000, liquidCapital: -85_000)
     return SavedBriefing(updatedAt: Date(), sessionId: "", data: data)
   }
 }
@@ -86,27 +89,47 @@ private enum Palette {
   static let navy = Color(red: 0.035, green: 0.055, blue: 0.09)
   static let ink = Color(red: 0.09, green: 0.08, blue: 0.12)
   static let red = Color(red: 0.63, green: 0.10, blue: 0.14)
-  static let gain = Color(red: 0.36, green: 0.78, blue: 0.48)
-  static let loss = Color(red: 0.93, green: 0.38, blue: 0.36)
-  static let blue = Color(red: 0.42, green: 0.62, blue: 0.86)
+  static let gain = Color(red: 0.40, green: 0.84, blue: 0.52)
+  static let loss = Color(red: 0.98, green: 0.44, blue: 0.42)
+  static let blue = Color(red: 0.52, green: 0.72, blue: 0.98)
 }
 
 private enum Format {
+  private static let formatters: [Int: NumberFormatter] = {
+    var result = [Int: NumberFormatter]()
+    for digits in [1, 2] {
+      let formatter = NumberFormatter()
+      formatter.numberStyle = .decimal
+      formatter.maximumFractionDigits = digits
+      result[digits] = formatter
+    }
+    return result
+  }()
+
+  /// Compact figure: 1.2K, 3.4M, 5.6B. Values under 10 keep two decimals so
+  /// small prices and influence changes stay readable.
   static func number(_ value: Double?, suffix: String = "") -> String {
     guard let value = value, value.isFinite else { return "n/a" }
     let units: [(Double, String)] = [(1e9, "B"), (1e6, "M"), (1e4, "K")]
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .decimal
-    formatter.maximumFractionDigits = 1
     for (threshold, symbol) in units where abs(value) >= threshold {
       let divisor = symbol == "K" ? 1000 : threshold
-      return (formatter.string(from: NSNumber(value: value / divisor)) ?? "0") + symbol + suffix
+      return text(value / divisor, digits: 1) + symbol + suffix
     }
-    return (formatter.string(from: NSNumber(value: value)) ?? "0") + suffix
+    return text(value, digits: abs(value) < 10 ? 2 : 1) + suffix
+  }
+
+  private static func text(_ value: Double, digits: Int) -> String {
+    formatters[digits]?.string(from: NSNumber(value: value)) ?? String(value)
   }
 
   static func signed(_ value: Double, suffix: String = "") -> String {
     (value > 0 ? "+" : "") + number(value, suffix: suffix)
+  }
+
+  /// A per-turn change, or nil when it is unknown or rounds to nothing.
+  static func change(_ value: Double?, suffix: String = "") -> String? {
+    guard let value = value, value.isFinite, abs(value) >= 0.005 else { return nil }
+    return signed(value, suffix: suffix)
   }
 
   static func currency(_ code: String?) -> String { code.map { " \($0)" } ?? "" }
@@ -121,42 +144,123 @@ private enum Format {
   }
 }
 
-/// A line through recent values, scaled to its own range, with a soft fill.
-private struct Sparkline: View {
+/// Recent values on their own panel: a lighter card, dashed grid, a solid
+/// baseline, a heavy line over a filled area, and a dot on the latest value,
+/// so the trend reads clearly against the dark widget background.
+private struct TrendChart: View {
   let values: [Double]
   let color: Color
+  /// Formats the high and low labels; nil hides the scale.
+  var scale: ((Double) -> String)? = nil
 
-  private func path(in size: CGSize, closed: Bool) -> Path {
-    let points = Array(values.filter(\.isFinite).suffix(12))
-    var path = Path()
-    guard points.count >= 2, let low = points.min(), let high = points.max() else { return path }
+  private var points: [Double] { Array(values.filter(\.isFinite).suffix(12)) }
+
+  private func plot(_ size: CGSize) -> CGRect {
+    CGRect(x: 5, y: 5, width: max(size.width - 10, 1), height: max(size.height - 10, 1))
+  }
+
+  private func locations(_ size: CGSize) -> [CGPoint] {
+    let values = points
+    guard values.count >= 2, let low = values.min(), let high = values.max() else { return [] }
+    let rect = plot(size)
     let spread = max(high - low, 0.0001)
-    for (index, value) in points.enumerated() {
-      let x = size.width * CGFloat(index) / CGFloat(points.count - 1)
-      let y = size.height * (1 - CGFloat((value - low) / spread)) * 0.9 + size.height * 0.05
-      if index == 0 { path.move(to: CGPoint(x: x, y: y)) } else { path.addLine(to: CGPoint(x: x, y: y)) }
+    return values.enumerated().map { index, value in
+      CGPoint(x: rect.minX + rect.width * CGFloat(index) / CGFloat(values.count - 1),
+        y: rect.maxY - rect.height * CGFloat((value - low) / spread))
     }
-    if closed {
-      path.addLine(to: CGPoint(x: size.width, y: size.height))
-      path.addLine(to: CGPoint(x: 0, y: size.height))
-      path.closeSubpath()
+  }
+
+  private func line(_ size: CGSize) -> Path {
+    var path = Path()
+    let spots = locations(size)
+    guard let first = spots.first else { return path }
+    path.move(to: first)
+    for spot in spots.dropFirst() { path.addLine(to: spot) }
+    return path
+  }
+
+  private func area(_ size: CGSize) -> Path {
+    var path = line(size)
+    let spots = locations(size)
+    guard let first = spots.first, let last = spots.last else { return Path() }
+    let bottom = plot(size).maxY
+    path.addLine(to: CGPoint(x: last.x, y: bottom))
+    path.addLine(to: CGPoint(x: first.x, y: bottom))
+    path.closeSubpath()
+    return path
+  }
+
+  private func grid(_ size: CGSize) -> Path {
+    var path = Path()
+    let rect = plot(size)
+    for fraction in [0.0, 0.5] {
+      let y = rect.minY + rect.height * CGFloat(fraction)
+      path.move(to: CGPoint(x: rect.minX, y: y))
+      path.addLine(to: CGPoint(x: rect.maxX, y: y))
     }
     return path
   }
 
+  private func baseline(_ size: CGSize) -> Path {
+    var path = Path()
+    let rect = plot(size)
+    path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+    path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+    return path
+  }
+
   var body: some View {
-    GeometryReader { geometry in
-      ZStack {
-        path(in: geometry.size, closed: true)
-          .fill(LinearGradient(colors: [color.opacity(0.28), color.opacity(0)], startPoint: .top, endPoint: .bottom))
-        path(in: geometry.size, closed: false)
-          .stroke(color, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+    HStack(spacing: 4) {
+      GeometryReader { geometry in
+        ZStack(alignment: .topLeading) {
+          RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white.opacity(0.07))
+          grid(geometry.size).stroke(Color.white.opacity(0.14), style: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
+          baseline(geometry.size).stroke(Color.white.opacity(0.32), lineWidth: 0.75)
+          area(geometry.size)
+            .fill(LinearGradient(colors: [color.opacity(0.45), color.opacity(0.04)], startPoint: .top, endPoint: .bottom))
+          line(geometry.size)
+            .stroke(color, style: StrokeStyle(lineWidth: 2.25, lineCap: .round, lineJoin: .round))
+            .shadow(color: Color.black.opacity(0.5), radius: 1.5, x: 0, y: 1)
+          if let end = locations(geometry.size).last {
+            Circle().fill(color).frame(width: 6, height: 6)
+              .overlay(Circle().stroke(Palette.navy, lineWidth: 1.5))
+              .position(end)
+          }
+        }
+        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 0.5))
+      }
+      if let scale = scale, let low = points.min(), let high = points.max() {
+        VStack(alignment: .trailing, spacing: 0) {
+          Text(scale(high))
+          Spacer(minLength: 0)
+          Text(scale(low))
+        }
+        .font(.system(size: 7, weight: .medium)).monospacedDigit()
+        .foregroundColor(Palette.cream.opacity(0.6)).lineLimit(1).padding(.vertical, 2)
       }
     }
   }
 }
 
 private enum Accessory { case circular, rectangular, inline }
+
+/// One labelled figure with its per-turn change. `short` is the label used
+/// where the widget is narrow.
+private struct Figure {
+  let label: String
+  let short: String
+  let value: String
+  let change: String?
+  let positive: Bool
+
+  init(_ label: String, short: String? = nil, _ value: String, change: String? = nil, positive: Bool = true) {
+    self.label = label
+    self.short = short ?? label
+    self.value = value
+    self.change = change
+    self.positive = positive
+  }
+}
 
 private struct Row {
   let title: String
@@ -216,7 +320,7 @@ struct BriefingWidgetView: View {
 
   /// The identity line under the name, like the page mastheads.
   private var subtitle: String {
-    if section == "overview", let turn = data?.turn {
+    if section == "overview" || section == "profile", let turn = data?.turn {
       return ["Turn \(Int(turn.current))", turn.date].compactMap { $0 }.joined(separator: " · ")
     }
     if section == "stocks", let watched = data?.marketWatch {
@@ -245,11 +349,41 @@ struct BriefingWidgetView: View {
     return letters.isEmpty ? "A" : String(letters).uppercased()
   }
 
+  // MARK: Per-turn changes
+
+  /// The change between the two latest recorded values.
+  private func latestChange(_ values: [Double]) -> Double? {
+    guard values.count >= 2 else { return nil }
+    let delta = values[values.count - 1] - values[values.count - 2]
+    return delta.isFinite ? delta : nil
+  }
+
   /// How far the vote share moved in the latest recorded turn.
   private var voteChange: Double? {
-    guard let history = data?.electionStats?.history, history.count >= 2 else { return nil }
-    let delta = history[history.count - 1].pct - history[history.count - 2].pct
-    return delta.isFinite && delta != 0 ? delta : nil
+    data?.perTurn?.voteShare ?? latestChange(data?.electionStats?.history?.map(\.pct) ?? [])
+  }
+
+  private var corpHistory: [BriefingStatus.CorporationPoint] { data?.corpNav?.history ?? [] }
+
+  private var sharePriceChange: Double? {
+    data?.perTurn?.sharePrice ?? latestChange(corpHistory.map(\.sharePrice))
+  }
+
+  private var marketCapChange: Double? {
+    data?.perTurn?.marketCap ?? latestChange(corpHistory.compactMap(\.marketCap))
+  }
+
+  private var capitalChange: Double? {
+    data?.perTurn?.liquidCapital ?? latestChange(corpHistory.map(\.liquidCapital))
+  }
+
+  /// Share price change as a percentage of the previous turn's price.
+  private var sharePricePercent: Double? {
+    guard let delta = sharePriceChange, let price = data?.corpNav?.sharePrice else { return nil }
+    let previous = price - delta
+    guard previous > 0 else { return nil }
+    let percent = delta / previous * 100
+    return percent.isFinite ? percent : nil
   }
 
   /// The one large figure, its label, and an optional signed change.
@@ -265,15 +399,22 @@ struct BriefingWidgetView: View {
     case "election":
       guard let election = data.electionStats else { return nil }
       return ("Vote share", Format.number(election.myVotePct, suffix: "%"),
-        voteChange.map { Format.signed($0, suffix: " pp") }, (voteChange ?? 0) >= 0)
+        Format.change(voteChange, suffix: " pp"), (voteChange ?? 0) >= 0)
     case "stocks":
       guard let watched = data.marketWatch?.first else { return nil }
       return ("Quote", Format.number(watched.sharePrice, suffix: Format.currency(watched.liquidCurrencyCode)), nil, true)
     default:
       guard let corp = data.corpNav else { return nil }
-      let change = corp.priceChange1h.flatMap { $0.isFinite ? $0 : nil }
-      return ("Share price", Format.number(corp.sharePrice, suffix: Format.currency(corp.liquidCurrencyCode)),
-        change.map { Format.signed($0, suffix: "%") }, (change ?? 0) >= 0)
+      let price = Format.number(corp.sharePrice, suffix: Format.currency(corp.liquidCurrencyCode))
+      if let delta = sharePriceChange, let change = Format.change(delta) {
+        // Small widgets show only the percentage; wider ones show both.
+        let percent = Format.change(sharePricePercent, suffix: "%")
+        let text = isSmall ? (percent ?? change) : percent.map { "\(change) (\($0))" } ?? change
+        return ("Share price", price, text, delta >= 0)
+      }
+      // Servers without per-turn changes: fall back to the last hour.
+      let hour = corp.priceChange1h.flatMap { $0.isFinite ? $0 : nil }
+      return ("Share price", price, hour.flatMap { Format.change($0, suffix: "%") }, (hour ?? 0) >= 0)
     }
   }
 
@@ -282,62 +423,118 @@ struct BriefingWidgetView: View {
     return inbox.unread > 0 ? "\(Format.number(inbox.unread)) unread" : "All read"
   }
 
-  /// The labelled figures beside or under the hero.
-  private var figures: [(String, String)] {
+  private func figure(_ label: String, short: String? = nil, _ value: String, change: Double?, suffix: String = "") -> Figure {
+    Figure(label, short: short, value, change: Format.change(change, suffix: suffix), positive: (change ?? 0) >= 0)
+  }
+
+  /// The character's standing, each with its per-turn change.
+  private var standing: [Figure] {
+    guard let data = data, data.isImperial != true else { return [] }
+    let money = Format.currency(data.homeCurrency)
+    var result = [figure("Campaign funds", short: "Funds", Format.number(data.funds, suffix: money), change: data.perTurn?.funds),
+      figure("State influence", short: "State", Format.number(data.politicalInfluence, suffix: "%"),
+        change: data.perTurn?.politicalInfluence)]
+    if let national = data.nationalInfluence {
+      result.append(figure("National influence", short: "National", Format.number(national), change: data.perTurn?.nationalInfluence))
+    }
+    result.append(figure("Favorability", short: "Favor", Format.number(data.favorability, suffix: "%"),
+      change: data.perTurn?.favorability))
+    return result
+  }
+
+  /// The labelled figures beside or under the hero, most important first.
+  private var figures: [Figure] {
     guard let data = data else { return [] }
     let money = Format.currency(data.homeCurrency)
+    let cash = Figure("Personal cash", short: "Cash", Format.number(data.personalHomeLiquid, suffix: money))
     switch section {
     case "profile":
-      if data.isImperial == true { return [] }
-      return [("Campaign funds", Format.number(data.funds, suffix: money)),
-        ("Cash", Format.number(data.personalHomeLiquid, suffix: money)),
-        ("Favorability", Format.number(data.favorability, suffix: "%")),
-        ("Influence", Format.number(data.politicalInfluence))]
+      var result = standing
+      if data.isImperial == true { result.append(cash) } else { result.insert(cash, at: min(1, result.count)) }
+      if let inbox = inboxText { result.append(Figure("Inbox", inbox)) }
+      return result
     case "overview":
-      var result = [(String, String)]()
-      if let inbox = inboxText { result.append(("Inbox", inbox)) }
-      if let mail = data.inbox?.mail { result.append(("Mail", mail > 0 ? "\(Format.number(mail)) unread" : "All read")) }
-      if data.isImperial != true { result.append(("Campaign funds", Format.number(data.funds, suffix: money))) }
-      result.append(("Cash", Format.number(data.personalHomeLiquid, suffix: money)))
+      var result = [Figure]()
+      if let inbox = inboxText { result.append(Figure("Inbox", inbox)) }
+      result += standing
+      if let mail = data.inbox?.mail { result.append(Figure("Mail", mail > 0 ? "\(Format.number(mail)) unread" : "All read")) }
+      result.append(cash)
       return result
     case "election":
       guard let election = data.electionStats else { return [] }
-      var result = [("Margin", Format.signed(election.marginPct ?? .nan, suffix: " pp"))]
+      var result = [Figure("Margin", Format.signed(election.marginPct ?? .nan, suffix: " pp"),
+        positive: (election.marginPct ?? 0) >= 0)]
       if election.isMultiSeat == true {
         let seats = election.totalSeats.map { "\(Format.number(election.seatsProjected)) / \(Format.number($0))" }
           ?? Format.number(election.seatsProjected)
-        result.append(("Projected seats", seats))
+        let seatChange = latestChange((election.history ?? []).compactMap(\.seats))
+        result.append(figure("Projected seats", short: "Seats", seats, change: seatChange))
       }
       if let end = election.endTurn, end.isFinite {
         if let now = data.turn?.current, end > now {
           let left = Int(end - now)
-          result.append(("Polls close", left == 1 ? "Next turn" : "In \(left) turns"))
+          result.append(Figure("Polls close", short: "Polls", left == 1 ? "Next turn" : "In \(left) turns"))
         } else {
-          result.append(("Polls close", "Turn \(Int(end))"))
+          result.append(Figure("Polls close", short: "Polls", "Turn \(Int(end))"))
         }
+      }
+      let shares = (election.history ?? []).map(\.pct)
+      if shares.count >= 3, let first = shares.first, let last = shares.last {
+        result.append(figure("Over \(shares.count) turns", short: "\(shares.count) turns",
+          Format.signed(last - first, suffix: " pp"), change: nil))
       }
       return result
     case "stocks":
       guard let watched = data.marketWatch?.first else { return [] }
-      var result = [("Shares owned", Format.number(watched.ownedShares))]
+      var result = [Figure("Shares owned", short: "Shares", Format.number(watched.ownedShares))]
       if let price = watched.sharePrice, price.isFinite {
-        result.append(("Holding value", Format.number(price * watched.ownedShares, suffix: Format.currency(watched.liquidCurrencyCode))))
+        result.append(Figure("Holding value", short: "Value", Format.number(price * watched.ownedShares, suffix: Format.currency(watched.liquidCurrencyCode))))
       }
       return result
     default:
       guard let corp = data.corpNav else { return [] }
       let money = Format.currency(corp.liquidCurrencyCode)
-      return [("Capital", Format.number(corp.liquidCapital, suffix: money)), ("Marketing", Format.number(corp.marketingStrength))]
+      var result = [Figure]()
+      if let cap = corp.marketCap {
+        result.append(figure("Market cap", short: "Mkt cap", Format.number(cap, suffix: money), change: marketCapChange))
+      }
+      result.append(figure("Liquid capital", short: "Capital", Format.number(corp.liquidCapital, suffix: money), change: capitalChange))
+      result.append(figure("Marketing", Format.number(corp.marketingStrength),
+        change: latestChange(corpHistory.map(\.marketingStrength))))
+      if let hour = corp.priceChange1h, hour.isFinite {
+        result.append(Figure("Last hour", Format.signed(hour, suffix: "%"), positive: hour >= 0))
+      }
+      let prices = corpHistory.map(\.sharePrice)
+      if prices.count >= 3, let first = prices.first, let last = prices.last, first > 0 {
+        let trend = (last - first) / first * 100
+        result.append(Figure("Over \(prices.count) turns", short: "\(prices.count) turns",
+          Format.signed(trend, suffix: "%"), positive: trend >= 0))
+      }
+      return result
     }
   }
 
   private var chartValues: [Double] {
     if section == "election" { return data?.electionStats?.history?.map(\.pct) ?? [] }
-    if section == "corporation" { return data?.corpNav?.history?.map(\.sharePrice) ?? [] }
+    if section == "corporation" { return corpHistory.map(\.sharePrice) }
     return []
   }
 
-  private var chartLabel: String { section == "election" ? "Vote share, recent turns" : "Share price, recent turns" }
+  /// Blue for vote share; green or red for a rising or falling share price.
+  private var chartColor: Color {
+    if section == "election" { return Palette.blue }
+    guard let first = chartValues.first, let last = chartValues.last else { return Palette.gold }
+    return last >= first ? Palette.gain : Palette.loss
+  }
+
+  private var chartLabel: String {
+    let count = min(chartValues.count, 12)
+    return section == "election" ? "Vote share, last \(count) turns" : "Share price, last \(count) turns"
+  }
+
+  private func chartScale(_ value: Double) -> String {
+    section == "election" ? Format.number(value, suffix: "%") : Format.number(value)
+  }
 
   private var holdingRows: [Row] {
     (data?.marketWatch ?? []).map { item in
@@ -351,20 +548,22 @@ struct BriefingWidgetView: View {
 
   private var changeRows: [Row] {
     let money = data?.corpNav?.liquidCurrencyCode
-    return (data?.turnBriefing ?? []).filter { item in
-      switch section {
-      case "corporation": return item.category != "election"
-      case "election": return item.category == "election"
-      default: return true
-      }
-    }.map { item in
+    return (data?.turnBriefing ?? []).map { item in
       let text = Format.change(item, currency: item.category == "election" ? nil : money)
       return Row(title: item.label, detail: item.category.capitalized, value: text.value, change: text.delta,
         positive: item.delta >= 0, path: BriefingStore.gamePath(item.href))
     }
   }
 
-  private var rows: [Row] { section == "stocks" ? holdingRows : changeRows }
+  /// Corporation and election figures already carry their own changes, so
+  /// the latest-turn list only adds to the overview and profile.
+  private var rows: [Row] {
+    switch section {
+    case "stocks": return holdingRows
+    case "overview", "profile": return changeRows
+    default: return []
+    }
+  }
   private var rowsTitle: String { section == "stocks" ? "Holdings" : "Latest turn" }
 
   private var emptyMessage: String {
@@ -391,7 +590,7 @@ struct BriefingWidgetView: View {
       } else {
         Text("AHD").font(.system(size: 9, weight: .black, design: .serif)).foregroundColor(Palette.cream.opacity(0.7))
       }
-    }.frame(width: 18, height: 18).opacity(0.9)
+    }.frame(width: 16, height: 16).opacity(0.9)
   }
 
   private func identity(size: CGFloat) -> some View {
@@ -413,12 +612,12 @@ struct BriefingWidgetView: View {
   }
 
   private var header: some View {
-    HStack(alignment: .center, spacing: 8) {
-      identity(size: isSmall ? 30 : 36)
+    HStack(alignment: .center, spacing: 7) {
+      identity(size: isSmall ? 24 : 30)
       VStack(alignment: .leading, spacing: 1) {
-        Text(title).font(.system(size: isSmall ? 14 : 16, weight: .semibold, design: .serif))
+        Text(title).font(.system(size: isSmall ? 13 : 15, weight: .semibold, design: .serif))
           .foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.7)
-        Text(subtitle.uppercased()).font(.system(size: 8, weight: .semibold)).tracking(0.6)
+        Text(subtitle.uppercased()).font(.system(size: 8, weight: .semibold)).tracking(0.5)
           .foregroundColor(accent).lineLimit(1)
       }
       Spacer(minLength: 2)
@@ -428,30 +627,65 @@ struct BriefingWidgetView: View {
 
   private func label(_ text: String) -> some View {
     Text(text.uppercased()).font(.system(size: 8, weight: .medium)).tracking(0.4)
-      .foregroundColor(Palette.cream.opacity(0.5)).lineLimit(1)
+      .foregroundColor(Palette.cream.opacity(0.55)).lineLimit(1)
+  }
+
+  private func changeText(_ text: String, positive: Bool, size: CGFloat) -> some View {
+    Text(text).font(.system(size: size, weight: .semibold)).monospacedDigit()
+      .foregroundColor(positive ? Palette.gain : Palette.loss).lineLimit(1).minimumScaleFactor(0.7)
   }
 
   private func heroView(_ hero: (label: String, value: String, change: String?, positive: Bool)) -> some View {
-    VStack(alignment: .leading, spacing: 1) {
+    VStack(alignment: .leading, spacing: 0) {
       label(hero.label)
       HStack(alignment: .firstTextBaseline, spacing: 5) {
-        Text(hero.value).font(.system(size: isSmall ? 20 : isLarge ? 28 : 24, weight: .semibold, design: .rounded))
+        Text(hero.value).font(.system(size: isSmall ? 20 : isLarge ? 26 : 22, weight: .semibold, design: .rounded))
           .monospacedDigit().foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.55)
+          .layoutPriority(1)
         if let change = hero.change {
-          Text(change).font(.system(size: 11, weight: .semibold)).monospacedDigit()
-            .foregroundColor(hero.positive ? Palette.gain : Palette.loss).lineLimit(1)
+          changeText(change, positive: hero.positive, size: isSmall ? 10 : 11)
         }
       }
     }
   }
 
-  /// One table row: label left, value right, like the profile standing table.
-  private func figure(_ item: (String, String)) -> some View {
-    HStack(alignment: .firstTextBaseline, spacing: 6) {
-      label(item.0)
-      Spacer(minLength: 4)
-      Text(item.1).font(.system(size: 12, weight: .medium)).monospacedDigit()
-        .foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.6)
+  /// A compact table row: label left, value and per-turn change right.
+  private func figureRow(_ item: Figure) -> some View {
+    HStack(alignment: .firstTextBaseline, spacing: 4) {
+      label(item.short)
+      Spacer(minLength: 3)
+      Text(item.value).font(.system(size: 11, weight: .medium)).monospacedDigit()
+        .foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.6).layoutPriority(1)
+      if let change = item.change {
+        changeText(change, positive: item.positive, size: 9)
+      }
+    }
+  }
+
+  /// A grid cell: label above, value with its per-turn change below.
+  private func figureCell(_ item: Figure) -> some View {
+    VStack(alignment: .leading, spacing: 1) {
+      label(item.label)
+      HStack(alignment: .firstTextBaseline, spacing: 4) {
+        Text(item.value).font(.system(size: 13, weight: .semibold, design: .rounded)).monospacedDigit()
+          .foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.6).layoutPriority(1)
+        if let change = item.change {
+          changeText(change, positive: item.positive, size: 9)
+        }
+      }
+    }.frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  /// Figures two to a row.
+  private func figureGrid(_ items: [Figure]) -> some View {
+    let pairs = stride(from: 0, to: items.count, by: 2).map { Array(items[$0..<min($0 + 2, items.count)]) }
+    return VStack(alignment: .leading, spacing: 6) {
+      ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
+        HStack(alignment: .top, spacing: 10) {
+          ForEach(Array(pair.enumerated()), id: \.offset) { _, item in figureCell(item) }
+          if pair.count == 1 { Spacer(minLength: 0).frame(maxWidth: .infinity) }
+        }
+      }
     }
   }
 
@@ -472,8 +706,8 @@ struct BriefingWidgetView: View {
 
   @ViewBuilder private var footer: some View {
     if let saved = entry.saved {
-      HStack(spacing: 6) {
-        if !isSmall, data?.turn != nil {
+      HStack(spacing: 5) {
+        if !isSmall, data?.turn != nil, section != "overview" {
           turnClock.foregroundColor(Palette.cream.opacity(0.75))
           Text("·").foregroundColor(Palette.cream.opacity(0.3))
         }
@@ -481,35 +715,40 @@ struct BriefingWidgetView: View {
           Circle().fill(Palette.gain.opacity(0.85)).frame(width: 4, height: 4)
           Text(saved.updatedAt, style: .relative)
         }
-      }.font(.system(size: 8, weight: .medium)).foregroundColor(Palette.cream.opacity(0.45)).lineLimit(1)
+      }.font(.system(size: 8, weight: .medium)).foregroundColor(Palette.cream.opacity(0.5)).lineLimit(1)
     } else {
       Text("TAP TO OPEN").font(.system(size: 8, weight: .bold)).tracking(0.5).foregroundColor(Palette.gold.opacity(0.8))
     }
   }
 
-  private func chart(height: CGFloat) -> some View {
+  private func chart(height: CGFloat, scaled: Bool) -> some View {
     VStack(alignment: .leading, spacing: 3) {
       if isLarge { label(chartLabel) }
-      Sparkline(values: chartValues, color: accent).frame(height: height)
+      if scaled {
+        TrendChart(values: chartValues, color: chartColor, scale: { value in chartScale(value) })
+          .frame(height: height)
+      } else {
+        TrendChart(values: chartValues, color: chartColor).frame(height: height)
+      }
     }
   }
 
   private func rowView(_ row: Row, compact: Bool) -> some View {
     let content = HStack(alignment: .center, spacing: 8) {
       VStack(alignment: .leading, spacing: 1) {
-        Text(row.title).font(.system(size: compact ? 11 : 12, weight: .semibold)).foregroundColor(Palette.cream).lineLimit(1)
+        Text(row.title).font(.system(size: 11, weight: .semibold)).foregroundColor(Palette.cream).lineLimit(1)
         if !compact {
           Text(row.detail.uppercased()).font(.system(size: 7, weight: .medium)).tracking(0.4)
             .foregroundColor(Palette.cream.opacity(0.5)).lineLimit(1)
         }
       }
       Spacer(minLength: 4)
-      VStack(alignment: .trailing, spacing: 1) {
-        Text(row.value).font(.system(size: compact ? 11 : 12, weight: .medium)).monospacedDigit()
+      HStack(alignment: .firstTextBaseline, spacing: 5) {
+        Text(row.value).font(.system(size: 11, weight: .medium)).monospacedDigit()
           .foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.6)
         if let change = row.change {
           Text(change).font(.system(size: 9, weight: .semibold)).monospacedDigit()
-            .foregroundColor(section == "stocks" ? Palette.cream.opacity(0.55) : row.positive ? Palette.gain : Palette.loss)
+            .foregroundColor(section == "stocks" ? Palette.cream.opacity(0.6) : row.positive ? Palette.gain : Palette.loss)
             .lineLimit(1)
         }
       }
@@ -523,9 +762,9 @@ struct BriefingWidgetView: View {
     }
   }
 
-  private func rowList(limit: Int, compact: Bool) -> some View {
-    VStack(alignment: .leading, spacing: compact ? 4 : 6) {
-      if !compact { label(rowsTitle) }
+  private func rowList(limit: Int, compact: Bool, titled: Bool) -> some View {
+    VStack(alignment: .leading, spacing: compact ? 3 : 5) {
+      if titled { label(rowsTitle) }
       ForEach(Array(rows.prefix(limit).enumerated()), id: \.offset) { _, row in rowView(row, compact: compact) }
     }
   }
@@ -533,7 +772,7 @@ struct BriefingWidgetView: View {
   // MARK: Layouts
 
   private var countdownHero: some View {
-    VStack(alignment: .leading, spacing: 1) {
+    VStack(alignment: .leading, spacing: 0) {
       label("Next turn")
       Group {
         if data?.turn?.active == false {
@@ -544,47 +783,52 @@ struct BriefingWidgetView: View {
           Text(data?.nextTurn == nil ? "n/a" : "Running")
         }
       }
-      .font(.system(size: isLarge ? 28 : 24, weight: .semibold, design: .rounded)).monospacedDigit()
+      .font(.system(size: isLarge ? 26 : 22, weight: .semibold, design: .rounded)).monospacedDigit()
       .foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.55)
       if let hero = hero {
         Text("\(hero.label) \(hero.value)").font(.system(size: 10, weight: .medium)).monospacedDigit()
-          .foregroundColor(Palette.cream.opacity(0.7)).lineLimit(1)
+          .foregroundColor(Palette.cream.opacity(0.75)).lineLimit(1)
       }
     }
   }
 
   private var smallLayout: some View {
-    VStack(alignment: .leading, spacing: 5) {
+    VStack(alignment: .leading, spacing: 3) {
       header
       Spacer(minLength: 0)
       if let hero = hero { heroView(hero) }
-      if let first = figures.first { rule; figure(first) }
+      if chartValues.count >= 2 {
+        TrendChart(values: chartValues, color: chartColor).frame(height: 20)
+        ForEach(Array(figures.prefix(1).enumerated()), id: \.offset) { _, item in figureRow(item) }
+      } else {
+        ForEach(Array(figures.prefix(3).enumerated()), id: \.offset) { _, item in figureRow(item) }
+      }
       footer
     }
   }
 
   private var mediumLayout: some View {
-    VStack(alignment: .leading, spacing: 7) {
+    VStack(alignment: .leading, spacing: 6) {
       header
       rule
       if section == "stocks", rows.count > 1 {
-        rowList(limit: 3, compact: true)
+        rowList(limit: 4, compact: true, titled: false)
         Spacer(minLength: 0)
         footer
       } else {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
           VStack(alignment: .leading, spacing: 4) {
             if section == "overview" { countdownHero } else if let hero = hero { heroView(hero) }
-            if chartValues.count >= 2 { chart(height: 18) }
+            if chartValues.count >= 2 { TrendChart(values: chartValues, color: chartColor).frame(height: 26) }
             Spacer(minLength: 0)
             footer
           }.frame(maxWidth: .infinity, alignment: .leading)
           if !figures.isEmpty {
             Rectangle().fill(Color.white.opacity(0.1)).frame(width: 0.5)
-            VStack(alignment: .leading, spacing: 7) {
-              ForEach(Array(figures.prefix(3).enumerated()), id: \.offset) { _, item in figure(item) }
+            VStack(alignment: .leading, spacing: 4) {
+              ForEach(Array(figures.prefix(4).enumerated()), id: \.offset) { _, item in figureRow(item) }
               Spacer(minLength: 0)
-            }.frame(maxWidth: .infinity, alignment: .leading)
+            }.frame(maxWidth: .infinity, alignment: .leading).layoutPriority(1)
           }
         }
       }
@@ -592,22 +836,20 @@ struct BriefingWidgetView: View {
   }
 
   private var largeLayout: some View {
-    VStack(alignment: .leading, spacing: 9) {
+    VStack(alignment: .leading, spacing: 7) {
       header
       rule
-      HStack(alignment: .bottom, spacing: 12) {
-        if section == "overview" { countdownHero } else if let hero = hero { heroView(hero) }
-        Spacer(minLength: 0)
-      }
-      if chartValues.count >= 2 { chart(height: 54) }
+      if section == "overview" { countdownHero } else if let hero = hero { heroView(hero) }
+      if chartValues.count >= 2 { chart(height: 64, scaled: true) }
       if !figures.isEmpty {
-        VStack(alignment: .leading, spacing: 6) {
-          ForEach(Array(figures.prefix(4).enumerated()), id: \.offset) { _, item in figure(item) }
+        VStack(alignment: .leading, spacing: 4) {
+          if section != "stocks" { label("Green and red: change per turn") }
+          figureGrid(Array(figures.prefix(6)))
         }
       }
       if !rows.isEmpty {
         rule
-        rowList(limit: section == "stocks" ? 5 : 4, compact: false)
+        rowList(limit: section == "stocks" ? 5 : chartValues.count >= 2 ? 2 : 3, compact: section != "stocks", titled: true)
       }
       Spacer(minLength: 0)
       footer
@@ -684,6 +926,12 @@ struct BriefingWidgetView: View {
     }
   }
 
+  /// The first standing figure with its change, for the Lock Screen.
+  private var lockFigure: String? {
+    guard section == "profile", let first = figures.first else { return nil }
+    return "\(first.short) \(first.value)" + (first.change.map { " \($0)" } ?? "")
+  }
+
   private var rectangular: some View {
     VStack(alignment: .leading, spacing: 1) {
       Text(section == "overview" || section == "profile" ? "A House Divided" : title)
@@ -694,7 +942,9 @@ struct BriefingWidgetView: View {
       } else if entry.saved == nil {
         Text("Open the app to sign in").font(.system(size: 12)).lineLimit(1)
       }
-      if data?.turn != nil {
+      if let line = lockFigure {
+        Text(line).font(.system(size: 12)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7).privacySensitive()
+      } else if data?.turn != nil {
         turnClock.font(.system(size: 12)).lineLimit(1)
       } else if let inbox = inboxText {
         Text("Inbox: \(inbox)").font(.system(size: 12)).lineLimit(1).privacySensitive()
@@ -759,28 +1009,28 @@ private func families(_ home: [WidgetFamily], circular: Bool = false, inline: Bo
 struct AHDOverviewWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: "AHDOverview", provider: BriefingProvider()) { BriefingWidgetView(entry: $0, section: "overview") }
-      .configurationDisplayName("AHD Overview").description("Next turn countdown, actions, unread inbox and mail, and the latest turn's changes.")
+      .configurationDisplayName("AHD Overview").description("Next turn countdown, actions, inbox and mail, funds, influence and favorability with their change per turn, and the latest turn's changes.")
       .supportedFamilies(families([.systemMedium, .systemLarge], inline: true))
   }
 }
 struct AHDProfileWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: "AHDProfile", provider: BriefingProvider()) { BriefingWidgetView(entry: $0, section: "profile") }
-      .configurationDisplayName("AHD Profile").description("Actions, campaign funds, cash, favorability and influence.")
+      .configurationDisplayName("AHD Profile").description("Actions, campaign funds, cash, state and national influence and favorability, each with its change per turn.")
       .supportedFamilies(families([.systemSmall, .systemMedium, .systemLarge], circular: true, inline: true))
   }
 }
 struct AHDElectionWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: "AHDElection", provider: BriefingProvider()) { BriefingWidgetView(entry: $0, section: "election") }
-      .configurationDisplayName("AHD Election").description("Vote share and its trend, margin, projected seats and when polls close.")
+      .configurationDisplayName("AHD Election").description("Vote share with its change per turn and trend chart, margin, projected seats and when polls close.")
       .supportedFamilies(families([.systemSmall, .systemMedium, .systemLarge], circular: true, inline: true))
   }
 }
 struct AHDCorporationWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: "AHDCorporation", provider: BriefingProvider()) { BriefingWidgetView(entry: $0, section: "corporation") }
-      .configurationDisplayName("AHD Corporation").description("Share price and its trend, liquid capital and marketing.")
+      .configurationDisplayName("AHD Corporation").description("Share price with its change per turn and trend chart, market cap, liquid capital and marketing.")
       .supportedFamilies(families([.systemSmall, .systemMedium, .systemLarge]))
   }
 }
