@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="ask_accent">#C8202F</color>
+  <color name="ask_on_accent">#FFFFFF</color>
+  <color name="ask_link">#FF8A85</color>
+  <color name="ask_primary">#FFB3AF</color>
+  <color name="ask_on_primary">#690010</color>
+  <color name="ask_primary_container">#6B1820</color>
+  <color name="ask_on_primary_container">#FFDAD7</color>
+  <color name="ask_primary_inverse">#C8202F</color>
+  <color name="ask_secondary">#E7BDB9</color>
+  <color name="ask_on_secondary">#442928</color>
+  <color name="ask_secondary_container">#5D3F3D</color>
+  <color name="ask_on_secondary_container">#FFDAD7</color>
+  <color name="ask_tertiary">#E1C38C</color>
+  <color name="ask_on_tertiary">#3F2D04</color>
+  <color name="ask_tertiary_container">#594420</color>
+  <color name="ask_on_tertiary_container">#FFDEA6</color>
+  <color name="ask_surface">#1A1110</color>
+  <color name="ask_on_surface">#F1DEDD</color>
+  <color name="ask_on_surface_variant">#D8C2BF</color>
+  <color name="ask_outline">#A08C8A</color>
+  <color name="ask_outline_variant">#534341</color>
+  <color name="ask_container_lowest">#140C0B</color>
+  <color name="ask_container_low">#231918</color>
+  <color name="ask_container">#271D1C</color>
+  <color name="ask_container_high">#322827</color>
+  <color name="ask_container_highest">#3D3231</color>
+  <color name="ask_background">#1A1110</color>
+</resources>

@@ -16,4 +16,10 @@ dependencies {
     implementation(project(":tauri-android"))
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("com.google.firebase:firebase-messaging:24.1.2")
+    // Ask sheet. Material, Activity and RecyclerView already ship in the app;
+    // SwipeRefreshLayout adds pull to refresh on the history list.
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.activity:activity-ktx:1.10.1")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 }

@@ -18,6 +18,13 @@ import iosConfig from "../src-tauri/tauri.ios.conf.json";
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (relative: string) => readFileSync(join(here, relative), "utf8").replace(/\r\n/g, "\n");
 
+// The Android Ask sheet is split across these sources (2.6.0).
+const androidAskSources = ["NativeAsk.kt", "AskApi.kt", "AskSession.kt", "AskSheet.kt"];
+const readAndroidAsk = () =>
+  androidAskSources
+    .map((file) => read(`../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/${file}`))
+    .join("\n");
+
 describe("desktop security configuration", () => {
   it("limits PiP to the local briefing and its read-only commands", () => {
     expect(briefingCapability.webviews).toEqual(["briefing"]);
@@ -101,10 +108,8 @@ describe("desktop security configuration", () => {
       read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift"),
     ).toContain("UIHostingController");
     expect(
-      read(
-        "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
-      ),
-    ).toContain("class NativeAskPanel");
+      readAndroidAsk(),
+    ).toContain("class AskSheet(");
     expect(read("../src-tauri/build.rs")).toContain("\"open_ask_window\"");
     expect(read("../src-tauri/build.rs")).toContain("\"ask_send\"");
     expect(read("../src-tauri/src/lib.rs")).toContain("https://ask.lakesidegames.net/");
@@ -115,9 +120,7 @@ describe("desktop security configuration", () => {
     expect(iosAsk).toContain("%2Fauth%2Fnative%2Fcallback");
     expect(iosAsk).toContain('request("/api/ask/context"');
     expect(iosAsk).toContain("gameContext: evidence.text");
-    const androidAsk = read(
-      "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
-    );
+    const androidAsk = readAndroidAsk();
     expect(androidAsk).toContain('"auth.lakesidegames.net"');
     expect(androidAsk).toContain("NATIVE_AHD_LOGIN");
     expect(androidAsk).toContain("%2Fauth%2Fnative%2Fcallback");
@@ -160,9 +163,7 @@ describe("desktop security configuration", () => {
   it("keeps native Ask sign-in transactions intact and AFM on device", () => {
     const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
     const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
-    const androidAsk = read(
-      "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
-    );
+    const androidAsk = readAndroidAsk();
     expect(iosAsk).toContain("__Host-ask_login");
     expect(iosAsk).toContain("brokerCookie");
     expect(iosAsk).toContain("liveSources");
@@ -178,9 +179,7 @@ describe("desktop security configuration", () => {
 
   it("forwards an existing unified session to Ask without sending it to the game broker", () => {
     const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
-    const androidAsk = read(
-      "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
-    );
+    const androidAsk = readAndroidAsk();
     expect(iosAsk).toContain("unifiedSessionCookie");
     expect(iosAsk).toContain("Cookie");
     expect(androidAsk).toContain("merge(ask, unifiedAuth, includeUnified = true)");
@@ -249,9 +248,7 @@ describe("desktop security configuration", () => {
 
   it("retains the unified Ask login transaction and session cookies on mobile", () => {
     const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
-    const androidAsk = read(
-      "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
-    );
+    const androidAsk = readAndroidAsk();
     for (const source of [iosAsk, androidAsk]) {
       expect(source).toContain("__Host-lakeside_login");
       expect(source).toContain("__Host-lakeside_session");
