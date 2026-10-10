@@ -90,7 +90,9 @@ class MainActivity : TauriActivity() {
    */
   private fun isDiscordCallback(uri: android.net.Uri): Boolean =
     uri.scheme == "https" &&
-      (uri.host == "ahousedividedgame.com" || uri.host == "www.ahousedividedgame.com") &&
+      // The sandbox is in the Android app for supporters, with its own sign-in.
+      (uri.host == "ahousedividedgame.com" || uri.host == "www.ahousedividedgame.com" ||
+        uri.host == "sandbox.ahousedividedgame.com") &&
       uri.path == "/api/auth/discord/callback"
 
   private fun loadWhenReady(url: String) {

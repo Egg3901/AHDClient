@@ -33,6 +33,7 @@
                 <data android:scheme="https" />
                 <data android:host="ahousedividedgame.com" />
                 <data android:host="www.ahousedividedgame.com" />
+                <data android:host="sandbox.ahousedividedgame.com" />
                 <data android:path="/api/auth/discord/callback" />
             </intent-filter>
         </activity>
