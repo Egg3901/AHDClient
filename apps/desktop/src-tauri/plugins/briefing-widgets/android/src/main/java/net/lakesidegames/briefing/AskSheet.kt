@@ -107,6 +107,7 @@ internal class AskSheet(
   private var fullHeight = true
   private var bindingDraft = false
   private var networkCallback: ConnectivityManager.NetworkCallback? = null
+  private var systemTop = 0
   private val historyBack = object : OnBackPressedCallback(false) {
     override fun handleOnBackPressed() {
       NativeSafety.run("Ask back") {
@@ -147,11 +148,15 @@ internal class AskSheet(
       NativeSafety.run("Ask insets") {
         val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
         val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-        view.setPadding(bars.left, if (fullHeight) bars.top else 0, bars.right, Math.max(bars.bottom, ime.bottom))
+        systemTop = bars.top
+        view.setPadding(bars.left, topInset(), bars.right, Math.max(bars.bottom, ime.bottom))
         if (ime.bottom > 0 && stickToBottom) scrollToBottom(animate = false)
       }
       insets
     }
+    // The sheet may sit below the status bar (older Android) or under it
+    // (edge to edge): pad only for the part of the bar it actually covers.
+    root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> root.post { updateTopInset() } }
     session.attach(this)
     bindDraft()
     onChrome()
@@ -185,6 +190,20 @@ internal class AskSheet(
 
   // ---- Layout ------------------------------------------------------------
 
+  private fun updateTopInset() {
+    NativeSafety.run("Ask top inset") {
+      val wanted = topInset()
+      if (root.paddingTop != wanted) root.setPadding(root.paddingLeft, wanted, root.paddingRight, root.paddingBottom)
+    }
+  }
+
+  private fun topInset(): Int {
+    if (!fullHeight || systemTop <= 0) return 0
+    val location = IntArray(2)
+    root.getLocationOnScreen(location)
+    return Math.max(0, systemTop - location[1])
+  }
+
   /** Full screen on compact windows, a 640dp sheet at 88% height elsewhere. */
   private fun applySize() {
     val config = activity.resources.configuration
@@ -205,6 +224,10 @@ internal class AskSheet(
     // A full-screen sheet closes from its close button or Back, so scrolling
     // up through a long answer can never drag it away by accident.
     dialog.behavior.isDraggable = !fullHeight
+    dialog.behavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
+      override fun onStateChanged(bottomSheet: View, newState: Int) = updateTopInset()
+      override fun onSlide(bottomSheet: View, slideOffset: Float) = updateTopInset()
+    })
     dialog.window?.let { window ->
       @Suppress("DEPRECATION")
       window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
@@ -303,6 +326,8 @@ internal class AskSheet(
     thread.setPadding(ui.dp(16), ui.dp(4), ui.dp(16), ui.dp(24))
     chatScroll.addView(thread, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
     chatScroll.isFillViewport = true
+    chatScroll.setBackgroundColor(ui.containerLow)
+    chatScroll.overScrollMode = View.OVER_SCROLL_NEVER
     chatScroll.clipToPadding = false
     chatScroll.setOnScrollChangeListener(NestedScrollView.OnScrollChangeListener { view, _, scrollY, _, _ ->
       val child = view.getChildAt(0) ?: return@OnScrollChangeListener
