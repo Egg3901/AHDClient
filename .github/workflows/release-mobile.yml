@@ -155,6 +155,7 @@ jobs:
           script: |
             bash .github/scripts/android-launch-check.sh
             bash .github/scripts/android-signin-walk.sh
+            bash .github/scripts/android-ask-screens.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

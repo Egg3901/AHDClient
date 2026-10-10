@@ -134,11 +134,18 @@ describe("desktop security configuration", () => {
     expect(mobile).toContain("ahdclient://ask");
     expect(mobile).toContain("https://ahousedividedgame.com/");
     // The sandbox is a supporter perk bought outside the App Store, so the
-    // phone app neither offers it nor keeps it in the webview (3.1.1).
+    // iPhone app neither offers it nor keeps it in the webview (3.1.1).
+    // Android ships outside Google Play and keeps it for linked supporters,
+    // still with no purchase link.
     expect(mobile).not.toContain("action('Sandbox'");
-    expect(mobile).toContain("&& url.host_str() != Some(SANDBOX_HOST)");
+    expect(mobile).toContain('const SANDBOX_IN_APP: bool = cfg!(target_os = "android");');
+    expect(mobile).toContain("(SANDBOX_IN_APP || url.host_str() != Some(SANDBOX_HOST))");
+    expect(mobile).toContain('Some("sandbox") if SANDBOX_IN_APP => {');
+    expect(mobile).toContain("account.linked && account.supporter");
     expect(mobile).toContain('Some("sandbox") => return Err(');
     expect(mobile).not.toContain("patreon.com");
+    const app = read("./App.tsx");
+    expect(app).toContain('sandboxAvailable={platform !== "ios"}');
   });
 
   it("lets iOS swipe back and keeps the AHD button off the game's bottom bar", () => {

@@ -16,9 +16,7 @@ import android.view.Window
 import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.WebView
-import android.widget.Button
 import android.widget.EditText
-import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -57,6 +55,13 @@ private val nativeAskSessionName = Regex(
 
 private val nativeAskUnifiedCookieName = Regex("^__Host-lakeside_(?:login|session)$")
 
+/**
+ * The issuer's single sign-on cookies. Kept for auth.lakesidegames.net only,
+ * so Ask's sign-in redirects reuse the game login instead of asking again.
+ * iOS needed the same thing (2.3.16).
+ */
+private val nativeIssuerSsoCookieName = Regex("^KEYCLOAK_(?:IDENTITY|SESSION)(?:_LEGACY)?$")
+
 private class NativeAskAuthRequired : Exception(
   "Ask could not find a linked game account. Link your game account in AHDClient first."
 )
@@ -78,6 +83,9 @@ private object NativeAskCookies {
     val ask = filtered(manager.getCookie(NATIVE_ASK_ORIGIN), includeUnified = true)
     val auth = filtered(manager.getCookie(NATIVE_AUTH_ORIGIN))
     val unifiedAuth = filtered(manager.getCookie(NATIVE_UNIFIED_AUTH_ORIGIN), includeUnified = true)
+    val issuerSso = manager.getCookie("$NATIVE_UNIFIED_AUTH_ORIGIN/realms/accounts/").orEmpty().split(';')
+      .map { it.trim() }.filter { nativeIssuerSsoCookieName.matches(it.substringBefore('=')) && it.contains('=') }
+      .joinToString("; ")
     val game = filtered(manager.getCookie("$NATIVE_GAME_ORIGIN/api/client/account"))
     val sandbox = filtered(manager.getCookie("$NATIVE_SANDBOX_ORIGIN/api/client/account"))
     val wwwGame = filtered(manager.getCookie("https://www.ahousedividedgame.com/api/client/account"))
@@ -90,7 +98,7 @@ private object NativeAskCookies {
       // broker is an explicitly trusted first-party host, so give it the same
       // auth-token cookies the game WebView already holds.
       "auth.ahousedividedgame.com" to merge(auth, game, sandbox, wwwGame),
-      "auth.lakesidegames.net" to unifiedAuth,
+      "auth.lakesidegames.net" to listOf(unifiedAuth, issuerSso).filter { it.isNotBlank() }.joinToString("; "),
       "ahousedividedgame.com" to game,
       "www.ahousedividedgame.com" to wwwGame
     )
@@ -355,14 +363,17 @@ private class NativeAskApi(initialCookies: Map<String, String>) {
     if (headerValues.isEmpty()) return
     val current = cookies[host].orEmpty().split(';').map { it.trim() }
       .filter { it.contains('=') }.associateBy { it.substringBefore('=') }.toMutableMap()
+    // Every cookie a trusted host sets during the sign-in hand-off is kept for
+    // that host: the issuer's redirects need their own flow cookies, not only
+    // the final sessions. Stored as name=value. Storing the bare value lost
+    // every session the hand-off created, so Ask asked to link again forever
+    // after a successful link (ticket 1467).
     for (header in headerValues) {
       val pair = header.substringBefore(';').trim()
-      val name = pair.substringBefore('=')
-      if (name.isBlank() ||
-        !(nativeAskSessionName.matches(name) || nativeAskUnifiedCookieName.matches(name)) ||
-        !pair.contains('=')) continue
+      val name = pair.substringBefore('=').trim()
+      if (name.isBlank() || !pair.contains('=')) continue
       if (pair.substringAfter('=').isBlank() || header.contains("Max-Age=0", ignoreCase = true) || header.contains("Expires=Thu, 01 Jan 1970", ignoreCase = true)) current.remove(name)
-      else current[name] = pair.substringAfter('=')
+      else current[name] = pair
     }
     cookies[host] = current.values.joinToString("; ")
   }
@@ -442,6 +453,27 @@ private object NativeAskConsent {
   }
 }
 
+/** The Ask sheet's palette: the launcher's dark surfaces and its red accent. */
+private object AskStyle {
+  val background = Color.rgb(20, 20, 28)
+  val surface = Color.rgb(30, 30, 42)
+  val raised = Color.rgb(38, 38, 52)
+  val border = Color.rgb(48, 48, 64)
+  val text = Color.rgb(236, 236, 241)
+  val muted = Color.rgb(154, 154, 171)
+  val faint = Color.rgb(112, 112, 128)
+  val accent = Color.rgb(200, 32, 47)
+  val accentPressed = Color.rgb(168, 24, 38)
+  val warning = Color.rgb(240, 180, 120)
+}
+
+/** Starter questions for an empty chat. Tapping one fills the box. */
+private val NATIVE_ASK_STARTERS = listOf(
+  "What did I miss while I was away?",
+  "How do actions and action points work?",
+  "What happens during a game turn, and in what order?",
+)
+
 private class NativeAskPanel(
   context: Context,
   initialCookies: Map<String, String>,
@@ -452,14 +484,18 @@ private class NativeAskPanel(
   private val worker: ExecutorService = Executors.newSingleThreadExecutor()
   private val api = NativeAskApi(initialCookies)
   private val accountLabel = TextView(context)
-  private val linkButton = Button(context)
-  private val statusLabel = TextView(context)
+  private val providersButton = TextView(context)
+  private val linkCard = LinearLayout(context)
+  private val linkError = TextView(context)
+  private val consentPanel = LinearLayout(context)
+  private val consentScroll = ScrollView(context)
   private val messages = LinearLayout(context)
   private val scroll = ScrollView(context)
+  private val emptyState = LinearLayout(context)
+  private val statusLabel = TextView(context)
+  private val composer = LinearLayout(context)
   private val draft = EditText(context)
-  private val sendButton = Button(context)
-  private val providersButton = Button(context)
-  private val consentPanel = LinearLayout(context)
+  private val sendButton = TextView(context)
   private var recipients: List<Pair<String, String>> = emptyList()
   private var consented = false
   private val turns = mutableListOf<NativeAskTurn>()
@@ -467,23 +503,36 @@ private class NativeAskPanel(
   private var signedIn = false
   private var sending = false
 
+  private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
+
   init {
     orientation = VERTICAL
-    setPadding(20, 16, 20, 18)
-    background = rounded(Color.rgb(20, 20, 28), 22f)
+    setPadding(dp(18), dp(10), dp(18), dp(14))
+    background = GradientDrawable().apply {
+      setColor(AskStyle.background)
+      val radius = dp(20).toFloat()
+      cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
+    }
+    buildHandle()
     buildHeader()
-    buildAccountStatus()
-    buildProviderStatus()
+    buildLinkCard()
     consentPanel.orientation = VERTICAL
-    consentPanel.visibility = View.GONE
-    consentPanel.setPadding(14, 12, 14, 12)
-    consentPanel.background = rounded(Color.rgb(32, 32, 44), 14f)
-    addView(consentPanel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = 8 })
+    consentScroll.addView(consentPanel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    consentScroll.visibility = View.GONE
+    addView(consentScroll, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = dp(12) })
     messages.orientation = VERTICAL
-    messages.setPadding(0, 12, 0, 24)
+    messages.setPadding(0, dp(4), 0, dp(16))
+    buildEmptyState()
+    messages.addView(emptyState)
     scroll.addView(messages, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-    addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+    scroll.isVerticalScrollBarEnabled = false
+    addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = dp(8) })
+    statusLabel.textSize = 12f
+    statusLabel.setTextColor(AskStyle.muted)
+    statusLabel.visibility = View.GONE
+    addView(statusLabel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6) })
     buildComposer()
+    showChecking()
     checkSession()
   }
 
@@ -492,145 +541,236 @@ private class NativeAskPanel(
     mainHandler.removeCallbacksAndMessages(null)
   }
 
+  private fun rounded(color: Int, radius: Int, stroke: Int? = null): GradientDrawable = GradientDrawable().apply {
+    setColor(color)
+    cornerRadius = dp(radius).toFloat()
+    if (stroke != null) setStroke(dp(1), stroke)
+  }
+
+  private fun text(value: String, size: Float, color: Int, bold: Boolean = false) = TextView(context).apply {
+    text = value
+    textSize = size
+    setTextColor(color)
+    if (bold) setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+    setLineSpacing(0f, 1.2f)
+  }
+
+  private fun primaryButton(label: String, onTap: () -> Unit) = TextView(context).apply {
+    text = label
+    textSize = 15f
+    gravity = Gravity.CENTER
+    setTextColor(Color.WHITE)
+    setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+    minHeight = dp(48)
+    setPadding(dp(18), dp(12), dp(18), dp(12))
+    background = rounded(AskStyle.accent, 12)
+    isClickable = true
+    isFocusable = true
+    setOnClickListener { onTap() }
+  }
+
+  private fun secondaryButton(label: String, onTap: () -> Unit) = TextView(context).apply {
+    text = label
+    textSize = 15f
+    gravity = Gravity.CENTER
+    setTextColor(AskStyle.text)
+    minHeight = dp(48)
+    setPadding(dp(18), dp(12), dp(18), dp(12))
+    background = rounded(AskStyle.surface, 12, AskStyle.border)
+    isClickable = true
+    isFocusable = true
+    setOnClickListener { onTap() }
+  }
+
+  private fun buildHandle() {
+    val handle = View(context).apply { background = rounded(AskStyle.border, 3) }
+    addView(handle, LayoutParams(dp(40), dp(5)).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(10) })
+  }
+
   private fun buildHeader() {
     val row = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
-    val title = TextView(context).apply {
-      text = "Lakeside Ask"
-      textSize = 21f
-      setTextColor(Color.WHITE)
-      setTypeface(typeface, Typeface.BOLD)
+    val titles = LinearLayout(context).apply { orientation = VERTICAL }
+    titles.addView(text("Ask", 22f, AskStyle.text, bold = true))
+    accountLabel.textSize = 13f
+    accountLabel.setTextColor(AskStyle.muted)
+    titles.addView(accountLabel)
+    row.addView(titles, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+    providersButton.apply {
+      text = "AI providers"
+      textSize = 13f
+      setTextColor(AskStyle.muted)
+      setPadding(dp(10), dp(8), dp(10), dp(8))
+      visibility = View.GONE
+      isClickable = true
+      setOnClickListener { NativeSafety.run("Ask providers") { showConsent(review = true) } }
     }
-    val subtitle = TextView(context).apply {
-      text = "  Native client panel"
-      textSize = 12f
-      setTextColor(Color.LTGRAY)
-    }
-    row.addView(title, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-    row.addView(subtitle)
-    val close = ImageButton(context).apply {
+    row.addView(providersButton)
+    val close = TextView(context).apply {
+      text = "✕"
+      textSize = 16f
+      gravity = Gravity.CENTER
+      setTextColor(AskStyle.text)
       contentDescription = "Close Ask"
-      setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-      setColorFilter(Color.WHITE)
-      setBackgroundColor(Color.TRANSPARENT)
+      background = rounded(AskStyle.surface, 20)
+      isClickable = true
       setOnClickListener { onClose() }
     }
-    row.addView(close, LayoutParams(44, 44))
+    row.addView(close, LayoutParams(dp(40), dp(40)).apply { leftMargin = dp(6) })
     addView(row, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
   }
 
-  private fun buildAccountStatus() {
-    accountLabel.text = "Checking linked game account..."
-    accountLabel.textSize = 13f
-    accountLabel.setTextColor(Color.LTGRAY)
-    accountLabel.setPadding(0, 4, 0, 3)
-    addView(accountLabel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-    linkButton.text = "Link game account"
-    linkButton.visibility = View.GONE
-    linkButton.setOnClickListener { onLinkAccount() }
-    addView(linkButton, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-    providersButton.text = "AI providers"
-    providersButton.visibility = View.GONE
-    providersButton.setOnClickListener { NativeSafety.run("Ask providers") { showConsent(review = true) } }
-    addView(providersButton, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+  private fun buildLinkCard() {
+    linkCard.orientation = VERTICAL
+    linkCard.setPadding(dp(16), dp(16), dp(16), dp(16))
+    linkCard.background = rounded(AskStyle.surface, 14, AskStyle.border)
+    linkCard.addView(text("Link your game account", 17f, AskStyle.text, bold = true))
+    linkCard.addView(text(
+      "Ask answers from your own game: your character, party, offices and companies. Link the account you play with to start.",
+      14f, AskStyle.muted).apply { setPadding(0, dp(6), 0, dp(14)) })
+    linkCard.addView(primaryButton("Link game account") { onLinkAccount() },
+      LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    linkError.textSize = 12f
+    linkError.setTextColor(AskStyle.warning)
+    linkError.setPadding(0, dp(10), 0, 0)
+    linkError.visibility = View.GONE
+    linkCard.addView(linkError)
+    linkCard.visibility = View.GONE
+    addView(linkCard, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(16) })
+  }
+
+  private fun buildEmptyState() {
+    emptyState.orientation = VERTICAL
+    emptyState.setPadding(0, dp(12), 0, 0)
+    emptyState.addView(text("Ask anything about A House Divided", 16f, AskStyle.text, bold = true))
+    emptyState.addView(text("Rules, your character, elections, markets. Answers can use live game data.",
+      14f, AskStyle.muted).apply { setPadding(0, dp(4), 0, dp(14)) })
+    for (starter in NATIVE_ASK_STARTERS) {
+      val chip = text(starter, 14f, AskStyle.text).apply {
+        setPadding(dp(14), dp(12), dp(14), dp(12))
+        background = rounded(AskStyle.surface, 12, AskStyle.border)
+        isClickable = true
+        setOnClickListener {
+          NativeSafety.run("Ask starter") {
+            draft.setText(starter)
+            draft.setSelection(starter.length)
+            draft.requestFocus()
+          }
+        }
+      }
+      emptyState.addView(chip, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8) })
+    }
+  }
+
+  private fun buildComposer() {
+    composer.gravity = Gravity.BOTTOM
+    composer.setPadding(dp(6), dp(6), dp(6), dp(6))
+    composer.background = rounded(AskStyle.surface, 16, AskStyle.border)
+    draft.hint = "Ask about the game"
+    draft.setTextColor(AskStyle.text)
+    draft.setHintTextColor(AskStyle.faint)
+    draft.textSize = 16f
+    draft.minLines = 1
+    draft.maxLines = 5
+    draft.gravity = Gravity.CENTER_VERTICAL
+    draft.setPadding(dp(10), dp(10), dp(10), dp(10))
+    draft.background = null
+    draft.addTextChangedListener(object : android.text.TextWatcher {
+      override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+      override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+      override fun afterTextChanged(s: android.text.Editable?) { NativeSafety.run("Ask draft") { refreshSend() } }
+    })
+    composer.addView(draft, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+    sendButton.apply {
+      text = "Send"
+      textSize = 15f
+      gravity = Gravity.CENTER
+      setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+      setPadding(dp(16), 0, dp(16), 0)
+      isClickable = true
+      setOnClickListener { NativeSafety.run("Ask send") { send() } }
+    }
+    composer.addView(sendButton, LayoutParams(LayoutParams.WRAP_CONTENT, dp(44)).apply { leftMargin = dp(6) })
+    addView(composer, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    refreshSend()
+  }
+
+  /** Send is live only when a question of a valid length can actually go out. */
+  private fun refreshSend() {
+    val length = draft.text?.toString()?.trim()?.length ?: 0
+    val ready = signedIn && consented && !sending && length in 5..500
+    sendButton.isEnabled = ready
+    sendButton.setTextColor(if (ready) Color.WHITE else AskStyle.faint)
+    sendButton.background = rounded(if (ready) AskStyle.accent else AskStyle.raised, 12)
+  }
+
+  private fun showChecking() {
+    accountLabel.text = "Checking your game account..."
+    linkCard.visibility = View.GONE
+    composer.visibility = View.VISIBLE
+    draft.isEnabled = false
   }
 
   /** The consent screen. Nothing is sent to the Ask server until Allow. */
   private fun showConsent(review: Boolean) {
     consentPanel.removeAllViews()
-    fun line(text: String, size: Float, color: Int, bold: Boolean = false) = TextView(context).apply {
-      this.text = text
-      textSize = size
-      setTextColor(color)
-      if (bold) setTypeface(typeface, Typeface.BOLD)
-      setPadding(0, 4, 0, 4)
-    }
-    consentPanel.addView(line("Ask uses outside AI services", 16f, Color.WHITE, bold = true))
-    consentPanel.addView(line(
+    consentPanel.addView(text("Ask uses outside AI services", 18f, AskStyle.text, bold = true))
+    consentPanel.addView(text(
       "Ask answers with AI models run by other companies. When you send a question, it goes to one of the " +
-        "services below. What they receive: the text you type, earlier messages in the same chat, and, if you " +
+        "services below. They receive the text you type, earlier messages in the same chat, and, if you " +
         "ask about your own character, your own game records. Your username, email and account IDs are not sent.",
-      13f, Color.LTGRAY))
-    for ((name, detail) in recipients) {
-      consentPanel.addView(line(name, 14f, Color.WHITE, bold = true))
-      if (detail.isNotBlank()) consentPanel.addView(line(detail, 12f, Color.GRAY))
+      14f, AskStyle.muted).apply { setPadding(0, dp(8), 0, dp(12)) })
+    val list = LinearLayout(context).apply {
+      orientation = VERTICAL
+      setPadding(dp(14), dp(6), dp(14), dp(6))
+      background = rounded(AskStyle.surface, 14, AskStyle.border)
     }
-    consentPanel.addView(line(
-      "Each service has its own terms and data handling. Every answer shows which model and service wrote it. " +
+    for ((name, detail) in recipients) {
+      list.addView(text(name, 15f, AskStyle.text, bold = true).apply { setPadding(0, dp(8), 0, 0) })
+      if (detail.isNotBlank()) list.addView(text(detail, 13f, AskStyle.muted).apply { setPadding(0, dp(2), 0, dp(8)) })
+    }
+    consentPanel.addView(list)
+    consentPanel.addView(text(
+      "Each service has its own terms and data handling. Every answer names the model and service that wrote it. " +
         "Privacy notice: ${NativeAskConsent.PRIVACY_URL}",
-      12f, Color.LTGRAY))
-    val primary = Button(context)
+      12f, AskStyle.faint).apply { setPadding(0, dp(12), 0, dp(16)) })
+    val full = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
     if (review) {
-      primary.text = "Keep using Ask"
-      primary.setOnClickListener { NativeSafety.run("Ask consent keep") { hideConsent() } }
-      val withdraw = Button(context).apply {
-        text = "Withdraw permission"
-        setOnClickListener {
-          NativeSafety.run("Ask consent withdraw") {
-            NativeAskConsent.withdraw(context)
-            consented = false
-            showConsent(review = false)
-          }
+      consentPanel.addView(primaryButton("Keep using Ask") { NativeSafety.run("Ask consent keep") { hideConsent() } }, full)
+      consentPanel.addView(secondaryButton("Withdraw permission") {
+        NativeSafety.run("Ask consent withdraw") {
+          NativeAskConsent.withdraw(context)
+          consented = false
+          showConsent(review = false)
         }
-      }
-      consentPanel.addView(primary)
-      consentPanel.addView(withdraw)
+      }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
     } else {
-      primary.text = "Allow and continue"
-      primary.setOnClickListener {
+      consentPanel.addView(primaryButton("Allow and continue") {
         NativeSafety.run("Ask consent allow") {
           NativeAskConsent.grant(context, recipients)
           consented = true
           hideConsent()
         }
-      }
-      consentPanel.addView(primary)
-      consentPanel.addView(line("Ask sends nothing until you allow it.", 12f, Color.GRAY))
+      }, full)
+      consentPanel.addView(text("Ask sends nothing until you allow it.", 12f, AskStyle.faint).apply {
+        gravity = Gravity.CENTER
+        setPadding(0, dp(10), 0, 0)
+      }, full)
     }
-    consentPanel.visibility = View.VISIBLE
+    consentScroll.visibility = View.VISIBLE
     scroll.visibility = View.GONE
+    composer.visibility = View.GONE
+    statusLabel.visibility = View.GONE
     providersButton.visibility = View.GONE
-    sendButton.isEnabled = false
+    refreshSend()
   }
 
   private fun hideConsent() {
-    consentPanel.visibility = View.GONE
+    consentScroll.visibility = View.GONE
     scroll.visibility = View.VISIBLE
+    composer.visibility = View.VISIBLE
     providersButton.visibility = if (consented) View.VISIBLE else View.GONE
-    sendButton.isEnabled = signedIn && consented && !sending
-  }
-
-  private fun buildProviderStatus() {
-    val provider = TextView(context).apply {
-      text = "Ask server  |  Live tools and sources when available"
-      textSize = 12f
-      setTextColor(Color.rgb(168, 220, 205))
-      setPadding(12, 10, 12, 10)
-      background = rounded(Color.rgb(35, 51, 52), 12f)
-    }
-    addView(provider, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = 8 })
-    statusLabel.textSize = 12f
-    statusLabel.setTextColor(Color.LTGRAY)
-    statusLabel.visibility = View.GONE
-    addView(statusLabel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = 6 })
-  }
-
-  private fun buildComposer() {
-    val row = LinearLayout(context).apply { gravity = Gravity.BOTTOM }
-    draft.hint = "Ask about the game..."
-    draft.setTextColor(Color.WHITE)
-    draft.setHintTextColor(Color.GRAY)
-    draft.setTextSize(16f)
-    draft.minLines = 1
-    draft.maxLines = 5
-    draft.gravity = Gravity.TOP
-    draft.setPadding(14, 12, 14, 12)
-    draft.background = rounded(Color.rgb(39, 39, 50), 14f)
-    row.addView(draft, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-    sendButton.text = "Send"
-    sendButton.isEnabled = false
-    sendButton.setOnClickListener { NativeSafety.run("Ask send") { send() } }
-    row.addView(sendButton, LayoutParams(LayoutParams.WRAP_CONTENT, 52).apply { leftMargin = 8 })
-    addView(row, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = 8 })
+    draft.isEnabled = signedIn && consented
+    refreshSend()
   }
 
   private fun checkSession() {
@@ -644,8 +784,8 @@ private class NativeAskPanel(
             signedIn = true
             recipients = listed
             consented = NativeAskConsent.granted(context, listed)
-            accountLabel.text = "Signed in as ${name.ifBlank { "linked game account" }}"
-            accountLabel.setTextColor(Color.rgb(168, 220, 205))
+            accountLabel.text = if (name.isBlank()) "Signed in" else "Signed in as $name"
+            linkCard.visibility = View.GONE
             if (consented) hideConsent() else showConsent(review = false)
           }
         }
@@ -653,11 +793,15 @@ private class NativeAskPanel(
         mainHandler.post {
           NativeSafety.run("Ask session failure UI") {
             signedIn = false
-            accountLabel.text = "Ask server needs your linked game account."
-            accountLabel.setTextColor(Color.rgb(255, 190, 150))
-            linkButton.visibility = View.VISIBLE
-            statusLabel.text = failure.message.orEmpty().ifBlank { "Link your game account, then open Ask again." }
-            statusLabel.visibility = View.VISIBLE
+            accountLabel.text = "Not linked yet"
+            linkCard.visibility = View.VISIBLE
+            scroll.visibility = View.GONE
+            composer.visibility = View.GONE
+            // A link problem is shown plainly; the account explanation is already on the card.
+            val reason = failure.message.orEmpty()
+            linkError.text = if (failure is NativeAskAuthRequired || reason.isBlank()) "" else reason
+            linkError.visibility = if (linkError.text.isNullOrBlank()) View.GONE else View.VISIBLE
+            refreshSend()
           }
         }
       }
@@ -669,10 +813,11 @@ private class NativeAskPanel(
     if (!signedIn || !consented || sending || question.length !in 5..500) return
     val turn = NativeAskTurn(question, "")
     turns += turn
-    val answerView = addTurn(question)
+    emptyState.visibility = View.GONE
+    val answer = addTurn(question)
     draft.setText("")
     sending = true
-    sendButton.isEnabled = false
+    refreshSend()
     statusLabel.text = "Thinking..."
     statusLabel.visibility = View.VISIBLE
     val submitted = submit("Ask answer") {
@@ -683,7 +828,10 @@ private class NativeAskPanel(
           onDelta = { delta ->
             mainHandler.post {
               NativeSafety.run("Ask answer delta UI") {
-                answerView.text = answerView.text.toString() + delta
+                val current = if (answer.body.tag == "pending") "" else answer.body.text.toString()
+                answer.body.tag = null
+                answer.body.setTextColor(AskStyle.text)
+                answer.body.text = current + delta
                 scrollToBottom()
               }
             }
@@ -700,23 +848,27 @@ private class NativeAskPanel(
         mainHandler.post {
           NativeSafety.run("Ask answer success UI") {
             turn.answer = result.answer
-            answerView.text = formatAnswer(result)
+            answer.body.tag = null
+            answer.body.setTextColor(AskStyle.text)
+            answer.body.text = result.answer
+            answer.footer.text = answerFooter(result)
+            answer.footer.visibility = if (answer.footer.text.isNullOrBlank()) View.GONE else View.VISIBLE
             if (result.conversationID.isNotBlank()) conversationID = result.conversationID
             sending = false
-            sendButton.isEnabled = consented
-            statusLabel.text = evidenceStatus(result)
-            statusLabel.visibility = View.VISIBLE
+            statusLabel.visibility = View.GONE
+            refreshSend()
             scrollToBottom()
           }
         }
       } catch (failure: Exception) {
         mainHandler.post {
           NativeSafety.run("Ask answer failure UI") {
-            answerView.text = failure.message.orEmpty().ifBlank { "Ask could not complete the answer." }
+            answer.body.tag = null
+            answer.body.setTextColor(AskStyle.warning)
+            answer.body.text = failure.message.orEmpty().ifBlank { "Ask could not finish this answer. Try again." }
             sending = false
-            sendButton.isEnabled = signedIn
-            statusLabel.text = "The answer could not be completed."
-            statusLabel.visibility = View.VISIBLE
+            statusLabel.visibility = View.GONE
+            refreshSend()
             scrollToBottom()
           }
         }
@@ -724,9 +876,9 @@ private class NativeAskPanel(
     }
     if (!submitted) {
       sending = false
-      sendButton.isEnabled = signedIn
       statusLabel.text = "Ask is unavailable right now."
       statusLabel.visibility = View.VISIBLE
+      refreshSend()
     }
   }
 
@@ -738,36 +890,43 @@ private class NativeAskPanel(
     }
   }
 
-  private fun addTurn(question: String): TextView {
-    val questionView = TextView(context).apply {
-      text = question
-      textSize = 16f
-      setTextColor(Color.WHITE)
-      setPadding(14, 12, 14, 12)
-      background = rounded(Color.rgb(36, 58, 75), 14f)
+  private class AnswerViews(val body: TextView, val footer: TextView)
+
+  private fun addTurn(question: String): AnswerViews {
+    val questionView = text(question, 15f, AskStyle.text).apply {
+      setPadding(dp(14), dp(10), dp(14), dp(10))
+      background = rounded(AskStyle.raised, 14)
     }
-    messages.addView(questionView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = 10 })
-    val answerView = TextView(context).apply {
-      text = "Thinking..."
-      textSize = 16f
-      setTextColor(Color.WHITE)
-      setPadding(4, 12, 4, 4)
+    messages.addView(questionView, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+      gravity = Gravity.END
+      topMargin = dp(14)
+      leftMargin = dp(40)
+    })
+    val body = text("Thinking...", 16f, AskStyle.muted).apply {
+      tag = "pending"
+      setTextIsSelectable(true)
+      setPadding(dp(2), dp(12), dp(2), 0)
     }
-    messages.addView(answerView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    messages.addView(body, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    val footer = text("", 12f, AskStyle.faint).apply {
+      setPadding(dp(2), dp(8), dp(2), 0)
+      visibility = View.GONE
+    }
+    messages.addView(footer, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     scrollToBottom()
-    return answerView
+    return AnswerViews(body, footer)
   }
 
-  private fun formatAnswer(result: NativeAskResult): String {
-    val sourceText = if (result.citations.isEmpty()) "" else "\n\nSources: ${result.citations.joinToString(" | ")}"
-    val modelText = if (result.model.isBlank()) "" else "\n\n${result.model}"
-    return result.answer + modelText + sourceText
-  }
-
-  private fun evidenceStatus(result: NativeAskResult): String {
-    if (!result.usedMcp) return "No live game tool result was used for this answer."
-    val sources = result.liveSources.joinToString(", ")
-    return if (sources.isBlank()) "Live game tools used." else "Live game tools used: $sources"
+  /** Who wrote the answer, the live data it used and its sources, quietly under it. */
+  private fun answerFooter(result: NativeAskResult): String {
+    val lines = mutableListOf<String>()
+    if (result.model.isNotBlank()) lines += result.model
+    if (result.usedMcp) {
+      val sources = result.liveSources.joinToString(", ")
+      lines += if (sources.isBlank()) "Used live game data" else "Used live game data: $sources"
+    }
+    if (result.citations.isNotEmpty()) lines += "Sources: ${result.citations.joinToString(", ")}"
+    return lines.joinToString("\n")
   }
 
   private fun scrollToBottom() {
@@ -783,11 +942,6 @@ private class NativeAskPanel(
     return identity?.optString("name").orEmpty().ifBlank { identity?.optString("displayName").orEmpty() }
       .ifBlank { character?.optString("name").orEmpty() }
       .ifBlank { profileContext?.optString("displayName").orEmpty() }
-  }
-
-  private fun rounded(color: Int, radius: Float): GradientDrawable = GradientDrawable().apply {
-    setColor(color)
-    cornerRadius = radius
   }
 }
 
@@ -832,6 +986,8 @@ object NativeAskController {
           addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
           setGravity(Gravity.BOTTOM)
           setLayout(WindowManager.LayoutParams.MATCH_PARENT, (host.resources.displayMetrics.heightPixels * 0.9f).toInt())
+          // The composer rides above the keyboard instead of under it.
+          setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
         dialog = nativeDialog
       }
