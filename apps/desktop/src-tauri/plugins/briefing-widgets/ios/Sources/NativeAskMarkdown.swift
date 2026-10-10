@@ -721,6 +721,7 @@ struct NativeAskMapView: View {
   @State private var svg: String?
   @State private var failed = false
   @State private var expanded = false
+  @Environment(\.colorScheme) private var colorScheme
 
   private var title: String {
     guard let data = spec.data(using: .utf8),
@@ -772,6 +773,7 @@ struct NativeAskMapView: View {
     .task(id: spec) { await load() }
     .sheet(isPresented: $expanded) {
       NativeAskMapDetail(title: title, svg: svg ?? "")
+        .preferredColorScheme(colorScheme)
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(Text("Map: \(title)"))

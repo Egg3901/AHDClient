@@ -36,6 +36,7 @@ struct NativeAskView: View {
 
 private struct NativeAskCompactLayout: View {
   @ObservedObject var model: NativeAskModel
+  @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     NavigationView {
@@ -56,6 +57,8 @@ private struct NativeAskCompactLayout: View {
       .navigationViewStyle(.stack)
       .accentColor(NativeAskTint.color)
       .tint(NativeAskTint.color)
+      // Sheets do not inherit the host's appearance override on their own.
+      .preferredColorScheme(colorScheme)
     }
   }
 }
@@ -326,6 +329,7 @@ private struct NativeAskTitle: View {
     if model.provider == .appleOnDevice { return "On this \(NativeAskModel.deviceName)" }
     if model.offline { return "Offline" }
     if model.connecting && !model.connected && !model.isPreview { return "Connecting" }
+    guard model.signedIn else { return "" }
     return model.usage?.label ?? ""
   }
 
