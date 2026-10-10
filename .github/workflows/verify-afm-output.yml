@@ -8,6 +8,7 @@ on:
       - 'scripts/tests/native-ask-auth.py'
       - 'scripts/tests/native-ask-auth.swift'
       - 'apps/desktop/src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift'
+      - 'apps/desktop/src-tauri/plugins/briefing-widgets/ios/Sources/NativeAskData.swift'
       - '.github/workflows/verify-afm-output.yml'
   workflow_dispatch:
 permissions:

@@ -12,9 +12,10 @@
   <!-- Home screen name. productName stays AHDClient for binaries and release tooling. -->
   <key>CFBundleDisplayName</key>
   <string>A House Divided</string>
-  <!-- The launcher and the game are dark; keep the status bar text light. -->
-  <key>UIUserInterfaceStyle</key>
-  <string>Dark</string>
+  <!-- No app-wide UIUserInterfaceStyle: native sheets (Ask) follow the
+       system appearance. The launcher window pins itself dark at runtime
+       (NativeLauncherAppearance) and the launch screen is painted the
+       launcher color by scripts/configure-ios-widgets.rb. -->
   <!-- Only HTTPS to the game; no proprietary encryption, so no export
        compliance questionnaire on every TestFlight upload. -->
   <key>ITSAppUsesNonExemptEncryption</key>

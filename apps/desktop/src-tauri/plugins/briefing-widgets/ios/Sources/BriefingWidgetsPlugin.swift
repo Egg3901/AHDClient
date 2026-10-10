@@ -11,6 +11,7 @@ final class BriefingWidgetsPlugin: Plugin, WKHTTPCookieStoreObserver {
 
   @objc public override func load(webview: WKWebView) {
     gameView = webview
+    NativeLauncherAppearance.pinDark(webview)
     JSDialogDelegate.install(on: webview)
     NativePush.shared.attach(webview)
     NativeAskController.shared.attach(webview)

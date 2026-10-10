@@ -83,6 +83,37 @@ spec['targets']['AHDWidgets'] = {
   'entitlements' => { 'path' => 'AHDWidgets/AHDWidgets.entitlements', 'properties' => entitlements },
   'dependencies' => [{ 'sdk' => 'WidgetKit.framework' }, { 'sdk' => 'SwiftUI.framework' }, { 'sdk' => 'Security.framework' }]
 }
+# Appearance: the app follows the system setting so native sheets (Ask) can be
+# light, while the launcher pins its own window dark at runtime. Paint the
+# launch screen the launcher color (#14141c) so light-mode players never see a
+# white frame before the launcher draws.
+props = app.fetch('info').fetch('properties')
+props.delete('UIUserInterfaceStyle')
+launch_color = '<color key="backgroundColor" red="0.0784313725" green="0.0784313725" blue="0.1098039216" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>'
+storyboards = Dir.glob(File.join(project, '**', '*.storyboard')).select { |path| File.read(path).include?('launchScreen="YES"') }
+storyboards.each do |path|
+  xml = File.read(path)
+  patched = xml.gsub(/<color key="backgroundColor"[^>]*\/>/, launch_color)
+  patched = patched.sub(/(<view key="view"[^>]*>)/) { "#{Regexp.last_match(1)}\n#{launch_color}" } unless patched.include?(launch_color)
+  File.write(path, patched)
+  puts "Launch screen painted the launcher color: #{path.sub("#{project}/", '')}"
+end
+assets = Dir.glob(File.join(project, '**', 'Assets.xcassets')).first
+if assets
+  colorset = File.join(assets, 'LaunchBackground.colorset')
+  FileUtils.mkdir_p(colorset)
+  File.write(File.join(colorset, 'Contents.json'), JSON.pretty_generate(
+    'colors' => [{ 'idiom' => 'universal', 'color' => { 'color-space' => 'srgb',
+      'components' => { 'red' => '0x14', 'green' => '0x14', 'blue' => '0x1C', 'alpha' => '1.000' } } }],
+    'info' => { 'author' => 'xcode', 'version' => 1 }
+  ))
+end
+if storyboards.empty?
+  # No launch storyboard: a plain launch screen in the launcher color.
+  props.delete('UILaunchStoryboardName')
+  props['UILaunchScreen'] = { 'UIColorName' => 'LaunchBackground' }
+  puts 'Launch screen set to the launcher color (UILaunchScreen).'
+end
 File.write(spec_path, YAML.dump(spec))
 abort 'XcodeGen failed' unless system('xcodegen', 'generate', '--spec', spec_path, '--project', project)
 puts 'AHD Profile, Election and Corporation widgets added to the iOS app.'

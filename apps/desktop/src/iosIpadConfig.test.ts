@@ -58,3 +58,24 @@ describe("iPad enablement", () => {
     );
   });
 });
+
+describe("iOS appearance", () => {
+  const plugin = read("../src-tauri/plugins/briefing-widgets/ios/Sources/BriefingWidgetsPlugin.swift");
+  const ask = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+
+  it("lets native sheets follow the system while the launcher stays dark", () => {
+    // No app-wide pin: Ask and other native sheets follow light or dark.
+    expect(plist).not.toMatch(/<key>UIUserInterfaceStyle<\/key>/);
+    expect(script).toContain("props.delete('UIUserInterfaceStyle')");
+    // The launcher window pins itself dark; Ask overrides from the device setting.
+    expect(plugin).toContain("NativeLauncherAppearance.pinDark(webview)");
+    expect(ask).toContain("window.overrideUserInterfaceStyle = .dark");
+    expect(ask).toContain("func applySystemAppearance()");
+  });
+
+  it("paints the launch screen the launcher color so light mode never flashes white", () => {
+    expect(script).toContain('launchScreen="YES"');
+    expect(script).toContain('red="0.0784313725" green="0.0784313725" blue="0.1098039216"');
+    expect(script).toContain("props['UILaunchScreen'] = { 'UIColorName' => 'LaunchBackground' }");
+  });
+});
