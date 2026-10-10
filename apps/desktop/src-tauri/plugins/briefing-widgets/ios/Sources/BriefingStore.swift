@@ -16,6 +16,7 @@ struct BriefingStatus: Codable {
   var personalHomeLiquid: Double?
   var homeCurrency: String?
   var politicalInfluence: Double?
+  var nationalInfluence: Double?
   var favorability: Double?
   var isImperial: Bool?
   var electionStats: ElectionStats?
@@ -24,6 +25,7 @@ struct BriefingStatus: Codable {
   var turnBriefing: [TurnChange]?
   var turn: TurnClock?
   var inbox: InboxCounts?
+  var perTurn: PerTurn?
 
   struct ElectionStats: Codable {
     var electionId: String
@@ -51,6 +53,7 @@ struct BriefingStatus: Codable {
     var liquidCapital: Double?
     var liquidCurrencyCode: String?
     var marketingStrength: Double?
+    var marketCap: Double?
     var history: [CorporationPoint]?
   }
   struct CorporationPoint: Codable {
@@ -58,6 +61,7 @@ struct BriefingStatus: Codable {
     var sharePrice: Double
     var marketingStrength: Double
     var liquidCapital: Double
+    var marketCap: Double?
   }
   struct MarketWatchItem: Codable {
     var sequentialId: Int
@@ -87,6 +91,31 @@ struct BriefingStatus: Codable {
     var unread: Double
     var mail: Double
   }
+  /// How much each figure changes per turn. Influence, favorability and funds
+  /// are the profile page's per-turn rates; the rest are the latest turn's
+  /// recorded change. Nil means unknown, not zero.
+  struct PerTurn: Codable {
+    var funds: Double?
+    var politicalInfluence: Double?
+    var nationalInfluence: Double?
+    var favorability: Double?
+    var voteShare: Double?
+    var sharePrice: Double?
+    var marketCap: Double?
+    var liquidCapital: Double?
+
+    /// Drops values a widget could not show sensibly.
+    func bounded() -> PerTurn {
+      func keep(_ value: Double?) -> Double? {
+        guard let value = value, value.isFinite, abs(value) < 1e18 else { return nil }
+        return value
+      }
+      return PerTurn(funds: keep(funds), politicalInfluence: keep(politicalInfluence),
+        nationalInfluence: keep(nationalInfluence), favorability: keep(favorability),
+        voteShare: keep(voteShare), sharePrice: keep(sharePrice), marketCap: keep(marketCap),
+        liquidCapital: keep(liquidCapital))
+    }
+  }
 
   /// When the next turn is scheduled, if the server sent a valid time.
   var nextTurn: Date? {
@@ -110,7 +139,8 @@ struct SavedBriefing: Codable {
 }
 
 enum BriefingStore {
-  /// `widgets=1` adds the turn clock and inbox counts.
+  /// `widgets=1` adds the turn clock, inbox counts, market cap, national
+  /// influence and per-turn changes.
   static let endpoint = URL(string: "https://ahousedividedgame.com/api/client-status?layout=full&widgets=1")!
   private static let queue = DispatchQueue(label: "net.lakesidegames.ahdclient.widget-refresh")
   private static var pending = [(SavedBriefing?) -> Void]()
@@ -217,8 +247,12 @@ enum BriefingStore {
           data.avatarUrl = trustedImageURL(data.avatarUrl)
           if var corporation = data.corpNav {
             corporation.logoUrl = trustedImageURL(corporation.logoUrl)
+            corporation.marketCap = corporation.marketCap.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
+            corporation.history = corporation.history.map { Array($0.suffix(12)) }
             data.corpNav = corporation
           }
+          data.nationalInfluence = data.nationalInfluence.flatMap { $0.isFinite ? $0 : nil }
+          data.perTurn = data.perTurn?.bounded()
           data.marketWatch = data.marketWatch?.prefix(5).map { item in
             var safe = item
             safe.name = String(safe.name.prefix(120))

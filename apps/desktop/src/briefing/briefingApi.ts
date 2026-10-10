@@ -17,6 +17,8 @@ export interface Snapshot {
     personalHomeLiquid: number | null;
     homeCurrency: string | null;
     politicalInfluence: number | null;
+    /** Absent on servers before the widget figures. */
+    nationalInfluence?: number | null;
     favorability: number | null;
     isImperial: boolean;
   };
@@ -45,7 +47,8 @@ export interface Snapshot {
     liquidCapital: number | null;
     liquidCurrencyCode: string | null;
     marketingStrength: number | null;
-    history?: { turn: number; sharePrice: number; marketingStrength: number; liquidCapital: number }[];
+    marketCap?: number | null;
+    history?: { turn: number; sharePrice: number; marketingStrength: number; liquidCapital: number; marketCap?: number | null }[];
   };
   turnBriefing?: {
     category: string;
@@ -67,6 +70,17 @@ export interface Snapshot {
   /** Present when the server supports the widget extras. */
   turn?: { current: number; date?: string | null; nextAt?: string | null; active: boolean } | null;
   inbox?: { unread: number; mail: number } | null;
+  /** Per-turn change of each figure; null means unknown. */
+  perTurn?: {
+    funds: number | null;
+    politicalInfluence: number | null;
+    nationalInfluence: number | null;
+    favorability: number | null;
+    voteShare: number | null;
+    sharePrice: number | null;
+    marketCap: number | null;
+    liquidCapital: number | null;
+  } | null;
 }
 export type TurnChange = NonNullable<Snapshot["turnBriefing"]>[number];
 

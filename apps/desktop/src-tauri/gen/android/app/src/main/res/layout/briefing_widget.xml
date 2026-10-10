@@ -1,27 +1,209 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Mirrors the iOS widget: header, hero figure with its per-turn change, a
+     trend chart drawn into a bitmap, a two-column figure grid, and the latest
+     turn's changes or holdings. Unused parts are hidden per section and size. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:padding="14dp" android:background="@drawable/briefing_background">
+    android:orientation="vertical" android:paddingStart="12dp" android:paddingEnd="12dp"
+    android:paddingTop="12dp" android:paddingBottom="4dp" android:background="@drawable/briefing_background">
     <LinearLayout android:id="@+id/briefing_content_area" android:layout_width="match_parent"
         android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical">
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="AHD · MULTIPLAYER" android:textColor="#BDB6A8" android:textSize="10sp" />
-        <TextView android:id="@+id/briefing_title" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:textColor="#F2EDE5" android:textStyle="bold" android:textSize="18sp" android:maxLines="1" android:ellipsize="end" />
-        <TextView android:id="@+id/briefing_content" android:layout_width="match_parent" android:layout_height="0dp"
-            android:layout_weight="1" android:layout_marginTop="8dp" android:textColor="#E5C17A" android:textSize="14sp"
-            android:lineSpacingExtra="4dp" android:maxLines="8" android:ellipsize="end" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:id="@+id/briefing_monogram" android:layout_width="30dp" android:layout_height="30dp"
+                android:background="@drawable/briefing_monogram" android:gravity="center" android:textColor="@color/briefing_cream"
+                android:textSize="11sp" android:textStyle="bold" android:fontFamily="serif" android:maxLines="1" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:layout_marginStart="8dp" android:orientation="vertical">
+                <TextView android:id="@+id/briefing_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textColor="@color/briefing_cream" android:textStyle="bold" android:textSize="15sp" android:fontFamily="serif"
+                    android:maxLines="1" android:ellipsize="end" />
+                <TextView android:id="@+id/briefing_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textSize="8sp" android:textStyle="bold" android:letterSpacing="0.06" android:textAllCaps="true"
+                    android:maxLines="1" android:ellipsize="end" />
+            </LinearLayout>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp"
+                android:text="AHD" android:textColor="#B3F7F0DB" android:textSize="9sp" android:textStyle="bold" android:fontFamily="serif" />
+        </LinearLayout>
+        <FrameLayout android:layout_width="match_parent" android:layout_height="1px"
+            android:layout_marginTop="6dp" android:background="@color/briefing_rule" />
+        <TextView android:id="@+id/briefing_message" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" android:textColor="#B3F7F0DB" android:textSize="12sp" android:maxLines="3"
+            android:ellipsize="end" android:visibility="gone" />
+        <LinearLayout android:id="@+id/briefing_body" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <TextView android:id="@+id/briefing_hero_label" style="@style/BriefingLabel" android:layout_marginTop="6dp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:baselineAligned="true">
+                <TextView android:id="@+id/briefing_hero_value" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textColor="@color/briefing_cream" android:textSize="24sp" android:fontFamily="sans-serif-medium"
+                    android:fontFeatureSettings="tnum" android:maxLines="1" android:ellipsize="end" />
+                <Chronometer android:id="@+id/briefing_hero_timer" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textColor="@color/briefing_cream" android:textSize="24sp" android:fontFamily="sans-serif-medium"
+                    android:fontFeatureSettings="tnum" android:visibility="gone" />
+                <TextView android:id="@+id/briefing_hero_change" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp" android:textSize="12sp" android:textStyle="bold"
+                    android:fontFeatureSettings="tnum" android:maxLines="1" />
+            </LinearLayout>
+            <TextView android:id="@+id/briefing_hero_note" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textColor="#BFF7F0DB" android:textSize="10sp" android:fontFeatureSettings="tnum" android:maxLines="1"
+                android:visibility="gone" />
+            <TextView android:id="@+id/briefing_chart_label" style="@style/BriefingLabel" android:layout_marginTop="6dp" />
+            <ImageView android:id="@+id/briefing_chart" android:layout_width="match_parent" android:layout_height="56dp"
+                android:layout_marginTop="3dp" android:scaleType="fitXY" android:contentDescription="@string/widget_chart" />
+            <TextView android:id="@+id/briefing_figures_label" style="@style/BriefingLabel" android:layout_marginTop="7dp"
+                android:text="@string/widget_change_legend" />
+        <LinearLayout android:id="@+id/fig_row_0" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginTop="5dp">
+            <LinearLayout android:id="@+id/fig_cell_0" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:layout_marginEnd="8dp">
+                <TextView android:id="@+id/fig_label_0" style="@style/BriefingLabel" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:baselineAligned="true">
+                    <TextView android:id="@+id/fig_value_0" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/briefing_cream" android:textSize="13sp" android:fontFamily="sans-serif-medium"
+                        android:fontFeatureSettings="tnum" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:id="@+id/fig_change_0" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp" android:textSize="9sp" android:textStyle="bold"
+                        android:fontFeatureSettings="tnum" android:maxLines="1" />
+                </LinearLayout>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/fig_cell_1" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:layout_marginEnd="8dp">
+                <TextView android:id="@+id/fig_label_1" style="@style/BriefingLabel" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:baselineAligned="true">
+                    <TextView android:id="@+id/fig_value_1" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/briefing_cream" android:textSize="13sp" android:fontFamily="sans-serif-medium"
+                        android:fontFeatureSettings="tnum" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:id="@+id/fig_change_1" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp" android:textSize="9sp" android:textStyle="bold"
+                        android:fontFeatureSettings="tnum" android:maxLines="1" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+        <LinearLayout android:id="@+id/fig_row_1" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginTop="5dp">
+            <LinearLayout android:id="@+id/fig_cell_2" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:layout_marginEnd="8dp">
+                <TextView android:id="@+id/fig_label_2" style="@style/BriefingLabel" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:baselineAligned="true">
+                    <TextView android:id="@+id/fig_value_2" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/briefing_cream" android:textSize="13sp" android:fontFamily="sans-serif-medium"
+                        android:fontFeatureSettings="tnum" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:id="@+id/fig_change_2" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp" android:textSize="9sp" android:textStyle="bold"
+                        android:fontFeatureSettings="tnum" android:maxLines="1" />
+                </LinearLayout>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/fig_cell_3" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:layout_marginEnd="8dp">
+                <TextView android:id="@+id/fig_label_3" style="@style/BriefingLabel" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:baselineAligned="true">
+                    <TextView android:id="@+id/fig_value_3" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/briefing_cream" android:textSize="13sp" android:fontFamily="sans-serif-medium"
+                        android:fontFeatureSettings="tnum" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:id="@+id/fig_change_3" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp" android:textSize="9sp" android:textStyle="bold"
+                        android:fontFeatureSettings="tnum" android:maxLines="1" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+        <LinearLayout android:id="@+id/fig_row_2" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginTop="5dp">
+            <LinearLayout android:id="@+id/fig_cell_4" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:layout_marginEnd="8dp">
+                <TextView android:id="@+id/fig_label_4" style="@style/BriefingLabel" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:baselineAligned="true">
+                    <TextView android:id="@+id/fig_value_4" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/briefing_cream" android:textSize="13sp" android:fontFamily="sans-serif-medium"
+                        android:fontFeatureSettings="tnum" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:id="@+id/fig_change_4" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp" android:textSize="9sp" android:textStyle="bold"
+                        android:fontFeatureSettings="tnum" android:maxLines="1" />
+                </LinearLayout>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/fig_cell_5" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:layout_marginEnd="8dp">
+                <TextView android:id="@+id/fig_label_5" style="@style/BriefingLabel" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:baselineAligned="true">
+                    <TextView android:id="@+id/fig_value_5" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/briefing_cream" android:textSize="13sp" android:fontFamily="sans-serif-medium"
+                        android:fontFeatureSettings="tnum" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:id="@+id/fig_change_5" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp" android:textSize="9sp" android:textStyle="bold"
+                        android:fontFeatureSettings="tnum" android:maxLines="1" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+            <FrameLayout android:id="@+id/briefing_rows_rule" android:layout_width="match_parent" android:layout_height="1px"
+                android:layout_marginTop="7dp" android:background="@color/briefing_rule" />
+            <TextView android:id="@+id/briefing_rows_label" style="@style/BriefingLabel" android:layout_marginTop="5dp" />
+        <LinearLayout android:id="@+id/row_0" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="3dp" android:paddingBottom="3dp">
+            <TextView android:id="@+id/row_title_0" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:textColor="@color/briefing_cream" android:textSize="11sp"
+                android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+            <TextView android:id="@+id/row_value_0" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="6dp" android:textColor="@color/briefing_cream" android:textSize="11sp"
+                android:fontFeatureSettings="tnum" android:maxLines="1" />
+            <TextView android:id="@+id/row_change_0" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="5dp" android:textSize="9sp" android:textStyle="bold"
+                android:fontFeatureSettings="tnum" android:maxLines="1" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/row_1" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="3dp" android:paddingBottom="3dp">
+            <TextView android:id="@+id/row_title_1" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:textColor="@color/briefing_cream" android:textSize="11sp"
+                android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+            <TextView android:id="@+id/row_value_1" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="6dp" android:textColor="@color/briefing_cream" android:textSize="11sp"
+                android:fontFeatureSettings="tnum" android:maxLines="1" />
+            <TextView android:id="@+id/row_change_1" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="5dp" android:textSize="9sp" android:textStyle="bold"
+                android:fontFeatureSettings="tnum" android:maxLines="1" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/row_2" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="3dp" android:paddingBottom="3dp">
+            <TextView android:id="@+id/row_title_2" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:textColor="@color/briefing_cream" android:textSize="11sp"
+                android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+            <TextView android:id="@+id/row_value_2" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="6dp" android:textColor="@color/briefing_cream" android:textSize="11sp"
+                android:fontFeatureSettings="tnum" android:maxLines="1" />
+            <TextView android:id="@+id/row_change_2" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="5dp" android:textSize="9sp" android:textStyle="bold"
+                android:fontFeatureSettings="tnum" android:maxLines="1" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/row_3" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="3dp" android:paddingBottom="3dp">
+            <TextView android:id="@+id/row_title_3" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:textColor="@color/briefing_cream" android:textSize="11sp"
+                android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+            <TextView android:id="@+id/row_value_3" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="6dp" android:textColor="@color/briefing_cream" android:textSize="11sp"
+                android:fontFeatureSettings="tnum" android:maxLines="1" />
+            <TextView android:id="@+id/row_change_3" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="5dp" android:textSize="9sp" android:textStyle="bold"
+                android:fontFeatureSettings="tnum" android:maxLines="1" />
+        </LinearLayout>
+        </LinearLayout>
+        <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
         <TextView android:id="@+id/briefing_updated" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:textColor="#BDB6A8" android:textSize="11sp" android:maxLines="2" android:ellipsize="end" />
+            android:textColor="#80F7F0DB" android:textSize="9sp" android:maxLines="1" android:ellipsize="end" />
     </LinearLayout>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="44dp" android:orientation="horizontal" android:gravity="center_vertical">
-        <TextView android:id="@+id/briefing_previous" android:layout_width="44dp" android:layout_height="44dp" android:gravity="center"
-            android:text="‹" android:textSize="24sp" android:textColor="#F2EDE5" android:contentDescription="Previous card" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/briefing_previous" android:layout_width="44dp" android:layout_height="36dp" android:gravity="center"
+            android:text="‹" android:textSize="22sp" android:textColor="@color/briefing_cream" android:contentDescription="Previous card" />
         <TextView android:id="@+id/briefing_section" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
-            android:gravity="center" android:textColor="#BDB6A8" android:textSize="12sp" />
-        <TextView android:id="@+id/briefing_next" android:layout_width="44dp" android:layout_height="44dp" android:gravity="center"
-            android:text="›" android:textSize="24sp" android:textColor="#F2EDE5" android:contentDescription="Next card" />
-        <TextView android:id="@+id/briefing_refresh" android:layout_width="64dp" android:layout_height="44dp" android:gravity="center"
-            android:text="Refresh" android:textSize="12sp" android:textColor="#E5C17A" android:contentDescription="Refresh stats" />
+            android:gravity="center" android:textColor="#99F7F0DB" android:textSize="11sp" />
+        <TextView android:id="@+id/briefing_next" android:layout_width="44dp" android:layout_height="36dp" android:gravity="center"
+            android:text="›" android:textSize="22sp" android:textColor="@color/briefing_cream" android:contentDescription="Next card" />
+        <TextView android:id="@+id/briefing_refresh" android:layout_width="64dp" android:layout_height="36dp" android:gravity="center"
+            android:text="Refresh" android:textSize="11sp" android:textColor="@color/briefing_gold" android:contentDescription="Refresh stats" />
     </LinearLayout>
 </LinearLayout>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget palette and text styles, matched to the iOS widgets. -->
+<resources>
+    <color name="briefing_cream">#FFF7F0DB</color>
+    <color name="briefing_gold">#FFE8B852</color>
+    <color name="briefing_rule">#1AFFFFFF</color>
+    <string name="widget_chart">Recent trend</string>
+    <string name="widget_change_legend">Green and red: change per turn</string>
+    <style name="BriefingLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">#8CF7F0DB</item>
+        <item name="android:textSize">8sp</item>
+        <item name="android:letterSpacing">0.05</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+</resources>
