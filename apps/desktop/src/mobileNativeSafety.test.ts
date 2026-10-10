@@ -4,7 +4,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (relative: string) => readFileSync(join(here, relative), "utf8");
+// Windows checkouts can use CRLF; regexes below expect LF.
+const read = (relative: string) => readFileSync(join(here, relative), "utf8").replace(/\r\n/g, "\n");
 
 describe("mobile native companion safety", () => {
   it("insets the Android WebView with margins so fixed bars clear the system bars", () => {
