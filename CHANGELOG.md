@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.6.0] - 2026-10-11
+
+- Ask is rebuilt for each phone. iPhone and iPad follow Apple's design and your light or dark setting; Android uses Material 3 and follows your theme. On iPad, your past chats sit in a sidebar beside the conversation.
+- Ask keeps your past conversations: search them, open one to continue, start a new chat, or delete one.
+- Answers are properly formatted with headings, lists and tables, and names of game pages are links that open the page in the app.
+- Copy an answer, share a conversation, and mark answers helpful or not helpful.
+- Ask shows how many questions you have left today and when they reset, and suggests follow-up questions after each answer.
+- Answers can include maps and charts, and you can attach a screenshot or photo to a question.
+- Ask holds up better on a weak connection: it retries, signs you back in if your session runs out mid-chat, keeps a partial answer if the connection drops and lets you retry, and keeps your draft and conversation when you close and reopen it.
+- Widgets show more: market cap for your corporation, state and national influence, and how each figure is moving per turn, with clearer price charts that stand out from the background.
+- Android widgets now match iPhone, including a new Overview widget with the turn countdown.
+
 ## [2.5.0] - 2026-10-10
 
 - Desktop: inbox alerts now appear as system notifications on Windows, macOS and Linux while AHDClient is open. Each one shows the alert's title, its category and the message, and several at once end with a count of what else is waiting. They stay quiet while you are looking at the live game.
