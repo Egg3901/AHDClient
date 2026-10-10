@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0] - 2026-10-10
+
+- Desktop: inbox alerts now appear as system notifications on Windows, macOS and Linux while AHDClient is open. Each one shows the alert's title, its category and the message, and several at once end with a count of what else is waiting. They stay quiet while you are looking at the live game.
+- Desktop: new Notifications section in Settings to turn desktop alerts on or off. They start on; a fresh install begins from your current inbox instead of replaying old alerts.
+- Android: alerts now arrive in one notification channel per category (Crisis, Elections, Legislation, Party, Treasury, Standing, System), so you can silence or change the sound for one kind in Android Settings. Crisis alerts can pop up over other apps.
+- Settings on every platform has an Alert types button that opens the game settings, where you can mute the kinds of alerts you do not want. Mutes and snoozes apply to phone and desktop alerts alike.
+
 ## [2.4.1] - 2026-10-10
 
 - Android: the app no longer freezes on the sign-in page. Tapping Continue with Discord, or any link that opens outside the app, used to stop the app answering taps until Android closed it.

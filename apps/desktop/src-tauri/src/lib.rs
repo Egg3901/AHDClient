@@ -20,6 +20,8 @@ mod ask;
 #[cfg(desktop)]
 mod desktop;
 #[cfg(desktop)]
+mod desktop_alerts;
+#[cfg(desktop)]
 mod game_versions;
 #[cfg(mobile)]
 mod mobile;

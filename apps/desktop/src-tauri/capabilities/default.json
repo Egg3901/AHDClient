@@ -8,6 +8,8 @@
     "windows"
   ],
   "permissions": [
+    "allow-get-push-status",
+    "allow-configure-push",
     "allow-get-briefing",
     "allow-open-briefing-page",
     "allow-open-game-page",

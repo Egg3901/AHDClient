@@ -901,10 +901,18 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
     .plugin(tauri_plugin_window_state::Builder::default().build())
     .plugin(tauri_plugin_process::init())
     .plugin(tauri_plugin_updater::Builder::new().build())
+    .plugin(tauri_plugin_notification::init())
+    .manage(crate::desktop_alerts::AlertState::default())
+    .setup(|app| {
+      crate::desktop_alerts::start(app.handle());
+      Ok(())
+    })
     .manage(Game(Mutex::new(GameInner::default()), tokio::sync::Mutex::new(())))
     .manage(StatisticsConsent(AtomicBool::new(false)))
     .manage(crate::ask::AskStreamState::default())
     .invoke_handler(tauri::generate_handler![
+      crate::desktop_alerts::get_push_status,
+      crate::desktop_alerts::configure_push,
       crate::briefing::get_briefing,
       crate::briefing::open_briefing_page,
       crate::briefing::open_game_page,
