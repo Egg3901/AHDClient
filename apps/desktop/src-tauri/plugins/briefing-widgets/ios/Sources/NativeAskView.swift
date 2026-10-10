@@ -400,7 +400,6 @@ private struct NativeAskConversationView: View {
     ScrollViewReader { proxy in
       ScrollView {
         VStack(alignment: .leading, spacing: 0) {
-          NativeAskBanners(model: model)
           if model.loadingConversation {
             NativeAskLoadingThread()
           } else if model.turns.isEmpty {
@@ -463,7 +462,7 @@ private struct NativeAskBanners: View {
                         actionTitle: "Use online answers", action: { model.provider = .server })
       }
     }
-    .padding(.bottom, hasBanner ? 18 : 0)
+    .padding(.bottom, hasBanner ? 2 : 0)
     .animation(.easeInOut(duration: 0.2), value: model.notice)
   }
 
@@ -509,9 +508,9 @@ private struct NativeAskBanner: View {
         .accessibilityLabel("Dismiss")
       }
     }
-    .padding(14)
+    .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemBackground)))
+    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemFill)))
     .transition(.opacity)
   }
 }
@@ -987,6 +986,9 @@ private struct NativeAskComposer: View {
 
   var body: some View {
     VStack(spacing: 8) {
+      // Notices sit with the composer so they stay visible wherever the
+      // thread is scrolled.
+      NativeAskBanners(model: model)
       if !model.draftAttachments.isEmpty {
         ScrollView(.horizontal, showsIndicators: false) {
           HStack(spacing: 12) {

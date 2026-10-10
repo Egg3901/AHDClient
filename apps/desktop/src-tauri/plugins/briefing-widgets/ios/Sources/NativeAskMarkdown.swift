@@ -469,13 +469,13 @@ private struct NativeAskTableView: View {
   let header: [String]
   let rightAligned: [Bool]
   let rows: [[String]]
-  @ScaledMetric(relativeTo: .subheadline) private var charWidth: CGFloat = 7.6
+  @ScaledMetric(relativeTo: .subheadline) private var charWidth: CGFloat = 8.6
 
   private var widths: [CGFloat] {
     header.indices.map { column in
       let longest = ([header[column]] + rows.map { column < $0.count ? NativeAskMarkdown.formatCell($0[column]) : "" })
-        .map { NativeAskMarkdown.plain($0).count }.max() ?? 4
-      return min(260, max(64, CGFloat(longest) * charWidth + 28))
+        .map { NativeAskMarkdown.plain($0).count + ($0.hasPrefix("▲") || $0.hasPrefix("▼") ? 1 : 0) }.max() ?? 4
+      return min(260, max(72, CGFloat(longest) * charWidth + 32))
     }
   }
 
@@ -505,6 +505,8 @@ private struct NativeAskTableView: View {
           .font(isHeader ? Font.footnote.weight(.semibold) : Font.subheadline.monospacedDigit())
           .foregroundColor(isHeader ? .secondary : trendColor(text))
           .multilineTextAlignment(right ? .trailing : .leading)
+          .lineLimit(right ? 1 : nil)
+          .minimumScaleFactor(right ? 0.75 : 1)
           .fixedSize(horizontal: false, vertical: true)
           .frame(width: cell.offset < widths.count ? widths[cell.offset] - 24 : 80, alignment: right ? .trailing : .leading)
           .padding(.horizontal, 12)
