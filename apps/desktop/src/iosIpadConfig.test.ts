@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+// Windows checkouts can use CRLF; the patterns below expect LF.
 const read = (path: string) =>
-  readFileSync(new URL(path, import.meta.url), "utf8");
+  readFileSync(new URL(path, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const script = read("../../../scripts/configure-ios-widgets.rb");
 const plist = read("../src-tauri/Info.ios.plist");
 const css = read("./launcher/launcher.css");
