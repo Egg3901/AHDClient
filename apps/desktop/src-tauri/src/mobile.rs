@@ -191,9 +191,18 @@ fn go_home_soon(app: &AppHandle, request: &Url) {
   });
 }
 
+/// Hand a URL to the system from a worker thread. The navigation callbacks
+/// run on the UI thread, and on Android the opener plugin queues its work for
+/// that same thread and then blocks until it answers. Called inline it never
+/// returns: the app ignores every tap until Android reports it as not
+/// responding (ticket 1450, Continue with Discord on the sign-in page).
 fn open_externally(app: &AppHandle, url: &Url) {
   if matches!(url.scheme(), "https" | "http" | "mailto") {
-    let _ = app.opener().open_url(url.to_string(), None::<&str>);
+    let app = app.clone();
+    let url = url.to_string();
+    tauri::async_runtime::spawn_blocking(move || {
+      let _ = app.opener().open_url(url, None::<&str>);
+    });
   }
 }
 

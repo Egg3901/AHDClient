@@ -1,14 +1,14 @@
 name: Android login probe
 
-# Loads the game's sign-in page inside the Android app on an emulator and
-# records CPU, responsiveness, screenshots and logcat (ticket 1387).
+# Installs an APK on an emulator, launches it, and
+# walks the player sign-in path, failing on an ANR (tickets 1387, 1450).
 on:
   workflow_dispatch:
     inputs:
       apk_url:
         description: APK to probe
         required: true
-        default: https://ops.lakesidegames.net/downloads/AHDClient_2.3.24_universal.apk
+        default: https://ops.lakesidegames.net/downloads/AHDClient_2.4.0_universal.apk
         type: string
 
 permissions:

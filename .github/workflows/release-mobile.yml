@@ -150,7 +150,17 @@ jobs:
           arch: x86_64
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
-          script: bash .github/scripts/android-launch-check.sh
+          # Then walk the player's sign-in path: a UI-thread deadlock there
+          # froze the app on Continue with Discord (ticket 1450).
+          script: |
+            bash .github/scripts/android-launch-check.sh
+            bash .github/scripts/android-signin-walk.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-launch-${{ matrix.api }}
+          path: probe/
+          if-no-files-found: ignore
 
   ios:
     # Hosted arm64 macOS can run out of capacity ("not acquired by Runner");

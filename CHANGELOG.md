@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.4.1] - 2026-10-10
+
+- Android: the app no longer freezes on the sign-in page. Tapping Continue with Discord, or any link that opens outside the app, used to stop the app answering taps until Android closed it.
+
 ## [2.4.0] - 2026-10-09
 
 - Notifications show what happened: the alert's own title and message, its category, and how many more are waiting, instead of "You have new activity". Tapping one opens the page it is about, such as the election, bill or crisis.

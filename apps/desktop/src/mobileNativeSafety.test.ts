@@ -41,6 +41,23 @@ describe("mobile native companion safety", () => {
     expect(plugin).toContain('NativeSafety.run("push poll")');
   });
 
+  it("never calls a blocking mobile plugin from the UI-thread navigation callbacks", () => {
+    const mobile = read("../src-tauri/src/mobile.rs");
+    const body = (signature: string) => {
+      const start = mobile.indexOf(signature);
+      expect(start).toBeGreaterThanOrEqual(0);
+      return mobile.slice(start, mobile.indexOf("\n}\n", start));
+    };
+    // Android runs these on the UI thread; a plugin call there waits on the
+    // UI thread itself and freezes the app (ticket 1450).
+    for (const callback of [body("fn navigation_policy("), body("fn create_main_window(")]) {
+      expect(callback).not.toMatch(/\.opener\(\)|NativeCompanion|run_mobile_plugin/);
+    }
+    const external = body("fn open_externally(");
+    expect(external).toContain("spawn_blocking(move ||");
+    expect(external.indexOf("spawn_blocking(")).toBeLessThan(external.indexOf(".opener()"));
+  });
+
   it("keeps wry cookie calls, which abort iOS, behind one native bridge", () => {
     const srcDir = join(here, "../src-tauri/src");
     const offenders = readdirSync(srcDir)
