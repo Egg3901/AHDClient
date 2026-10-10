@@ -50,6 +50,10 @@ class MainActivity : TauriActivity() {
       return
     }
     if (uri.scheme != "ahdclient") return
+    if (uri.host == "ask") {
+      openAskWhenReady()
+      return
+    }
     val path = CompanionSafety.get("widget deep link lookup", null as String?) {
       when (uri.host) {
         "inbox" -> "/notifications"
@@ -86,7 +90,9 @@ class MainActivity : TauriActivity() {
    */
   private fun isDiscordCallback(uri: android.net.Uri): Boolean =
     uri.scheme == "https" &&
-      (uri.host == "ahousedividedgame.com" || uri.host == "www.ahousedividedgame.com") &&
+      // The sandbox is in the Android app for supporters, with its own sign-in.
+      (uri.host == "ahousedividedgame.com" || uri.host == "www.ahousedividedgame.com" ||
+        uri.host == "sandbox.ahousedividedgame.com") &&
       uri.path == "/api/auth/discord/callback"
 
   private fun loadWhenReady(url: String) {
@@ -99,6 +105,30 @@ class MainActivity : TauriActivity() {
           if (view != null && !view.url.isNullOrBlank() && view.url != "about:blank") {
             intent.data = null
             view.loadUrl(url)
+            widgetNavigation = null
+          } else if (--remaining > 0) widgetHandler.postDelayed(this, 100)
+        }
+      }
+    }
+    widgetNavigation = navigate
+    widgetHandler.post(navigate)
+  }
+
+  /**
+   * `ahdclient://ask` opens the native Ask sheet. The page navigates to the
+   * same link the site's Ask buttons use, so the app's navigation policy
+   * presents it exactly as a tap would.
+   */
+  private fun openAskWhenReady() {
+    widgetNavigation?.let { widgetHandler.removeCallbacks(it) }
+    var remaining = 100
+    val navigate = object : Runnable {
+      override fun run() {
+        CompanionSafety.run("Ask deep link") {
+          val view = gameView
+          if (view != null && !view.url.isNullOrBlank() && view.url != "about:blank") {
+            intent.data = null
+            view.evaluateJavascript("location.href='ahdclient://ask'", null)
             widgetNavigation = null
           } else if (--remaining > 0) widgetHandler.postDelayed(this, 100)
         }

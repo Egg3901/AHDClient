@@ -16,7 +16,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::{help_destination, is_ask_navigation_allowed, is_embed_only, is_frame_scheme, is_online_navigation_allowed, linked_account, HelpDestination, ONLINE_URL, SANDBOX_HOST};
+use crate::{help_destination, is_ask_navigation_allowed, is_embed_only, is_frame_scheme, is_online_navigation_allowed, linked_account, HelpDestination, ONLINE_URL, SANDBOX_HOST, SANDBOX_URL};
 
 /// Appended to the platform WebView user agent (Android, in MainActivity.kt)
 /// or used as the WebKit-shaped custom agent (iOS). The site keys ad slots,
@@ -159,6 +159,21 @@ pub(crate) fn navigate_main(app: &AppHandle, url: Url) -> Result<(), String> {
 
 pub(crate) fn open_widget_link(app: &AppHandle, url: &Url) {
   if url.scheme() != "ahdclient" { return; }
+  // `ahdclient://ask` opens the native Ask sheet (iOS delivers it here;
+  // Android handles it in MainActivity).
+  if url.host_str() == Some("ask") {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+      for _ in 0..50 {
+        if app.get_webview("main").is_some() {
+          let _ = present_native_ask(app).await;
+          return;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+      }
+    });
+    return;
+  }
   let page = crate::links::widget_page(url);
   let section = if url.host_str() == Some("briefing") { crate::briefing::Section::from_link(url.path()) } else { None };
   if page.is_none() && section.is_none() { return; }
@@ -206,11 +221,16 @@ fn open_externally(app: &AppHandle, url: &Url) {
   }
 }
 
-/// The sandbox is a supporter perk bought outside the App Store, so the phone
-/// app never shows it (guideline 3.1.1). A sandbox link opens in the browser.
+/// The sandbox is a supporter perk bought outside the App Store, so the
+/// iPhone app never shows it (guideline 3.1.1) and a sandbox link opens in
+/// the browser there. Android is distributed outside Google Play and keeps
+/// the sandbox for linked supporters.
 fn is_app_navigation_allowed(url: &Url) -> bool {
-  (is_app_origin(url) || is_online_navigation_allowed(url)) && url.host_str() != Some(SANDBOX_HOST)
+  (is_app_origin(url) || is_online_navigation_allowed(url))
+    && (SANDBOX_IN_APP || url.host_str() != Some(SANDBOX_HOST))
 }
+
+const SANDBOX_IN_APP: bool = cfg!(target_os = "android");
 
 fn is_native_ask_request(url: &Url) -> bool {
   (url.scheme() == "ahdclient" && url.host_str() == Some("ask")) || is_ask_navigation_allowed(url)
@@ -356,6 +376,13 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
 pub(crate) async fn open_online_window(app: AppHandle, target: Option<String>) -> Result<(), String> {
   let base = match target.as_deref() {
     None | Some("live") => ONLINE_URL,
+    Some("sandbox") if SANDBOX_IN_APP => {
+      let account = linked_account(app.clone()).await?;
+      if !account.is_some_and(|account| account.linked && account.supporter) {
+        return Err("Sandbox requires supporter access. Link your supporter game account in Settings.".into());
+      }
+      SANDBOX_URL
+    }
     Some("sandbox") => return Err("The sandbox is available in the desktop app.".into()),
     Some(other) => return Err(format!("unknown online target {other:?}")),
   };

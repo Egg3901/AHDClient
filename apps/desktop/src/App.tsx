@@ -36,7 +36,7 @@ import { GameVersionBar } from "./GameVersionBar.js";
 import { DiagnosticPrompt } from "./DiagnosticPrompt.js";
 import { DiagnosticPanel } from "./DiagnosticPanel.js";
 import { diagnosticRuntime, recordDiagnostic, submitAutomaticDiagnostics, submitDiagnostics, type DiagnosticReason } from "./diagnostics.js";
-import { mobile } from "./platform.js";
+import { mobile, platform } from "./platform.js";
 import { reportIssueRoute } from "./help.js";
 import { Briefing } from "./briefing/Briefing.js";
 import { briefing } from "./briefing/briefingApi.js";
@@ -927,8 +927,9 @@ export function App(): JSX.Element {
         runningSlot={info.running ? info.slot : null}
         continueBusy={busy}
         sandboxGate={sandboxGate}
-        // Supporter perk bought outside the App Store: desktop only (3.1.1).
-        sandboxAvailable={!mobile}
+        // Supporter perk bought outside the App Store: never on iPhone (3.1.1).
+        // Android ships outside Google Play and keeps it for linked supporters.
+        sandboxAvailable={platform !== "ios"}
         onLinkAccount={linkAccount}
         // Store builds may not point players at an outside purchase.
         onUpgradeSupporter={

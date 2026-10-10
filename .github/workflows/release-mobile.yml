@@ -155,6 +155,7 @@ jobs:
           script: |
             bash .github/scripts/android-launch-check.sh
             bash .github/scripts/android-signin-walk.sh
+            bash .github/scripts/android-ask-screens.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -361,6 +362,22 @@ jobs:
           find apps/desktop/src-tauri/gen/apple/build -maxdepth 3 -name '*.app' -print
           app=$(find apps/desktop/src-tauri/gen/apple/build -maxdepth 3 -name '*.app' -print -quit)
           plutil -lint "$app/PrivacyInfo.xcprivacy"
+
+      - name: Screenshot Ask on iPhone and iPad
+        if: steps.signing.outputs.mode == 'simulator'
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          app=$(find apps/desktop/src-tauri/gen/apple/build -maxdepth 3 -name '*.app' -print -quit)
+          bash .github/scripts/ios-ask-screens.sh "$app"
+
+      - name: Upload Ask screenshots
+        if: steps.signing.outputs.mode == 'simulator'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ask-screens
+          path: ios-screens/
+          if-no-files-found: ignore
 
       # Best effort: an unsigned device build that Sideloadly or AltStore can
       # sign with a free Apple ID for on-device testing before the developer
