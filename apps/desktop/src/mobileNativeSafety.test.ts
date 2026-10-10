@@ -6,6 +6,13 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (relative: string) => readFileSync(join(here, relative), "utf8");
 
+// The Android Ask sheet is split across these sources (2.6.0).
+const androidAskSources = ["NativeAsk.kt", "AskApi.kt", "AskSession.kt", "AskSheet.kt"];
+const readAndroidAsk = () =>
+  androidAskSources
+    .map((file) => read(`../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/${file}`))
+    .join("\n");
+
 describe("mobile native companion safety", () => {
   it("insets the Android WebView with margins so fixed bars clear the system bars", () => {
     // Ticket 1462: padding left the site's bottom bar under three-button navigation.
@@ -42,12 +49,12 @@ describe("mobile native companion safety", () => {
     const nativeSafety = read(
       "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeSafety.kt",
     );
-    const ask = read(
-      "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativeAsk.kt",
-    );
+    const ask = readAndroidAsk();
 
     expect(activity).toContain("CompanionSafety.run");
     expect(activity).toContain('CompanionSafety.run("widget deep link")');
+    // Only the exact screenshot flag switches the Ask sheet to its canned preview.
+    expect(activity).toContain('openAskWhenReady(preview = uri.encodedQuery == "preview=1")');
     expect(widget).toContain("CompanionSafety.run");
     expect(widget).toContain("jobFinished(params, false)");
     expect(safety).toContain("catch (error: Throwable)");
@@ -55,7 +62,8 @@ describe("mobile native companion safety", () => {
     expect(nativeSafety).toContain("catch (error: Throwable)");
     expect(ask).toContain('NativeSafety.run("native Ask presentation")');
     expect(ask).toContain('NativeSafety.run("$operation task")');
-    expect(ask).toContain('NativeSafety.run("Ask answer success UI")');
+    expect(ask).toContain('NativeSafety.run("Ask done")'.replace("NativeSafety.run(", "post("));
+    expect(ask).toContain("BottomSheetDialog");
     expect(plugin).toContain('NativeSafety.run("push sync")');
     expect(plugin).toContain('NativeSafety.run("push poll")');
   });

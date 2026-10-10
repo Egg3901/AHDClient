@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Material 3 base for the Ask sheet. Surfaces here are the red-seed
+       scheme used when the device has no dynamic color. -->
+  <style name="Theme.AHDAsk" parent="Theme.Material3.DayNight.NoActionBar">
+    <item name="colorSurface">@color/ask_surface</item>
+    <item name="colorOnSurface">@color/ask_on_surface</item>
+    <item name="colorOnSurfaceVariant">@color/ask_on_surface_variant</item>
+    <item name="colorOutline">@color/ask_outline</item>
+    <item name="colorOutlineVariant">@color/ask_outline_variant</item>
+    <item name="colorSurfaceContainerLowest">@color/ask_container_lowest</item>
+    <item name="colorSurfaceContainerLow">@color/ask_container_low</item>
+    <item name="colorSurfaceContainer">@color/ask_container</item>
+    <item name="colorSurfaceContainerHigh">@color/ask_container_high</item>
+    <item name="colorSurfaceContainerHighest">@color/ask_container_highest</item>
+    <item name="android:colorBackground">@color/ask_background</item>
+    <item name="colorTertiary">@color/ask_tertiary</item>
+    <item name="colorOnTertiary">@color/ask_on_tertiary</item>
+    <item name="colorTertiaryContainer">@color/ask_tertiary_container</item>
+    <item name="colorOnTertiaryContainer">@color/ask_on_tertiary_container</item>
+    <item name="bottomSheetDialogTheme">@style/ThemeOverlay.AHDAsk.BottomSheetDialog</item>
+  </style>
+
+  <!-- Applied after dynamic color: AHD red keeps the primary and secondary roles. -->
+  <style name="ThemeOverlay.AHDAsk.Accent" parent="">
+    <item name="colorPrimary">@color/ask_primary</item>
+    <item name="colorOnPrimary">@color/ask_on_primary</item>
+    <item name="colorPrimaryContainer">@color/ask_primary_container</item>
+    <item name="colorOnPrimaryContainer">@color/ask_on_primary_container</item>
+    <item name="colorPrimaryInverse">@color/ask_primary_inverse</item>
+    <item name="colorSecondary">@color/ask_secondary</item>
+    <item name="colorOnSecondary">@color/ask_on_secondary</item>
+    <item name="colorSecondaryContainer">@color/ask_secondary_container</item>
+    <item name="colorOnSecondaryContainer">@color/ask_on_secondary_container</item>
+    <item name="colorAccent">@color/ask_accent</item>
+    <item name="colorControlActivated">@color/ask_accent</item>
+  </style>
+
+  <style name="ThemeOverlay.AHDAsk.BottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
+    <item name="enableEdgeToEdge">true</item>
+    <item name="android:navigationBarColor">@android:color/transparent</item>
+    <item name="android:statusBarColor">@android:color/transparent</item>
+    <item name="android:windowSoftInputMode">adjustResize|stateHidden</item>
+    <item name="bottomSheetStyle">@style/Widget.AHDAsk.BottomSheet</item>
+  </style>
+
+  <!-- The sheet content applies its own insets. -->
+  <style name="Widget.AHDAsk.BottomSheet" parent="Widget.Material3.BottomSheet.Modal">
+    <item name="behavior_skipCollapsed">true</item>
+    <item name="paddingBottomSystemWindowInsets">false</item>
+    <item name="paddingLeftSystemWindowInsets">false</item>
+    <item name="paddingRightSystemWindowInsets">false</item>
+    <item name="paddingTopSystemWindowInsets">false</item>
+  </style>
+</resources>

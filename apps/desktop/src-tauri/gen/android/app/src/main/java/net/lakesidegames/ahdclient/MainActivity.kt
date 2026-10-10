@@ -51,7 +51,8 @@ class MainActivity : TauriActivity() {
     }
     if (uri.scheme != "ahdclient") return
     if (uri.host == "ask") {
-      openAskWhenReady()
+      // Design review only: the sheet with a canned chat and no network.
+      openAskWhenReady(preview = uri.encodedQuery == "preview=1")
       return
     }
     val path = CompanionSafety.get("widget deep link lookup", null as String?) {
@@ -119,7 +120,7 @@ class MainActivity : TauriActivity() {
    * same link the site's Ask buttons use, so the app's navigation policy
    * presents it exactly as a tap would.
    */
-  private fun openAskWhenReady() {
+  private fun openAskWhenReady(preview: Boolean = false) {
     widgetNavigation?.let { widgetHandler.removeCallbacks(it) }
     var remaining = 100
     val navigate = object : Runnable {
@@ -128,7 +129,8 @@ class MainActivity : TauriActivity() {
           val view = gameView
           if (view != null && !view.url.isNullOrBlank() && view.url != "about:blank") {
             intent.data = null
-            view.evaluateJavascript("location.href='ahdclient://ask'", null)
+            if (preview) net.lakesidegames.briefing.NativeAskController.presentPreview()
+            else view.evaluateJavascript("location.href='ahdclient://ask'", null)
             widgetNavigation = null
           } else if (--remaining > 0) widgetHandler.postDelayed(this, 100)
         }
