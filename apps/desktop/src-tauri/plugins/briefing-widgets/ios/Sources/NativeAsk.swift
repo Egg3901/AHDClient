@@ -733,9 +733,11 @@ final class NativeAskController: NSObject {
     host.onClosed = { [weak model] in model?.sheetClosed() }
     host.view.backgroundColor = .systemBackground
     host.view.tintColor = NativeAskTint.uiColor
-    // Info.ios.plist pins the launcher and game to Dark. Ask is a native
-    // sheet and follows the device's own light or dark setting instead.
-    host.overrideUserInterfaceStyle = UIScreen.main.traitCollection.userInterfaceStyle
+    // Ask is built on system colors and follows the app's appearance
+    // (Info.ios.plist currently pins Dark). Screenshot mode can force either.
+    if preview != nil, let style = NativeAskPreview.requestedAppearance() {
+      host.overrideUserInterfaceStyle = style == "light" ? .light : .dark
+    }
     if UIDevice.current.userInterfaceIdiom == .pad {
       host.modalPresentationStyle = .formSheet
       host.preferredContentSize = Self.cardSize(for: presenter.view.bounds.size)

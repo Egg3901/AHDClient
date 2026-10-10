@@ -14,6 +14,15 @@ enum NativeAskPreview {
     return "conversation"
   }
 
+  /// `-AHDAskAppearance light|dark` renders the preview in that appearance.
+  static func requestedAppearance(_ arguments: [String] = ProcessInfo.processInfo.arguments) -> String? {
+    guard let index = arguments.firstIndex(of: "-AHDAskAppearance") else { return nil }
+    let next = arguments.index(after: index)
+    guard next < arguments.endIndex else { return nil }
+    let value = arguments[next].lowercased()
+    return value == "light" || value == "dark" ? value : nil
+  }
+
   private static let mainID = "preview-main"
 
   @MainActor static func load(_ state: String, into model: NativeAskModel) {
