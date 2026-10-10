@@ -8,12 +8,14 @@ vi.mock("./UpdateControl.js", () => ({
   UpdateControl: () => <p>Desktop updates</p>,
 }));
 
-vi.mock("./PushControl.js", () => ({ PushControl: () => <p>Push notifications</p> }));
+vi.mock("./PushControl.js", () => ({
+  PushControl: ({ mobile = true }: { mobile?: boolean }) => <p>{mobile ? "Push notifications" : "Desktop alerts"}</p>,
+}));
 
 describe("SettingsMenu", () => {
   afterEach(cleanup);
 
-  it("sections desktop settings into Launcher, Game, Updates and Support", () => {
+  it("sections desktop settings into Launcher, Game, Notifications, Updates and Support", () => {
     render(
       <SettingsMenu open settings={DEFAULT_SETTINGS} onChange={vi.fn()} onClose={vi.fn()} onReportIssue={vi.fn()} onOpenDiagnostics={vi.fn()} />,
     );
@@ -24,6 +26,8 @@ describe("SettingsMenu", () => {
     expect(screen.getByText("Separate gameplay window")).toBeTruthy();
     expect(screen.getByText("Anonymous simulation statistics")).toBeTruthy();
     expect(screen.getByText("Desktop updates")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Notifications" })).toBeTruthy();
+    expect(screen.getByText("Desktop alerts")).toBeTruthy();
   });
 
   it("keeps Advanced collapsed and uses player copy", () => {

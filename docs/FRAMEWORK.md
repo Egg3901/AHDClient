@@ -161,3 +161,20 @@ Native code handles permissions, token changes, account revocation and fixed
 inbox navigation. No remote-page capabilities are granted. The server reads
 new inbox activity outside the turn loop and respects existing mute/snooze
 preferences. Provider errors cannot affect turn processing.
+
+Desktop has no push provider. `desktop_alerts.rs` registers the same two
+commands, so the launcher's one `PushControl` serves every platform. While the
+client is open it polls `GET /api/push/feed` once a minute with the session
+cookie read natively (never through IPC), and shows each alert through
+`tauri-plugin-notification`. The feed applies the mobile push policy and
+returns each alert's title, category and message. The first poll for an
+account only records the server cursor, so a new install or account switch
+never replays the inbox. Alerts are suppressed while the live game window has
+focus. Desktop alerts default on and persist in `desktop-alerts.json` under the
+app config directory. Clicking a desktop alert brings the client forward where
+the OS supports it; it does not deep-link, because the desktop notification
+plugin reports no click events.
+
+Android posts each alert to a channel named for its inbox category (`ahd-crisis`,
+`ahd-election` and so on) so players can tune one category in system settings.
+Pushes without a `thread` keep the original `ahd-inbox` channel.

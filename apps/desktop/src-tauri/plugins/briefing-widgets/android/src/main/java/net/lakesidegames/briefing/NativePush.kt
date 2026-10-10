@@ -27,6 +27,11 @@ object NativePush {
   private const val CHANNEL = "ahd-inbox"
   /** Used when a push names no alert id (servers before AHDGame #3764). */
   private const val NOTIFICATION_ID = 21002
+  /** One channel per inbox category, so a player can silence one kind in Android Settings. */
+  private val CATEGORY_CHANNELS = linkedMapOf(
+    "crisis" to "Crisis", "election" to "Elections", "legislation" to "Legislation",
+    "party" to "Party", "treasury" to "Treasury", "standing" to "Standing", "system" to "System",
+  )
   private const val FALLBACK_BODY = "You have new activity. Open your inbox to catch up."
   private val lock = Any()
   private val worker = Executors.newSingleThreadExecutor()
@@ -206,8 +211,17 @@ object NativePush {
         if (!state.optBoolean("enabled") || !permitted(context) || header.isEmpty() ||
           state.optString("registeredSession") != digest(header) || message.data["path"] != "/notifications") return@run
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel(CHANNEL, "Inbox activity", NotificationManager.IMPORTANCE_DEFAULT))
         val data = message.data
+        // Servers before category threads send none; those alerts keep the original channel.
+        val thread = data["thread"]?.takeIf { it in CATEGORY_CHANNELS }
+        val channel = thread?.let { "ahd-$it" } ?: CHANNEL
+        if (Build.VERSION.SDK_INT >= 26) {
+          val name = thread?.let { CATEGORY_CHANNELS[it] } ?: "Inbox activity"
+          val importance = if (thread == "crisis") NotificationManager.IMPORTANCE_HIGH else NotificationManager.IMPORTANCE_DEFAULT
+          manager.createNotificationChannel(NotificationChannel(channel, name, importance).apply {
+            description = if (thread == null) "New activity in your A House Divided inbox." else "$name alerts from your A House Divided inbox."
+          })
+        }
         val title = text(data["title"], 120) ?: "A House Divided"
         val body = text(data["body"], 400) ?: FALLBACK_BODY
         val subtitle = text(data["subtitle"], 120)
@@ -219,11 +233,12 @@ object NativePush {
         val pending = PendingIntent.getActivity(context, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val icon = context.resources.getIdentifier("ic_stat_ahd", "drawable", context.packageName)
         // A locked phone set to hide sensitive content shows only this.
-        val hidden = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(icon).setContentTitle("A House Divided")
+        val hidden = NotificationCompat.Builder(context, channel).setSmallIcon(icon).setContentTitle("A House Divided")
           .setContentText(subtitle?.substringBefore(" \u00b7 ")?.let { "New $it alert" } ?: "New inbox activity").build()
-        val notification = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(icon)
+        val notification = NotificationCompat.Builder(context, channel).setSmallIcon(icon)
           .setContentTitle(title).setContentText(body).setSubText(subtitle)
           .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+          .setGroup("ahd-${thread ?: "inbox"}")
           .setContentIntent(pending).setAutoCancel(true).setOnlyAlertOnce(true).setShowWhen(true)
           .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).setPublicVersion(hidden).build()
         try { manager.notify(id, notification) } catch (_: SecurityException) { }

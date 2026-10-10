@@ -40,7 +40,7 @@ export function SettingsMenu({ mobile = false, open, settings, onChange, onClose
         <Section id="client-settings-launcher" title="Launcher" description="Motion and presentation">
           <label><span><strong>Launcher animation</strong><small>Animate the globe and atmospheric background.</small></span><input type="checkbox" checked={settings.animations} onChange={(event) => onChange({ ...settings, animations: event.target.checked })} /></label>
         </Section>
-        <PushControl />
+        <PushControl onOpenedPage={onClose} />
         <Section id="client-settings-updates" title="Updates">
           <p className="client-settings-note">Updates arrive through the app store.</p>
         </Section>
@@ -68,6 +68,9 @@ export function SettingsMenu({ mobile = false, open, settings, onChange, onClose
         </Section>
         <Section id="client-settings-game" title="Game" description="Privacy and local simulation data">
           <label><span><strong>Anonymous simulation statistics</strong><small>Share world settings and aggregate outcomes. Never account details, character names, or raw saves.</small></span><input type="checkbox" checked={settings.shareStatistics} onChange={(event) => onChange({ ...settings, shareStatistics: event.target.checked })} /></label>
+        </Section>
+        <Section id="client-settings-notifications" title={de ? "Benachrichtigungen" : "Notifications"} description={de ? "Hinweise aus deinem Posteingang" : "Alerts from your multiplayer inbox"}>
+          <PushControl mobile={false} onOpenedPage={onClose} />
         </Section>
         <Section id="client-settings-updates" title="Updates" description="Desktop client release channel">
           <UpdateControl />

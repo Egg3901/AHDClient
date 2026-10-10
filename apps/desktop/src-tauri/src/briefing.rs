@@ -253,7 +253,7 @@ pub(crate) struct BriefingState {
   fetch: tokio::sync::Mutex<()>,
 }
 
-fn session_header(app: &AppHandle) -> Result<String, String> {
+pub(crate) fn session_header(app: &AppHandle) -> Result<String, String> {
   let view = app.get_webview("online-embedded")
     .or_else(|| app.get_webview("online"))
     .or_else(|| app.get_webview("main"))

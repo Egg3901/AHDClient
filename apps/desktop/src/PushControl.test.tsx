@@ -35,3 +35,22 @@ describe("mobile push controls", () => {
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("configure_push", { enabled: false }));
   });
 });
+describe("desktop alert controls", () => {
+  it("names desktop alerts and says they need the client open", async () => {
+    vi.mocked(invoke).mockResolvedValue({ ...off, enabled: true, permissionGranted: true, message: "Desktop alerts are on." });
+    render(<PushControl mobile={false} />);
+    await screen.findByText("Desktop alerts are on.");
+    expect(screen.getByText("Desktop alerts")).toBeTruthy();
+    expect(document.body.textContent).toMatch(/while AHDClient is open/);
+    expect(document.body.textContent).not.toMatch(/phone/);
+  });
+  it("opens the game settings to choose alert types, then closes the dialog", async () => {
+    const opened = vi.fn();
+    render(<PushControl mobile={false} onOpenedPage={opened} />);
+    await screen.findByText("Push alerts are off.");
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    fireEvent.click(screen.getByRole("button", { name: "Choose" }));
+    await waitFor(() => expect(opened).toHaveBeenCalledOnce());
+    expect(invoke).toHaveBeenCalledWith("open_game_page", { path: "/settings" });
+  });
+});

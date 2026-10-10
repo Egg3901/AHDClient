@@ -259,6 +259,16 @@ Unsigned CI builds validate compilation, not APNs provisioning or actual
 provider delivery. Android delivery requires Google Play services. Physical
 APNs/FCM delivery remains a release check with the configured providers.
 
+### Desktop alerts (2.5.0)
+
+Desktop polls `GET /api/push/feed` (AHDGame) while open; there is no provider
+to configure. Deploy the feed to production before shipping a desktop build
+that relies on it: an older server answers 404 and Settings says desktop
+alerts are not offered yet. On each OS, verify turning alerts off and on, a
+new alert while the launcher has focus (shown), while the live game has focus
+(suppressed), several alerts in one minute (newest on top plus a count), and
+sign-out. macOS shows its own permission prompt the first time.
+
 ### Private iOS delivery with EAS
 
 The EAS project under `apps/lakeside-ios` provides private native build hosts

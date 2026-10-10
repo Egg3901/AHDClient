@@ -7,6 +7,25 @@ const here = dirname(fileURLToPath(import.meta.url));
 const read = (relative: string) => readFileSync(join(here, relative), "utf8");
 
 describe("mobile native companion safety", () => {
+  it("insets the Android WebView with margins so fixed bars clear the system bars", () => {
+    // Ticket 1462: padding left the site's bottom bar under three-button navigation.
+    const activity = read(
+      "../src-tauri/gen/android/app/src/main/java/net/lakesidegames/ahdclient/MainActivity.kt",
+    );
+    expect(activity).toContain("params.setMargins(bars.left, bars.top, bars.right, bars.bottom)");
+    expect(activity).toContain("ViewCompat.requestApplyInsets(webView)");
+  });
+
+  it("files each Android alert under its inbox category channel", () => {
+    const push = read(
+      "../src-tauri/plugins/briefing-widgets/android/src/main/java/net/lakesidegames/briefing/NativePush.kt",
+    );
+    for (const thread of ["crisis", "election", "legislation", "party", "treasury", "standing", "system"]) {
+      expect(push).toContain(`"${thread}" to`);
+    }
+    expect(push).toContain('val channel = thread?.let { "ahd-$it" } ?: CHANNEL');
+  });
+
   it("keeps optional Android companions outside the app launch failure path", () => {
     const activity = read(
       "../src-tauri/gen/android/app/src/main/java/net/lakesidegames/ahdclient/MainActivity.kt",
