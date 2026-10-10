@@ -179,7 +179,9 @@ object NativeAskController {
         if (host.isFinishing) return@run
         val current = sheet
         if (current != null && current.dialog.isShowing) {
-          if (sheetPreview == preview) return@run
+          // The preview link also reaches the app's generic deep link handler,
+          // which asks for the live sheet; the preview stays put.
+          if (sheetPreview == preview || sheetPreview) return@run
           current.dismiss()
         }
         val session = if (preview) AskStore.preview(host) else AskStore.live(host) { NativeAskCookies.snapshot() }

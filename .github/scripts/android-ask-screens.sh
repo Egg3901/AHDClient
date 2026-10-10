@@ -42,7 +42,7 @@ preview() {
   a shell cmd uimode night "$mode" >/dev/null 2>&1
   sleep 3
   a shell am start -W -n "$pkg/.MainActivity" -a android.intent.action.VIEW -d "ahdclient://ask?preview=1" >/dev/null
-  sleep 5
+  sleep 8
   shot "$2-chat"
   scroll_up; sleep 1; scroll_up; sleep 2
   shot "$2-rich"

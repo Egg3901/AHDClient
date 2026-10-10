@@ -211,12 +211,29 @@ internal class AskSheet(
         android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN)
       // Draw behind the system bars and pad the content instead.
       androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+      window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS or
+        android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
+      window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+      if (Build.VERSION.SDK_INT >= 28) window.attributes = window.attributes.apply {
+        layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+      }
       @Suppress("DEPRECATION")
       window.statusBarColor = android.graphics.Color.TRANSPARENT
       @Suppress("DEPRECATION")
       window.navigationBarColor = android.graphics.Color.TRANSPARENT
-      dialog.findViewById<View>(com.google.android.material.R.id.container)?.fitsSystemWindows = false
-      dialog.findViewById<View>(com.google.android.material.R.id.coordinator)?.fitsSystemWindows = false
+      // The sheet content applies every inset itself. The dialog's own
+      // containers and the behavior would otherwise pad it a second time.
+      listOf(com.google.android.material.R.id.container, com.google.android.material.R.id.coordinator,
+        com.google.android.material.R.id.design_bottom_sheet).forEach { id ->
+        dialog.findViewById<View>(id)?.let { frame ->
+          frame.fitsSystemWindows = false
+          frame.setPadding(0, 0, 0, 0)
+          ViewCompat.setOnApplyWindowInsetsListener(frame) { view, insets ->
+            view.setPadding(0, 0, 0, 0)
+            insets
+          }
+        }
+      }
       androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
         isAppearanceLightStatusBars = !ui.night
         isAppearanceLightNavigationBars = !ui.night
