@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import tauriConfig from "../src-tauri/tauri.conf.json";
@@ -17,6 +17,14 @@ import iosConfig from "../src-tauri/tauri.ios.conf.json";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (relative: string) => readFileSync(join(here, relative), "utf8").replace(/\r\n/g, "\n");
+// The iOS Ask sheet spans several NativeAsk*.swift files (API, model, views).
+const iosAskSources = "../src-tauri/plugins/briefing-widgets/ios/Sources";
+const readIosAsk = () =>
+  readdirSync(join(here, iosAskSources))
+    .filter((name) => /^NativeAsk.*\.swift$/.test(name))
+    .sort()
+    .map((name) => read(`${iosAskSources}/${name}`))
+    .join("\n");
 
 // The Android Ask sheet is split across these sources (2.6.0).
 const androidAskSources = ["NativeAsk.kt", "AskApi.kt", "AskSession.kt", "AskSheet.kt"];
@@ -105,7 +113,7 @@ describe("desktop security configuration", () => {
       'run_mobile_plugin("showAsk"',
     );
     expect(
-      read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift"),
+      readIosAsk(),
     ).toContain("UIHostingController");
     expect(
       readAndroidAsk(),
@@ -114,7 +122,7 @@ describe("desktop security configuration", () => {
     expect(read("../src-tauri/build.rs")).toContain("\"ask_send\"");
     expect(read("../src-tauri/src/lib.rs")).toContain("https://ask.lakesidegames.net/");
     expect(read("../src-tauri/src/lib.rs")).toContain('"auth.lakesidegames.net"');
-    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const iosAsk = readIosAsk();
     expect(iosAsk).toContain('"auth.lakesidegames.net"');
     expect(iosAsk).toContain('"https://auth.ahousedividedgame.com/auth/ahd?return=');
     expect(iosAsk).toContain("%2Fauth%2Fnative%2Fcallback");
@@ -161,7 +169,7 @@ describe("desktop security configuration", () => {
   });
 
   it("keeps native Ask sign-in transactions intact and AFM on device", () => {
-    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const iosAsk = readIosAsk();
     const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
     const androidAsk = readAndroidAsk();
     expect(iosAsk).toContain("__Host-ask_login");
@@ -178,7 +186,7 @@ describe("desktop security configuration", () => {
   });
 
   it("forwards an existing unified session to Ask without sending it to the game broker", () => {
-    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const iosAsk = readIosAsk();
     const androidAsk = readAndroidAsk();
     expect(iosAsk).toContain("unifiedSessionCookie");
     expect(iosAsk).toContain("Cookie");
@@ -187,7 +195,7 @@ describe("desktop security configuration", () => {
   });
 
   it("forwards every accepted game session to the iOS Ask broker", () => {
-    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const iosAsk = readIosAsk();
     const gameSessionHelper = iosAsk.match(
       /private static func isGameAuthCookie\([\s\S]*?\n  }/,
     )?.[0] ?? "";
@@ -199,19 +207,19 @@ describe("desktop security configuration", () => {
   });
 
   it("keeps AFM usable without live auth and shows generation failures", () => {
-    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const iosAsk = readIosAsk();
     const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
     expect(iosAsk).toContain("if signedIn, let api");
-    expect(iosAsk).toContain('evidence = (text: "", files: [])');
-    expect(iosAsk).toContain("if let error = model.error");
-    expect(iosAsk).toContain("Apple Foundation Models cancelled the answer");
+    expect(iosAsk).toContain("without the game guides");
+    expect(iosAsk).toContain("NativeAskErrorCard(message: message");
+    expect(iosAsk).toContain("FoundationModelBridgeError.empty");
     expect(iosFoundationModels).toContain("NativeAskToolProtocolSanitizer");
     expect(iosFoundationModels).toContain("Never output JSON, XML, or tool-call syntax");
     expect(iosFoundationModels).toContain("Answer in ordinary sentences only.");
   });
 
   it("bounds native AFM retrieval and model work", () => {
-    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const iosAsk = readIosAsk();
     const iosFoundationModels = read("../src-tauri/plugins/briefing-widgets/ios/Sources/FoundationModelBridge.swift");
     expect(iosAsk).toContain("NativeAskTimeoutError");
     expect(iosAsk).toContain("let payload = try await withNativeAskTimeout(seconds: 30)");
@@ -224,13 +232,13 @@ describe("desktop security configuration", () => {
   });
 
   it("streams iOS Ask answers as they arrive and lets the player stop them", () => {
-    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const iosAsk = readIosAsk();
     // Deltas reach the visible turn instead of a spinner until `done`.
-    expect(iosAsk).toContain("self?.appendDelta(delta, to: turnID)");
+    expect(iosAsk).toContain('pendingText[turnID, default: ""] += text');
     // `done` and `error` end the read; a cut stream is reported, not hung on.
     expect(iosAsk).toMatch(/case "done":[\s\S]*?return true/);
     expect(iosAsk).toContain('object?["error"] as? String');
-    expect(iosAsk).toContain("The answer stream ended before completion");
+    expect(iosAsk).toContain("throw NativeAskError.streamDropped");
     // Live-data answers outlast two minutes; keepalives cover dead links.
     expect(iosAsk).toContain("configuration.timeoutIntervalForResource = 600");
     // Stop aborts the server generation, so it costs no quota.
@@ -247,7 +255,7 @@ describe("desktop security configuration", () => {
   });
 
   it("retains the unified Ask login transaction and session cookies on mobile", () => {
-    const iosAsk = read("../src-tauri/plugins/briefing-widgets/ios/Sources/NativeAsk.swift");
+    const iosAsk = readIosAsk();
     const androidAsk = readAndroidAsk();
     for (const source of [iosAsk, androidAsk]) {
       expect(source).toContain("__Host-lakeside_login");

@@ -3,6 +3,18 @@ import SwiftUI
 import UIKit
 import WebKit
 
+// Native Ask, file map:
+//   NativeAsk.swift          networking, session handling, the sheet controller
+//   NativeAskData.swift      answer, history and quota models parsed from the service
+//   NativeAskModel.swift     sheet state: conversation, history, streaming, recovery
+//   NativeAskView.swift      SwiftUI layouts for iPhone and iPad
+//   NativeAskMarkdown.swift  answer rendering: markdown, tables, charts, maps
+//   NativeAskPreview.swift   canned sample conversation for -AHDAskPreview
+//
+// scripts/tests/native-ask-auth.py compiles this file up to `func ask(question:`
+// without UIKit, SwiftUI or WebKit, so everything above that point must only
+// use Foundation.
+
 private let nativeAskOrigin = URL(string: "https://ask.lakesidegames.net")!
 private let nativeAskLogin = URL(string: "https://ask.lakesidegames.net/auth/login?next=%2F")!
 private let nativeAhdLogin = URL(string: "https://auth.ahousedividedgame.com/auth/ahd?return=https%3A%2F%2Fask.lakesidegames.net%2Fauth%2Fnative%2Fcallback")!
@@ -69,39 +81,45 @@ enum NativeAskConsent {
   }
 }
 
-struct NativeAskTurn: Identifiable {
-  let id: String
-  var question: String
-  var answer: String
-  var model: String = ""
-  var citations: [String] = []
-  var usedMcp = false
-  var liveSources: [String] = []
-  var local = false
-}
-
-struct NativeAskResult {
-  let answer: String
-  let conversationID: String
-  let model: String
-  let citations: [String]
-  let usedMcp: Bool
-  let liveSources: [String]
-}
-
-private enum NativeAskError: LocalizedError {
+enum NativeAskError: LocalizedError {
   case signedOut
   case loginFailed
   case server(String)
   case emptyAnswer
+  /// HTTP 429: the daily allowance is spent. Carries the service's own
+  /// sentence and its usage snapshot so the quota display updates.
+  case quota(String, [String: Any]?)
+  /// HTTP 5xx: the service is unwell. Transient, so reads retry it.
+  case unavailable(Int)
+  /// The answer stream ended without its final event.
+  case streamDropped
 
   var errorDescription: String? {
     switch self {
     case .signedOut, .loginFailed:
       return "Ask could not find a linked game account. Link your game account in AHDClient first."
     case .server(let message): return message
-    case .emptyAnswer: return "Ask returned an empty answer."
+    case .emptyAnswer: return "Ask returned an empty answer. Try again."
+    case .quota(let message, _): return message
+    case .unavailable: return "Ask is having trouble right now. Try again in a moment."
+    case .streamDropped: return "The connection dropped before the answer finished."
     }
+  }
+
+  /// True when the same read may succeed if repeated shortly.
+  static func isTransient(_ error: Error) -> Bool {
+    if case NativeAskError.unavailable(let status)? = error as? NativeAskError {
+      return status == 500 || status == 502 || status == 503 || status == 504
+    }
+    if let urlError = error as? URLError {
+      switch urlError.code {
+      case .timedOut, .networkConnectionLost, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed, .resourceUnavailable:
+        return true
+      default:
+        return false
+      }
+    }
+    return false
   }
 }
 
@@ -259,9 +277,20 @@ final class NativeAskAPI: @unchecked Sendable {
     }
   }
 
-  private func request(_ path: String, body: [String: Any]? = nil) throws -> URLRequest {
+  private func request(_ path: String, body: [String: Any]? = nil, query: [URLQueryItem] = []) throws -> URLRequest {
     guard path.hasPrefix("/") else { throw NativeAskError.server("Invalid Ask request.") }
-    var request = URLRequest(url: nativeAskOrigin.appendingPathComponent(String(path.dropFirst())))
+    var url = nativeAskOrigin.appendingPathComponent(String(path.dropFirst()))
+    if !query.isEmpty {
+      // appendingPathComponent would percent-encode a literal "?", so query
+      // parameters always go through URLComponents.
+      guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+        throw NativeAskError.server("Invalid Ask request.")
+      }
+      components.queryItems = query
+      guard let withQuery = components.url else { throw NativeAskError.server("Invalid Ask request.") }
+      url = withQuery
+    }
+    var request = URLRequest(url: url)
     request.timeoutInterval = path == "/api/ask" ? 60 : 30
     request.setValue("application/json", forHTTPHeaderField: "Accept")
     request.setValue(nativeAskOrigin.absoluteString, forHTTPHeaderField: "Origin")
@@ -314,13 +343,22 @@ final class NativeAskAPI: @unchecked Sendable {
     }
   }
 
+  /// Map an HTTP status to the error the sheet explains to the player.
+  private static func failure(status: Int, payload: [String: Any]?) -> NativeAskError {
+    let message = (payload?["error"] as? String).flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+    switch status {
+    case 401: return .signedOut
+    case 429: return .quota(message ?? "You have used today's questions. They come back after the daily reset.", payload?["usage"] as? [String: Any])
+    case 500...599: return .unavailable(status)
+    default: return .server(message ?? "Something went wrong. Try again.")
+    }
+  }
+
   private func json(_ request: URLRequest) async throws -> [String: Any] {
     let (data, response) = try await transport.data(for: request)
     guard let http = response as? HTTPURLResponse else { throw NativeAskError.server("Ask returned an invalid response.") }
-    if http.statusCode == 401 { throw NativeAskError.signedOut }
     guard (200..<300).contains(http.statusCode) else {
-      let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-      throw NativeAskError.server(payload?["error"] as? String ?? "Ask returned HTTP \(http.statusCode).")
+      throw Self.failure(status: http.statusCode, payload: (try? JSONSerialization.jsonObject(with: data)) as? [String: Any])
     }
     guard let value = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
       throw NativeAskError.server("Ask returned invalid data.")
@@ -340,104 +378,215 @@ final class NativeAskAPI: @unchecked Sendable {
     }
   }
 
-  func ask(question: String, conversationID: String, length: String, style: String, mode: String,
-           onDelta: @escaping (String) -> Void = { _ in }, onStatus: @escaping (String) -> Void = { _ in },
-           onRequestID: @escaping (String) -> Void = { _ in }) async throws -> NativeAskResult {
-    try await ensureSession()
+  /// Stream one answer. Events arrive on the main actor in order; the full
+  /// `done` payload is returned. A stream that drops after it started throws
+  /// `streamDropped` so the caller can keep the partial answer.
+  func ask(question: String, conversationID: String, useLive: Bool, visualizations: Bool, attachments: [String],
+           onEvent: @escaping @MainActor (NativeAskStreamEvent) -> Void) async throws -> [String: Any] {
     let body: [String: Any] = [
       "question": question,
       "convId": conversationID,
       "game": "ahd",
-      "useMcp": true,
-      "length": length,
-      "style": style,
+      "useMcp": useLive,
+      "length": "standard",
+      "style": "standard",
       "effort": "auto",
-      "visualizations": false,
-      "mode": mode,
+      "visualizations": visualizations,
+      "mode": "auto",
       "tz": TimeZone.current.identifier,
-      "attachments": [],
+      "attachments": attachments.map { ["url": $0] },
     ]
-    let request = try self.request("/api/ask", body: body)
-    let (bytes, response) = try await transport.bytes(for: request)
-    defer { bytes.task.cancel() }
-    guard let http = response as? HTTPURLResponse else {
-      throw NativeAskError.server("Ask returned an invalid response.")
-    }
-    guard http.statusCode == 200 else {
-      if http.statusCode == 401 { throw NativeAskError.signedOut }
-      throw NativeAskError.server("Ask could not start the answer.")
-    }
-    if http.mimeType != "text/event-stream" {
-      var data = Data()
-      for try await byte in bytes { data.append(byte) }
-      guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-        throw NativeAskError.server("Ask returned invalid data.")
+    return try await withSession { () async throws -> [String: Any] in
+      let request = try self.request("/api/ask", body: body)
+      let (bytes, response) = try await self.transport.bytes(for: request)
+      defer { bytes.task.cancel() }
+      guard let http = response as? HTTPURLResponse else {
+        throw NativeAskError.server("Ask returned an invalid response.")
       }
-      return try result(from: object, fallbackConversationID: conversationID)
-    }
-
-    var answer = ""
-    var model = ""
-    var returnedConversationID = conversationID
-    var citations: [String] = []
-    var usedMcp = false
-    var liveSources: [String] = []
-    try await readEvents(bytes) { name, value in
-      let object = value as? [String: Any]
-      switch name {
-      case "meta":
-        returnedConversationID = object?["convId"] as? String ?? returnedConversationID
-        if let reqID = object?["reqId"] as? String, !reqID.isEmpty { onRequestID(reqID) }
-      case "status", "action":
-        if let label = object?["label"] as? String, !label.isEmpty { onStatus(label) }
-      case "delta":
-        let delta = value as? String ?? (object?["delta"] as? String ?? "")
-        answer += delta
-        if !delta.isEmpty { onDelta(delta) }
-      case "done":
-        if let object {
-          returnedConversationID = object["convId"] as? String ?? returnedConversationID
-          answer = object["answer"] as? String ?? answer
-          model = Self.modelLabel(object) ?? model
-          usedMcp = object["usedMcp"] as? Bool ?? false
-          liveSources = object["liveSources"] as? [String] ?? []
-          citations = (object["citations"] as? [[String: Any]] ?? []).compactMap { item in
-            item["label"] as? String ?? item["path"] as? String
-          }
+      let streaming = http.mimeType == "text/event-stream"
+      if http.statusCode != 200 || !streaming {
+        // Refusals (quota, validation, auth) and cached answers arrive as
+        // plain JSON rather than a stream.
+        var data = Data()
+        for try await byte in bytes {
+          data.append(byte)
+          if data.count > 2_000_000 { break }
         }
-        return true
-      case "error":
-        // The service names the field `error`; older builds used `message`.
-        throw NativeAskError.server(object?["error"] as? String ?? object?["message"] as? String ?? value as? String ?? "Ask could not complete the answer.")
-      default:
-        break
+        let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        guard http.statusCode == 200 else { throw Self.failure(status: http.statusCode, payload: object) }
+        guard let object, let answer = object["answer"] as? String,
+              !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw NativeAskError.emptyAnswer }
+        return object
       }
-      return false
+      var started = false
+      var final: [String: Any]?
+      do {
+        try await self.readEvents(bytes) { name, value in
+          let object = value as? [String: Any]
+          switch name {
+          case "meta":
+            started = true
+            await onEvent(.meta(conversationID: object?["convId"] as? String, requestID: object?["reqId"] as? String,
+                                followupsLeft: (object?["followupsLeft"] as? NSNumber)?.intValue,
+                                usage: object?["usage"] as? [String: Any]))
+          case "status":
+            if let label = object?["label"] as? String, !label.isEmpty { await onEvent(.status(label)) }
+          case "action":
+            // Tool names are internal. Count them; never show them.
+            await onEvent(.lookup)
+          case "delta":
+            let delta = value as? String ?? (object?["delta"] as? String ?? "")
+            if !delta.isEmpty {
+              started = true
+              await onEvent(.delta(delta))
+            }
+          case "done":
+            final = object ?? [:]
+            return true
+          case "error":
+            // The service names the field `error`; older builds used `message`.
+            throw NativeAskError.server(object?["error"] as? String ?? object?["message"] as? String ?? value as? String
+              ?? "Ask could not complete the answer. Try again.")
+          default:
+            break
+          }
+          return false
+        }
+      } catch let error as NativeAskError {
+        throw error
+      } catch is CancellationError {
+        throw CancellationError()
+      } catch {
+        if Task.isCancelled { throw CancellationError() }
+        // A transport failure after the answer began is a dropped stream;
+        // before that it is an ordinary connection error.
+        if started { throw NativeAskError.streamDropped }
+        throw error
+      }
+      guard let final else { throw NativeAskError.streamDropped }
+      return final
     }
-    guard !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw NativeAskError.emptyAnswer }
-    return NativeAskResult(answer: answer, conversationID: returnedConversationID, model: model, citations: citations, usedMcp: usedMcp, liveSources: liveSources)
   }
 
-  /// "Model · Service" so every answer names who wrote it.
-  private static func modelLabel(_ object: [String: Any]) -> String? {
-    guard let model = object["modelName"] as? String ?? object["modelId"] as? String ?? object["model"] as? String else { return nil }
-    if let provider = object["providerName"] as? String, !provider.isEmpty, provider != model { return "\(model) · \(provider)" }
-    return model
+  /// Run an authenticated call. On a 401 mid-session the Ask session is
+  /// re-established once and the call repeats; a second 401 is final.
+  private func withSession<T>(_ operation: () async throws -> T) async throws -> T {
+    try await ensureSession()
+    do {
+      return try await operation()
+    } catch NativeAskError.signedOut {
+      clearAskCookies()
+      try await ensureSession(force: true, preferGameHandoff: false)
+      return try await operation()
+    }
   }
 
-  private func result(from object: [String: Any], fallbackConversationID: String) throws -> NativeAskResult {
-    let answer = object["answer"] as? String ?? ""
-    guard !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw NativeAskError.emptyAnswer }
-    return NativeAskResult(
-      answer: answer,
-      conversationID: object["convId"] as? String ?? fallbackConversationID,
-      model: Self.modelLabel(object) ?? "",
-      citations: (object["citations"] as? [[String: Any]] ?? []).compactMap { item in
-        item["label"] as? String ?? item["path"] as? String
-      },
-      usedMcp: object["usedMcp"] as? Bool ?? false,
-      liveSources: object["liveSources"] as? [String] ?? [],
-    )
+  /// Authenticated read with retry: transient failures (timeouts, dropped
+  /// connections, 5xx) repeat twice with growing backoff.
+  private func read(_ path: String, query: [URLQueryItem] = []) async throws -> [String: Any] {
+    var attempt = 0
+    while true {
+      do {
+        return try await withSession { () async throws -> [String: Any] in try await self.json(try self.request(path, query: query)) }
+      } catch let error where NativeAskError.isTransient(error) && attempt < 2 {
+        attempt += 1
+        try await Task.sleep(nanoseconds: UInt64(attempt) * 800_000_000)
+      }
+    }
+  }
+
+  private func write(_ path: String, body: [String: Any]) async throws -> [String: Any] {
+    try await withSession { () async throws -> [String: Any] in try await self.json(try self.request(path, body: body)) }
+  }
+
+  func profile() async throws -> [String: Any] {
+    try await read("/api/me")
+  }
+
+  func conversations() async throws -> [String: Any] {
+    try await read("/api/conversations")
+  }
+
+  func conversation(id: String) async throws -> [String: Any] {
+    try await read("/api/conversation", query: [URLQueryItem(name: "id", value: id)])
+  }
+
+  func nextCost(conversationID: String) async throws -> [String: Any] {
+    try await read("/api/nextcost", query: [URLQueryItem(name: "convId", value: conversationID)])
+  }
+
+  func deleteConversation(id: String) async throws {
+    _ = try await write("/api/conversation/delete", body: ["id": id])
+  }
+
+  /// A public link to the conversation. Conversations with attachments are
+  /// private on the service and cannot be shared.
+  func share(conversationID: String) async throws -> URL {
+    let payload = try await write("/api/conversation/share", body: ["id": conversationID])
+    guard let text = payload["url"] as? String, let url = URL(string: text), url.scheme == "https" else {
+      throw NativeAskError.server("This conversation could not be shared.")
+    }
+    return url
+  }
+
+  func feedback(answerID: Int, rating: String, reason: String) async throws {
+    _ = try await write("/api/answer/feedback", body: ["answerId": answerID, "rating": rating, "reason": reason])
+  }
+
+  /// Upload one attachment. The body is the raw file; the service checks the
+  /// bytes against the declared type and returns `{url, name, mimeType, size}`.
+  func upload(_ data: Data, filename: String, mimeType: String) async throws -> [String: Any] {
+    try await withSession { () async throws -> [String: Any] in
+      var request = try self.request("/api/upload")
+      request.httpMethod = "POST"
+      request.httpBody = data
+      request.timeoutInterval = 90
+      request.setValue(mimeType, forHTTPHeaderField: "Content-Type")
+      let encoded = filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "photo.jpg"
+      request.setValue(encoded, forHTTPHeaderField: "X-Filename")
+      return try await self.json(request)
+    }
+  }
+
+  /// Bytes of an earlier upload, for thumbnails in history.
+  func attachment(path: String) async throws -> Data {
+    guard path.hasPrefix("/api/uploads/") else { throw NativeAskError.server("Attachment not found.") }
+    return try await withSession { () async throws -> Data in
+      var request = try self.request(path)
+      request.setValue("*/*", forHTTPHeaderField: "Accept")
+      let (data, response) = try await self.transport.data(for: request)
+      guard let http = response as? HTTPURLResponse else { throw NativeAskError.server("Attachment not found.") }
+      guard (200..<300).contains(http.statusCode) else { throw Self.failure(status: http.statusCode, payload: nil) }
+      return data
+    }
+  }
+
+  /// Render an `ahd-map` specification to SVG. Public on the service, so it
+  /// works for previews without a session too.
+  func renderMap(_ spec: Data) async throws -> String {
+    var lastError: Error = NativeAskError.server("This map could not be rendered.")
+    for attempt in 0..<3 {
+      do {
+        var request = try self.request("/api/map/render")
+        request.httpMethod = "POST"
+        request.httpBody = spec
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("image/svg+xml", forHTTPHeaderField: "Accept")
+        let (data, response) = try await transport.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw NativeAskError.server("This map could not be rendered.") }
+        guard (200..<300).contains(http.statusCode) else {
+          throw Self.failure(status: http.statusCode, payload: (try? JSONSerialization.jsonObject(with: data)) as? [String: Any])
+        }
+        guard let svg = String(data: data, encoding: .utf8), svg.contains("<svg") else {
+          throw NativeAskError.server("This map could not be rendered.")
+        }
+        return svg
+      } catch let error where NativeAskError.isTransient(error) && attempt < 2 {
+        lastError = error
+        try await Task.sleep(nanoseconds: UInt64(attempt + 1) * 700_000_000)
+      }
+    }
+    throw lastError
   }
 
   func context(question: String) async throws -> (text: String, files: [String]) {
@@ -450,19 +599,19 @@ final class NativeAskAPI: @unchecked Sendable {
 
   /// Server-Sent Events framing. The handler returns true on a terminal
   /// event so the stream is released at `done` instead of waiting for EOF.
-  private func readEvents(_ bytes: URLSession.AsyncBytes, handler: (String, Any) throws -> Bool) async throws {
+  private func readEvents(_ bytes: URLSession.AsyncBytes, handler: (String, Any) async throws -> Bool) async throws {
     var lineBytes: [UInt8] = []
     var event = "message"
     var dataLines: [String] = []
-    func emit() throws -> Bool {
+    func emit() async throws -> Bool {
       defer { dataLines.removeAll(); event = "message" }
       guard !dataLines.isEmpty else { return false }
       let payload = dataLines.joined(separator: "\n")
       guard let data = payload.data(using: .utf8),
             let value = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) else {
-        throw NativeAskError.server("Ask sent an invalid event.")
+        throw NativeAskError.server("Ask sent an answer this app could not read. Try again.")
       }
-      return try handler(event, value)
+      return try await handler(event, value)
     }
     for try await byte in bytes {
       try Task.checkCancellation()
@@ -470,7 +619,7 @@ final class NativeAskAPI: @unchecked Sendable {
         let line = String(bytes: lineBytes, encoding: .utf8) ?? ""
         lineBytes.removeAll(keepingCapacity: true)
         if line.isEmpty {
-          if try emit() { return }
+          if try await emit() { return }
         } else if line.hasPrefix(":") {
           continue
         } else if line.hasPrefix("event:") {
@@ -484,8 +633,8 @@ final class NativeAskAPI: @unchecked Sendable {
         lineBytes.append(byte)
       }
     }
-    if try emit() { return }
-    throw NativeAskError.server("The answer stream ended before completion. Check your history in a moment, or try again.")
+    if try await emit() { return }
+    throw NativeAskError.streamDropped
   }
 
   /// Abort a server generation. Records nothing and costs no quota.
@@ -495,546 +644,172 @@ final class NativeAskAPI: @unchecked Sendable {
   }
 }
 
-@MainActor final class NativeAskModel: ObservableObject {
-  @Published var provider: NativeAskProvider = .server
-  @Published var turns: [NativeAskTurn] = []
-  @Published var draft = ""
-  @Published var signedIn = false
-  @Published var accountName = ""
-  @Published var connecting = true
-  @Published var sending = false
-  @Published var status = ""
-  @Published var error: String?
-  @Published var appleAvailable = false
-  @Published var appleMessage = "Checking Apple Foundation Models..."
-  @Published var recipients: [NativeAskRecipient] = []
-  @Published var consented = false
-  @Published var reviewingConsent = false
-
-  private let webView: WKWebView
-  private var api: NativeAskAPI?
-  private var conversationID = ""
-  private var connectTask: Task<Void, Never>?
-  private var sendTask: Task<Void, Never>?
-  private var requestID: String?
-  /// The turn whose answer is streaming; late deltas for any other turn drop.
-  private var streamingTurnID: String?
-
-  init(webView: WKWebView) {
-    self.webView = webView
-    refreshAppleStatus()
-  }
-
-  deinit {
-    connectTask?.cancel()
-    sendTask?.cancel()
-  }
-
-  func start() {
-    refreshAppleStatus()
-    // onAppear can fire again when the sheet is re-presented; one connect is enough.
-    guard connectTask == nil else { return }
-    connectTask = Task { [weak self] in await self?.connect() }
-  }
-
-  /// Stop the answer in flight. A server generation is aborted too, so a
-  /// stopped question records nothing and costs no quota.
-  func stop() {
-    guard sending else { return }
-    if let requestID, let api {
-      Task { await api.stop(requestID: requestID) }
-    }
-    sendTask?.cancel()
-  }
-
-  func grantConsent() {
-    NativeAskConsent.grant(recipients)
-    consented = true
-    reviewingConsent = false
-  }
-
-  func withdrawConsent() {
-    NativeAskConsent.withdraw()
-    consented = false
-    reviewingConsent = false
-  }
-
-  /// The server path is waiting on the player's permission.
-  var needsConsent: Bool {
-    provider == .server && signedIn && (!consented || reviewingConsent)
-  }
-
-  func refreshAppleStatus() {
-    let status = AppleFoundationModelBridge.status()
-    appleAvailable = status["available"] as? Bool ?? false
-    appleMessage = status["message"] as? String ?? "Apple Foundation Models are unavailable."
-  }
-
-  func connect() async {
-    connecting = true
-    defer { connecting = false }
-    let cookies = await allCookies()
-    let client = NativeAskAPI(gameCookies: cookies)
-    do {
-      let profile = try await client.connect()
-      api = client
-      recipients = NativeAskConsent.recipients(from: profile)
-      consented = NativeAskConsent.granted(recipients)
-      signedIn = true
-      accountName = Self.name(from: profile) ?? "linked game account"
-      error = nil
-    } catch let failure {
-      api = client
-      signedIn = false
-      error = failure.localizedDescription
-    }
-  }
-
-  func send() {
-    let question = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !sending, question.utf16.count >= 5, question.utf16.count <= 500 else { return }
-    // Nothing reaches an outside AI service before the player allows it.
-    if provider == .server && !consented { return }
-    let turnID = UUID().uuidString
-    draft = ""
-    error = nil
-    status = provider == .appleOnDevice ? "Generating on device..." : "Thinking..."
-    turns.append(NativeAskTurn(id: turnID, question: question, answer: ""))
-    sending = true
-    requestID = nil
-    streamingTurnID = turnID
-    let selectedProvider = provider
-    let history = turns.dropLast().suffix(8).map { "User: \($0.question)\nAssistant: \(String($0.answer.prefix(1200)))" }
-    let oldConversationID = conversationID
-    sendTask = Task { [weak self] in
-      guard let self else { return }
-      defer {
-        sending = false
-        requestID = nil
-        streamingTurnID = nil
-      }
-      do {
-        let result: NativeAskResult
-        if selectedProvider == .appleOnDevice {
-          guard appleAvailable else { throw FoundationModelBridgeError.unavailable(appleMessage) }
-          let evidence: (text: String, files: [String])
-          if signedIn, let api {
-            do {
-              evidence = try await api.context(question: question)
-            } catch {
-              // AFM is still useful when live retrieval is unavailable. Keep
-              // the local answer path alive and make the degraded state clear.
-              evidence = (text: "", files: [])
-              status = "Live game evidence unavailable. Answering on device."
-            }
-          } else {
-            // Account linking enables retrieved evidence; it must not prevent
-            // a private on-device answer from being generated.
-            evidence = (text: "", files: [])
-          }
-          let options = FoundationModelOptions(question: question, history: history, length: "standard", style: "standard", mode: "ask", gameContext: evidence.text)
-          let payload = try await AppleFoundationModelBridge.respond(options)
-          result = NativeAskResult(
-            answer: payload["text"] as? String ?? "",
-            conversationID: "",
-            model: payload["model"] as? String ?? "Apple Foundation Models",
-            citations: evidence.files,
-            usedMcp: false,
-            liveSources: [],
-          )
-        } else {
-          guard let api else { throw NativeAskError.signedOut }
-          guard signedIn else { throw NativeAskError.signedOut }
-          result = try await api.ask(
-            question: question,
-            conversationID: oldConversationID,
-            length: "standard",
-            style: "standard",
-            mode: "auto",
-            onDelta: { [weak self] delta in
-              Task { @MainActor in self?.appendDelta(delta, to: turnID) }
-            },
-            onStatus: { [weak self] label in
-              Task { @MainActor in self?.status = label }
-            },
-            onRequestID: { [weak self] reqID in
-              Task { @MainActor in self?.requestID = reqID }
-            },
-          )
-        }
-        guard let index = turns.firstIndex(where: { $0.id == turnID }) else { return }
-        turns[index].answer = result.answer
-        turns[index].model = result.model
-        turns[index].citations = result.citations
-        turns[index].usedMcp = result.usedMcp
-        turns[index].liveSources = result.liveSources
-        turns[index].local = selectedProvider == .appleOnDevice
-        if !result.conversationID.isEmpty { conversationID = result.conversationID }
-      } catch _ where Task.isCancelled {
-        // Stopped by the player. Keep any text that already streamed.
-        if let index = turns.firstIndex(where: { $0.id == turnID }), !turns[index].answer.isEmpty {
-          turns[index].answer += "\n\n(Stopped)"
-        } else {
-          turns.removeAll { $0.id == turnID }
-          draft = question
-        }
-      } catch is CancellationError {
-        self.error = "Apple Foundation Models cancelled the answer. Try again or choose Ask server."
-        turns.removeAll { $0.id == turnID }
-        draft = question
-      } catch {
-        self.error = error.localizedDescription
-        turns.removeAll { $0.id == turnID }
-        draft = question
-      }
-      status = ""
-    }
-  }
-
-  private func appendDelta(_ delta: String, to turnID: String) {
-    guard streamingTurnID == turnID, let index = turns.firstIndex(where: { $0.id == turnID }) else { return }
-    turns[index].answer += delta
-  }
-
-  private func allCookies() async -> [HTTPCookie] {
-    await withCheckedContinuation { continuation in
-      webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
-        continuation.resume(returning: cookies)
-      }
-    }
-  }
-
-  private static func name(from profile: [String: Any]) -> String? {
-    let identity = profile["identity"] as? [String: Any]
-    let context = profile["context"] as? [String: Any]
-    let character = context?["character"] as? [String: Any]
-    return identity?["name"] as? String ?? identity?["displayName"] as? String
-      ?? character?["name"] as? String ?? context?["displayName"] as? String
-  }
+/// One event from the answer stream, in arrival order.
+enum NativeAskStreamEvent {
+  case meta(conversationID: String?, requestID: String?, followupsLeft: Int?, usage: [String: Any]?)
+  case status(String)
+  case lookup
+  case delta(String)
 }
 
-/// The Ask sheet's palette: the launcher's dark surfaces and its red accent,
-/// the same on iPhone and Android.
-private enum AskStyle {
-  static let background = Color(red: 20 / 255, green: 20 / 255, blue: 28 / 255)
-  static let surface = Color(red: 30 / 255, green: 30 / 255, blue: 42 / 255)
-  static let raised = Color(red: 38 / 255, green: 38 / 255, blue: 52 / 255)
-  static let border = Color(red: 48 / 255, green: 48 / 255, blue: 64 / 255)
-  static let text = Color(red: 236 / 255, green: 236 / 255, blue: 241 / 255)
-  static let muted = Color(red: 154 / 255, green: 154 / 255, blue: 171 / 255)
-  static let faint = Color(red: 112 / 255, green: 112 / 255, blue: 128 / 255)
-  static let accent = Color(red: 200 / 255, green: 32 / 255, blue: 47 / 255)
-  static let warning = Color(red: 240 / 255, green: 180 / 255, blue: 120 / 255)
-}
+/// Hosts the sheet and reports its own dismissal, which SwiftUI's
+/// onDisappear does not do reliably for UIKit-presented sheets.
+final class NativeAskHostingController: UIHostingController<NativeAskView> {
+  var onClosed: (@MainActor () -> Void)?
 
-/// "iPad" or "iPhone", for copy about where an on-device answer is written.
-@MainActor private var nativeAskDeviceName: String {
-  UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
-}
-
-/// Readable line length when the sheet is wide (iPad page sheets, landscape).
-private let nativeAskMaxContentWidth: CGFloat = 680
-
-/// Starter questions for an empty chat. Tapping one fills the box.
-private let nativeAskStarters = [
-  "What did I miss while I was away?",
-  "How do actions and action points work?",
-  "What happens during a game turn, and in what order?",
-]
-
-private struct AskPrimaryButton: View {
-  let title: String
-  let action: () -> Void
-  var body: some View {
-    Button(action: action) {
-      Text(title).font(.body.weight(.semibold)).foregroundColor(.white)
-        .frame(maxWidth: .infinity, minHeight: 48)
-        .background(AskStyle.accent, in: RoundedRectangle(cornerRadius: 12))
-    }.buttonStyle(.plain)
-  }
-}
-
-private struct AskSecondaryButton: View {
-  let title: String
-  let action: () -> Void
-  var body: some View {
-    Button(action: action) {
-      Text(title).font(.body).foregroundColor(AskStyle.text)
-        .frame(maxWidth: .infinity, minHeight: 48)
-        .background(AskStyle.surface, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(AskStyle.border, lineWidth: 1))
-    }.buttonStyle(.plain)
-  }
-}
-
-struct NativeAskView: View {
-  @ObservedObject var model: NativeAskModel
-  let onLinkAccount: () -> Void
-  @Environment(\.dismiss) private var dismiss
-
-  var body: some View {
-    VStack(spacing: 0) {
-      header
-      if model.provider == .server && !model.connecting && !model.signedIn {
-        linkCard.padding(.top, 14)
-        Spacer(minLength: 0)
-      } else if model.needsConsent {
-        consentPanel.padding(.top, 12)
-      } else {
-        conversation
-        if model.sending && !model.status.isEmpty {
-          Text(model.status).font(.caption).foregroundColor(AskStyle.muted)
-            .frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 6)
-        }
-        composer
-      }
-    }
-    .padding(.horizontal, 18)
-    .padding(.top, 18)
-    .padding(.bottom, 10)
-    .frame(maxWidth: nativeAskMaxContentWidth)
-    .frame(maxWidth: .infinity)
-    .background(AskStyle.background.ignoresSafeArea())
-    .preferredColorScheme(.dark)
-    .onAppear { model.start() }
-    .onDisappear { model.stop() }
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    if isBeingDismissed || presentingViewController == nil { onClosed?() }
   }
 
-  private var provider: NativeAskProvider { model.provider }
-
-  private var accountLine: String {
-    if provider == .appleOnDevice {
-      return model.appleAvailable ? "Answers written on this \(nativeAskDeviceName)" : model.appleMessage
-    }
-    if model.connecting { return "Checking your game account..." }
-    if model.signedIn { return "Signed in as \(model.accountName)" }
-    return "Not linked yet"
+  override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+    super.viewWillTransition(to: size, with: coordinator)
+    coordinator.animate(alongsideTransition: nil) { [weak self] _ in self?.fitToPresenter() }
   }
 
-  private var header: some View {
-    HStack(alignment: .center, spacing: 8) {
-      VStack(alignment: .leading, spacing: 2) {
-        Text("Ask").font(.title2.bold()).foregroundColor(AskStyle.text)
-        Text(accountLine).font(.footnote).foregroundColor(AskStyle.muted).lineLimit(2)
-      }
-      Spacer(minLength: 8)
-      Menu {
-        Picker("Answers from", selection: $model.provider) {
-          Text("Online, with live game data").tag(NativeAskProvider.server)
-          Text("On this \(nativeAskDeviceName)").tag(NativeAskProvider.appleOnDevice)
-        }
-        if model.signedIn && model.consented {
-          Button("AI providers") { model.reviewingConsent = true }
-        }
-      } label: {
-        Image(systemName: "ellipsis").font(.body.weight(.semibold)).foregroundColor(AskStyle.text)
-          .frame(width: 40, height: 40).background(AskStyle.surface, in: Circle())
-      }.accessibilityLabel("Ask options")
-      Button { dismiss() } label: {
-        Image(systemName: "xmark").font(.body.weight(.semibold)).foregroundColor(AskStyle.text)
-          .frame(width: 40, height: 40).background(AskStyle.surface, in: Circle())
-      }.buttonStyle(.plain).accessibilityLabel("Close Ask")
-    }
-  }
-
-  private var linkCard: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text("Link your game account").font(.headline).foregroundColor(AskStyle.text)
-      Text("Ask answers from your own game: your character, party, offices and companies. Link the account you play with to start.")
-        .font(.subheadline).foregroundColor(AskStyle.muted).padding(.top, 6).padding(.bottom, 14)
-        .fixedSize(horizontal: false, vertical: true)
-      AskPrimaryButton(title: "Link game account", action: onLinkAccount)
-      if let error = model.error, !error.contains("linked game account") {
-        Text(error).font(.caption).foregroundColor(AskStyle.warning).padding(.top, 10)
-      }
-    }
-    .padding(16)
-    .background(AskStyle.surface, in: RoundedRectangle(cornerRadius: 14))
-    .overlay(RoundedRectangle(cornerRadius: 14).stroke(AskStyle.border, lineWidth: 1))
-  }
-
-  private var conversation: some View {
-    ScrollViewReader { proxy in
-      ScrollView(showsIndicators: false) {
-        LazyVStack(alignment: .leading, spacing: 0) {
-          if model.turns.isEmpty { emptyState }
-          ForEach(model.turns) { turn in turnView(turn).id(turn.id) }
-          Color.clear.frame(height: 1).id("native-ask-bottom")
-        }.padding(.vertical, 8)
-      }
-      .onChange(of: model.turns.count) { _ in withAnimation { proxy.scrollTo("native-ask-bottom", anchor: .bottom) } }
-      .onChange(of: model.turns.last?.answer.count ?? 0) { _ in proxy.scrollTo("native-ask-bottom", anchor: .bottom) }
-    }
-  }
-
-  private var emptyState: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Ask anything about A House Divided").font(.headline).foregroundColor(AskStyle.text)
-      Text(provider == .server
-        ? "Rules, your character, elections, markets. Answers can use live game data."
-        : "Answers are written on this \(nativeAskDeviceName) from the game's guides. They do not see live game data.")
-        .font(.subheadline).foregroundColor(AskStyle.muted).padding(.bottom, 6)
-        .fixedSize(horizontal: false, vertical: true)
-      ForEach(nativeAskStarters, id: \.self) { starter in
-        Button { model.draft = starter } label: {
-          Text(starter).font(.subheadline).foregroundColor(AskStyle.text).multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 12)
-            .background(AskStyle.surface, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(AskStyle.border, lineWidth: 1))
-        }.buttonStyle(.plain)
-      }
-    }.padding(.top, 12)
-  }
-
-  private func turnView(_ turn: NativeAskTurn) -> some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Spacer(minLength: 40)
-        Text(turn.question).font(.subheadline).foregroundColor(AskStyle.text)
-          .padding(.horizontal, 14).padding(.vertical, 10)
-          .background(AskStyle.raised, in: RoundedRectangle(cornerRadius: 14))
-      }
-      if turn.answer.isEmpty && model.sending {
-        Text("Thinking...").font(.body).foregroundColor(AskStyle.muted)
-      } else {
-        Text(turn.answer).font(.body).foregroundColor(AskStyle.text).textSelection(.enabled)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-      let footer = footerText(turn)
-      if !footer.isEmpty {
-        Text(footer).font(.caption).foregroundColor(AskStyle.faint).fixedSize(horizontal: false, vertical: true)
-      }
-    }.padding(.top, 14)
-  }
-
-  /// Who wrote the answer, the live data it used and its sources, quietly under it.
-  private func footerText(_ turn: NativeAskTurn) -> String {
-    var lines: [String] = []
-    if turn.local {
-      lines.append(turn.citations.isEmpty ? "Written on this \(nativeAskDeviceName)" : "Written on this \(nativeAskDeviceName) from the game's guides")
-    } else if !turn.model.isEmpty {
-      lines.append(turn.model)
-    }
-    if turn.usedMcp {
-      lines.append(turn.liveSources.isEmpty ? "Used live game data" : "Used live game data: " + turn.liveSources.joined(separator: ", "))
-    }
-    if !turn.citations.isEmpty { lines.append("Sources: " + turn.citations.joined(separator: ", ")) }
-    return lines.joined(separator: "\n")
-  }
-
-  private var consentPanel: some View {
-    ScrollView(showsIndicators: false) {
-      VStack(alignment: .leading, spacing: 12) {
-        Text("Ask uses outside AI services").font(.title3.bold()).foregroundColor(AskStyle.text)
-        Text("Ask answers with AI models run by other companies. When you send a question, it goes to one of the services below. They receive the text you type, earlier messages in the same chat, and, if you ask about your own character, your own game records. Your username, email and account IDs are not sent.")
-          .font(.subheadline).foregroundColor(AskStyle.muted).fixedSize(horizontal: false, vertical: true)
-        VStack(alignment: .leading, spacing: 10) {
-          ForEach(model.recipients, id: \.self) { recipient in
-            VStack(alignment: .leading, spacing: 2) {
-              Text(recipient.name).font(.subheadline.bold()).foregroundColor(AskStyle.text)
-              if !recipient.detail.isEmpty {
-                Text(recipient.detail).font(.caption).foregroundColor(AskStyle.muted).fixedSize(horizontal: false, vertical: true)
-              }
-            }
-          }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(AskStyle.surface, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(AskStyle.border, lineWidth: 1))
-        Text("Each service has its own terms and data handling. Every answer names the model and service that wrote it. On-device answers stay on this \(nativeAskDeviceName).")
-          .font(.caption).foregroundColor(AskStyle.faint).fixedSize(horizontal: false, vertical: true)
-        Link("Ask privacy notice", destination: NativeAskConsent.privacyURL).font(.footnote).foregroundColor(AskStyle.muted)
-        if model.consented {
-          AskPrimaryButton(title: "Keep using Ask") { model.reviewingConsent = false }
-          AskSecondaryButton(title: "Withdraw permission") { model.withdrawConsent() }
-        } else {
-          AskPrimaryButton(title: "Allow and continue") { model.grantConsent() }
-          Text("Ask sends nothing until you allow it.").font(.caption).foregroundColor(AskStyle.faint)
-            .frame(maxWidth: .infinity, alignment: .center)
-        }
-      }.padding(.bottom, 8)
-    }
-  }
-
-  private var canSend: Bool {
-    let length = model.draft.trimmingCharacters(in: .whitespacesAndNewlines).utf16.count
-    return length >= 5 && length <= 500 && (provider == .appleOnDevice || (model.signedIn && model.consented))
-  }
-
-  private var composer: some View {
-    HStack(alignment: .center, spacing: 6) {
-      TextField("", text: $model.draft)
-        .placeholder(when: model.draft.isEmpty) { Text("Ask about the game").foregroundColor(AskStyle.faint) }
-        .foregroundColor(AskStyle.text)
-        .disabled(model.sending)
-        .submitLabel(.send)
-        .onSubmit { if canSend { model.send() } }
-        .padding(.horizontal, 10).padding(.vertical, 12)
-      if model.sending {
-        Button { model.stop() } label: {
-          Text("Stop").font(.subheadline.weight(.semibold)).foregroundColor(AskStyle.text)
-            .padding(.horizontal, 16).frame(height: 44)
-            .background(AskStyle.raised, in: RoundedRectangle(cornerRadius: 12))
-        }.buttonStyle(.plain).accessibilityLabel("Stop answer")
-      } else {
-        Button { model.send() } label: {
-          Text("Send").font(.subheadline.weight(.semibold)).foregroundColor(canSend ? .white : AskStyle.faint)
-            .padding(.horizontal, 16).frame(height: 44)
-            .background(canSend ? AskStyle.accent : AskStyle.raised, in: RoundedRectangle(cornerRadius: 12))
-        }.buttonStyle(.plain).disabled(!canSend).accessibilityLabel("Send question")
-      }
-    }
-    .padding(6)
-    .background(AskStyle.surface, in: RoundedRectangle(cornerRadius: 16))
-    .overlay(RoundedRectangle(cornerRadius: 16).stroke(AskStyle.border, lineWidth: 1))
-  }
-}
-
-private extension View {
-  /// A placeholder in the sheet's own colours; TextField's built-in one is too faint on dark.
-  func placeholder<Content: View>(when shown: Bool, @ViewBuilder _ content: () -> Content) -> some View {
-    ZStack(alignment: .leading) {
-      content().opacity(shown ? 1 : 0)
-      self
-    }
+  /// iPad shows Ask as a large floating card with history in a sidebar.
+  func fitToPresenter() {
+    guard UIDevice.current.userInterfaceIdiom == .pad, modalPresentationStyle == .formSheet else { return }
+    let bounds = presentingViewController?.view.bounds ?? view.window?.bounds ?? UIScreen.main.bounds
+    preferredContentSize = NativeAskController.cardSize(for: bounds.size)
   }
 }
 
 final class NativeAskController: NSObject {
   static let shared = NativeAskController()
   private weak var webView: WKWebView?
-  private weak var presented: UIViewController?
+  private weak var presented: NativeAskHostingController?
+  /// Kept for the whole app session so the draft and the open conversation
+  /// survive closing and reopening the sheet.
+  private var model: NativeAskModel?
+  private var previewScheduled = false
 
-  func attach(_ webView: WKWebView) { self.webView = webView }
-
-  func present() {
-    DispatchQueue.main.async { [weak self] in
-      guard let self, let webView = self.webView, let root = webView.window?.rootViewController else { return }
-      let presenter = Self.topController(root)
-      if self.presented != nil { return }
-      let model = NativeAskModel(webView: webView)
-      let host = UIHostingController(rootView: NativeAskView(model: model) { [weak self] in self?.linkAccount() })
-      host.view.backgroundColor = UIColor(red: 20 / 255, green: 20 / 255, blue: 28 / 255, alpha: 1)
-      host.overrideUserInterfaceStyle = .dark
-      host.modalPresentationStyle = .pageSheet
-      // iPad shows a centred page sheet; the content caps its own line length.
-      if #available(iOS 16.0, *), let sheet = host.sheetPresentationController {
-        sheet.detents = [.medium(), .large()]
-        sheet.prefersGrabberVisible = true
-        sheet.preferredCornerRadius = 22
-      }
-      self.presented = host
-      presenter.present(host, animated: true)
+  func attach(_ webView: WKWebView) {
+    self.webView = webView
+    if let state = NativeAskPreview.requestedState(), !previewScheduled {
+      previewScheduled = true
+      schedulePreview(state, attempt: 0)
     }
   }
 
-  private func linkAccount() {
-    let webView = self.webView
-    presented?.dismiss(animated: true) {
-      guard let webView else { return }
-      webView.load(URLRequest(url: URL(string: "https://ahousedividedgame.com/client/link")!))
+  func present() {
+    Task { @MainActor [weak self] in self?.show(preview: nil) }
+  }
+
+  /// Screenshot mode: wait for the app window, then present a canned sheet.
+  private func schedulePreview(_ state: String, attempt: Int) {
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      if self.webView?.window?.rootViewController != nil {
+        // Let the launcher finish its first layout so the sheet animates in.
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        self.show(preview: state)
+      } else if attempt < 120 {
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        self.schedulePreview(state, attempt: attempt + 1)
+      }
     }
+  }
+
+  @MainActor private func show(preview: String?) {
+    guard let webView, let root = webView.window?.rootViewController else { return }
+    if presented != nil { return }
+    let presenter = Self.topController(root)
+    let model: NativeAskModel
+    if let preview {
+      model = NativeAskModel(preview: preview)
+      self.model = model
+    } else if let existing = self.model, existing.webView === webView, !existing.isPreview {
+      model = existing
+    } else {
+      model = NativeAskModel(webView: webView)
+      self.model = model
+    }
+    model.onClose = { [weak self] in self?.dismiss() }
+    model.onLinkAccount = { [weak self] in self?.linkAccount() }
+    model.onOpenURL = { [weak self] url in self?.open(url) }
+    model.onShare = { [weak self] items in self?.share(items) }
+    let host = NativeAskHostingController(rootView: NativeAskView(model: model))
+    host.onClosed = { [weak model] in model?.sheetClosed() }
+    host.view.backgroundColor = .systemBackground
+    host.view.tintColor = NativeAskTint.uiColor
+    if UIDevice.current.userInterfaceIdiom == .pad {
+      host.modalPresentationStyle = .formSheet
+      host.preferredContentSize = Self.cardSize(for: presenter.view.bounds.size)
+    } else {
+      host.modalPresentationStyle = .pageSheet
+      if let sheet = host.sheetPresentationController {
+        sheet.detents = [.medium(), .large()]
+        sheet.selectedDetentIdentifier = .large
+        sheet.prefersGrabberVisible = true
+        sheet.prefersScrollingExpandsWhenScrolledToEdge = true
+        sheet.preferredCornerRadius = 24
+      }
+    }
+    presented = host
+    presenter.present(host, animated: true)
+  }
+
+  static func cardSize(for bounds: CGSize) -> CGSize {
+    CGSize(width: max(320, min(1120, bounds.width - 64)), height: max(480, bounds.height - 72))
+  }
+
+  private func dismiss() {
+    Task { @MainActor [weak self] in self?.presented?.dismiss(animated: true) }
+  }
+
+  private func linkAccount() {
+    loadInGame(URL(string: "https://ahousedividedgame.com/client/link")!)
+  }
+
+  /// Game pages open in the app's own webview and close the sheet. Anything
+  /// else opens in Safari.
+  private func open(_ url: URL) {
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      if let game = Self.gameURL(url, current: self.webView?.url) {
+        self.loadInGame(game)
+      } else if url.scheme == "https" || url.scheme == "http" || url.scheme == "mailto" {
+        UIApplication.shared.open(url)
+      }
+    }
+  }
+
+  private func loadInGame(_ url: URL) {
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      let webView = self.webView
+      if let presented = self.presented {
+        presented.dismiss(animated: true) { webView?.load(URLRequest(url: url)) }
+      } else {
+        webView?.load(URLRequest(url: url))
+      }
+    }
+  }
+
+  private func share(_ items: [Any]) {
+    Task { @MainActor [weak self] in
+      guard let host = self?.presented else { return }
+      let top = Self.topController(host)
+      let sheet = UIActivityViewController(activityItems: items, applicationActivities: nil)
+      if let popover = sheet.popoverPresentationController {
+        popover.sourceView = top.view
+        popover.sourceRect = CGRect(x: top.view.bounds.maxX - 72, y: top.view.safeAreaInsets.top + 24, width: 1, height: 1)
+        popover.permittedArrowDirections = [.up]
+      }
+      top.present(sheet, animated: true)
+    }
+  }
+
+  /// A link to a game page, rewritten onto the world the player is in (the
+  /// sandbox stays on the sandbox).
+  static func gameURL(_ url: URL, current: URL?) -> URL? {
+    let gameHosts: Set<String> = ["ahousedividedgame.com", "www.ahousedividedgame.com", nativeSandboxHost]
+    guard url.scheme == "https", let host = url.host?.lowercased(), gameHosts.contains(host) else { return nil }
+    guard let currentHost = current?.host?.lowercased(), gameHosts.contains(currentHost), currentHost != host,
+          var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+    components.host = currentHost
+    return components.url ?? url
   }
 
   private static func topController(_ root: UIViewController) -> UIViewController {

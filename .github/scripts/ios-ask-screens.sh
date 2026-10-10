@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Screenshot the native Ask sheet on an iPhone and an iPad simulator for
-# design review. Never fails the job: screenshots are evidence, not a gate.
+# design review. The app is launched with -AHDAskPreview <state>, which opens
+# the sheet over the launcher with a canned conversation and no account (see
+# NativeAskPreview.swift). Never fails the job: screenshots are evidence, not
+# a gate.
 set -u
 app="$1"
 bundle=net.lakesidegames.ahdclient
@@ -13,6 +16,13 @@ for runtime, devices in json.load(sys.stdin)['devices'].items():
   for d in devices:
     if d['name'].startswith(prefix): print(d['udid'], d['name'].replace(' ', '-')); sys.exit()" "$1"
 }
+shot() {
+  local udid="$1" file="$2" state="$3" wait="$4"
+  xcrun simctl terminate "$udid" "$bundle" >/dev/null 2>&1
+  xcrun simctl launch "$udid" "$bundle" -AHDAskPreview "$state" >/dev/null
+  sleep "$wait"
+  xcrun simctl io "$udid" screenshot "ios-screens/$file.png" >/dev/null 2>&1 && echo "captured $file"
+}
 for kind in iPhone iPad; do
   read -r udid name < <(pick "$kind") || true
   [ -z "${udid:-}" ] && { echo "no $kind simulator"; continue; }
@@ -20,14 +30,20 @@ for kind in iPhone iPad; do
   xcrun simctl boot "$udid" 2>/dev/null
   xcrun simctl bootstatus "$udid" -b >/dev/null 2>&1
   xcrun simctl install "$udid" "$app" || continue
-  xcrun simctl launch "$udid" "$bundle" >/dev/null
-  sleep 25
-  xcrun simctl io "$udid" screenshot "ios-screens/$kind-0-launcher.png" >/dev/null 2>&1
-  xcrun simctl openurl "$udid" "ahdclient://ask"
-  sleep 4
-  xcrun simctl io "$udid" screenshot "ios-screens/$kind-1-opening.png" >/dev/null 2>&1
-  sleep 15
-  xcrun simctl io "$udid" screenshot "ios-screens/$kind-2-settled.png" >/dev/null 2>&1
+  xcrun simctl ui "$udid" appearance light >/dev/null 2>&1
+  # The first launch warms the webview and the map renderer.
+  shot "$udid" "$kind-1-conversation" conversation 30
+  shot "$udid" "$kind-2-conversation" conversation 14
+  shot "$udid" "$kind-3-history" history 14
+  shot "$udid" "$kind-4-empty" empty 12
+  shot "$udid" "$kind-5-streaming" streaming 12
+  shot "$udid" "$kind-6-consent" consent 12
+  shot "$udid" "$kind-7-signedout" signedout 12
+  shot "$udid" "$kind-8-quota" quota 12
+  xcrun simctl ui "$udid" appearance dark >/dev/null 2>&1
+  shot "$udid" "$kind-9-conversation-dark" conversation 14
+  shot "$udid" "$kind-10-history-dark" history 14
+  xcrun simctl ui "$udid" appearance light >/dev/null 2>&1
   xcrun simctl shutdown "$udid" 2>/dev/null
 done
 ls -la ios-screens
