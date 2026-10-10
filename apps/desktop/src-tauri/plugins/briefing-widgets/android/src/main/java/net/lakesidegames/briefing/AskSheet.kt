@@ -119,6 +119,7 @@ internal class AskSheet(
   }
 
   init {
+    root.setBackgroundColor(ui.containerLow)
     buildToolbar()
     buildContent()
     buildBanner()
@@ -175,7 +176,7 @@ internal class AskSheet(
       host.rebuild()
       return
     }
-    root.post { NativeSafety.run("Ask resize") { applySize(); ViewCompat.requestApplyInsets(root) } }
+    root.post { NativeSafety.run("Ask resize") { applySize(); dialog.behavior.isDraggable = !fullHeight; ViewCompat.requestApplyInsets(root) } }
   }
 
   fun onPhotoPicked(uri: android.net.Uri?) {
@@ -201,10 +202,27 @@ internal class AskSheet(
   private fun expand() {
     dialog.behavior.skipCollapsed = true
     dialog.behavior.state = BottomSheetBehavior.STATE_EXPANDED
+    // A full-screen sheet closes from its close button or Back, so scrolling
+    // up through a long answer can never drag it away by accident.
+    dialog.behavior.isDraggable = !fullHeight
     dialog.window?.let { window ->
+      @Suppress("DEPRECATION")
       window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
         android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN)
+      // Draw behind the system bars and pad the content instead.
+      androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+      @Suppress("DEPRECATION")
+      window.statusBarColor = android.graphics.Color.TRANSPARENT
+      @Suppress("DEPRECATION")
+      window.navigationBarColor = android.graphics.Color.TRANSPARENT
+      dialog.findViewById<View>(com.google.android.material.R.id.container)?.fitsSystemWindows = false
+      dialog.findViewById<View>(com.google.android.material.R.id.coordinator)?.fitsSystemWindows = false
+      androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+        isAppearanceLightStatusBars = !ui.night
+        isAppearanceLightNavigationBars = !ui.night
+      }
     }
+    ViewCompat.requestApplyInsets(root)
   }
 
   private fun buildToolbar() {
@@ -323,13 +341,13 @@ internal class AskSheet(
     inputLayout.boxStrokeWidth = 0
     inputLayout.boxStrokeWidthFocused = 0
     inputLayout.addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-    input.hint = "Ask about the game"
+    input.hint = "Ask a question"
     input.setHintTextColor(ui.onSurfaceVariant)
     input.setTextColor(ui.onSurface)
     input.textSize = 16f
     input.minHeight = ui.dp(56)
     input.maxLines = 5
-    input.setPadding(ui.dp(20), ui.dp(16), ui.dp(20), ui.dp(16))
+    input.setPadding(ui.dp(18), ui.dp(16), ui.dp(16), ui.dp(16))
     input.imeOptions = EditorInfo.IME_ACTION_SEND or EditorInfo.IME_FLAG_NO_EXTRACT_UI
     input.setRawInputType(android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
       android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE)
@@ -414,7 +432,6 @@ internal class AskSheet(
       history -> null
       phase == AskPhase.CHECKING -> "Checking your game account"
       phase == AskPhase.SIGNED_OUT -> "Not linked yet"
-      session.preview && !history -> "Preview: ${session.profileName}"
       session.profileName.isNotBlank() -> "Signed in as ${session.profileName}"
       else -> null
     }
@@ -461,7 +478,7 @@ internal class AskSheet(
     val parts = mutableListOf<String>()
     parts += "${askCount(usage.remaining)} of ${askCount(usage.limit)} questions left"
     val left = session.followupsLeft
-    if (session.conversationID.isNotBlank() && left != null) parts += if (left > 0) "follow-ups cost less ($left left)" else "follow-ups used up"
+    if (session.conversationID.isNotBlank() && left != null) parts += if (left > 0) "$left ${if (left == 1) "follow-up" else "follow-ups"} left" else "no follow-ups left"
     else if (usage.resetAt > 0 && usage.remaining <= 3) parts += "resets in ${askResetIn(usage.resetAt)}"
     return parts.joinToString(" · ")
   }

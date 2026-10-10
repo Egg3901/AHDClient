@@ -38,6 +38,7 @@ scroll_up() { a shell input swipe $((width / 2)) $((height * 30 / 100)) $((width
 
 preview() {
   local mode=$1
+  a shell input keyevent 111
   a shell cmd uimode night "$mode" >/dev/null 2>&1
   sleep 3
   a shell am start -W -n "$pkg/.MainActivity" -a android.intent.action.VIEW -d "ahdclient://ask?preview=1" >/dev/null
@@ -54,8 +55,19 @@ preview() {
 a shell am start -W -n "$pkg/.MainActivity" >/dev/null
 sleep 12
 shot 0-launcher
+# Leave whatever page the sign-in walk opened, keyboard included.
+a shell input keyevent 111
+sleep 1
 preview no 1-light
 preview yes 2-dark
+if [ "${ASK_LAYOUT_BOUNDS:-1}" = 1 ]; then
+  a shell cmd uimode night no >/dev/null 2>&1; sleep 2
+  a shell setprop debug.layout true; a shell service call activity 1599295570 >/dev/null 2>&1
+  a shell am start -W -n "$pkg/.MainActivity" -a android.intent.action.VIEW -d "ahdclient://ask?preview=1" >/dev/null
+  sleep 5; shot 9-bounds
+  a shell input keyevent 4; sleep 1
+  a shell setprop debug.layout false; a shell service call activity 1599295570 >/dev/null 2>&1
+fi
 a shell cmd uimode night no >/dev/null 2>&1
 sleep 3
 a shell am start -W -n "$pkg/.MainActivity" -a android.intent.action.VIEW -d "ahdclient://ask" >/dev/null

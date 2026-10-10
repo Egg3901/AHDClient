@@ -184,7 +184,7 @@ internal class AskChartView(private val ui: AskUi, private val spec: AskChartSpe
         rect.set(left, y, left + plot, y + barHeight)
         canvas.drawRoundRect(rect, barHeight / 2f, barHeight / 2f, track)
         rect.set(Math.min(zero, end), y, Math.max(zero, end).coerceAtLeast(Math.min(zero, end) + ui.dpf(2f)), y + barHeight)
-        fill.color = palette[index % palette.size]
+        fill.color = if (number < 0) ui.withAlpha(palette[index % palette.size], 0.55f) else palette[index % palette.size]
         canvas.drawRoundRect(rect, barHeight / 2f, barHeight / 2f, fill)
         if (spec.series.size == 1 || index == spec.series.size - 1) {
           canvas.drawText(format(number), left + plot + ui.dpf(8f), centre + value.textSize / 3f, value)
@@ -192,6 +192,7 @@ internal class AskChartView(private val ui: AskUi, private val spec: AskChartSpe
         y += barHeight + ui.dpf(2f)
       }
     }
+    if (min < 0) canvas.drawLine(zero, 0f, zero, rowHeight * spec.labels.size, grid)
     legend(canvas, rowHeight * spec.labels.size)
   }
 
