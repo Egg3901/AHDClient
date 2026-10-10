@@ -23,7 +23,7 @@ shot() {
   sleep "$wait"
   xcrun simctl io "$udid" screenshot "ios-screens/$file.png" >/dev/null 2>&1 && echo "captured $file"
 }
-for kind in iPhone iPad; do
+for kind in iPad iPhone; do
   read -r udid name < <(pick "$kind") || true
   [ -z "${udid:-}" ] && { echo "no $kind simulator"; continue; }
   echo "== $kind: $name"
@@ -33,16 +33,15 @@ for kind in iPhone iPad; do
   xcrun simctl ui "$udid" appearance light >/dev/null 2>&1
   # The first launch warms the webview and the map renderer.
   shot "$udid" "$kind-1-conversation" conversation 30
-  shot "$udid" "$kind-2-conversation" conversation 14
-  shot "$udid" "$kind-3-history" history 14
-  shot "$udid" "$kind-4-empty" empty 12
-  shot "$udid" "$kind-5-streaming" streaming 12
-  shot "$udid" "$kind-6-consent" consent 12
-  shot "$udid" "$kind-7-signedout" signedout 12
-  shot "$udid" "$kind-8-quota" quota 12
+  shot "$udid" "$kind-2-history" history 12
+  shot "$udid" "$kind-3-empty" empty 10
+  shot "$udid" "$kind-4-streaming" streaming 10
+  shot "$udid" "$kind-5-consent" consent 10
+  shot "$udid" "$kind-6-signedout" signedout 10
+  shot "$udid" "$kind-7-quota" quota 10
   xcrun simctl ui "$udid" appearance dark >/dev/null 2>&1
-  shot "$udid" "$kind-9-conversation-dark" conversation 14
-  shot "$udid" "$kind-10-history-dark" history 14
+  shot "$udid" "$kind-8-conversation-dark" conversation 12
+  shot "$udid" "$kind-9-history-dark" history 12
   xcrun simctl ui "$udid" appearance light >/dev/null 2>&1
   xcrun simctl shutdown "$udid" 2>/dev/null
 done

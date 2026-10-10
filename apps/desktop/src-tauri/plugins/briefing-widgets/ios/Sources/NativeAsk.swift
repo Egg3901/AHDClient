@@ -733,6 +733,9 @@ final class NativeAskController: NSObject {
     host.onClosed = { [weak model] in model?.sheetClosed() }
     host.view.backgroundColor = .systemBackground
     host.view.tintColor = NativeAskTint.uiColor
+    // Info.ios.plist pins the launcher and game to Dark. Ask is a native
+    // sheet and follows the device's own light or dark setting instead.
+    host.overrideUserInterfaceStyle = UIScreen.main.traitCollection.userInterfaceStyle
     if UIDevice.current.userInterfaceIdiom == .pad {
       host.modalPresentationStyle = .formSheet
       host.preferredContentSize = Self.cardSize(for: presenter.view.bounds.size)
