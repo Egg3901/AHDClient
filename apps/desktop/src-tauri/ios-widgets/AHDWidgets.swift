@@ -324,7 +324,9 @@ struct BriefingWidgetView: View {
   /// The identity line under the name, like the page mastheads.
   private var subtitle: String {
     if section == "overview" || section == "profile", let turn = data?.turn {
-      return ["Turn \(Int(turn.current))", turn.date].compactMap { $0 }.joined(separator: " · ")
+      // Small widgets have room for the turn only; the in-game date was cut off.
+      return (isSmall ? ["Turn \(Int(turn.current))"] : ["Turn \(Int(turn.current))", turn.date])
+        .compactMap { $0 }.joined(separator: " · ")
     }
     if section == "stocks", let watched = data?.marketWatch {
       if !isSmall && watched.count > 1 { return "\(watched.count) companies" }
@@ -665,7 +667,8 @@ struct BriefingWidgetView: View {
   /// A compact table row: label left, value and per-turn change right.
   private func figureRow(_ item: Figure) -> some View {
     HStack(alignment: .firstTextBaseline, spacing: 4) {
-      label(item.short)
+      // The label never truncates ("FUN...", "MKT..."); the value scales down.
+      label(item.short).fixedSize()
       Spacer(minLength: 3)
       Text(item.value).font(.system(size: 11, weight: .medium)).monospacedDigit()
         .foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.6).layoutPriority(1)
@@ -851,7 +854,14 @@ struct BriefingWidgetView: View {
           HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
               if section == "overview" { countdownHero } else if let hero = hero { heroView(hero, stacked: true) }
-              if chartValues.count >= 2 { chart(height: 30, scaled: false) }
+              if chartValues.count >= 2 {
+                chart(height: 30, scaled: false)
+              } else {
+                // No chart (Profile, Overview): the figures past the first
+                // four fill the space under the hero instead of being dropped.
+                ForEach(Array(figures.dropFirst(4).prefix(2).enumerated()), id: \.offset) { _, item in figureRow(item) }
+                  .padding(.top, 2)
+              }
             }
             .frame(width: figures.isEmpty ? geometry.size.width : geometry.size.width * 0.42, alignment: .leading)
             if !figures.isEmpty {
