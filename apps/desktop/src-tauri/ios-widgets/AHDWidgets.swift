@@ -671,9 +671,10 @@ struct BriefingWidgetView: View {
       label(item.short).fixedSize()
       Spacer(minLength: 3)
       Text(item.value).font(.system(size: 11, weight: .medium)).monospacedDigit()
-        .foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.6).layoutPriority(1)
+        .foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.5)
       if let change = item.change {
-        changeText(change, positive: item.positive, size: 9)
+        // The change stays whole ("+3M", not "+..."); the value shrinks first.
+        changeText(change, positive: item.positive, size: 9).fixedSize()
       }
     }
   }
