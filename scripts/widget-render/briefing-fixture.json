@@ -1,0 +1,236 @@
+{
+ "name": "Example Player",
+ "avatarUrl": null,
+ "actions": 57,
+ "actionCap": 239,
+ "funds": 129091.44162234024,
+ "personalHomeLiquid": 5004165.020303737,
+ "homeCurrency": "USD",
+ "politicalInfluence": 43.25113857330661,
+ "nationalInfluence": 68.02461523559123,
+ "favorability": 75.34741135578524,
+ "corpNav": {
+  "sequentialId": 7,
+  "name": "Example Media",
+  "tickerSymbol": "EXM",
+  "sharePrice": 44.08,
+  "priceChange1h": -3.76,
+  "liquidCapital": 101239802.39760703,
+  "liquidCurrencyCode": "USD",
+  "marketingStrength": 96.95,
+  "ceoSalary": 0,
+  "marketCap": 881600000,
+  "history": [
+   {
+    "_id": "6aca4518edc12956834e02aa",
+    "turn": 94,
+    "sharePrice": 49.87735623888584,
+    "marketCap": 997547125,
+    "liquidCapital": 88555629.09301965,
+    "marketingStrength": 80.17
+   },
+   {
+    "_id": "6aca5320edc12956834f36d0",
+    "turn": 95,
+    "sharePrice": 50.177031209689744,
+    "marketCap": 1003540624,
+    "liquidCapital": 89827784.51709029,
+    "marketingStrength": 81.73
+   },
+   {
+    "_id": "6aca6130eb860a4cd59caa96",
+    "turn": 96,
+    "sharePrice": 49.999142179290494,
+    "marketCap": 999982844,
+    "liquidCapital": 91085223.18463969,
+    "marketingStrength": 83.28
+   },
+   {
+    "_id": "6aca6f40eb860a4cd59ea9fa",
+    "turn": 97,
+    "sharePrice": 47.082397568322904,
+    "marketCap": 941647951,
+    "liquidCapital": 92325560.21592912,
+    "marketingStrength": 84.81
+   },
+   {
+    "_id": "6aca7d593f97c046f24821d3",
+    "turn": 98,
+    "sharePrice": 46.437886543145005,
+    "marketCap": 928757731,
+    "liquidCapital": 93436377.20064548,
+    "marketingStrength": 86.35
+   },
+   {
+    "_id": "6aca8b63595a3e5fbb3370a7",
+    "turn": 99,
+    "sharePrice": 45.95730194216275,
+    "marketCap": 919146039,
+    "liquidCapital": 94562343.60536934,
+    "marketingStrength": 87.87
+   },
+   {
+    "_id": "6aca9976595a3e5fbb34900d",
+    "turn": 100,
+    "sharePrice": 45.3572098860147,
+    "marketCap": 907144198,
+    "liquidCapital": 95655416.84047665,
+    "marketingStrength": 89.43
+   },
+   {
+    "_id": "6acaa786eaa450c47b9c3a59",
+    "turn": 101,
+    "sharePrice": 45.701498015270694,
+    "marketCap": 914029960,
+    "liquidCapital": 96809578.67136435,
+    "marketingStrength": 90.96
+   },
+   {
+    "_id": "6acab58f921a9f1594a248d1",
+    "turn": 102,
+    "sharePrice": 45.81658245333375,
+    "marketCap": 916331649,
+    "liquidCapital": 97945982.39210966,
+    "marketingStrength": 92.48
+   },
+   {
+    "_id": "6acac399921a9f1594a36fd5",
+    "turn": 103,
+    "sharePrice": 45.919184588495625,
+    "marketCap": 918383692,
+    "liquidCapital": 99031254.11415218,
+    "marketingStrength": 93.97
+   },
+   {
+    "_id": "6acad1abf1019714bbd1516f",
+    "turn": 104,
+    "sharePrice": 45.802277856332125,
+    "marketCap": 916045557,
+    "liquidCapital": 100125219.1023134,
+    "marketingStrength": 95.47
+   },
+   {
+    "_id": "6acadfbdc4cd511f11c7354b",
+    "turn": 105,
+    "sharePrice": 45.95134004681879,
+    "marketCap": 919026801,
+    "liquidCapital": 101239802.39760703,
+    "marketingStrength": 96.95
+   }
+  ],
+  "logoUrl": null
+ },
+ "marketWatch": [
+  {
+   "sequentialId": 100,
+   "name": "Holding 1",
+   "tickerSymbol": "HLD1",
+   "sharePrice": 44.08,
+   "liquidCurrencyCode": "USD",
+   "ownedShares": 10000000,
+   "logoUrl": null
+  }
+ ],
+ "turnBriefing": [
+  {
+   "category": "corporation",
+   "label": "Liquid capital",
+   "value": 101239802.39760703,
+   "delta": 1114583.2952936292,
+   "unit": "currency",
+   "href": "/profile"
+  },
+  {
+   "category": "corporation",
+   "label": "Marketing strength",
+   "value": 96.95,
+   "delta": 1.480000000000004,
+   "unit": "points",
+   "href": "/profile"
+  },
+  {
+   "category": "markets",
+   "label": "Share price",
+   "value": 45.95134004681879,
+   "delta": 0.14906219048666713,
+   "unit": "currency",
+   "href": "/profile"
+  }
+ ],
+ "turn": {
+  "current": 105,
+  "date": "February, Week 2, 1992",
+  "nextAt": "2026-10-11T02:00:00.000Z",
+  "active": true
+ },
+ "inbox": {
+  "unread": 68,
+  "mail": 1
+ },
+ "perTurn": {
+  "funds": 6537,
+  "politicalInfluence": -0.3243835392997996,
+  "nationalInfluence": 1.4325113857330662,
+  "favorability": -0.767370567789262,
+  "voteShare": 0.3,
+  "sharePrice": 0.14906219048666713,
+  "marketCap": 2981244,
+  "liquidCapital": 1114583.2952936292
+ },
+ "electionStats": {
+  "electionId": "example",
+  "electionType": "Senate",
+  "countryId": "US",
+  "state": "OH",
+  "status": "active",
+  "electionYear": 1992,
+  "endTurn": 110,
+  "myVotePct": 46.2,
+  "marginPct": -1.8,
+  "seatsProjected": null,
+  "totalSeats": null,
+  "isMultiSeat": false,
+  "history": [
+   {
+    "turn": 96,
+    "pct": 41.0
+   },
+   {
+    "turn": 97,
+    "pct": 41.8
+   },
+   {
+    "turn": 98,
+    "pct": 42.5
+   },
+   {
+    "turn": 99,
+    "pct": 42.1
+   },
+   {
+    "turn": 100,
+    "pct": 43.3
+   },
+   {
+    "turn": 101,
+    "pct": 44.0
+   },
+   {
+    "turn": 102,
+    "pct": 44.6
+   },
+   {
+    "turn": 103,
+    "pct": 45.1
+   },
+   {
+    "turn": 104,
+    "pct": 45.9
+   },
+   {
+    "turn": 105,
+    "pct": 46.2
+   }
+  ]
+ }
+}
