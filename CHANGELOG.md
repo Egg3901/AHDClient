@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.1] - 2026-10-11
+
+- iPhone: medium widgets give the main figure room. Share price, actions or vote share show in full with their change underneath, the chart is bigger, and Profile and Overview use the space under the main figure for more figures.
+- iPhone: the "Next turn" countdown no longer draws over its label.
+- iPhone: after an app update, widgets fetch fresh figures right away instead of showing the old saved ones until the next turn, so market cap, national influence and per-turn changes appear straight after updating.
+- iPhone: small widgets keep their labels whole and show just the turn number under your name.
+
 ## [2.6.0] - 2026-10-11
 
 - Ask is rebuilt for each phone. iPhone and iPad follow Apple's design and your light or dark setting; Android uses Material 3 and follows your theme. On iPad, your past chats sit in a sidebar beside the conversation.
