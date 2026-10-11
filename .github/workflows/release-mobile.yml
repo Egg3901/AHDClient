@@ -371,6 +371,20 @@ jobs:
           app=$(find apps/desktop/src-tauri/gen/apple/build -maxdepth 3 -name '*.app' -print -quit)
           bash .github/scripts/ios-ask-screens.sh "$app"
 
+      - name: Render the home-screen widgets
+        if: steps.signing.outputs.mode == 'simulator'
+        continue-on-error: true
+        timeout-minutes: 10
+        run: bash .github/scripts/ios-widget-render.sh
+
+      - name: Upload widget renders
+        if: steps.signing.outputs.mode == 'simulator'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-widget-renders
+          path: widget-renders/
+          if-no-files-found: ignore
+
       - name: Upload Ask screenshots
         if: steps.signing.outputs.mode == 'simulator'
         uses: actions/upload-artifact@v4

@@ -136,12 +136,18 @@ struct SavedBriefing: Codable {
   var images: [String: Data]?
   /// The URL each thumbnail came from, so an unchanged image is not refetched.
   var imageSources: [String: String]?
+  /// The data shape this was saved with. An app update that adds figures
+  /// refetches at once instead of showing the old saved copy until the next
+  /// scheduled refresh (2.6.0 showed no market cap until a turn passed).
+  var schema: Int?
 }
 
 enum BriefingStore {
   /// `widgets=1` adds the turn clock, inbox counts, market cap, national
   /// influence and per-turn changes.
   static let endpoint = URL(string: "https://ahousedividedgame.com/api/client-status?layout=full&widgets=1")!
+  /// Bump when BriefingStatus gains fields the widgets show.
+  static let currentSchema = 2
   private static let queue = DispatchQueue(label: "net.lakesidegames.ahdclient.widget-refresh")
   private static var pending = [(SavedBriefing?) -> Void]()
 
@@ -222,7 +228,9 @@ enum BriefingStore {
         callbacks.forEach { callback in DispatchQueue.main.async { callback(value) } }
       }
       guard let cookie = session(), !cookie.isEmpty else { clear(); finish(nil); return }
-      if let saved = read(), Date().timeIntervalSince(saved.updatedAt) < 60 { finish(saved); return }
+      if let saved = read(), saved.schema == currentSchema, Date().timeIntervalSince(saved.updatedAt) < 60 {
+        finish(saved); return
+      }
       let config = URLSessionConfiguration.ephemeral
       config.timeoutIntervalForRequest = 10
       config.timeoutIntervalForResource = 12
@@ -285,7 +293,7 @@ enum BriefingStore {
             ("stocks", data.marketWatch?.first?.logoUrl)]
           fetchImages(wanted.compactMap { key, url in url.map { (key, $0) } }, previous: read()) { images, sources in
             let saved = SavedBriefing(updatedAt: Date(), sessionId: fingerprint(cookie), data: data,
-              images: images, imageSources: sources)
+              images: images, imageSources: sources, schema: currentSchema)
             save(saved)
             finish(saved)
           }

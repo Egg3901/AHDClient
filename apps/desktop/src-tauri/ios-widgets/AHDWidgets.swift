@@ -274,7 +274,10 @@ private struct Row {
 struct BriefingWidgetView: View {
   let entry: BriefingEntry
   let section: String
-  @Environment(\.widgetFamily) var family
+  @Environment(\.widgetFamily) var environmentFamily
+  /// Set only by the render check, which draws each size outside WidgetKit.
+  var familyOverride: WidgetFamily? = nil
+  private var family: WidgetFamily { familyOverride ?? environmentFamily }
 
   private var data: BriefingStatus? { entry.saved?.data }
   private var isSmall: Bool { family == .systemSmall }
@@ -635,15 +638,25 @@ struct BriefingWidgetView: View {
       .foregroundColor(positive ? Palette.gain : Palette.loss).lineLimit(1).minimumScaleFactor(0.7)
   }
 
-  private func heroView(_ hero: (label: String, value: String, change: String?, positive: Bool)) -> some View {
-    VStack(alignment: .leading, spacing: 0) {
+  private func heroView(_ hero: (label: String, value: String, change: String?, positive: Bool), stacked: Bool = false) -> some View {
+    VStack(alignment: .leading, spacing: 1) {
       label(hero.label)
-      HStack(alignment: .firstTextBaseline, spacing: 5) {
-        Text(hero.value).font(.system(size: isSmall ? 20 : isLarge ? 26 : 22, weight: .semibold, design: .rounded))
-          .monospacedDigit().foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.55)
-          .layoutPriority(1)
+      if stacked {
+        // Medium widgets: the value gets the full column width and the change
+        // sits on its own line, so neither is cut off.
+        Text(hero.value).font(.system(size: 20, weight: .semibold, design: .rounded))
+          .monospacedDigit().foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.6)
         if let change = hero.change {
-          changeText(change, positive: hero.positive, size: isSmall ? 10 : 11)
+          changeText(change, positive: hero.positive, size: 10)
+        }
+      } else {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+          Text(hero.value).font(.system(size: isSmall ? 20 : isLarge ? 26 : 22, weight: .semibold, design: .rounded))
+            .monospacedDigit().foregroundColor(Palette.cream).lineLimit(1).minimumScaleFactor(0.55)
+            .layoutPriority(1)
+          if let change = hero.change {
+            changeText(change, positive: hero.positive, size: isSmall ? 10 : 11)
+          }
         }
       }
     }
@@ -704,17 +717,34 @@ struct BriefingWidgetView: View {
     }
   }
 
+  /// The footer countdown. Timer text claims all the width it is offered, so
+  /// it gets a fixed slot instead of being joined onto its label.
+  @ViewBuilder private var footerClock: some View {
+    if let turn = data?.turn {
+      if turn.active == false {
+        Text("Turns paused")
+      } else if let next = data?.nextTurn, next > entry.date {
+        HStack(spacing: 3) {
+          Text("Next turn")
+          Text(next, style: .timer).monospacedDigit().frame(width: 34, alignment: .leading)
+        }
+      } else if data?.nextTurn != nil {
+        Text("Next turn running")
+      }
+    }
+  }
+
   @ViewBuilder private var footer: some View {
     if let saved = entry.saved {
       HStack(spacing: 5) {
         if !isSmall, data?.turn != nil, section != "overview" {
-          turnClock.foregroundColor(Palette.cream.opacity(0.75))
-          Text("·").foregroundColor(Palette.cream.opacity(0.3))
+          footerClock.foregroundColor(Palette.cream.opacity(0.75)).fixedSize()
         }
+        Spacer(minLength: 4)
         HStack(spacing: 3) {
           Circle().fill(Palette.gain.opacity(0.85)).frame(width: 4, height: 4)
-          Text(saved.updatedAt, style: .relative)
-        }
+          Text(saved.updatedAt, style: .relative).multilineTextAlignment(.trailing)
+        }.frame(maxWidth: 76, alignment: .trailing)
       }.font(.system(size: 8, weight: .medium)).foregroundColor(Palette.cream.opacity(0.5)).lineLimit(1)
     } else {
       Text("TAP TO OPEN").font(.system(size: 8, weight: .bold)).tracking(0.5).foregroundColor(Palette.gold.opacity(0.8))
@@ -812,26 +842,28 @@ struct BriefingWidgetView: View {
       header
       rule
       if section == "stocks", rows.count > 1 {
-        rowList(limit: 4, compact: true, titled: false)
+        rowList(limit: 3, compact: true, titled: false)
         Spacer(minLength: 0)
-        footer
       } else {
-        HStack(alignment: .top, spacing: 10) {
-          VStack(alignment: .leading, spacing: 4) {
-            if section == "overview" { countdownHero } else if let hero = hero { heroView(hero) }
-            if chartValues.count >= 2 { TrendChart(values: chartValues, color: chartColor).frame(height: 26) }
-            Spacer(minLength: 0)
-            footer
-          }.frame(maxWidth: .infinity, alignment: .leading)
-          if !figures.isEmpty {
-            Rectangle().fill(Color.white.opacity(0.1)).frame(width: 0.5)
+        // The hero column keeps a fixed share of the width. It used to give
+        // way to the figures and shrink to a sliver ("SH...", a tiny chart).
+        GeometryReader { geometry in
+          HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-              ForEach(Array(figures.prefix(4).enumerated()), id: \.offset) { _, item in figureRow(item) }
-              Spacer(minLength: 0)
-            }.frame(maxWidth: .infinity, alignment: .leading).layoutPriority(1)
+              if section == "overview" { countdownHero } else if let hero = hero { heroView(hero, stacked: true) }
+              if chartValues.count >= 2 { chart(height: 30, scaled: false) }
+            }
+            .frame(width: figures.isEmpty ? geometry.size.width : geometry.size.width * 0.42, alignment: .leading)
+            if !figures.isEmpty {
+              VStack(alignment: .leading, spacing: 5) {
+                ForEach(Array(figures.prefix(4).enumerated()), id: \.offset) { _, item in figureRow(item) }
+              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+            }
           }
         }
       }
+      footer
     }
   }
 
