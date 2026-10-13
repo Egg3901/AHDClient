@@ -895,7 +895,6 @@ pub(crate) fn select_game_version(app: AppHandle, game: State<'_, Game>, version
 
 pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
   builder
-    .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_window_state::Builder::default().build())

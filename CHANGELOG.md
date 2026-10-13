@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Desktop links now use the app's guarded native routing instead of the opener plugin's automatic JavaScript click handler.
+- Desktop confirmation dialogs now use the webview's normal prompts instead of an app-wide native dialog handler.
 
 ## [2.6.1] - 2026-10-11
 
