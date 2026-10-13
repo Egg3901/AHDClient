@@ -42,6 +42,20 @@ describe("desktop security configuration", () => {
     ].sort());
     expect(read("../src-tauri/src/briefing.rs")).toContain(".redirects(0)");
   });
+  it("keeps native dialogs out of desktop and remote webview capabilities", () => {
+    expect(read("../src-tauri/src/desktop.rs")).not.toContain("tauri_plugin_dialog::init()");
+    expect(defaultCapability.permissions).not.toEqual(
+      expect.arrayContaining(["dialog:default", "dialog:allow-open", "dialog:allow-save"]),
+    );
+    expect(onlineCapability.permissions).toEqual([]);
+    expect(gameCapability.permissions).toEqual([]);
+    const entrypoint = read("../src-tauri/src/lib.rs");
+    expect(entrypoint).toContain("#[cfg(mobile)]\n  let builder = mobile::configure(builder);");
+    expect(read("../src-tauri/Cargo.toml")).toMatch(
+      /target\.'cfg\(not\(any\(target_os = \"android\", target_os = \"ios\"\)\)\)'\.dependencies\][\s\S]*?tauri-plugin-dialog = \"2\"/,
+    );
+  });
+
   it("ships a local-only CSP for the launcher window", () => {
     expect(tauriConfig.app.security.csp).toEqual({
       "default-src": "'self'",
