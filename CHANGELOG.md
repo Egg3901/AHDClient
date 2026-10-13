@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Desktop links now use the app's guarded native routing instead of the opener plugin's automatic JavaScript click handler.
+
 ## [2.6.1] - 2026-10-11
 
 - iPhone: medium widgets give the main figure room. Share price, actions or vote share show in full with their change underneath, the chart is bigger, and Profile and Overview use the space under the main figure for more figures.

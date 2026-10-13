@@ -360,7 +360,13 @@ async fn sign_out(app: AppHandle) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init())
+  let builder = tauri::Builder::default()
+    .plugin({
+      #[cfg(desktop)]
+      { tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build() }
+      #[cfg(mobile)]
+      { tauri_plugin_opener::init() }
+    })
     .manage(briefing::BriefingState::default());
   #[cfg(mobile)]
   let builder = builder.plugin(tauri_plugin_briefing_widgets::init());

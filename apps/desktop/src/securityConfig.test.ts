@@ -294,6 +294,20 @@ describe("desktop security configuration", () => {
     expect(rust).toMatch(/"--no-browser"/);
   });
 
+  it("disables opener JavaScript interception only on desktop and keeps native routing", () => {
+    const rust = read("../src-tauri/src/lib.rs");
+    expect(rust).toMatch(/#\[cfg\(desktop\)\][\s\S]*?Builder::new\(\)\.open_js_links_on_click\(false\)\.build\(\)/);
+    expect(rust).toMatch(/#\[cfg\(mobile\)\][\s\S]*?tauri_plugin_opener::init\(\)/);
+    const desktop = read("../src-tauri/src/desktop.rs");
+    expect(desktop).toMatch(/\.on_navigation\([\s\S]*?\.opener\(\)\.open_url/);
+    expect(desktop).toMatch(/\.on_new_window\([\s\S]*?\.opener\(\)\.open_url/);
+    expect(desktop).toContain("is_online_navigation_allowed(url)");
+    expect(desktop).toContain("fn is_local_game_url");
+    expect(rust).toContain("fn is_online_navigation_allowed(url: &Url)");
+    expect(onlineCapability.permissions).toEqual([]);
+    expect(gameCapability.permissions).toEqual([]);
+  });
+
   it("keeps the local game and its windows off the mobile build", () => {
     const rust = read("../src-tauri/src/lib.rs");
     expect(rust).toMatch(/#\[cfg\(desktop\)\]\s*mod desktop;/);
