@@ -19,6 +19,8 @@
 mod ask;
 #[cfg(desktop)]
 mod desktop;
+#[cfg(all(desktop, feature = "desktop-smoke"))]
+mod desktop_smoke;
 #[cfg(desktop)]
 mod desktop_alerts;
 #[cfg(desktop)]

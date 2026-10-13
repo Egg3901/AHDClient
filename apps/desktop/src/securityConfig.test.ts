@@ -322,6 +322,30 @@ describe("desktop security configuration", () => {
     expect(gameCapability.permissions).toEqual([]);
   });
 
+  it("keeps the native WebKit smoke fixture feature-gated and capability-empty", () => {
+    const cargo = read("../src-tauri/Cargo.toml");
+    expect(cargo).toMatch(/desktop-smoke = \[\]/);
+    expect(cargo.match(/^default = \[(.*)\]$/m)?.[1]).not.toContain("desktop-smoke");
+
+    const entrypoint = read("../src-tauri/src/lib.rs");
+    expect(entrypoint).toContain('#[cfg(all(desktop, feature = "desktop-smoke"))]\nmod desktop_smoke;');
+    const desktop = read("../src-tauri/src/desktop.rs");
+    expect(desktop).toMatch(/#\[cfg\(feature = "desktop-smoke"\)\][\s\S]*?desktop_smoke::open/);
+    expect(desktop).toMatch(/\.on_navigation\(move \|url\| game_window_navigation\(&nav_app, url, port\)\)/);
+    expect(desktop).toMatch(/\.on_new_window\(move \|url, _features\| game_window_new_window\(&new_window_app, url\)\)/);
+    const smoke = read("../src-tauri/src/desktop_smoke.rs");
+    expect(smoke).toContain('WebviewWindowBuilder::new(app, "game", WebviewUrl::External(url))');
+    expect(smoke).toContain(".on_document_title_changed(|window, title|");
+    expect(smoke).toContain("crate::desktop::game_window_navigation(&navigation_app, url, port)");
+    expect(smoke).toContain("crate::desktop::game_window_new_window(&popup_app, url)");
+    expect(smoke).not.toMatch(/__TAURI_INTERNALS__|\.invoke\(/);
+    expect(smoke).toContain("https://example.invalid/desktop-smoke-blank");
+    expect(smoke).toContain("https://example.invalid/desktop-smoke-self");
+    expect(gameCapability.permissions).toEqual([]);
+    expect(onlineCapability.permissions).toEqual([]);
+    expect(read("../../../.github/workflows/desktop-smoke.yml")).not.toMatch(/secrets\.|tauri-action|upload-artifact/);
+  });
+
   it("keeps the local game and its windows off the mobile build", () => {
     const rust = read("../src-tauri/src/lib.rs");
     expect(rust).toMatch(/#\[cfg\(desktop\)\]\s*mod desktop;/);

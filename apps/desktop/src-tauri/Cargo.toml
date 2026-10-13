@@ -50,3 +50,4 @@ tar = "0.4"
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+desktop-smoke = []

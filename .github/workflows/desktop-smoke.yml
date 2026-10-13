@@ -1,0 +1,39 @@
+name: desktop webview smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-webview-smoke:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install WebKit and headless display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils xvfb xdotool
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - run: npm ci
+      - run: npm run build:web --workspace apps/desktop
+      - name: Build the Linux desktop smoke feature
+        run: cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml --features desktop-smoke
+      - name: Exercise native confirm and guarded external links
+        run: xvfb-run -a scripts/desktop-smoke-linux.sh apps/desktop/src-tauri/target/debug/ahdclient-desktop

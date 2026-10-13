@@ -55,6 +55,24 @@ fn is_local_game_url(url: &Url, port: u16) -> bool {
     && url.port() == Some(port)
 }
 
+/// Keep the local-game navigation policy shared with the feature-gated smoke fixture.
+pub(crate) fn game_window_navigation(app: &AppHandle, url: &Url, port: u16) -> bool {
+  if handle_settings_shortcut(app, url) { return false; }
+  if is_frame_resource(url) { return true; }
+  if is_local_game_url(url, port) { return true; }
+
+  let _ = app.opener().open_url(url.to_string(), None::<&str>);
+  false
+}
+
+pub(crate) fn game_window_new_window(
+  app: &AppHandle,
+  url: Url,
+) -> tauri::webview::NewWindowResponse<tauri::Wry> {
+  let _ = app.opener().open_url(url.to_string(), None::<&str>);
+  tauri::webview::NewWindowResponse::Deny
+}
+
 // ---------------------------------------------------------------------------
 // Worlds: one data directory per slot
 // ---------------------------------------------------------------------------
@@ -742,20 +760,8 @@ pub(crate) async fn open_game_window(app: AppHandle, game: State<'_, Game>, path
     .inner_size(1440.0, 900.0)
     .center()
     .resizable(true)
-    .on_navigation(move |url| {
-      if handle_settings_shortcut(&nav_app, url) { return false; }
-      if is_frame_resource(url) { return true; }
-      if is_local_game_url(url, port) {
-        true
-      } else {
-        let _ = nav_app.opener().open_url(url.to_string(), None::<&str>);
-        false
-      }
-    })
-    .on_new_window(move |url, _features| {
-      let _ = new_window_app.opener().open_url(url.to_string(), None::<&str>);
-      tauri::webview::NewWindowResponse::Deny
-    })
+    .on_navigation(move |url| game_window_navigation(&nav_app, url, port))
+    .on_new_window(move |url, _features| game_window_new_window(&new_window_app, url))
     .build()
     .map_err(|e| e.to_string())?;
   window.on_window_event(move |event| {
@@ -904,6 +910,8 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
     .manage(crate::desktop_alerts::AlertState::default())
     .setup(|app| {
       crate::desktop_alerts::start(app.handle());
+      #[cfg(feature = "desktop-smoke")]
+      crate::desktop_smoke::open(app.handle())?;
       Ok(())
     })
     .manage(Game(Mutex::new(GameInner::default()), tokio::sync::Mutex::new(())))
