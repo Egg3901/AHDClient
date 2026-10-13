@@ -348,6 +348,9 @@ describe("desktop security configuration", () => {
     expect(smoke).toContain("desktop-smoke: webview built");
     const driver = read("../../../scripts/desktop-smoke-linux.sh");
     expect(driver).toContain("xwininfo -root -tree");
+    expect(driver).toContain('dialog_focus=$(xdotool getwindowfocus 2>/dev/null || true)');
+    expect(driver).toContain('native confirmation did not take keyboard focus');
+    expect(driver).toContain('xdotool mousemove --sync --window "$window"');
     expect(driver).toContain('tail -n 40 "$tmp/app.log"');
     expect(gameCapability.permissions).toEqual([]);
     expect(onlineCapability.permissions).toEqual([]);

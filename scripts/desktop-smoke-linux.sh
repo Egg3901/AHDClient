@@ -30,6 +30,13 @@ export XDG_CONFIG_HOME="$tmp/config"
 export XDG_CACHE_HOME="$tmp/cache"
 
 dump_debug() {
+  local focused
+  focused=$(xdotool getwindowfocus 2>/dev/null || true)
+  printf 'Focused X11 window: %s\n' "${focused:-<none>}" >&2
+  if [[ -n "$focused" ]]; then
+    xdotool getwindowname "$focused" >&2 2>/dev/null || true
+    xwininfo -id "$focused" 2>&1 >&2 || true
+  fi
   echo "X11 windows found by xdotool:" >&2
   for id in $(xdotool search --all --name '.*' 2>/dev/null || true); do
     printf 'window %s title=' "$id" >&2
@@ -59,15 +66,27 @@ xdotool windowfocus --sync "$window"
 
 click_and_wait_for_title() {
   local x=$1 y=$2 key=$3 expected=$4
-  xdotool mousemove --window "$window" "$x" "$y" click 1
-  sleep 0.4
+  xdotool mousemove --sync --window "$window" "$x" "$y" click 1
+  # A native WebKit confirm is a separate modal GTK window. Wait until it
+  # owns X11 keyboard focus so Return/Escape cannot be consumed by the page.
+  local dialog_focus=
+  for _ in $(seq 1 40); do
+    dialog_focus=$(xdotool getwindowfocus 2>/dev/null || true)
+    [[ -n "$dialog_focus" && "$dialog_focus" != "$window" ]] && break
+    sleep 0.125
+  done
+  if [[ -z "$dialog_focus" || "$dialog_focus" == "$window" ]]; then
+    echo "native confirmation did not take keyboard focus" >&2
+    dump_debug
+    return 1
+  fi
   xdotool key "$key"
   for _ in $(seq 1 40); do
     [[ "$(xdotool getwindowname "$window")" == "$expected" ]] && return 0
     sleep 0.25
   done
   echo "confirmation did not produce title $expected" >&2
-  tail -n 40 "$tmp/app.log" >&2 || true
+  dump_debug
   return 1
 }
 
