@@ -329,6 +329,10 @@ describe("desktop security configuration", () => {
 
     const entrypoint = read("../src-tauri/src/lib.rs");
     expect(entrypoint).toContain('#[cfg(all(desktop, feature = "desktop-smoke"))]\nmod desktop_smoke;');
+    expect(entrypoint).toContain('eprintln!("desktop-smoke: run entry reached; initializing Tauri builder");');
+    expect(entrypoint).toContain('eprintln!("desktop-smoke: plugins configured; building Tauri application");');
+    expect(entrypoint).toContain('eprintln!("desktop-smoke: Tauri build complete; entering runtime");');
+    expect(entrypoint).toContain('eprintln!("desktop-smoke: runtime emitted Ready");');
     const desktop = read("../src-tauri/src/desktop.rs");
     expect(desktop).toMatch(/#\[cfg\(feature = "desktop-smoke"\)\][\s\S]*?desktop_smoke::open/);
     expect(desktop).toMatch(/\.on_navigation\(move \|url\| game_window_navigation\(&nav_app, url, port\)\)/);
@@ -352,6 +356,7 @@ describe("desktop security configuration", () => {
     expect(productionConfig.bundle.resources).toEqual({ "resources/game": "game" });
     const workflow = read("../../../.github/workflows/desktop-smoke.yml");
     expect(workflow).toContain('TAURI_CONFIG: \'{"bundle":{"externalBin":[],"resources":null}}\'');
+    expect(workflow).toContain("xvfb-run -a dbus-run-session -- scripts/desktop-smoke-linux.sh");
     expect(workflow).not.toMatch(/secrets\.|tauri-action|upload-artifact/);
   });
 

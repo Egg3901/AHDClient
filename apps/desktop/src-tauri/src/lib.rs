@@ -362,6 +362,8 @@ async fn sign_out(app: AppHandle) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  #[cfg(all(desktop, feature = "desktop-smoke"))]
+  eprintln!("desktop-smoke: run entry reached; initializing Tauri builder");
   let builder = tauri::Builder::default()
     .plugin({
       #[cfg(desktop)]
@@ -376,10 +378,18 @@ pub fn run() {
   let builder = desktop::configure(builder);
   #[cfg(mobile)]
   let builder = mobile::configure(builder);
-  builder
+  #[cfg(all(desktop, feature = "desktop-smoke"))]
+  eprintln!("desktop-smoke: plugins configured; building Tauri application");
+  let app = builder
     .build(tauri::generate_context!())
-    .expect("error while building AHDClient")
-    .run(|app, event| {
+    .expect("error while building AHDClient");
+  #[cfg(all(desktop, feature = "desktop-smoke"))]
+  eprintln!("desktop-smoke: Tauri build complete; entering runtime");
+  app.run(|app, event| {
+      #[cfg(all(desktop, feature = "desktop-smoke"))]
+      if matches!(&event, tauri::RunEvent::Ready) {
+        eprintln!("desktop-smoke: runtime emitted Ready");
+      }
       #[cfg(desktop)]
       if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
         desktop::on_exit(app);
