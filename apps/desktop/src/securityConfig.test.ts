@@ -341,6 +341,10 @@ describe("desktop security configuration", () => {
     expect(smoke).not.toMatch(/__TAURI_INTERNALS__|\.invoke\(/);
     expect(smoke).toContain("https://example.invalid/desktop-smoke-blank");
     expect(smoke).toContain("https://example.invalid/desktop-smoke-self");
+    expect(smoke).toContain("desktop-smoke: webview built");
+    const driver = read("../../../scripts/desktop-smoke-linux.sh");
+    expect(driver).toContain("xwininfo -root -tree");
+    expect(driver).toContain('tail -n 40 "$tmp/app.log"');
     expect(gameCapability.permissions).toEqual([]);
     expect(onlineCapability.permissions).toEqual([]);
     const productionConfig = JSON.parse(read("../src-tauri/tauri.conf.json"));

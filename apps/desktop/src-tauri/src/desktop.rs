@@ -911,6 +911,8 @@ pub(crate) fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<t
     .setup(|app| {
       crate::desktop_alerts::start(app.handle());
       #[cfg(feature = "desktop-smoke")]
+      eprintln!("desktop-smoke: startup setup hook running; creating fixture window");
+      #[cfg(feature = "desktop-smoke")]
       crate::desktop_smoke::open(app.handle())?;
       Ok(())
     })

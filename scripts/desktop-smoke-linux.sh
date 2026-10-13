@@ -5,7 +5,7 @@ if [[ $# -ne 1 || ! -x "$1" ]]; then
   echo "usage: $0 /path/to/ahdclient-desktop" >&2
   exit 2
 fi
-for tool in xdotool timeout; do
+for tool in xdotool timeout xwininfo; do
   command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 2; }
 done
 
@@ -29,16 +29,32 @@ export XDG_DATA_HOME="$tmp/data"
 export XDG_CONFIG_HOME="$tmp/config"
 export XDG_CACHE_HOME="$tmp/cache"
 
+dump_debug() {
+  echo "X11 windows found by xdotool:" >&2
+  for id in $(xdotool search --all --name '.*' 2>/dev/null || true); do
+    printf 'window %s title=' "$id" >&2
+    xdotool getwindowname "$id" 2>/dev/null >&2 || true
+  done
+  echo "X11 root tree:" >&2
+  xwininfo -root -tree 2>&1 >&2 || true
+  echo "Application log tail:" >&2
+  tail -n 40 "$tmp/app.log" >&2 || true
+}
+
 timeout --signal=TERM 90s "$binary" >"$tmp/app.log" 2>&1 &
 app_pid=$!
 window=
 for _ in $(seq 1 80); do
   window=$(xdotool search --onlyvisible --name '^desktop-smoke-ready$' 2>/dev/null | head -n 1 || true)
   [[ -n "$window" ]] && break
-  kill -0 "$app_pid" 2>/dev/null || { cat "$tmp/app.log" >&2; exit 1; }
+  kill -0 "$app_pid" 2>/dev/null || { dump_debug; exit 1; }
   sleep 0.25
 done
-[[ -n "$window" ]] || { cat "$tmp/app.log" >&2; echo "smoke window did not appear" >&2; exit 1; }
+if [[ -z "$window" ]]; then
+  echo "smoke window did not appear" >&2
+  dump_debug
+  exit 1
+fi
 xdotool windowfocus --sync "$window"
 
 click_and_wait_for_title() {
@@ -51,7 +67,7 @@ click_and_wait_for_title() {
     sleep 0.25
   done
   echo "confirmation did not produce title $expected" >&2
-  cat "$tmp/app.log" >&2
+  tail -n 40 "$tmp/app.log" >&2 || true
   return 1
 }
 
@@ -74,5 +90,6 @@ for _ in $(seq 1 40); do
   sleep 0.25
 done
 echo "expected external URLs were not handed to the isolated xdg-open stub" >&2
-cat "$tmp/opened-urls" "$tmp/app.log" 2>/dev/null >&2 || true
+cat "$tmp/opened-urls" 2>/dev/null >&2 || true
+tail -n 40 "$tmp/app.log" >&2 || true
 exit 1

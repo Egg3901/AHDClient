@@ -29,14 +29,17 @@ const FIXTURE: &str = r#"<!doctype html>
 /// Start a loopback-only fixture server and open it with the same game label,
 /// capability and navigation policy used by the production standalone game.
 pub(crate) fn open(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+  eprintln!("desktop-smoke: binding fixture server");
   let listener = TcpListener::bind(("127.0.0.1", 0))?;
   let port = listener.local_addr()?.port();
+  eprintln!("desktop-smoke: fixture server bound at 127.0.0.1:{port}");
   thread::Builder::new()
     .name("desktop-smoke-fixture".into())
     .spawn(move || {
       for mut stream in listener.incoming().flatten() {
         let mut request = [0_u8; 1024];
         let _ = stream.read(&mut request);
+        eprintln!("desktop-smoke: served fixture request");
         let response = format!(
           "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
           FIXTURE.len(), FIXTURE
@@ -50,16 +53,28 @@ pub(crate) fn open(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     .map_err(|error| format!("invalid smoke fixture URL: {error}"))?;
   let navigation_app = app.clone();
   let popup_app = app.clone();
-  WebviewWindowBuilder::new(app, "game", WebviewUrl::External(url))
+  eprintln!("desktop-smoke: building webview label=game url={url}");
+  let window = WebviewWindowBuilder::new(app, "game", WebviewUrl::External(url))
     .title("desktop-smoke-ready")
     .inner_size(640.0, 360.0)
     .center()
     .on_document_title_changed(|window, title| {
+      eprintln!("desktop-smoke: document title changed label={} title={title:?}", window.label());
       let _ = window.set_title(&title);
+    })
+    .on_page_load(|window, payload| {
+      eprintln!(
+        "desktop-smoke: page load label={} event={:?} url={} visible={:?} title={:?}",
+        window.label(), payload.event(), payload.url(), window.is_visible(), window.title()
+      );
     })
     .on_navigation(move |url| crate::desktop::game_window_navigation(&navigation_app, url, port))
     .on_new_window(move |url, _features| crate::desktop::game_window_new_window(&popup_app, url))
     .build()?;
+  eprintln!(
+    "desktop-smoke: webview built label={} visible={:?} title={:?} url={:?}",
+    window.label(), window.is_visible(), window.title(), window.url()
+  );
 
   Ok(())
 }
