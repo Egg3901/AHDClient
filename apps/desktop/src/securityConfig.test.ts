@@ -343,7 +343,12 @@ describe("desktop security configuration", () => {
     expect(smoke).toContain("https://example.invalid/desktop-smoke-self");
     expect(gameCapability.permissions).toEqual([]);
     expect(onlineCapability.permissions).toEqual([]);
-    expect(read("../../../.github/workflows/desktop-smoke.yml")).not.toMatch(/secrets\.|tauri-action|upload-artifact/);
+    const productionConfig = JSON.parse(read("../src-tauri/tauri.conf.json"));
+    expect(productionConfig.bundle.externalBin).toEqual(["binaries/ahd-node"]);
+    expect(productionConfig.bundle.resources).toEqual({ "resources/game": "game" });
+    const workflow = read("../../../.github/workflows/desktop-smoke.yml");
+    expect(workflow).toContain('TAURI_CONFIG: \'{"bundle":{"externalBin":[],"resources":null}}\'');
+    expect(workflow).not.toMatch(/secrets\.|tauri-action|upload-artifact/);
   });
 
   it("keeps the local game and its windows off the mobile build", () => {
