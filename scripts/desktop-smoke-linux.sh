@@ -25,6 +25,9 @@ OPENER
 chmod +x "$tmp/bin/xdg-open"
 export AHD_SMOKE_OPEN_LOG="$tmp/opened-urls"
 export PATH="$tmp/bin:$PATH"
+export XDG_DATA_HOME="$tmp/data"
+export XDG_CONFIG_HOME="$tmp/config"
+export XDG_CACHE_HOME="$tmp/cache"
 
 timeout --signal=TERM 90s "$binary" >"$tmp/app.log" 2>&1 &
 app_pid=$!
