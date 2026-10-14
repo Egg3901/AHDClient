@@ -47,7 +47,8 @@ const AUTONOMY_OPTIONS: readonly { value: SetupAutonomy; label: string; descript
   { value: "v2", label: "V2", description: "Brings the v1 governing brain into player countries and player-owned companies." },
   { value: "v3", label: "V3", description: "Politicians campaign, fundraise, run for and win office, legislate, and manage personal finances like players do." },
   { value: "v4", label: "V4", description: "Full political life in every country, with tighter bill sponsorship throttles where you play. This is what the live multiplayer world runs." },
-  { value: "v5", label: "V5 (Beta)", description: "Governments hold long-term goals and follow through on them instead of re-deciding every cycle." },
+  { value: "v5", label: "V5", description: "Governments hold long-term goals and follow through on them instead of re-deciding every cycle." },
+  { value: "v6", label: "V6 (NPP engine 6)", description: "The same activities as the tier above, decided better: stronger candidates in winnable races, rallies, vote counting before bills, central banks that defend the currency, and votes shaped by business interests. No extra money or action points. See the NPP changelog." },
 ];
 
 /** Tiers the live world has moved past. Still selectable, under disclosure. */
@@ -140,7 +141,7 @@ export function NewWorldScreen({
       />{" "}
       <strong>
         {option.label}
-        {option.value === "v4" && <span className="client-beta"> Recommended</span>}
+        {option.value === "v6" && <span className="client-beta"> Recommended</span>}
       </strong>
       <small>{option.description}</small>
     </label>

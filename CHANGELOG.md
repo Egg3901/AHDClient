@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- New local worlds now start with autonomous politicians on V6, NPP engine 6: the same activities as V5, decided better, with no extra money or action points. V6 is listed and recommended in world setup, and the older tiers stay selectable.
 - Desktop links now use the app's guarded native routing instead of the opener plugin's automatic JavaScript click handler.
 - Desktop confirmation dialogs now use the webview's normal prompts instead of an app-wide native dialog handler.
 

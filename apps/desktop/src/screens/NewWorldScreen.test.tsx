@@ -22,7 +22,7 @@ describe("NewWorldScreen", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Create and play/ }));
     expect(onCreate).toHaveBeenCalledWith("Cold War dawn, 1953", "", expect.objectContaining({
-      mode: "normal", difficulty: "normal", autonomyLevel: "v4",
+      mode: "normal", difficulty: "normal", autonomyLevel: "v6",
     }));
     expect(onCreate.mock.calls[0]?.[2].featureFlags).toMatchObject({ forexEnabled: true, autoSectorSeedEnabled: false, nppCorpStrategyEnabled: true });
   });
@@ -40,16 +40,16 @@ describe("NewWorldScreen", () => {
 
     expect(onCreate.mock.calls[0]?.[2]).toMatchObject({ mode: "head-of-state", difficulty: "hard", autonomyLevel: "v3" });
     expect(screen.getByRole("option", { name: /Easy/ })).toBeTruthy();
-    // Only tiers the game's setup route accepts are offered. v5 is now one of
-    // them; v6 is the guard that this list is not just "whatever we typed".
-    expect(screen.queryByRole("radio", { name: /v6/i })).toBeNull();
+    // Only tiers the game's setup route accepts are offered. v6 is now one of
+    // them; v7 is the guard that this list is not just "whatever we typed".
+    expect(screen.queryByRole("radio", { name: /v7/i })).toBeNull();
   });
 
-  it("offers the v5 tier and submits it, without making it the default", async () => {
+  it("defaults to v6 and still offers and submits v5", async () => {
     const onCreate = vi.fn();
     render(<NewWorldScreen era={era} taken={[]} onBack={vi.fn()} onCreate={onCreate} />);
 
-    expect((screen.getByRole("radio", { name: /V4/ }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("radio", { name: /V6/ }) as HTMLInputElement).checked).toBe(true);
     await userEvent.click(screen.getByRole("radio", { name: /V5/ }));
     await userEvent.click(screen.getByRole("button", { name: /Create and play/ }));
     expect(onCreate.mock.calls[0]?.[2]).toMatchObject({ autonomyLevel: "v5" });
@@ -73,9 +73,10 @@ describe("NewWorldScreen", () => {
     expect(screen.getByText(/campaign, fundraise, run for and win office/)).toBeTruthy();
   });
 
-  it("keeps older tiers under disclosure with v4 recommended up front", () => {
+  it("keeps older tiers under disclosure with v6 recommended up front", () => {
     const { container } = render(<NewWorldScreen era={era} taken={[]} onBack={vi.fn()} onCreate={vi.fn()} />);
-    expect(screen.getByRole("radio", { name: /V4.*Recommended/ })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /V6.*Recommended/ })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /^V4/ })).toBeTruthy();
     expect(screen.getByRole("radio", { name: /V5/ })).toBeTruthy();
     const disclosure = screen.getByText("Older autonomy tiers").closest("details")!;
     expect(disclosure.querySelector('input[value="v0"]')).toBeTruthy();
@@ -143,7 +144,7 @@ describe("NewWorldScreen", () => {
     expect(screen.getByRole("radio", { name: /^Normal/ })).toBeTruthy();
   });
 
-  it("labels v4 as the live standard and keeps v5 Beta goal follow-through", async () => {
+  it("labels v4 as the live standard and keeps v5 goal follow-through", async () => {
     render(<NewWorldScreen era={era} taken={[]} onBack={vi.fn()} onCreate={vi.fn()} />);
     expect(screen.getByText(/what the live multiplayer world runs/)).toBeTruthy();
     await userEvent.click(screen.getByRole("radio", { name: /V5/ }));

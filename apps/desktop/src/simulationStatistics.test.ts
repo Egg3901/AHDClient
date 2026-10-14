@@ -302,7 +302,7 @@ describe("autonomy allowlist", () => {
    * silently stops reporting — the failure is invisible from both ends.
    */
   it("accepts every tier the game defines, including v5", () => {
-    for (const autonomy of ["off", "v0", "v1", "v2", "v3", "v4", "v5"]) {
+    for (const autonomy of ["off", "v0", "v1", "v2", "v3", "v4", "v5", "v6"]) {
       const input = validInput();
       input.setup.autonomy = autonomy;
       expect(buildStatisticsReport(input, { nowMs: NOW, appVersion: "2.0.1" }).ok).toBe(true);
@@ -311,7 +311,7 @@ describe("autonomy allowlist", () => {
 
   it("still refuses a tier that does not exist", () => {
     const input = validInput();
-    input.setup.autonomy = "v6";
+    input.setup.autonomy = "v7";
     expect(buildStatisticsReport(input, { nowMs: NOW, appVersion: "2.0.1" }).ok).toBe(false);
   });
 });
