@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       apps:
-        description: App to deliver (Lakeside Ops moved to Egg3901/lakeside-ops)
+        description: App to deliver (Lakeside Ops moved to lakesidegamedev/lakeside-ops)
         type: choice
         options: [ask]
         default: ask
