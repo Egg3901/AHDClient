@@ -85,7 +85,7 @@ jobs:
       - name: Check out the game
         uses: actions/checkout@v4
         with:
-          repository: Egg3901/AHDGame
+          repository: lakesidegamedev/AHDGame
           ref: ${{ inputs.game_ref || vars.AHDGAME_REF || 'main' }}
           path: vendor/AHDGame
       - name: Stage Node and the game build

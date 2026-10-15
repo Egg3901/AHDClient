@@ -414,7 +414,7 @@ describe("desktop platform configuration", () => {
 
   it("stages the game before every native bundle", () => {
     const workflow = read("../../../.github/workflows/release-desktop.yml");
-    expect(workflow).toContain("Egg3901/AHDGame");
+    expect(workflow).toContain("lakesidegamedev/AHDGame");
     expect(workflow).toContain("scripts/prepare-game.mjs");
     for (const needle of [
       "ubuntu-22.04",
