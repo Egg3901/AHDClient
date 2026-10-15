@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 // Copy verified artwork. Headless AppKit drawing previously emitted solid black icons.
-for folder in ["Ask", "Ops"] {
+for folder in ["Ask"] {
     let source = URL(fileURLWithPath: "Artwork/" + folder + "Icon.png")
     let data = try Data(contentsOf: source)
     guard let bitmap = NSBitmapImageRep(data: data), bitmap.pixelsWide == 1024, bitmap.pixelsHigh == 1024, !bitmap.hasAlpha else {

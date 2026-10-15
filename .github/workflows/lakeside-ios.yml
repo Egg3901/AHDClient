@@ -9,10 +9,10 @@ on:
   workflow_dispatch:
     inputs:
       apps:
-        description: Apps to deliver (both apps still run simulator checks)
+        description: App to deliver (Lakeside Ops moved to Egg3901/lakeside-ops)
         type: choice
-        options: [both, ops, ask]
-        default: both
+        options: [ask]
+        default: ask
       release:
         description: Build signed archives and upload if App Store Connect records exist
         type: boolean
@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [LakesideAsk, LakesideOps]
+        app: [LakesideAsk]
     defaults:
       run:
         working-directory: apps/lakeside-ios
@@ -83,7 +83,6 @@ jobs:
           xcodegen generate
       - name: Build and deliver selected apps
         env:
-          LAKESIDE_RELEASE_TARGET: ${{ inputs.apps || 'both' }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
