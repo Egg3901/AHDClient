@@ -6,7 +6,7 @@ description = "A House Divided desktop client: the real game, run locally"
 authors = ["Lakeside Games"]
 publish = false
 license-file = "../../../LICENSE.md"
-repository = "https://github.com/Egg3901/AHDClient"
+repository = "https://github.com/lakesidegamedev/AHDClient"
 rust-version = "1.77.2"
 
 [lib]

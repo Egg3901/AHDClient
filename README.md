@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Egg3901/AHDClient/actions/workflows/verify.yml"><img src="https://github.com/Egg3901/AHDClient/actions/workflows/verify.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/lakesidegamedev/AHDClient/actions/workflows/verify.yml"><img src="https://github.com/lakesidegamedev/AHDClient/actions/workflows/verify.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/version-2.3.8-informational" alt="Version">
   <img src="https://img.shields.io/badge/license-proprietary-red" alt="License">
 </p>
@@ -58,7 +58,7 @@ requests run. All cards show their update time, and saved stats expire after
 
 ## Download
 
-Builds are published on [GitHub Releases](https://github.com/Egg3901/AHDClient/releases/latest): a Windows x64 installer, macOS disk images for Apple silicon and Intel, and Linux AppImage and Debian packages. Release binaries are unsigned, so Windows SmartScreen and macOS Gatekeeper may ask for explicit approval. Android ships as an APK for sideloading and a Play bundle; iOS builds are prepared for the App Store and TestFlight.
+Builds are published on [GitHub Releases](https://github.com/lakesidegamedev/AHDClient/releases/latest): a Windows x64 installer, macOS disk images for Apple silicon and Intel, and Linux AppImage and Debian packages. Release binaries are unsigned, so Windows SmartScreen and macOS Gatekeeper may ask for explicit approval. Android ships as an APK for sideloading and a Play bundle; iOS builds are prepared for the App Store and TestFlight.
 
 The first world you create downloads the MongoDB server (about 30 MB on Windows, 90 to 100 MB elsewhere). Everything after that is offline, including art the game has shown you once.
 
@@ -93,7 +93,7 @@ The binding contract with the game repository and the security doctrine live in 
 
 ## Development
 
-Requires Node 22 and Rust (plus `libwebkit2gtk-4.1-dev` on Linux), and an [AHDGame](https://github.com/Egg3901/AHDGame) checkout for the game itself.
+Requires Node 22 and Rust (plus `libwebkit2gtk-4.1-dev` on Linux), and an [AHDGame](https://github.com/lakesidegamedev/AHDGame) checkout for the game itself.
 
 ```
 npm install
