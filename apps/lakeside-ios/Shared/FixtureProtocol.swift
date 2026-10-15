@@ -80,6 +80,27 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
     }
     private static let watchState = WatchState()
     private static let work = WorkFixture()
+    private final class KeirState: @unchecked Sendable {
+        let lock = NSLock()
+        var messages: [[String: Any]] = [
+            ["seq": 1, "id": "app-1", "role": "owner", "text": "How did the last turn go?", "at": 1792020000000],
+            ["seq": 2, "id": "app-2", "role": "keir", "text": "Turn 202 ran clean in 41s. One warning: index fund settlement for MNM, already tracked in #4151.", "at": 1792020060000]]
+        var decisions: [[String: Any]] = [["id": "abcdefabcdef", "question": "Merge AHDGame #4184 (NPP overcapacity retirement) into development? Checks are green.", "tldr": "Merge #4184 to development", "at": 1792020000000, "ticket": NSNull(), "signoff": false]]
+        func thread(after: Int) -> [String: Any] {
+            lock.lock(); defer { lock.unlock() }
+            return ["cursor": messages.count, "version": "v\(messages.count)", "messages": messages.filter { ($0["seq"] as? Int ?? 0) > after }, "tasks": [] as [Any], "working": false]
+        }
+        func post(_ text: String) -> [String: Any] {
+            lock.lock(); defer { lock.unlock() }
+            let owner: [String: Any] = ["seq": messages.count + 1, "id": "app-\(messages.count + 1)", "role": "owner", "text": text, "at": 1792020100000]
+            messages.append(owner)
+            messages.append(["seq": messages.count + 1, "id": "app-\(messages.count + 1)", "role": "keir", "text": "Two PRs are waiting on you: #4184 and #4178.", "at": 1792020110000])
+            return ["message": owner, "jobId": "job-1"]
+        }
+        func answer(_ id: String) -> [String: Any] { lock.lock(); defer { lock.unlock() }; decisions.removeAll { $0["id"] as? String == id }; return ["id": id, "state": "approve"] }
+        func open() -> [[String: Any]] { lock.lock(); defer { lock.unlock() }; return decisions }
+    }
+    private static let keir = KeirState()
 
     private func bodyObject() -> [String: Any]? {
         var data = request.httpBody ?? Data()
@@ -131,6 +152,14 @@ final class FixtureProtocol: URLProtocol, @unchecked Sendable {
             } else {
                 value = ["email": "operator@example.test", "role": "admin"]
             }
+        case "/api/keir/app/thread": value = Self.keir.thread(after: Int(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "after" }?.value ?? "0") ?? 0)
+        case "/api/keir/app/messages": value = Self.keir.post(bodyObject()?["text"] as? String ?? ""); status = 201
+        case "/api/keir/app/decisions": value = ["decisions": Self.keir.open()]
+        case "/api/keir/app/decisions/abcdefabcdef": value = Self.keir.answer("abcdefabcdef")
+        case "/api/keir/app/alerts": value = ["alerts": [["key": "error:watch-recurring:turn", "kind": "incident", "text": "Turn warning repeated after the fix: index fund settlement for MNM.", "at": 1792019000000]]]
+        case "/api/keir/app/devices": value = ["registered": true]
+        case "/api/keir/app/cancel": value = ["state": "cancelled"]
+        case "/api/status", "/api/keir/hub", "/api/kanban/brief", "/api/scheduler": value = OpsFixtures.value(url.path)
         case "/api/ops/bootstrap": value = ["cursor": 0, "conversation": ["id": 1], "conversations": [["id": 1, "title": "Build the studio hub"]], "staff": [["id": "staff-1", "name": "Release engineer", "role": "Maintain release quality", "provider": "auto"]], "workers": [["id": "worker-1", "name": "Export repair", "brief": "Repair and verify the export flow.", "job_status": "completed", "runtime_provider": "codex", "permissions": [], "result": "Export fixed. All checks passed."]]]
         case "/api/chat/turns": value = ["turns": [["id": 1, "role": "owner", "body": "Help me build the studio hub.", "status": "done"], ["id": 2, "role": "assistant", "body": "The export worker has finished. I am checking the changes before accepting them.", "status": "done", "route": ["label": "Muse"], "actions": [["name": "bash", "label": "Run export checks", "command": "npm test", "output": "All 12 checks passed", "state": "completed", "exitCode": 0]]]]]
             if ProcessInfo.processInfo.arguments.contains("--uitest-live-activity") {
@@ -268,5 +297,51 @@ data: {"convId":"fixture-conversation","answerId":43,"answer":"Verified final an
         client?.urlProtocol(self, didLoad: data); if finish { client?.urlProtocolDidFinishLoading(self) }
     }
     override func stopLoading() {}
+}
+
+/// Ops 2.0 fixtures, typed explicitly so the compiler never has to infer them.
+enum OpsFixtures {
+    static func value(_ path: String) -> [String: Any] {
+        switch path {
+        case "/api/status": return ["updated": "2026-10-15T02:43:31Z", "services": [service("production", "A House Divided", "operational", 167, 99.85, dip: 21), service("ask", "Lakeside Ask", "degraded", 912, 98.1, dip: 28)]]
+        case "/api/keir/hub": return hub()
+        case "/api/kanban/brief": return kanban()
+        default: return ["host": host()]
+        }
+    }
+    static func service(_ id: String, _ name: String, _ current: String, _ latency: Int, _ uptime: Double, dip: Int) -> [String: Any] {
+        var history: [[String: Any]] = []
+        for day in 0..<30 { history.append(["date": "d\(day)", "pct": day == dip ? 96.2 : 100.0]) }
+        return ["id": id, "name": name, "current": current, "latencyMs": latency, "uptime7d": uptime, "lastChecked": "2026-10-15T02:43:31Z", "history": history]
+    }
+    static func hub() -> [String: Any] {
+        var activity: [[String: Any]] = []
+        for hour in 0..<24 {
+            let at: Double = 1791946800000 + Double(hour) * 3600000
+            activity.append(["at": at, "claude": hour % 3, "codex": 1, "muse": hour % 5, "agy": 0, "other": 0])
+        }
+        let kpis: [String: Any] = ["live": 6, "running": 2, "openTickets": 3, "prsOpen": 2, "prsRed": 1, "successRate24h": 0.87]
+        let worker: [String: Any] = ["id": "w1", "kind": "ticket", "role": "support", "state": "running", "ticket": 1561, "runner": "claude", "model": "claude-opus-5-5",
+            "effort": "medium", "rounds": 14, "via": "rust", "updatedAt": 1792020000000.0, "summary": "Verifying the funding fix on main before answering the player."]
+        let item: [String: Any] = ["name": "Index listing requests in your cabinet office", "stage": "main", "blocked": false, "note": "Live on the main server."]
+        let card: [String: Any] = ["status": "Department funding at 0 is intended when its laws cost nothing.", "items": [item]]
+        let ticket: [String: Any] = ["number": 1561, "title": "cab funding and index funding", "status": "open", "category": "bug", "createdAt": 1792010000000.0,
+            "prs": [4178], "decisionPending": false, "active": ["state": "running"], "card": card]
+        let empty: [Any] = []
+        return ["paused": false, "kpis": kpis, "activity": activity, "workers": [worker], "recent": empty, "tickets": [ticket]]
+    }
+    static func kanban() -> [String: Any] {
+        let needs: [String: Any] = ["id": 1, "title": "Pick the 1991 seed sector mix", "product": "a-house-divided", "lane": "next", "needs_owner": true, "assigned_to": "", "impact": "high", "updated_at": "2026-10-14T20:00:00Z"]
+        let now: [String: Any] = ["id": 2, "title": "Keir chat in Lakeside Ops", "product": "a-house-divided", "lane": "now", "assigned_to": "claude", "impact": "medium",
+            "progress_summary": "Operator app channel and push are built.", "last_progress_at": "2026-10-15T02:40:00Z"]
+        let blocked: [String: Any] = ["id": 3, "title": "Turn worker release gate", "product": "a-house-divided", "lane": "blocked", "assigned_to": "codex", "impact": "high", "updated_at": "2026-10-14T18:00:00Z"]
+        let counts: [String: Any] = ["needs_owner": 1, "now": 1, "blocked": 1, "next": 0]
+        let empty: [Any] = []
+        return ["counts": counts, "needs_owner": [needs], "now": [now], "blocked": [blocked], "next": empty]
+    }
+    static func host() -> [String: Any] {
+        let memory: [String: Any] = ["usedPct": 32], disk: [String: Any] = ["usedPct": 36], checks: [String: Any] = ["running": 0, "queued": 1]
+        return ["cpuUsedPct": 21, "load": [4.7, 5.4, 3.7], "memory": memory, "disk": disk, "checks": checks]
+    }
 }
 #endif

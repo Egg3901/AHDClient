@@ -3,17 +3,30 @@ import XCTest
 final class LaunchTests: XCTestCase {
     func testNativeAuthenticatedScreens() {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        if app.tabBars.buttons["Team"].waitForExistence(timeout: 5) {
-            XCTAssertTrue(app.staticTexts["Help me build the studio hub."].waitForExistence(timeout: 10))
-            capture(app, "Ops assistant")
-            app.tabBars.buttons["Team"].tap()
-            let worker = app.staticTexts["Export repair"]
-            XCTAssertTrue(worker.waitForExistence(timeout: 10)); worker.tap()
-            XCTAssertTrue(app.staticTexts["Export fixed. All checks passed."].waitForExistence(timeout: 10))
-            capture(app, "Ops worker report")
-            app.tabBars.buttons["Usage"].tap()
-            XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "5-hour allowance")).firstMatch.waitForExistence(timeout: 10))
-            capture(app, "Ops measured usage")
+        if app.tabBars.buttons["Keir"].waitForExistence(timeout: 5) {
+            XCTAssertTrue(app.staticTexts["How did the last turn go?"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.buttons["decision-approve"].waitForExistence(timeout: 10))
+            capture(app, "Ops Keir thread with a decision")
+            let composer = app.textFields["keir-composer"].exists ? app.textFields["keir-composer"] : app.textViews["keir-composer"]
+            XCTAssertTrue(composer.waitForExistence(timeout: 5)); composer.tap(); composer.typeText("Which PRs are waiting on me?")
+            app.buttons["keir-send"].tap()
+            XCTAssertTrue(app.staticTexts["Two PRs are waiting on you: #4184 and #4178."].waitForExistence(timeout: 15))
+            capture(app, "Ops Keir reply")
+            app.buttons["decision-approve"].tap()
+            XCTAssertFalse(app.buttons["decision-approve"].waitForExistence(timeout: 3))
+            app.tabBars.buttons["Pulse"].tap()
+            XCTAssertTrue(app.staticTexts["Lakeside Ask is degraded"].waitForExistence(timeout: 10))
+            capture(app, "Ops pulse")
+            app.swipeUp(); capture(app, "Ops pulse services and activity")
+            app.tabBars.buttons["Desk"].tap()
+            XCTAssertTrue(app.staticTexts["cab funding and index funding"].waitForExistence(timeout: 10))
+            capture(app, "Ops desk")
+            app.staticTexts["cab funding and index funding"].tap()
+            XCTAssertTrue(app.staticTexts["Index listing requests in your cabinet office"].waitForExistence(timeout: 10))
+            capture(app, "Ops ticket detail")
+            app.tabBars.buttons["Work"].tap()
+            XCTAssertTrue(app.staticTexts["Keir chat in Lakeside Ops"].waitForExistence(timeout: 10))
+            capture(app, "Ops work")
         } else {
             let conversation = app.staticTexts["How does inflation work?"]
             XCTAssertTrue(conversation.waitForExistence(timeout: 10)); conversation.tap()
@@ -31,7 +44,7 @@ final class LaunchTests: XCTestCase {
     }
     func testAskOptionsUsageAndStarters() throws {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        if app.tabBars.buttons["Team"].waitForExistence(timeout: 3) { throw XCTSkip("Ask features") }
+        if app.tabBars.buttons["Keir"].waitForExistence(timeout: 3) { throw XCTSkip("Ask features") }
         XCTAssertTrue(app.buttons["Daily allowance"].waitForExistence(timeout: 10))
         capture(app, "Ask 1.1 home")
         app.buttons["Daily allowance"].tap()
@@ -70,7 +83,7 @@ final class LaunchTests: XCTestCase {
     }
     func testNativeAskChartAndMap() throws {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures", "--uitest-visuals"]; app.launch()
-        if app.tabBars.buttons["Team"].waitForExistence(timeout: 3) { throw XCTSkip("Ask visualizations") }
+        if app.tabBars.buttons["Keir"].waitForExistence(timeout: 3) { throw XCTSkip("Ask visualizations") }
         let conversation = app.staticTexts["How does inflation work?"]
         XCTAssertTrue(conversation.waitForExistence(timeout: 10)); conversation.tap()
         XCTAssertTrue(app.staticTexts["GDP growth"].waitForExistence(timeout: 10))
@@ -80,111 +93,6 @@ final class LaunchTests: XCTestCase {
         XCTAssertTrue(expand.waitForExistence(timeout: 10)); expand.tap()
         XCTAssertTrue(app.navigationBars["Game map"].waitForExistence(timeout: 5))
         capture(app, "Native Ask map")
-        XCTAssertEqual(app.webViews.count, 0)
-    }
-    func testOpsWorkbench() throws {
-        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        guard app.tabBars.buttons["Hub"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops workbench") }
-        app.buttons["Conversations"].tap()
-        XCTAssertTrue(app.staticTexts["Build the studio hub"].waitForExistence(timeout: 5))
-        capture(app, "Ops conversation history")
-        app.buttons["Done"].tap()
-        app.tabBars.buttons["Hub"].tap()
-        app.buttons["ops-files-open"].tap()
-        app.staticTexts["Studio hub"].tap()
-        app.staticTexts["app.swift"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "let version")).firstMatch.waitForExistence(timeout: 5))
-        capture(app, "Ops source preview")
-        app.buttons["Changes"].tap()
-        XCTAssertTrue(app.staticTexts["+let version = 1.3"].waitForExistence(timeout: 5))
-        capture(app, "Ops file diff")
-        app.tabBars.buttons["Hub"].tap()
-        app.buttons["Schedules"].tap()
-        XCTAssertTrue(app.staticTexts["Morning review"].waitForExistence(timeout: 5))
-        capture(app, "Ops schedule controls")
-        XCTAssertEqual(app.webViews.count, 0)
-    }
-    func testOpsStaffAndActivity() throws {
-        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops staff") }
-        let activity = app.buttons["ops-activity"]
-        XCTAssertTrue(activity.waitForExistence(timeout: 10)); activity.tap()
-        let search = app.textFields["ops-activity-search"]
-        XCTAssertTrue(search.waitForExistence(timeout: 5))
-        search.tap(); search.typeText("missing-command\n")
-        XCTAssertTrue(app.staticTexts["No matching activity"].waitForExistence(timeout: 5))
-        capture(app, "Ops searchable activity")
-        app.tabBars.buttons["Team"].tap()
-        XCTAssertTrue(app.staticTexts["Release engineer"].waitForExistence(timeout: 5))
-        capture(app, "Ops staff and assignments")
-        app.staticTexts["Release engineer"].tap()
-        XCTAssertTrue(app.staticTexts["Verify exports before release."].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Export repair"].exists)
-        capture(app, "Ops persistent staff profile")
-        app.buttons["Assign work"].tap()
-        XCTAssertTrue(app.textFields["ops-assignment-title"].waitForExistence(timeout: 5))
-        capture(app, "Ops new assignment")
-        app.buttons["Cancel"].tap()
-        app.tabBars.buttons["Usage"].tap()
-        for _ in 0..<8 {
-            if app.buttons["Provider benchmarks"].isHittable { break }
-            app.swipeUp()
-        }
-        app.buttons["Provider benchmarks"].tap()
-        XCTAssertTrue(app.staticTexts["Measure before routing"].waitForExistence(timeout: 5))
-        capture(app, "Ops provider benchmarks")
-        XCTAssertEqual(app.webViews.count, 0)
-    }
-    func testOpsManualRoutingPersistsAndFreeRouterHasNoEffort() throws {
-        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops routing") }
-        let routing = app.buttons["ops-routing-open"]
-        XCTAssertTrue(routing.waitForExistence(timeout: 10)); waitForEnabled(routing); routing.tap()
-        let provider = app.descendants(matching: .any).matching(identifier: "ops-routing-provider").firstMatch
-        XCTAssertTrue(provider.waitForExistence(timeout: 10)); waitForEnabled(provider); provider.tap()
-        app.buttons["Grok"].tap()
-        let fallback = app.switches["ops-routing-fallback"]
-        XCTAssertEqual(fallback.value as? String, "0", "Manual routing must require an explicit fallback opt-in")
-        app.descendants(matching: .any).matching(identifier: "ops-routing-model").firstMatch.tap(); app.buttons["Fixture model"].tap()
-        app.descendants(matching: .any).matching(identifier: "ops-routing-effort").firstMatch.tap(); app.buttons["High"].tap()
-        app.buttons["ops-routing-save"].tap()
-        XCTAssertTrue(routing.waitForExistence(timeout: 5))
-        XCTAssertTrue(routing.label.contains("Grok"))
-        routing.tap()
-        XCTAssertTrue(provider.waitForExistence(timeout: 10)); waitForEnabled(provider)
-        XCTAssertEqual(provider.value as? String, "Grok")
-        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "ops-routing-model").firstMatch.value as? String, "Fixture model")
-        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "ops-routing-effort").firstMatch.value as? String, "High")
-        capture(app, "Ops persisted manual routing")
-        provider.tap(); app.buttons["Free Router"].tap()
-        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "ops-routing-effort").firstMatch.isEnabled)
-        XCTAssertEqual(app.switches["ops-routing-fallback"].value as? String, "0")
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "FreeRouter supports text chat")).firstMatch.exists)
-        capture(app, "Ops FreeRouter chat routing")
-    }
-    func testOpsWorkerTimelineAndProviderSubagent() throws {
-        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops worker inspector") }
-        app.tabBars.buttons["Team"].tap()
-        let worker = app.staticTexts["Export repair"]
-        XCTAssertTrue(worker.waitForExistence(timeout: 10)); worker.tap()
-        let activity = app.buttons["ops-worker-activity-toggle"]
-        scrollTo(activity, in: app); activity.tap()
-        XCTAssertEqual(activity.value as? String, "Expanded")
-        XCTAssertTrue(app.staticTexts["Checking the export implementation."].waitForExistence(timeout: 10))
-        let output = app.buttons["Show output"]
-        scrollTo(output, in: app); output.tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "All 12 checks passed")).firstMatch.waitForExistence(timeout: 5))
-        capture(app, "Ops structured worker tool output")
-        scrollTo(activity, in: app, upward: false); activity.tap()
-        let children = app.buttons["ops-subagents"]
-        scrollTo(children, in: app); children.tap()
-        let child = app.buttons["ops-subagent-child-1"]
-        XCTAssertTrue(child.waitForExistence(timeout: 10)); scrollTo(child, in: app); child.tap()
-        let childActivity = app.buttons["ops-worker-activity-toggle"]
-        XCTAssertTrue(childActivity.waitForExistence(timeout: 5)); childActivity.tap()
-        XCTAssertTrue(app.staticTexts["Reviewed empty exports and unicode filenames."].waitForExistence(timeout: 10))
-        capture(app, "Ops saved provider subagent activity")
         XCTAssertEqual(app.webViews.count, 0)
     }
     private func waitForEnabled(_ element: XCUIElement) {
@@ -206,176 +114,8 @@ final class LaunchTests: XCTestCase {
         }
         XCTAssertTrue(element.exists)
     }
-    func testOpsCompanyCreatesWorkWithCompletionChecks() throws {
-        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        guard app.tabBars.buttons["Work"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops work") }
-        app.tabBars.buttons["Work"].tap()
-        XCTAssertTrue(app.buttons["ops-company-create"].waitForExistence(timeout: 10))
-        capture(app, "Ops company overview")
-        app.buttons["ops-company-create"].tap()
-        fillCompanyField("ops-company-title", with: "Check the release notes", in: app)
-        fillCompanyField("ops-company-objective", with: "Prepare accurate release notes", in: app)
-        fillCompanyField("ops-company-criteria", with: "Every change is linked to a check", in: app)
-        app.buttons["ops-company-create-save"].tap()
-        let created = app.buttons["ops-kanban-card-job-2"]
-        XCTAssertTrue(created.waitForExistence(timeout: 10)); created.tap()
-        XCTAssertTrue(app.staticTexts["ops-company-criterion-0"].waitForExistence(timeout: 10))
-        XCTAssertEqual(app.staticTexts["ops-company-criterion-0"].label, "Every change is linked to a check")
-        capture(app, "Ops work with completion checks")
-    }
-    func testOpsCompanyRecordsAnOwnerCheck() throws {
-        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        guard app.tabBars.buttons["Work"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops work review") }
-        app.tabBars.buttons["Work"].tap()
-        let job = app.buttons["ops-kanban-card-job-1"]
-        XCTAssertTrue(job.waitForExistence(timeout: 10)); job.tap()
-        XCTAssertTrue(app.staticTexts["Make exports reliable for every project."].waitForExistence(timeout: 10))
-        fillCompanyField("ops-work-review-note", with: "Checked an empty export and confirmed the download completed", in: app)
-        let approve = app.buttons["ops-work-review-approve"]
-        scrollTo(approve, in: app); approve.tap()
-        let confirm = app.buttons.matching(identifier: "ops-work-review-confirm").firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.sheets.matching(NSPredicate(format: "label BEGINSWITH %@", "Confirm approve")).firstMatch.exists)
-        confirm.tap()
-        let reviewState = app.staticTexts["ops-work-review-state"]
-        XCTAssertTrue(reviewState.waitForExistence(timeout: 10))
-        XCTAssertEqual(reviewState.label, "Review: Approved")
-        XCTAssertTrue(app.staticTexts["Checked an empty export and confirmed the download completed"].exists)
-        let stage = app.staticTexts["ops-company-current-status"]; scrollTo(stage, in: app, upward: false)
-        XCTAssertEqual(stage.label, "To do", "Review must not silently move the card")
-        let noRuns = app.staticTexts["No confirmed runs"]; scrollTo(noRuns, in: app)
-        XCTAssertTrue(noRuns.exists, "Approval must not start a run")
-        capture(app, "Ops owner recorded review")
-    }
-    func testOpsLegacyWorkRetainsOwnerEvidenceWorkflow() throws {
-        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        guard app.tabBars.buttons["Work"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops legacy evidence") }
-        app.tabBars.buttons["Work"].tap()
-        let job = app.buttons["ops-kanban-card-job-1"]
-        XCTAssertTrue(job.waitForExistence(timeout: 10)); job.tap()
-        let history = app.buttons["ops-work-legacy-detail"]
-        XCTAssertTrue(history.waitForExistence(timeout: 10)); history.tap()
-        XCTAssertTrue(app.buttons["ops-company-more"].waitForExistence(timeout: 10)); app.buttons["ops-company-more"].tap()
-        let record = app.buttons.matching(identifier: "ops-company-record-check").firstMatch
-        XCTAssertTrue(record.waitForExistence(timeout: 5)); record.tap()
-        fillCompanyField("ops-company-check-summary", with: "Checked an empty export and confirmed the download completed", in: app)
-        XCTAssertTrue(app.staticTexts["Recorded by you. This is your assessment, not an automated test result."].exists)
-        app.buttons["ops-company-action-save"].tap()
-        XCTAssertTrue(app.buttons["ops-company-more"].waitForExistence(timeout: 10))
-        let check = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Test · Passed")).firstMatch
-        XCTAssertTrue(check.waitForExistence(timeout: 10)); scrollTo(check, in: app); check.tap()
-        XCTAssertTrue(app.staticTexts["Source: Recorded by you"].waitForExistence(timeout: 10))
-        capture(app, "Ops legacy owner evidence")
-    }
-    private func fillCompanyField(_ identifier: String, with text: String, in app: XCUIApplication) {
-        // SwiftUI vertical fields appear lazily and can expose either accessibility type.
-        let field = app.descendants(matching: .any).matching(identifier: identifier)
-            .matching(NSPredicate(format: "elementType == %d OR elementType == %d", XCUIElement.ElementType.textField.rawValue, XCUIElement.ElementType.textView.rawValue)).firstMatch
-        scrollTo(field, in: app)
-        XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText(text)
-    }
-    func testOpsKanbanMovesAWorkCard() throws {
-        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        guard app.tabBars.buttons["Work"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops board") }
-        app.tabBars.buttons["Work"].tap()
-        let job = app.buttons["ops-kanban-card-job-1"]
-        XCTAssertTrue(job.waitForExistence(timeout: 10)); job.tap()
-        let move = app.buttons["ops-work-move"]
-        XCTAssertTrue(move.waitForExistence(timeout: 10)); scrollTo(move, in: app); move.tap()
-        let destination = app.buttons.matching(identifier: "ops-work-move-to-doing").firstMatch
-        XCTAssertTrue(destination.waitForExistence(timeout: 5)); destination.tap()
-        let status = app.staticTexts["ops-company-current-status"]
-        let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "In progress"), object: status)
-        XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 10), .completed)
-        XCTAssertFalse(app.staticTexts["Review: Approved"].exists, "Moving a card must not grant approval")
-        XCTAssertTrue(app.staticTexts["No confirmed runs"].exists, "Moving a card must not start a worker")
-        capture(app, "Ops acknowledged board move")
-    }
-    func testOpsWorkRetainsConcurrentMoveConflict() throws {
-        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures", "--uitest-work-conflict"]; app.launch()
-        guard app.tabBars.buttons["Work"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops board conflict") }
-        app.tabBars.buttons["Work"].tap()
-        let job = app.buttons["ops-kanban-card-job-1"]
-        XCTAssertTrue(job.waitForExistence(timeout: 10))
-        let destination = app.buttons.matching(NSPredicate(format: "label == %@", "Move to In progress")).firstMatch
-        let pending = app.descendants(matching: .any)["ops-work-outbox"].firstMatch
-        // The context menu can still be animating when it first reports the
-        // item, and a tap then lands nowhere. Reopen it until the move is sent.
-        for _ in 0..<3 where !pending.exists {
-            job.press(forDuration: 1)
-            let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true AND hittable == true"), object: destination)
-            guard XCTWaiter.wait(for: [ready], timeout: 5) == .completed else { continue }
-            destination.tap()
-            _ = pending.waitForExistence(timeout: 5)
-        }
-        XCTAssertTrue(pending.waitForExistence(timeout: 10)); pending.tap()
-        XCTAssertTrue(app.staticTexts["Conflict: Another device moved this card to Needs review."].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["Dismiss intent"].exists)
-        capture(app, "Ops retained move conflict")
-    }
-    func testOpsWorkOfflineCacheAllowsPlanningButNotDispatch() throws {
-        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures", "--uitest-work-offline-after-snapshot"]; app.launch()
-        guard app.tabBars.buttons["Work"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops offline work") }
-        app.tabBars.buttons["Work"].tap()
-        XCTAssertTrue(app.staticTexts["Fixture connection is offline"].waitForExistence(timeout: 10))
-        let job = app.buttons["ops-kanban-card-job-1"]
-        XCTAssertTrue(job.waitForExistence(timeout: 10)); job.tap()
-        XCTAssertTrue(app.staticTexts["Make exports reliable for every project."].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["ops-company-assign"].isEnabled, "Cached work must not imply permission to dispatch offline")
-        fillCompanyField("ops-work-comment", with: "Review this plan when connected", in: app)
-        // The keyboard accessory bar can cover a row above the keyboard frame.
-        let done = app.buttons["ops-work-keyboard-done"]
-        XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
-        let keyboardHidden = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.keyboards.firstMatch)
-        XCTAssertEqual(XCTWaiter.wait(for: [keyboardHidden], timeout: 5), .completed)
-        let save = app.buttons["ops-work-comment-save"]; scrollTo(save, in: app); save.tap()
-        let saved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == false"), object: save)
-        XCTAssertEqual(XCTWaiter.wait(for: [saved], timeout: 5), .completed, "Saving offline must durably queue the comment and clear its draft")
-        let dispatch = app.buttons["ops-company-assign"]
-        scrollTo(dispatch, in: app, upward: false)
-        XCTAssertTrue(dispatch.exists)
-        XCTAssertFalse(dispatch.isEnabled)
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.descendants(matching: .any)["ops-work-outbox"].firstMatch.waitForExistence(timeout: 10))
-        capture(app, "Ops offline planning")
-    }
-    func testOpsLiveAgentActivityOpensRealToolDetails() throws {
-        let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures", "--uitest-live-activity"]; app.launch()
-        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 5) else { throw XCTSkip("Ops live activity") }
-        let live = app.buttons["ops-live-activity-open"]
-        XCTAssertTrue(live.waitForExistence(timeout: 10))
-        capture(app, "Ops live assistant presence")
-        live.tap()
-        XCTAssertTrue(app.navigationBars["Live activity"].waitForExistence(timeout: 5))
-        let search = app.textFields["ops-activity-search"]
-        XCTAssertTrue(search.waitForExistence(timeout: 10))
-        search.tap(); search.typeText("npm test\n")
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "Running export checks")).firstMatch.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["No matching activity"].exists)
-        capture(app, "Ops live tool inspector")
-        app.buttons["Done"].tap()
-        XCTAssertTrue(live.waitForExistence(timeout: 5))
-    }
-    func testOpsCapacityAtLargeTextSize() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--uitest-fixtures", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
-        app.launch()
-        guard app.tabBars.buttons["Team"].waitForExistence(timeout: 3) else { throw XCTSkip("Ops capacity only") }
-        app.tabBars.buttons["Usage"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["ops-provider-codex"].firstMatch.waitForExistence(timeout: 10))
-        capture(app, "Ops capacity large text")
-        for _ in 0..<12 {
-            if app.descendants(matching: .any)["ops-provider-freerouter"].firstMatch.isHittable { break }
-            app.swipeUp()
-        }
-        XCTAssertTrue(app.descendants(matching: .any)["ops-provider-freerouter"].firstMatch.isHittable)
-        capture(app, "Ops route capacity large text")
-    }
-    // MARK: Lakeside Ask
-
-    /// Opens the fixture conversation. Returns false in the Ops app.
     private func openAskConversation(_ app: XCUIApplication) -> Bool {
-        if app.tabBars.buttons["Team"].waitForExistence(timeout: 3) { return false }
+        if app.tabBars.buttons["Keir"].waitForExistence(timeout: 3) { return false }
         let conversation = app.staticTexts["How does inflation work?"]
         XCTAssertTrue(conversation.waitForExistence(timeout: 10)); conversation.tap()
         XCTAssertTrue(app.staticTexts["Prices respond to supply and demand."].waitForExistence(timeout: 10))
@@ -424,7 +164,7 @@ final class LaunchTests: XCTestCase {
     }
     func testAskWatchesListAndDelete() throws {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        if app.tabBars.buttons["Team"].waitForExistence(timeout: 3) { throw XCTSkip("Ask watches") }
+        if app.tabBars.buttons["Keir"].waitForExistence(timeout: 3) { throw XCTSkip("Ask watches") }
         let watches = app.buttons["ask-watches"]
         XCTAssertTrue(watches.waitForExistence(timeout: 10))
         capture(app, "Ask home")
@@ -474,12 +214,11 @@ final class LaunchTests: XCTestCase {
     private func capture(_ app: XCUIApplication, _ name: String) {
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = name; screenshot.lifetime = .keepAlways; add(screenshot)
     }
-    func testAttachmentMenu() {
+    func testAttachmentMenu() throws {
         let app = XCUIApplication(); app.launchArguments = ["--uitest-fixtures"]; app.launch()
-        if !app.tabBars.buttons["Team"].waitForExistence(timeout: 3) {
-            let conversation = app.staticTexts["How does inflation work?"]
-            XCTAssertTrue(conversation.waitForExistence(timeout: 10)); conversation.tap()
-        }
+        if app.tabBars.buttons["Keir"].waitForExistence(timeout: 3) { throw XCTSkip("Ops sends text to Keir") }
+        let conversation = app.staticTexts["How does inflation work?"]
+        XCTAssertTrue(conversation.waitForExistence(timeout: 10)); conversation.tap()
         let add = app.buttons["add-attachment"]
         XCTAssertTrue(add.waitForExistence(timeout: 10)); add.tap()
         XCTAssertTrue(app.buttons["Photo library"].waitForExistence(timeout: 5))

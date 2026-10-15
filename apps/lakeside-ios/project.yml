@@ -46,10 +46,11 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.lakesidegames.ops
-        MARKETING_VERSION: '1.5.0'
+        MARKETING_VERSION: '2.0.0'
         INFOPLIST_KEY_CFBundleDisplayName: Lakeside Ops
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": scripts/simulator.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": scripts/ops.entitlements
   AskUITests:
     type: bundle.ui-testing
     platform: iOS

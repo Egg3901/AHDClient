@@ -207,6 +207,14 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Se
         do { return try JSONDecoder().decode(JSONValue.self, from: data) }
         catch { throw AppFailure(message: FailureKind.unexpectedResponse.defaultMessage, kind: .unexpectedResponse) }
     }
+    /// Raw bytes from the pinned origin, for images such as Keir's charts.
+    func data(_ path: String, accept: String = "image/png", limit: Int = 8_000_000) async throws -> Data {
+        var r = try request(path); r.setValue(accept, forHTTPHeaderField: "Accept")
+        let (data, response) = try await transport.data(for: r)
+        try validate(response, data: data)
+        guard response.mimeType == accept, data.count <= limit else { throw AppFailure(message: "The image could not be loaded.") }
+        return data
+    }
     func renderMap(_ specification: JSONValue) async throws -> Data {
         var r = try request("/api/map/render", body: specification.object)
         r.setValue("image/svg+xml", forHTTPHeaderField: "Accept")

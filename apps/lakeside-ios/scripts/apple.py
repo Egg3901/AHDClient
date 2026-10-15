@@ -46,12 +46,25 @@ def api(path, body=None):
         raise RuntimeError("Apple API HTTP %s: %s" % (error.code, "; ".join(x.get("detail", x.get("title", "Request failed")) for x in details))) from None
 
 
+def ensure_push(bundle):
+    """Ops pushes Keir replies and decisions. Automatic signing only adds
+    aps-environment when the App ID has the capability. Idempotent."""
+    record = api("bundleIds?" + urllib.parse.urlencode({"filter[identifier]": bundle}))["data"]
+    record = [x for x in record if x["attributes"]["identifier"] == bundle][0]["id"]
+    kinds = [x["attributes"]["capabilityType"] for x in api("bundleIds/%s/bundleIdCapabilities" % record)["data"]]
+    if "PUSH_NOTIFICATIONS" not in kinds:
+        api("bundleIdCapabilities", {"data": {"type": "bundleIdCapabilities", "attributes": {"capabilityType": "PUSH_NOTIFICATIONS"},
+            "relationships": {"bundleId": {"data": {"type": "bundleIds", "id": record}}}}})
+    print("%s push capability: %s" % (bundle, "present" if "PUSH_NOTIFICATIONS" in kinds else "enabled"))
+
+
 def prepare():
     status = []
     for scheme, name, bundle in [("LakesideAsk", "Lakeside Ask", "net.lakesidegames.ask"), ("LakesideOps", "Lakeside Ops", "net.lakesidegames.ops")]:
         identifiers = api("bundleIds?" + urllib.parse.urlencode({"filter[identifier]": bundle}))["data"]
         if not identifiers:
             api("bundleIds", {"data": {"type": "bundleIds", "attributes": {"identifier": bundle, "name": name, "platform": "IOS"}}})
+        if scheme == "LakesideOps": ensure_push(bundle)
         apps = api("apps?" + urllib.parse.urlencode({"filter[bundleId]": bundle}))["data"]
         status.append({"scheme": scheme, "name": name, "bundleId": bundle, "appId": apps[0]["id"] if apps else None,
             "status": "ready-to-build" if apps else "needs-app-record"})
