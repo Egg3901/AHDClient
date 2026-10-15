@@ -1,7 +1,7 @@
 build:
-  name: Lakeside Ops private TestFlight
+  name: Lakeside Ask private TestFlight
   steps:
     - eas/checkout
     - run:
-        name: Build and deliver native Ops
+        name: Build and deliver native Ask
         command: bash scripts/eas-release.sh

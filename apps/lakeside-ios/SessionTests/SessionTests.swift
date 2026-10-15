@@ -1,5 +1,5 @@
 import XCTest
-@testable import LakesideOps
+@testable import LakesideAsk
 
 @MainActor final class SessionTests: XCTestCase {
     private func session() -> AppSession {

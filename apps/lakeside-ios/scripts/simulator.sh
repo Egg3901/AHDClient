@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 scheme="${1:?scheme required}"
-case "$scheme" in LakesideAsk|LakesideOps) ;; *) exit 2 ;; esac
+case "$scheme" in LakesideAsk) ;; *) exit 2 ;; esac
 simulator_id=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for k,vs in sorted(d["devices"].items(), reverse=True) if "iOS" in k for v in vs if v["name"].startswith("iPhone")))')
 # Simulator-only ad hoc entitlements let the sign-in test exercise real Keychain storage.
 xcodebuild test -project Lakeside.xcodeproj -scheme "$scheme" \

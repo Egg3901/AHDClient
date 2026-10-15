@@ -48,7 +48,7 @@ def api(path, body=None):
 
 def prepare():
     status = []
-    for scheme, name, bundle in [("LakesideAsk", "Lakeside Ask", "net.lakesidegames.ask"), ("LakesideOps", "Lakeside Ops", "net.lakesidegames.ops")]:
+    for scheme, name, bundle in [("LakesideAsk", "Lakeside Ask", "net.lakesidegames.ask")]:
         identifiers = api("bundleIds?" + urllib.parse.urlencode({"filter[identifier]": bundle}))["data"]
         if not identifiers:
             api("bundleIds", {"data": {"type": "bundleIds", "attributes": {"identifier": bundle, "name": name, "platform": "IOS"}}})
